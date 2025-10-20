@@ -1,16 +1,12 @@
 services:
   - type: web
-    name: makeplus-api
+    name: makeplus-Django-4
     runtime: python
     plan: free
     branch: main
     rootDir: makeplus_backend/makeplus_api
-    buildCommand: |
-      pip install --upgrade pip
-      pip install -r requirements.txt
-      python manage.py collectstatic --no-input
-      python manage.py migrate --no-input
-    startCommand: gunicorn makeplus_api.wsgi:application
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate --no-input
+    startCommand: gunicorn makeplus_api.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.13.4
@@ -19,4 +15,4 @@ services:
       - key: DEBUG
         value: False
       - key: ALLOWED_HOSTS
-        value: .onrender.com
+        value: makeplus-django-4.onrender.com,.onrender.com
