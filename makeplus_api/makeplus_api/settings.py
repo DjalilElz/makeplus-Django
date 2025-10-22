@@ -71,17 +71,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'makeplus_api.wsgi.application'
 
-# Database - Using SQLite for development (easier to test)
-# Switch to PostgreSQL in production
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
-# Uncomment below for PostgreSQL/Supabase in production
-"""
+# Database - Using Supabase PostgreSQL
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -95,6 +85,15 @@ DATABASES = {
             'connect_timeout': 10,
         },
         'CONN_MAX_AGE': 600,
+    }
+}
+
+# Old SQLite configuration (commented out)
+"""
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 """
