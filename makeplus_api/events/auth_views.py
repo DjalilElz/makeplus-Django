@@ -132,6 +132,9 @@ class CustomLoginView(APIView):
                 'event': {
                     'id': str(event.id),
                     'name': event.name,
+                    'start_date': event.start_date.isoformat() if event.start_date else None,
+                    'end_date': event.end_date.isoformat() if event.end_date else None,
+                    'location': event.location,
                 } if event else None
             }, status=status.HTTP_200_OK)
             
