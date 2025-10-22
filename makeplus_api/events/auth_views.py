@@ -1,5 +1,5 @@
 """
-Authentication Views - JWT Implementation
+Authentication Views - JWT Implementation with EMAIL LOGIN
 """
 
 from rest_framework import status, generics
@@ -10,6 +10,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from .serializers import (
     UserSerializer, UserRegistrationSerializer,
     UserProfileSerializer, ChangePasswordSerializer,
@@ -18,27 +20,220 @@ from .serializers import (
 from .models import UserEventAssignment
 
 
-class CustomLoginView(TokenObtainPairView):
+class CustomLoginView(APIView):
     """
-    Custom login view that returns user data along with tokens
+    Custom login view - USES EMAIL instead of username
     """
-    serializer_class = CustomTokenObtainPairSerializer
-    permission_classes = [AllowAny]
-
-
-class RegisterView(generics.CreateAPIView):
-    """
-    User registration endpoint
-    POST: Create new user account
-    """
-    queryset = User.objects.all()
-    serializer_class = UserRegistrationSerializer
     permission_classes = [AllowAny]
     
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+    @swagger_auto_schema(
+        operation_description="Login with email and password",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['email', 'password'],
+            properties={
+                'email': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='User email address',
+                    example='organizer@makeplus.com'
+                ),
+                'password': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format=openapi.FORMAT_PASSWORD,
+                    description='User password',
+                    example='test123'
+                ),
+            },
+        ),
+        responses={
+            200: openapi.Response(
+                description="Login successful",
+                examples={
+                    "application/json": {
+                        "tokens": {
+                            "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                            "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                        },
+                        "user": {
+                            "id": 1,
+                            "username": "organizer",
+                            "email": "organizer@makeplus.com",
+                            "first_name": "Ahmed",
+                            "last_name": "Benali"
+                        },
+                        "role": "organizer",
+                        "event": {
+                            "id": "123e4567-e89b-12d3-a456-426614174000",
+                            "name": "MakePlus 2025"
+                        }
+                    }
+                }
+            ),
+            400: "Bad request - Missing email or password",
+            401: "Unauthorized - Invalid credentials"
+        }
+    )
+    def post(self, request):
+        email = request.data.get('email')
+        password = request.data.get('password')
+        
+        if not email or not password:
+            return Response({
+                'detail': 'Email and password are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get user by email
+            user = User.objects.get(email=email)
+            
+            # Authenticate using username (Django internal requirement)
+            authenticated_user = authenticate(
+                request,
+                username=user.username,
+                password=password
+            )
+            
+            if authenticated_user is None:
+                return Response({
+                    'detail': 'Invalid credentials'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            if not authenticated_user.is_active:
+                return Response({
+                    'detail': 'Account is inactive'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Get user's role
+            assignment = UserEventAssignment.objects.filter(
+                user=authenticated_user,
+                is_active=True
+            ).select_related('event').first()
+            
+            role = assignment.role if assignment else 'participant'
+            event = assignment.event if assignment else None
+            
+            # Generate tokens
+            refresh = RefreshToken.for_user(authenticated_user)
+            
+            return Response({
+                'tokens': {
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh),
+                },
+                'user': {
+                    'id': authenticated_user.id,
+                    'username': authenticated_user.username,
+                    'email': authenticated_user.email,
+                    'first_name': authenticated_user.first_name,
+                    'last_name': authenticated_user.last_name,
+                    'is_active': authenticated_user.is_active,
+                },
+                'role': role,
+                'event': {
+                    'id': str(event.id),
+                    'name': event.name,
+                } if event else None
+            }, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({
+                'detail': 'No active account found with the given credentials'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+
+class RegisterView(APIView):
+    """
+    User registration endpoint - USES EMAIL
+    """
+    permission_classes = [AllowAny]
+    
+    @swagger_auto_schema(
+        operation_description="Register new user with email",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['email', 'password', 'password2'],
+            properties={
+                'email': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format=openapi.FORMAT_EMAIL,
+                    description='User email address',
+                    example='newuser@makeplus.com'
+                ),
+                'password': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format=openapi.FORMAT_PASSWORD,
+                    description='Password (min 6 characters)',
+                    example='password123'
+                ),
+                'password2': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format=openapi.FORMAT_PASSWORD,
+                    description='Confirm password',
+                    example='password123'
+                ),
+                'first_name': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='First name',
+                    example='John'
+                ),
+                'last_name': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Last name',
+                    example='Doe'
+                ),
+            },
+        ),
+        responses={
+            201: "User created successfully",
+            400: "Bad request - Validation error"
+        }
+    )
+    def post(self, request):
+        email = request.data.get('email')
+        password = request.data.get('password')
+        password2 = request.data.get('password2')
+        first_name = request.data.get('first_name', '')
+        last_name = request.data.get('last_name', '')
+        
+        # Validation
+        if not email or not password:
+            return Response({
+                'detail': 'Email and password are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if password != password2:
+            return Response({
+                'detail': 'Passwords do not match'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if len(password) < 6:
+            return Response({
+                'detail': 'Password must be at least 6 characters'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if email exists
+        if User.objects.filter(email=email).exists():
+            return Response({
+                'detail': 'User with this email already exists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Generate username from email
+        username = email.split('@')[0]
+        base_username = username
+        counter = 1
+        
+        while User.objects.filter(username=username).exists():
+            username = f"{base_username}{counter}"
+            counter += 1
+        
+        # Create user
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name
+        )
         
         # Generate tokens
         refresh = RefreshToken.for_user(user)
@@ -53,7 +248,13 @@ class RegisterView(generics.CreateAPIView):
             role = assignment.role
         
         return Response({
-            'user': UserSerializer(user).data,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+            },
             'tokens': {
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
@@ -69,6 +270,23 @@ class LogoutView(APIView):
     """
     permission_classes = [IsAuthenticated]
     
+    @swagger_auto_schema(
+        operation_description="Logout and blacklist refresh token",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['refresh_token'],
+            properties={
+                'refresh_token': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Refresh token to blacklist'
+                ),
+            },
+        ),
+        responses={
+            205: "Successfully logged out",
+            400: "Bad request"
+        }
+    )
     def post(self, request):
         try:
             refresh_token = request.data.get('refresh_token')
@@ -131,6 +349,13 @@ class ChangePasswordView(APIView):
     """
     permission_classes = [IsAuthenticated]
     
+    @swagger_auto_schema(
+        request_body=ChangePasswordSerializer,
+        responses={
+            200: "Password changed successfully",
+            400: "Bad request - Validation error"
+        }
+    )
     def post(self, request):
         serializer = ChangePasswordSerializer(
             data=request.data,
@@ -156,6 +381,17 @@ class QRVerificationView(APIView):
     """
     permission_classes = [IsAuthenticated]
     
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['qr_data', 'room_id'],
+            properties={
+                'qr_data': openapi.Schema(type=openapi.TYPE_STRING),
+                'room_id': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID),
+                'session_id': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID),
+            },
+        )
+    )
     def post(self, request):
         from .serializers import QRVerificationSerializer
         from .models import Participant, RoomAccess
@@ -238,6 +474,19 @@ class QRGenerateView(APIView):
     """
     permission_classes = [IsAuthenticated]
     
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['participant_id'],
+            properties={
+                'participant_id': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format=openapi.FORMAT_UUID,
+                    description='Participant ID'
+                ),
+            },
+        )
+    )
     def post(self, request):
         import uuid
         import hashlib
@@ -283,6 +532,17 @@ class DashboardStatsView(APIView):
     """
     permission_classes = [IsAuthenticated]
     
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'event_id',
+                openapi.IN_QUERY,
+                description="Event ID to get stats for",
+                type=openapi.TYPE_STRING,
+                format=openapi.FORMAT_UUID
+            )
+        ]
+    )
     def get(self, request):
         from .models import Event, Room, Session, Participant, RoomAccess
         from django.db.models import Count, Q
