@@ -114,7 +114,29 @@ class CustomLoginView(APIView):
             
             # Generate tokens
             refresh = RefreshToken.for_user(authenticated_user)
-            
+
+            # Build event data safely
+            event_data = None
+            if event:
+                try:
+                    event_data = {
+                        'id': str(event.id),
+                        'name': event.name if event.name else '',
+                        'start_date': event.start_date.isoformat() if event.start_date else None,
+                        'end_date': event.end_date.isoformat() if event.end_date else None,
+                        'location': event.location if event.location else None,
+                    }
+                except Exception as e:
+                    # Log error but don't fail the login
+                    print(f"Error building event data: {str(e)}")
+                    event_data = {
+                        'id': str(event.id),
+                        'name': event.name if hasattr(event, 'name') and event.name else '',
+                        'start_date': None,
+                        'end_date': None,
+                        'location': None,
+                    }
+
             return Response({
                 'tokens': {
                     'access': str(refresh.access_token),
@@ -129,19 +151,19 @@ class CustomLoginView(APIView):
                     'is_active': authenticated_user.is_active,
                 },
                 'role': role,
-                'event': {
-                    'id': str(event.id),
-                    'name': event.name,
-                    'start_date': event.start_date.isoformat() if event.start_date else None,
-                    'end_date': event.end_date.isoformat() if event.end_date else None,
-                    'location': event.location,
-                } if event else None
+                'event': event_data
             }, status=status.HTTP_200_OK)
-            
+
         except User.DoesNotExist:
             return Response({
                 'detail': 'No active account found with the given credentials'
             }, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            # Catch any other errors and return a proper JSON response
+            print(f"Login error: {str(e)}")
+            return Response({
+                'detail': f'An error occurred during login: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class RegisterView(APIView):
