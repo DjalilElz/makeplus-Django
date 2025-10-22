@@ -7,7 +7,14 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Q, Count
-
+from .auth_views import (
+    RegisterView, CustomLoginView, LogoutView,
+    UserProfileView, ChangePasswordView,
+    QRVerificationView, QRGenerateView,
+    DashboardStatsView,
+    NotificationListView, NotificationDetailView,
+    MarkNotificationReadView
+)
 from .models import Event, Room, Session, Participant, RoomAccess, UserEventAssignment
 from .serializers import (
     EventSerializer, RoomSerializer, RoomListSerializer, SessionSerializer,
