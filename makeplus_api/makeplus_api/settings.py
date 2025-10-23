@@ -71,7 +71,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'makeplus_api.wsgi.application'
 
-# Database - Using Supabase PostgreSQL
+# Database - Using SQLite for local development
+# Note: To sync with Supabase, you need to update data in SQLite directly
+# or use database migration/sync tools
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+
+# Supabase PostgreSQL configuration (currently not working due to network/IPv6 issues)
+# To use Supabase, you need to:
+# 1. Fix IPv6 connectivity OR
+# 2. Get the correct pooler connection string from Supabase dashboard
+"""
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -85,15 +99,6 @@ DATABASES = {
             'connect_timeout': 10,
         },
         'CONN_MAX_AGE': 600,
-    }
-}
-
-# Old SQLite configuration (commented out)
-"""
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 """
