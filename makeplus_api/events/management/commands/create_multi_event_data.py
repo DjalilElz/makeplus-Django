@@ -7,13 +7,15 @@ import uuid
 
 
 class Command(BaseCommand):
-    help = 'Creates multiple events with users for each role type (organisateur, controlleur_des_badges, participant, exposant)'
+    help = 'Creates multiple events with comprehensive test data for all user roles'
 
     def handle(self, *args, **kwargs):
-        self.stdout.write(self.style.SUCCESS('🚀 Creating multiple events with users for each role...\n'))
+        self.stdout.write(self.style.SUCCESS('\n' + '='*80))
+        self.stdout.write(self.style.SUCCESS('🚀 CREATING COMPREHENSIVE TEST DATA'))
+        self.stdout.write(self.style.SUCCESS('='*80 + '\n'))
         
         # Track created users for credentials output
-        created_users = []
+        all_credentials = []
         
         # Define multiple events
         events_data = [
@@ -66,51 +68,142 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(self.style.WARNING(f'⚠️  Event already exists: {event.name}'))
             
-            # Create users for each role
-            roles_data = [
-                {
-                    'role': 'organisateur',
-                    'username': f'{prefix}_organisateur',
-                    'email': f'{prefix}_organisateur@makeplus.com',
-                    'first_name': 'Ahmed',
-                    'last_name': 'Benali',
-                },
-                {
-                    'role': 'controlleur_des_badges',
-                    'username': f'{prefix}_controleur',
-                    'email': f'{prefix}_controleur@makeplus.com',
-                    'first_name': 'Amina',
-                    'last_name': 'Bensebbah',
-                },
-                {
-                    'role': 'participant',
-                    'username': f'{prefix}_participant1',
-                    'email': f'{prefix}_participant1@makeplus.com',
-                    'first_name': 'Karim',
-                    'last_name': 'Djebar',
-                },
-                {
-                    'role': 'participant',
-                    'username': f'{prefix}_participant2',
-                    'email': f'{prefix}_participant2@makeplus.com',
-                    'first_name': 'Salima',
-                    'last_name': 'Hamdi',
-                },
-                {
-                    'role': 'exposant',
-                    'username': f'{prefix}_exposant1',
-                    'email': f'{prefix}_exposant1@makeplus.com',
-                    'first_name': 'Yacine',
-                    'last_name': 'Belkacem',
-                },
-                {
-                    'role': 'exposant',
-                    'username': f'{prefix}_exposant2',
-                    'email': f'{prefix}_exposant2@makeplus.com',
-                    'first_name': 'Fatima',
-                    'last_name': 'Zerhouni',
-                },
-            ]
+            # Create users for each role with diverse, realistic information
+            if prefix == 'tech':
+                roles_data = [
+                    {
+                        'role': 'organisateur',
+                        'username': f'{prefix}_organisateur',
+                        'email': f'ahmed.benali@techsummit.dz',
+                        'first_name': 'Ahmed',
+                        'last_name': 'Benali',
+                    },
+                    {
+                        'role': 'controlleur_des_badges',
+                        'username': f'{prefix}_controleur',
+                        'email': f'amina.bouzid@techsummit.dz',
+                        'first_name': 'Amina',
+                        'last_name': 'Bouzid',
+                    },
+                    {
+                        'role': 'participant',
+                        'username': f'{prefix}_participant1',
+                        'email': f'karim.meziane@gmail.com',
+                        'first_name': 'Karim',
+                        'last_name': 'Meziane',
+                    },
+                    {
+                        'role': 'participant',
+                        'username': f'{prefix}_participant2',
+                        'email': f'sarah.hassani@outlook.com',
+                        'first_name': 'Sarah',
+                        'last_name': 'Hassani',
+                    },
+                    {
+                        'role': 'exposant',
+                        'username': f'{prefix}_exposant1',
+                        'email': f'yacine.belkacem@innovtech.dz',
+                        'first_name': 'Yacine',
+                        'last_name': 'Belkacem',
+                    },
+                    {
+                        'role': 'exposant',
+                        'username': f'{prefix}_exposant2',
+                        'email': f'fatima.zerhouni@algsoft.dz',
+                        'first_name': 'Fatima',
+                        'last_name': 'Zerhouni',
+                    },
+                ]
+            elif prefix == 'startup':
+                roles_data = [
+                    {
+                        'role': 'organisateur',
+                        'username': f'{prefix}_organisateur',
+                        'email': f'mohamed.brahimi@startupweek.dz',
+                        'first_name': 'Mohamed',
+                        'last_name': 'Brahimi',
+                    },
+                    {
+                        'role': 'controlleur_des_badges',
+                        'username': f'{prefix}_controleur',
+                        'email': f'leila.madani@startupweek.dz',
+                        'first_name': 'Leila',
+                        'last_name': 'Madani',
+                    },
+                    {
+                        'role': 'participant',
+                        'username': f'{prefix}_participant1',
+                        'email': f'rania.khelifa@yahoo.fr',
+                        'first_name': 'Rania',
+                        'last_name': 'Khelifa',
+                    },
+                    {
+                        'role': 'participant',
+                        'username': f'{prefix}_participant2',
+                        'email': f'nassim.sahraoui@gmail.com',
+                        'first_name': 'Nassim',
+                        'last_name': 'Sahraoui',
+                    },
+                    {
+                        'role': 'exposant',
+                        'username': f'{prefix}_exposant1',
+                        'email': f'sophia.boumediene@startuplab.dz',
+                        'first_name': 'Sophia',
+                        'last_name': 'Boumediene',
+                    },
+                    {
+                        'role': 'exposant',
+                        'username': f'{prefix}_exposant2',
+                        'email': f'malik.cherif@techventures.dz',
+                        'first_name': 'Malik',
+                        'last_name': 'Cherif',
+                    },
+                ]
+            else:  # inno
+                roles_data = [
+                    {
+                        'role': 'organisateur',
+                        'username': f'{prefix}_organisateur',
+                        'email': f'salah.hamidi@innofest.dz',
+                        'first_name': 'Salah',
+                        'last_name': 'Hamidi',
+                    },
+                    {
+                        'role': 'controlleur_des_badges',
+                        'username': f'{prefix}_controleur',
+                        'email': f'nadia.amrani@innofest.dz',
+                        'first_name': 'Nadia',
+                        'last_name': 'Amrani',
+                    },
+                    {
+                        'role': 'participant',
+                        'username': f'{prefix}_participant1',
+                        'email': f'mehdi.boudjemaa@gmail.com',
+                        'first_name': 'Mehdi',
+                        'last_name': 'Boudjemaa',
+                    },
+                    {
+                        'role': 'participant',
+                        'username': f'{prefix}_participant2',
+                        'email': f'lynda.benabdallah@hotmail.com',
+                        'first_name': 'Lynda',
+                        'last_name': 'Benabdallah',
+                    },
+                    {
+                        'role': 'exposant',
+                        'username': f'{prefix}_exposant1',
+                        'email': f'redha.kaddour@innovcorp.dz',
+                        'first_name': 'Redha',
+                        'last_name': 'Kaddour',
+                    },
+                    {
+                        'role': 'exposant',
+                        'username': f'{prefix}_exposant2',
+                        'email': f'samira.bouazza@creativetech.dz',
+                        'first_name': 'Samira',
+                        'last_name': 'Bouazza',
+                    },
+                ]
             
             event_users = []
             event_roles = []  # Track roles separately
@@ -127,7 +220,7 @@ class Command(BaseCommand):
                 if user_created:
                     user.set_password(password)
                     user.save()
-                    created_users.append({
+                    all_credentials.append({
                         'event': event.name,
                         'username': user.username,
                         'email': user.email,
@@ -265,7 +358,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('Default Password for all users: makeplus2025\n'))
         
         current_event = None
-        for user_info in created_users:
+        for user_info in all_credentials:
             if current_event != user_info['event']:
                 current_event = user_info['event']
                 self.stdout.write(self.style.SUCCESS(f'\n📅 {current_event}:'))
