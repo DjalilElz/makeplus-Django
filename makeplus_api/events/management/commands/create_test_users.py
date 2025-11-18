@@ -29,7 +29,7 @@ class Command(BaseCommand):
                 'password': 'test123',
                 'first_name': 'Ahmed',
                 'last_name': 'Benali',
-                'role': 'organizer',
+                'role': 'organisateur',
             },
             {
                 'username': 'controller1',
@@ -37,7 +37,7 @@ class Command(BaseCommand):
                 'password': 'test123',
                 'first_name': 'Amina',
                 'last_name': 'Bensebbah',
-                'role': 'controller',
+                'role': 'controlleur_des_badges',
             },
             {
                 'username': 'participant1',
@@ -61,7 +61,7 @@ class Command(BaseCommand):
                 'password': 'test123',
                 'first_name': 'Yacine',
                 'last_name': 'Belkacem',
-                'role': 'exhibitor',
+                'role': 'exposant',
             },
         ]
 

@@ -54,15 +54,15 @@ class Event(models.Model):
 class UserEventAssignment(models.Model):
     """User-Event Role Assignment"""
     ROLE_CHOICES = [
-        ('organizer', 'Organizer'),
-        ('controller', 'Controller'),
+        ('organisateur', 'Organisateur'),
+        ('controlleur_des_badges', 'Contrôleur des Badges'),
         ('participant', 'Participant'),
-        ('exhibitor', 'Exhibitor'),
+        ('exposant', 'Exposant'),
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='event_assignments')
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='user_assignments')
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    role = models.CharField(max_length=30, choices=ROLE_CHOICES)
     is_active = models.BooleanField(default=True)
     assigned_at = models.DateTimeField(auto_now_add=True)
     assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='assigned_users')

@@ -20,7 +20,7 @@ class IsOrganizer(permissions.BasePermission):
         return UserEventAssignment.objects.filter(
             user=request.user,
             event=event,
-            role='organizer',
+            role='organisateur',
             is_active=True
         ).exists() or request.user.is_staff
 
@@ -50,7 +50,7 @@ class IsOrganizerOrReadOnly(permissions.BasePermission):
         return UserEventAssignment.objects.filter(
             user=request.user,
             event=event,
-            role='organizer',
+            role='organisateur',
             is_active=True
         ).exists() or request.user.is_staff
 
@@ -71,7 +71,7 @@ class IsController(permissions.BasePermission):
         return UserEventAssignment.objects.filter(
             user=request.user,
             event=event,
-            role__in=['controller', 'organizer'],  # Organizers can also control
+            role__in=['controlleur_des_badges', 'organisateur'],  # Organizers can also control
             is_active=True
         ).exists() or request.user.is_staff
 
