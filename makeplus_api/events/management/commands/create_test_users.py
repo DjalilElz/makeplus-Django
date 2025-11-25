@@ -29,7 +29,7 @@ class Command(BaseCommand):
                 'password': 'test123',
                 'first_name': 'Ahmed',
                 'last_name': 'Benali',
-                'role': 'organisateur',
+                'role': 'gestionnaire_des_salles',
             },
             {
                 'username': 'controller1',

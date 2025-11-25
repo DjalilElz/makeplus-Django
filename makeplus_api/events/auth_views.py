@@ -6,10 +6,11 @@ from rest_framework import status, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+from django.utils import timezone
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .serializers import (
@@ -17,7 +18,10 @@ from .serializers import (
     UserProfileSerializer, ChangePasswordSerializer,
     CustomTokenObtainPairSerializer
 )
-from .models import UserEventAssignment
+from .models import UserEventAssignment, Event, Participant
+import jwt
+from django.conf import settings
+from datetime import timedelta
 
 
 class CustomLoginView(APIView):
@@ -103,66 +107,98 @@ class CustomLoginView(APIView):
                     'detail': 'Account is inactive'
                 }, status=status.HTTP_401_UNAUTHORIZED)
             
-            # Get user's role
-            assignment = UserEventAssignment.objects.filter(
+            # Get all events user is assigned to
+            assignments = UserEventAssignment.objects.filter(
                 user=authenticated_user,
                 is_active=True
-            ).select_related('event').first()
+            ).select_related('event').order_by('-event__start_date')
             
-            role = assignment.role if assignment else 'participant'
-            event = assignment.event if assignment else None
+            # Build available events list
+            available_events = []
+            for assignment in assignments:
+                event = assignment.event
+                
+                # Get badge info if user is participant/exposant
+                badge_info = None
+                if assignment.role in ['participant', 'exposant']:
+                    try:
+                        participant = Participant.objects.get(user=authenticated_user, event=event)
+                        badge_info = {
+                            'badge_id': participant.badge_id,
+                            'qr_code_data': participant.qr_code_data,
+                            'is_checked_in': participant.is_checked_in
+                        }
+                    except Participant.DoesNotExist:
+                        pass
+                
+                available_events.append({
+                    'id': str(event.id),
+                    'name': event.name,
+                    'role': assignment.role,
+                    'start_date': event.start_date.isoformat(),
+                    'end_date': event.end_date.isoformat(),
+                    'status': event.status,
+                    'location': event.location,
+                    'badge': badge_info
+                })
             
-            # Generate tokens
-            refresh = RefreshToken.for_user(authenticated_user)
-
-            # Build event data safely
-            event_data = None
-            if event:
-                try:
-                    event_data = {
-                        'id': str(event.id),
-                        'name': event.name if event.name else '',
-                        'start_date': event.start_date.isoformat() if event.start_date else None,
-                        'end_date': event.end_date.isoformat() if event.end_date else None,
-                        'location': event.location if event.location else None,
-                    }
-                except Exception as e:
-                    # Log error but don't fail the login
-                    print(f"Error building event data: {str(e)}")
-                    event_data = {
-                        'id': str(event.id),
-                        'name': event.name if hasattr(event, 'name') and event.name else '',
-                        'start_date': None,
-                        'end_date': None,
-                        'location': None,
-                    }
-
-            return Response({
-                'tokens': {
+            # If user has NO events
+            if len(available_events) == 0:
+                return Response({
+                    'detail': 'User is not assigned to any events'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # If user has only ONE event - auto-select it
+            if len(available_events) == 1:
+                selected_event = available_events[0]
+                
+                # Generate tokens with event context
+                refresh = RefreshToken.for_user(authenticated_user)
+                refresh['event_id'] = selected_event['id']
+                refresh['role'] = selected_event['role']
+                
+                return Response({
                     'access': str(refresh.access_token),
                     'refresh': str(refresh),
-                },
-                'user': {
-                    'id': authenticated_user.id,
-                    'username': authenticated_user.username,
-                    'email': authenticated_user.email,
-                    'first_name': authenticated_user.first_name,
-                    'last_name': authenticated_user.last_name,
-                    'is_active': authenticated_user.is_active,
-                },
-                'role': role,
-                'event': event_data
-            }, status=status.HTTP_200_OK)
+                    'user': {
+                        'id': authenticated_user.id,
+                        'username': authenticated_user.username,
+                        'email': authenticated_user.email,
+                        'first_name': authenticated_user.first_name,
+                        'last_name': authenticated_user.last_name,
+                    },
+                    'current_event': selected_event,
+                    'requires_event_selection': False
+                }, status=status.HTTP_200_OK)
+            
+            # If user has MULTIPLE events - return list and temp token
+            else:
+                # Create temporary token (valid for 5 minutes, no event context)
+                temp_refresh = RefreshToken.for_user(authenticated_user)
+                temp_refresh['is_temp']: True
+                temp_refresh.set_exp(lifetime=timedelta(minutes=5))
+                
+                return Response({
+                    'user': {
+                        'id': authenticated_user.id,
+                        'username': authenticated_user.username,
+                        'email': authenticated_user.email,
+                        'first_name': authenticated_user.first_name,
+                        'last_name': authenticated_user.last_name,
+                    },
+                    'requires_event_selection': True,
+                    'available_events': available_events,
+                    'temp_token': str(temp_refresh.access_token)
+                }, status=status.HTTP_200_OK)
 
         except User.DoesNotExist:
             return Response({
                 'detail': 'No active account found with the given credentials'
             }, status=status.HTTP_401_UNAUTHORIZED)
         except Exception as e:
-            # Catch any other errors and return a proper JSON response
             print(f"Login error: {str(e)}")
             return Response({
-                'detail': f'An error occurred during login: {str(e)}'
+                'detail': f'An error occurred during login'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -690,3 +726,238 @@ class MarkNotificationReadView(APIView):
         return Response({
             'message': 'Notification marked as read'
         }, status=status.HTTP_200_OK)
+
+
+class SelectEventView(APIView):
+    """
+    Select event after login (for users with multiple events)
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @swagger_auto_schema(
+        operation_description="Select event to access (after login with multiple events)",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['event_id'],
+            properties={
+                'event_id': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='UUID of the event to access',
+                    example='550e8400-e29b-41d4-a716-446655440000'
+                ),
+            },
+        ),
+        responses={
+            200: "Event selected successfully, returns full JWT tokens",
+            400: "Bad request",
+            403: "User not assigned to this event",
+            404: "Event not found"
+        }
+    )
+    def post(self, request):
+        event_id = request.data.get('event_id')
+        
+        if not event_id:
+            return Response({
+                'detail': 'event_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Verify user has access to this event
+            assignment = UserEventAssignment.objects.select_related('event').get(
+                user=request.user,
+                event_id=event_id,
+                is_active=True
+            )
+            
+            event = assignment.event
+            
+            # Get badge info if applicable
+            badge_info = None
+            if assignment.role in ['participant', 'exposant']:
+                try:
+                    participant = Participant.objects.get(user=request.user, event=event)
+                    badge_info = {
+                        'badge_id': participant.badge_id,
+                        'qr_code_data': participant.qr_code_data,
+                        'is_checked_in': participant.is_checked_in,
+                        'checked_in_at': participant.checked_in_at.isoformat() if participant.checked_in_at else None
+                    }
+                except Participant.DoesNotExist:
+                    pass
+            
+            # Generate new tokens with event context
+            refresh = RefreshToken.for_user(request.user)
+            refresh['event_id'] = str(event.id)
+            refresh['role'] = assignment.role
+            
+            # Determine permissions based on role
+            permissions = []
+            if assignment.role == 'organisateur':
+                permissions = ['full_control', 'manage_event', 'manage_rooms', 'manage_sessions', 'manage_participants', 'verify_qr']
+            elif assignment.role == 'controlleur_des_badges':
+                permissions = ['verify_qr', 'grant_access', 'view_participants']
+            elif assignment.role == 'participant':
+                permissions = ['view_sessions', 'access_rooms', 'check_in']
+            elif assignment.role == 'exposant':
+                permissions = ['view_sessions', 'access_rooms', 'check_in', 'manage_booth']
+            
+            return Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': {
+                    'id': request.user.id,
+                    'username': request.user.username,
+                    'email': request.user.email,
+                    'first_name': request.user.first_name,
+                    'last_name': request.user.last_name,
+                },
+                'current_event': {
+                    'id': str(event.id),
+                    'name': event.name,
+                    'role': assignment.role,
+                    'start_date': event.start_date.isoformat(),
+                    'end_date': event.end_date.isoformat(),
+                    'status': event.status,
+                    'location': event.location,
+                    'logo_url': event.logo_url,
+                    'banner_url': event.banner_url,
+                    'badge': badge_info,
+                    'permissions': permissions
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except UserEventAssignment.DoesNotExist:
+            return Response({
+                'detail': 'You do not have access to this event'
+            }, status=status.HTTP_403_FORBIDDEN)
+        except Event.DoesNotExist:
+            return Response({
+                'detail': 'Event not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Event selection error: {str(e)}")
+            return Response({
+                'detail': 'An error occurred while selecting the event'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class SwitchEventView(APIView):
+    """
+    Switch to a different event (for already logged-in users)
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @swagger_auto_schema(
+        operation_description="Switch to a different event without re-login",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['event_id'],
+            properties={
+                'event_id': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='UUID of the event to switch to',
+                    example='550e8400-e29b-41d4-a716-446655440000'
+                ),
+            },
+        ),
+        responses={
+            200: "Event switched successfully, returns new tokens",
+            400: "Bad request",
+            403: "User not assigned to this event",
+            404: "Event not found"
+        }
+    )
+    def post(self, request):
+        # Reuse the same logic as SelectEventView
+        return SelectEventView().post(request)
+
+
+class MyEventsView(APIView):
+    """
+    Get all events the current user has access to
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @swagger_auto_schema(
+        operation_description="Get list of all events user is assigned to",
+        responses={
+            200: openapi.Response(
+                description="List of events",
+                examples={
+                    "application/json": {
+                        "events": [
+                            {
+                                "id": "550e8400-e29b-41d4-a716-446655440000",
+                                "name": "TechSummit Algeria 2025",
+                                "role": "participant",
+                                "is_current": True,
+                                "status": "active",
+                                "start_date": "2025-12-19T09:00:00Z",
+                                "badge": {"badge_id": "TECH-XXX"}
+                            }
+                        ],
+                        "total": 1
+                    }
+                }
+            )
+        }
+    )
+    def get(self, request):
+        try:
+            # Get current event_id from token if available
+            current_event_id = None
+            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+            if auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+                try:
+                    decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+                    current_event_id = decoded.get('event_id')
+                except:
+                    pass
+            
+            # Get all user's events
+            assignments = UserEventAssignment.objects.filter(
+                user=request.user,
+                is_active=True
+            ).select_related('event').order_by('-event__start_date')
+            
+            events_list = []
+            for assignment in assignments:
+                event = assignment.event
+                
+                # Get badge info if applicable
+                badge_info = None
+                if assignment.role in ['participant', 'exposant']:
+                    try:
+                        participant = Participant.objects.get(user=request.user, event=event)
+                        badge_info = {
+                            'badge_id': participant.badge_id,
+                            'is_checked_in': participant.is_checked_in
+                        }
+                    except Participant.DoesNotExist:
+                        pass
+                
+                events_list.append({
+                    'id': str(event.id),
+                    'name': event.name,
+                    'role': assignment.role,
+                    'is_current': str(event.id) == current_event_id,
+                    'status': event.status,
+                    'start_date': event.start_date.isoformat(),
+                    'end_date': event.end_date.isoformat(),
+                    'location': event.location,
+                    'logo_url': event.logo_url,
+                    'badge': badge_info
+                })
+            
+            return Response({
+                'events': events_list,
+                'total': len(events_list)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"Error fetching user events: {str(e)}")
+            return Response({
+                'detail': 'An error occurred while fetching events'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

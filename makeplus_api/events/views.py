@@ -13,15 +13,20 @@ from .auth_views import (
     QRVerificationView, QRGenerateView,
     DashboardStatsView,
     NotificationListView, NotificationDetailView,
-    MarkNotificationReadView
+    MarkNotificationReadView,
+    SelectEventView, SwitchEventView, MyEventsView
 )
-from .models import Event, Room, Session, Participant, RoomAccess, UserEventAssignment
+from .models import (
+    Event, Room, Session, Participant, RoomAccess, UserEventAssignment,
+    SessionAccess, Annonce, SessionQuestion, RoomAssignment, ExposantScan
+)
 from .serializers import (
     EventSerializer, RoomSerializer, RoomListSerializer, SessionSerializer,
     ParticipantSerializer, RoomAccessSerializer, UserEventAssignmentSerializer,
-    QRVerificationSerializer
+    QRVerificationSerializer, SessionAccessSerializer, AnnonceSerializer,
+    SessionQuestionSerializer, RoomAssignmentSerializer, ExposantScanSerializer
 )
-from .permissions import IsOrganizerOrReadOnly, IsOrganizer, IsController
+from .permissions import IsGestionnaireOrReadOnly, IsGestionnaire, IsController, IsExposant, IsAnnonceOwner
 
 
 class EventViewSet(viewsets.ModelViewSet):
@@ -68,8 +73,8 @@ class EventViewSet(viewsets.ModelViewSet):
             'total_sessions': event.sessions.count(),
             'total_participants': event.participants.count(),
             'checked_in_count': event.participants.filter(is_checked_in=True).count(),
-            'live_sessions': event.sessions.filter(status='live').count(),
-            'completed_sessions': event.sessions.filter(status='completed').count(),
+            'live_sessions': event.sessions.filter(status='en_cours').count(),
+            'completed_sessions': event.sessions.filter(status='termine').count(),
         }
         
         return Response(stats)
@@ -84,7 +89,7 @@ class RoomViewSet(viewsets.ModelViewSet):
     DELETE: Delete room (organizer only)
     """
     queryset = Room.objects.all()
-    permission_classes = [IsAuthenticated, IsOrganizerOrReadOnly]
+    permission_classes = [IsAuthenticated, IsGestionnaireOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['event', 'is_active']
     search_fields = ['name', 'location']
@@ -227,7 +232,7 @@ class SessionViewSet(viewsets.ModelViewSet):
     """
     queryset = Session.objects.all()
     serializer_class = SessionSerializer
-    permission_classes = [IsAuthenticated, IsOrganizerOrReadOnly]
+    permission_classes = [IsAuthenticated, IsGestionnaireOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['event', 'room', 'status', 'theme']
     search_fields = ['title', 'speaker_name', 'description']
@@ -263,31 +268,31 @@ class SessionViewSet(viewsets.ModelViewSet):
         """Set created_by on creation"""
         serializer.save(created_by=self.request.user)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsOrganizer])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsGestionnaire])
     def mark_live(self, request, pk=None):
         """Mark session as live"""
         session = self.get_object()
-        session.status = 'live'
+        session.status = 'en_cours'
         session.save(update_fields=['status'])
         
         serializer = self.get_serializer(session)
         return Response(serializer.data)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsOrganizer])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsGestionnaire])
     def mark_completed(self, request, pk=None):
         """Mark session as completed"""
         session = self.get_object()
-        session.status = 'completed'
+        session.status = 'termine'
         session.save(update_fields=['status'])
         
         serializer = self.get_serializer(session)
         return Response(serializer.data)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsOrganizer])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsGestionnaire])
     def cancel(self, request, pk=None):
-        """Cancel session"""
+        """Cancel session (reset to not started)"""
         session = self.get_object()
-        session.status = 'cancelled'
+        session.status = 'pas_encore'
         session.save(update_fields=['status'])
         
         serializer = self.get_serializer(session)
@@ -360,3 +365,220 @@ class UserEventAssignmentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Set assigned_by on creation"""
         serializer.save(assigned_by=self.request.user)
+
+class SessionAccessViewSet(viewsets.ModelViewSet):
+    """
+    Session access management for paid ateliers
+    """
+    queryset = SessionAccess.objects.all()
+    serializer_class = SessionAccessSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['participant', 'session', 'payment_status', 'has_access']
+    
+    def get_queryset(self):
+        """Filter by participant or session"""
+        queryset = SessionAccess.objects.select_related('participant__user', 'session')
+        
+        participant_id = self.request.query_params.get('participant_id')
+        if participant_id:
+            queryset = queryset.filter(participant_id=participant_id)
+        
+        session_id = self.request.query_params.get('session_id')
+        if session_id:
+            queryset = queryset.filter(session_id=session_id)
+        
+        return queryset
+
+
+class AnnonceViewSet(viewsets.ModelViewSet):
+    """
+    Event announcements with targeting
+    """
+    queryset = Annonce.objects.all()
+    serializer_class = AnnonceSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['event', 'target', 'created_by']
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'updated_at']
+    ordering = ['-created_at']
+    
+    def get_queryset(self):
+        """Filter annonces by user role and event"""
+        user = self.request.user
+        queryset = Annonce.objects.select_related('event', 'created_by')
+        
+        # Filter by event
+        event_id = self.request.query_params.get('event_id')
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        
+        # Filter by target based on user role
+        if not user.is_staff:
+            # Get user's role in events
+            user_assignments = UserEventAssignment.objects.filter(user=user, is_active=True)
+            user_roles = {assignment.event_id: assignment.role for assignment in user_assignments}
+            
+            # Filter annonces targeted to user's roles or 'all'
+            role_filters = Q(target='all')
+            for event_id, role in user_roles.items():
+                if role == 'participant':
+                    role_filters |= Q(event_id=event_id, target='participants')
+                elif role == 'exposant':
+                    role_filters |= Q(event_id=event_id, target='exposants')
+                elif role == 'controlleur_des_badges':
+                    role_filters |= Q(event_id=event_id, target='controlleurs')
+                elif role == 'gestionnaire_des_salles':
+                    role_filters |= Q(event_id=event_id, target='gestionnaires')
+            
+            queryset = queryset.filter(role_filters)
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        """Set created_by on creation"""
+        serializer.save(created_by=self.request.user)
+    
+    def get_permissions(self):
+        """Only annonce owner or gestionnaire can update/delete"""
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAnnonceOwner()]
+        return [IsAuthenticated()]
+
+
+class SessionQuestionViewSet(viewsets.ModelViewSet):
+    """
+    Session questions (Q&A)
+    """
+    queryset = SessionQuestion.objects.all()
+    serializer_class = SessionQuestionSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['session', 'participant', 'is_answered']
+    ordering_fields = ['asked_at', 'answered_at']
+    ordering = ['asked_at']
+    
+    def get_queryset(self):
+        """Filter by session"""
+        queryset = SessionQuestion.objects.select_related('session', 'participant__user', 'answered_by')
+        
+        session_id = self.request.query_params.get('session_id')
+        if session_id:
+            queryset = queryset.filter(session_id=session_id)
+        
+        return queryset
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsGestionnaire])
+    def answer(self, request, pk=None):
+        """Answer a question"""
+        question = self.get_object()
+        answer_text = request.data.get('answer_text')
+        
+        if not answer_text:
+            return Response({'error': 'answer_text is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        question.answer_text = answer_text
+        question.is_answered = True
+        question.answered_by = request.user
+        question.answered_at = timezone.now()
+        question.save()
+        
+        serializer = self.get_serializer(question)
+        return Response(serializer.data)
+
+
+class RoomAssignmentViewSet(viewsets.ModelViewSet):
+    """
+    Room assignments for gestionnaires and controllers
+    """
+    queryset = RoomAssignment.objects.all()
+    serializer_class = RoomAssignmentSerializer
+    permission_classes = [IsAuthenticated, IsGestionnaire]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['user', 'room', 'event', 'role', 'is_active']
+    ordering_fields = ['start_time', 'end_time']
+    ordering = ['start_time']
+    
+    def get_queryset(self):
+        """Filter by room, user, or event"""
+        queryset = RoomAssignment.objects.select_related('user', 'room', 'event', 'assigned_by')
+        
+        room_id = self.request.query_params.get('room_id')
+        if room_id:
+            queryset = queryset.filter(room_id=room_id)
+        
+        user_id = self.request.query_params.get('user_id')
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+        
+        event_id = self.request.query_params.get('event_id')
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        
+        # Get current assignments
+        current_only = self.request.query_params.get('current')
+        if current_only:
+            now = timezone.now()
+            queryset = queryset.filter(start_time__lte=now, end_time__gte=now, is_active=True)
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        """Set assigned_by on creation"""
+        serializer.save(assigned_by=self.request.user)
+
+
+class ExposantScanViewSet(viewsets.ModelViewSet):
+    """
+    Exposant scanning participant QR codes (booth visits)
+    """
+    queryset = ExposantScan.objects.all()
+    serializer_class = ExposantScanSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['exposant', 'scanned_participant', 'event']
+    ordering_fields = ['scanned_at']
+    ordering = ['-scanned_at']
+    
+    def get_queryset(self):
+        """Filter by exposant or event"""
+        queryset = ExposantScan.objects.select_related(
+            'exposant__user', 'scanned_participant__user', 'event'
+        )
+        
+        exposant_id = self.request.query_params.get('exposant_id')
+        if exposant_id:
+            queryset = queryset.filter(exposant_id=exposant_id)
+        
+        event_id = self.request.query_params.get('event_id')
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        
+        return queryset
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsExposant])
+    def my_scans(self, request):
+        """Get scans for the current exposant"""
+        try:
+            # Find exposant participant record for current user
+            event_id = request.query_params.get('event_id')
+            if not event_id:
+                return Response({'error': 'event_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            exposant = Participant.objects.get(user=request.user, event_id=event_id)
+            scans = self.get_queryset().filter(exposant=exposant)
+            
+            # Get statistics
+            total_scans = scans.count()
+            today_scans = scans.filter(scanned_at__date=timezone.now().date()).count()
+            
+            serializer = self.get_serializer(scans, many=True)
+            
+            return Response({
+                'total_visits': total_scans,
+                'today_visits': today_scans,
+                'scans': serializer.data
+            })
+        except Participant.DoesNotExist:
+            return Response({'error': 'Exposant participant record not found'}, status=status.HTTP_404_NOT_FOUND)

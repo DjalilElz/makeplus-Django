@@ -3,8 +3,11 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer  # ADD THIS LINE
-from .models import Event, Room, Session, Participant, RoomAccess, UserEventAssignment
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import (
+    Event, Room, Session, Participant, RoomAccess, UserEventAssignment,
+    SessionAccess, Annonce, SessionQuestion, RoomAssignment, ExposantScan
+)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -18,6 +21,7 @@ class UserSerializer(serializers.ModelSerializer):
 class EventSerializer(serializers.ModelSerializer):
     """Event serializer"""
     created_by = UserSerializer(read_only=True)
+    president = UserSerializer(read_only=True)
     
     class Meta:
         model = Event
@@ -26,7 +30,8 @@ class EventSerializer(serializers.ModelSerializer):
             'location', 'location_details', 'logo_url', 'banner_url',
             'status', 'settings', 'themes', 'total_participants',
             'total_exhibitors', 'total_rooms', 'organizer_contact',
-            'metadata', 'created_at', 'updated_at', 'created_by'
+            'metadata', 'programme_file', 'guide_file', 'president',
+            'created_at', 'updated_at', 'created_by'
         ]
         read_only_fields = ['id', 'total_participants', 'total_exhibitors', 'total_rooms', 'created_at', 'updated_at']
 
@@ -90,7 +95,8 @@ class SessionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'event', 'room', 'room_name', 'title', 'description',
             'start_time', 'end_time', 'speaker_name', 'speaker_title',
-            'speaker_bio', 'speaker_photo_url', 'theme', 'status',
+            'speaker_bio', 'speaker_photo_url', 'theme', 'session_type',
+            'status', 'is_paid', 'price', 'youtube_live_url',
             'cover_image_url', 'metadata', 'is_live', 'duration_minutes',
             'created_at', 'updated_at'
         ]
@@ -122,7 +128,7 @@ class ParticipantSerializer(serializers.ModelSerializer):
         model = Participant
         fields = [
             'id', 'user', 'user_id', 'event', 'badge_id', 'qr_code_data',
-            'is_checked_in', 'checked_in_at', 'allowed_rooms',
+            'is_checked_in', 'checked_in_at', 'allowed_rooms', 'plan_file',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -332,3 +338,96 @@ class ChangePasswordSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError("Old password is incorrect.")
         return value
+
+# =================================================================
+# NEW MODEL SERIALIZERS - Added for restructure
+# =================================================================
+
+class SessionAccessSerializer(serializers.ModelSerializer):
+    """SessionAccess serializer for paid ateliers"""
+    participant_name = serializers.CharField(source='participant.user.get_full_name', read_only=True)
+    session_title = serializers.CharField(source='session.title', read_only=True)
+    session_type = serializers.CharField(source='session.session_type', read_only=True)
+    
+    class Meta:
+        model = SessionAccess
+        fields = [
+            'id', 'participant', 'participant_name', 'session', 'session_title',
+            'session_type', 'has_access', 'payment_status', 'paid_at',
+            'amount_paid', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class AnnonceSerializer(serializers.ModelSerializer):
+    """Annonce serializer for event announcements"""
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    event_name = serializers.CharField(source='event.name', read_only=True)
+    
+    class Meta:
+        model = Annonce
+        fields = [
+            'id', 'event', 'event_name', 'title', 'description', 'target',
+            'created_by', 'created_by_name', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+
+
+class SessionQuestionSerializer(serializers.ModelSerializer):
+    """SessionQuestion serializer for participant questions"""
+    participant_name = serializers.CharField(source='participant.user.get_full_name', read_only=True)
+    session_title = serializers.CharField(source='session.title', read_only=True)
+    answered_by_name = serializers.CharField(source='answered_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = SessionQuestion
+        fields = [
+            'id', 'session', 'session_title', 'participant', 'participant_name',
+            'question_text', 'is_answered', 'answer_text', 'answered_by',
+            'answered_by_name', 'asked_at', 'answered_at'
+        ]
+        read_only_fields = ['id', 'asked_at', 'answered_at']
+
+
+class RoomAssignmentSerializer(serializers.ModelSerializer):
+    """RoomAssignment serializer for staff assignments"""
+    user_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    room_name = serializers.CharField(source='room.name', read_only=True)
+    event_name = serializers.CharField(source='event.name', read_only=True)
+    assigned_by_name = serializers.CharField(source='assigned_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = RoomAssignment
+        fields = [
+            'id', 'user', 'user_name', 'room', 'room_name', 'event', 'event_name',
+            'role', 'start_time', 'end_time', 'is_active', 'assigned_at',
+            'assigned_by', 'assigned_by_name'
+        ]
+        read_only_fields = ['id', 'assigned_at']
+    
+    def validate(self, data):
+        """Validate that end_time is after start_time"""
+        if data.get('end_time') and data.get('start_time'):
+            if data['end_time'] <= data['start_time']:
+                raise serializers.ValidationError({
+                    'end_time': 'End time must be after start time'
+                })
+        return data
+
+
+class ExposantScanSerializer(serializers.ModelSerializer):
+    """ExposantScan serializer for tracking exposant scans"""
+    exposant_name = serializers.CharField(source='exposant.user.get_full_name', read_only=True)
+    scanned_participant_name = serializers.CharField(source='scanned_participant.user.get_full_name', read_only=True)
+    scanned_participant_email = serializers.CharField(source='scanned_participant.user.email', read_only=True)
+    event_name = serializers.CharField(source='event.name', read_only=True)
+    
+    class Meta:
+        model = ExposantScan
+        fields = [
+            'id', 'exposant', 'exposant_name', 'scanned_participant',
+            'scanned_participant_name', 'scanned_participant_email',
+            'event', 'event_name', 'scanned_at', 'notes'
+        ]
+        read_only_fields = ['id', 'scanned_at']
+

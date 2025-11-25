@@ -187,8 +187,12 @@ CORS_ALLOW_ALL_ORIGINS = True  # For development only
 # For production, use:
 # CORS_ALLOWED_ORIGINS = [
 #     "http://localhost:3000",
+#     "http://localhost:8080",  # Flutter web
 #     "https://your-frontend-domain.com",
 # ]
+
+# Allow credentials for JWT authentication
+CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_METHODS = [
     'DELETE',

@@ -67,7 +67,7 @@ class Command(BaseCommand):
                 'speaker_name': 'Dr. Arsène Lafleur',
                 'speaker_title': 'Directeur de Recherche',
                 'theme': 'Innovation',
-                'status': 'scheduled'
+                'status': 'pas_encore'
             },
             {
                 'title': 'Intelligence Artificielle et Machine Learning',
@@ -78,7 +78,7 @@ class Command(BaseCommand):
                 'speaker_name': 'Dr. Arsène Lafleur',
                 'speaker_title': 'Directeur de Recherche',
                 'theme': 'IA',
-                'status': 'scheduled'
+                'status': 'pas_encore'
             },
             {
                 'title': 'Développement Mobile avec Flutter',
@@ -89,7 +89,7 @@ class Command(BaseCommand):
                 'speaker_name': 'Sarah Chen',
                 'speaker_title': 'Lead Developer',
                 'theme': 'Mobile',
-                'status': 'scheduled'
+                'status': 'pas_encore'
             },
             {
                 'title': 'Cybersécurité: Atelier "DataOps"',
@@ -100,7 +100,7 @@ class Command(BaseCommand):
                 'speaker_name': 'Mohammed Benali',
                 'speaker_title': 'Security Consultant',
                 'theme': 'Sécurité',
-                'status': 'scheduled'
+                'status': 'pas_encore'
             },
         ]
 

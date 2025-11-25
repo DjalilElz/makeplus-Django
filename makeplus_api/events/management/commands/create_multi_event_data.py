@@ -72,8 +72,8 @@ class Command(BaseCommand):
             if prefix == 'tech':
                 roles_data = [
                     {
-                        'role': 'organisateur',
-                        'username': f'{prefix}_organisateur',
+                        'role': 'gestionnaire_des_salles',
+                        'username': f'{prefix}_gestionnaire',
                         'email': f'ahmed.benali@techsummit.dz',
                         'first_name': 'Ahmed',
                         'last_name': 'Benali',
@@ -117,8 +117,8 @@ class Command(BaseCommand):
             elif prefix == 'startup':
                 roles_data = [
                     {
-                        'role': 'organisateur',
-                        'username': f'{prefix}_organisateur',
+                        'role': 'gestionnaire_des_salles',
+                        'username': f'{prefix}_gestionnaire',
                         'email': f'mohamed.brahimi@startupweek.dz',
                         'first_name': 'Mohamed',
                         'last_name': 'Brahimi',
@@ -162,8 +162,8 @@ class Command(BaseCommand):
             else:  # inno
                 roles_data = [
                     {
-                        'role': 'organisateur',
-                        'username': f'{prefix}_organisateur',
+                        'role': 'gestionnaire_des_salles',
+                        'username': f'{prefix}_gestionnaire',
                         'email': f'salah.hamidi@innofest.dz',
                         'first_name': 'Salah',
                         'last_name': 'Hamidi',
@@ -242,8 +242,8 @@ class Command(BaseCommand):
                 event_users.append(user)
                 event_roles.append(role)  # Store role for later use
                 
-                # Set event created_by to the first organisateur
-                if role == 'organisateur' and not event.created_by:
+                # Set event created_by to the first gestionnaire_des_salles
+                if role == 'gestionnaire_des_salles' and not event.created_by:
                     event.created_by = user
                     event.save()
             
@@ -256,7 +256,7 @@ class Command(BaseCommand):
             ]
             
             rooms = []
-            organisateur = event_users[0] if event_users else None
+            gestionnaire = event_users[0] if event_users else None
             for room_data in rooms_data:
                 room, room_created = Room.objects.get_or_create(
                     event=event,
@@ -265,7 +265,7 @@ class Command(BaseCommand):
                         **room_data,
                         'description': f"Capacité: {room_data['capacity']} personnes",
                         'is_active': True,
-                        'created_by': organisateur,
+                        'created_by': gestionnaire,
                     }
                 )
                 rooms.append(room)
@@ -317,8 +317,8 @@ class Command(BaseCommand):
                     defaults={
                         **session_data,
                         'end_time': end_time,
-                        'status': 'scheduled',
-                        'created_by': organisateur,
+                        'status': 'pas_encore',
+                        'created_by': gestionnaire,
                     }
                 )
                 if session_created:
@@ -364,7 +364,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f'\n📅 {current_event}:'))
             
             role_display = {
-                'organisateur': '👔 Organisateur',
+                'gestionnaire_des_salles': '👔 Gestionnaire des Salles',
                 'controlleur_des_badges': '🎫 Contrôleur des Badges',
                 'participant': '👤 Participant',
                 'exposant': '🏢 Exposant',

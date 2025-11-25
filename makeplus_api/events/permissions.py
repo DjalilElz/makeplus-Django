@@ -3,9 +3,9 @@
 from rest_framework import permissions
 from .models import UserEventAssignment
 
-class IsOrganizer(permissions.BasePermission):
+class IsGestionnaire(permissions.BasePermission):
     """
-    Permission: User must be an organizer for the event
+    Permission: User must be a gestionnaire des salles for the event
     """
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated
@@ -16,24 +16,24 @@ class IsOrganizer(permissions.BasePermission):
         if not event:
             return False
         
-        # Check if user is organizer for this event
+        # Check if user is gestionnaire for this event
         return UserEventAssignment.objects.filter(
             user=request.user,
             event=event,
-            role='organisateur',
+            role='gestionnaire_des_salles',
             is_active=True
         ).exists() or request.user.is_staff
 
 
-class IsOrganizerOrReadOnly(permissions.BasePermission):
+class IsGestionnaireOrReadOnly(permissions.BasePermission):
     """
-    Permission: Read-only for all, write for organizers only
+    Permission: Read-only for all, write for gestionnaires only
     """
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return request.user and request.user.is_authenticated
         
-        # For write operations, check organizer status
+        # For write operations, check gestionnaire status
         # This will be validated at object level
         return request.user and request.user.is_authenticated
     
@@ -42,7 +42,7 @@ class IsOrganizerOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
         
-        # Write permissions only for organizers
+        # Write permissions only for gestionnaires
         event = getattr(obj, 'event', None)
         if not event:
             return False
@@ -50,14 +50,14 @@ class IsOrganizerOrReadOnly(permissions.BasePermission):
         return UserEventAssignment.objects.filter(
             user=request.user,
             event=event,
-            role='organisateur',
+            role='gestionnaire_des_salles',
             is_active=True
         ).exists() or request.user.is_staff
 
 
 class IsController(permissions.BasePermission):
     """
-    Permission: User must be a controller for the event
+    Permission: User must be a controller (controlleur_des_badges) for the event
     """
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated
@@ -71,7 +71,7 @@ class IsController(permissions.BasePermission):
         return UserEventAssignment.objects.filter(
             user=request.user,
             event=event,
-            role__in=['controlleur_des_badges', 'organisateur'],  # Organizers can also control
+            role='controlleur_des_badges',
             is_active=True
         ).exists() or request.user.is_staff
 
@@ -113,3 +113,65 @@ class IsEventMember(permissions.BasePermission):
             event=event,
             is_active=True
         ).exists() or request.user.is_staff
+
+class IsExposant(permissions.BasePermission):
+    """
+    Permission: User must be an exposant for the event
+    """
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated
+    
+    def has_object_permission(self, request, view, obj):
+        event = getattr(obj, 'event', None)
+        if not event:
+            return False
+        
+        return UserEventAssignment.objects.filter(
+            user=request.user,
+            event=event,
+            role='exposant',
+            is_active=True
+        ).exists() or request.user.is_staff
+
+
+class IsAnnonceOwner(permissions.BasePermission):
+    """
+    Permission: User must be the creator of the annonce
+    """
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated
+    
+    def has_object_permission(self, request, view, obj):
+        # For annonce objects
+        return obj.created_by == request.user or request.user.is_staff
+
+
+# Backward compatibility aliases
+IsOrganizer = IsGestionnaire
+IsOrganizerOrReadOnly = IsGestionnaireOrReadOnly
+
+
+class IsExposant(permissions.BasePermission):
+    """Permission: User must be an exposant for the event"""
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated
+    
+    def has_object_permission(self, request, view, obj):
+        event = getattr(obj, 'event', None)
+        if not event:
+            return False
+        return UserEventAssignment.objects.filter(user=request.user, event=event, role='exposant', is_active=True).exists() or request.user.is_staff
+
+
+class IsAnnonceOwner(permissions.BasePermission):
+    """Permission: User must be the creator of the annonce"""
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated
+    
+    def has_object_permission(self, request, view, obj):
+        return obj.created_by == request.user or request.user.is_staff
+
+
+# Backward compatibility aliases
+IsOrganizer = IsGestionnaire
+IsOrganizerOrReadOnly = IsGestionnaireOrReadOnly

@@ -37,6 +37,13 @@ class Event(models.Model):
     organizer_contact = models.EmailField(blank=True)
     metadata = models.JSONField(default=dict, blank=True)
     
+    # Event files
+    programme_file = models.FileField(upload_to='events/programmes/', blank=True, null=True, help_text="Event programme PDF")
+    guide_file = models.FileField(upload_to='events/guides/', blank=True, null=True, help_text="Event guide PDF")
+    
+    # Event president
+    president = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='presided_events', help_text="Event president")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_events')
@@ -54,7 +61,7 @@ class Event(models.Model):
 class UserEventAssignment(models.Model):
     """User-Event Role Assignment"""
     ROLE_CHOICES = [
-        ('organisateur', 'Organisateur'),
+        ('gestionnaire_des_salles', 'Gestionnaire des Salles'),
         ('controlleur_des_badges', 'Contrôleur des Badges'),
         ('participant', 'Participant'),
         ('exposant', 'Exposant'),
@@ -115,10 +122,14 @@ class Room(models.Model):
 class Session(models.Model):
     """Event Session/Conference"""
     STATUS_CHOICES = [
-        ('scheduled', 'Scheduled'),
-        ('live', 'Live'),
-        ('completed', 'Completed'),
-        ('cancelled', 'Cancelled'),
+        ('pas_encore', 'Pas Encore'),
+        ('en_cours', 'En Cours'),
+        ('termine', 'Terminé'),
+    ]
+    
+    TYPE_CHOICES = [
+        ('conference', 'Conférence'),
+        ('atelier', 'Atelier'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -137,8 +148,17 @@ class Session(models.Model):
     speaker_bio = models.TextField(blank=True)
     speaker_photo_url = models.URLField(blank=True)
     
+    # Session type and status
     theme = models.CharField(max_length=100, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
+    session_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='conference')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pas_encore')
+    
+    # Payment for ateliers
+    is_paid = models.BooleanField(default=False, help_text="Paid atelier (participants must pay)")
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Price for paid ateliers")
+    
+    # Live streaming
+    youtube_live_url = models.URLField(blank=True, help_text="YouTube live stream URL")
     
     # Cover image
     cover_image_url = models.URLField(blank=True)
@@ -163,7 +183,7 @@ class Session(models.Model):
     
     @property
     def is_live(self):
-        return self.status == 'live'
+        return self.status == 'en_cours'
     
     def duration_minutes(self):
         """Calculate session duration in minutes"""
@@ -185,6 +205,9 @@ class Participant(models.Model):
     
     # Access
     allowed_rooms = models.ManyToManyField(Room, blank=True, related_name='allowed_participants')
+    
+    # Exposant plan (PDF file for exposants only)
+    plan_file = models.FileField(upload_to='exposants/plans/', blank=True, null=True, help_text="Plan PDF for exposants")
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -227,6 +250,163 @@ class RoomAccess(models.Model):
     
     def __str__(self):
         return f"{self.participant.user.username} - {self.room.name} - {self.accessed_at}"
+
+
+class SessionAccess(models.Model):
+    """Track participant access to paid ateliers"""
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='session_accesses')
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='participant_accesses')
+    
+    # Access and payment
+    has_access = models.BooleanField(default=False)
+    payment_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'En Attente'),
+            ('paid', 'Payé'),
+            ('free', 'Gratuit')
+        ],
+        default='pending'
+    )
+    paid_at = models.DateTimeField(null=True, blank=True)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('participant', 'session')
+        verbose_name = 'Session Access'
+        verbose_name_plural = 'Session Accesses'
+        indexes = [
+            models.Index(fields=['session', 'payment_status']),
+            models.Index(fields=['participant', 'has_access']),
+        ]
+    
+    def __str__(self):
+        return f"{self.participant.user.username} - {self.session.title} ({self.payment_status})"
+
+
+class Annonce(models.Model):
+    """Event announcements targeted to specific user groups"""
+    TARGET_CHOICES = [
+        ('all', 'Tous'),
+        ('participants', 'Participants'),
+        ('exposants', 'Exposants'),
+        ('controlleurs', 'Contrôleurs'),
+        ('gestionnaires', 'Gestionnaires'),
+    ]
+    
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='annonces')
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    target = models.CharField(max_length=20, choices=TARGET_CHOICES)
+    
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_annonces')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Annonce'
+        verbose_name_plural = 'Annonces'
+        indexes = [
+            models.Index(fields=['event', 'target', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} - {self.event.name} ({self.target})"
+
+
+class SessionQuestion(models.Model):
+    """Questions asked by participants during sessions"""
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='questions')
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='questions')
+    
+    question_text = models.TextField()
+    
+    # Answer
+    is_answered = models.BooleanField(default=False)
+    answer_text = models.TextField(blank=True)
+    answered_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='answered_questions')
+    answered_at = models.DateTimeField(null=True, blank=True)
+    
+    asked_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['asked_at']
+        verbose_name = 'Session Question'
+        verbose_name_plural = 'Session Questions'
+        indexes = [
+            models.Index(fields=['session', 'asked_at']),
+            models.Index(fields=['is_answered']),
+        ]
+    
+    def __str__(self):
+        return f"Q: {self.question_text[:50]}... - {self.session.title}"
+
+
+class RoomAssignment(models.Model):
+    """Assign gestionnaires/controllers to specific rooms at specific times"""
+    ROLE_CHOICES = [
+        ('gestionnaire_des_salles', 'Gestionnaire des Salles'),
+        ('controlleur_des_badges', 'Contrôleur des Badges'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='room_assignments')
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='assigned_staff')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='room_assignments')
+    
+    role = models.CharField(max_length=30, choices=ROLE_CHOICES)
+    
+    # Time slot for assignment
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    
+    is_active = models.BooleanField(default=True)
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='room_assignments_made')
+    
+    class Meta:
+        ordering = ['start_time']
+        verbose_name = 'Room Assignment'
+        verbose_name_plural = 'Room Assignments'
+        indexes = [
+            models.Index(fields=['user', 'room', 'start_time']),
+            models.Index(fields=['event', 'is_active']),
+            models.Index(fields=['room', 'start_time', 'end_time']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.room.name} ({self.start_time.date()})"
+    
+    def clean(self):
+        """Validate that end_time is after start_time"""
+        from django.core.exceptions import ValidationError
+        if self.end_time and self.start_time and self.end_time <= self.start_time:
+            raise ValidationError({'end_time': 'End time must be after start time'})
+
+
+class ExposantScan(models.Model):
+    """Track exposant scanning participant QR codes (for booth visits)"""
+    exposant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='scanned_participants')
+    scanned_participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='exposant_scans')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='exposant_scans')
+    
+    scanned_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True, help_text="Optional notes about the visit")
+    
+    class Meta:
+        ordering = ['-scanned_at']
+        verbose_name = 'Exposant Scan'
+        verbose_name_plural = 'Exposant Scans'
+        indexes = [
+            models.Index(fields=['exposant', '-scanned_at']),
+            models.Index(fields=['event', '-scanned_at']),
+            models.Index(fields=['scanned_participant', '-scanned_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.exposant.user.username} scanned {self.scanned_participant.user.username}"
 
 
 # Signals to auto-update statistics
