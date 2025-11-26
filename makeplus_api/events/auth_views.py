@@ -390,12 +390,16 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         assignments = UserEventAssignment.objects.filter(
             user=user,
             is_active=True
-        )
+        ).select_related('event')
         
         data = serializer.data
         data['assignments'] = [{
             'event_id': str(assignment.event.id),
             'event_name': assignment.event.name,
+            'event_location': assignment.event.location,
+            'event_start_date': assignment.event.start_date.strftime('%Y-%m-%d'),
+            'event_end_date': assignment.event.end_date.strftime('%Y-%m-%d'),
+            'event_status': assignment.event.status,
             'role': assignment.role,
             'assigned_at': assignment.assigned_at
         } for assignment in assignments]
