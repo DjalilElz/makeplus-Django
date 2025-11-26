@@ -414,14 +414,15 @@ class AnnonceViewSet(viewsets.ModelViewSet):
         if event_id:
             queryset = queryset.filter(event_id=event_id)
         
-        # Filter by target based on user role
-        if not user.is_staff:
+        # Filter by target based on user role (even for staff/admins)
+        # Only superusers see all announcements
+        if not user.is_superuser:
             # Get user's role in events
             user_assignments = UserEventAssignment.objects.filter(user=user, is_active=True)
             user_roles = {assignment.event_id: assignment.role for assignment in user_assignments}
             
-            # Filter annonces targeted to user's roles or 'all'
-            role_filters = Q(target='all')
+            # Filter annonces targeted to user's roles or 'all' OR created by user
+            role_filters = Q(target='all') | Q(created_by=user)
             for event_id, role in user_roles.items():
                 if role == 'participant':
                     role_filters |= Q(event_id=event_id, target='participants')
