@@ -71,37 +71,33 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'makeplus_api.wsgi.application'
 
-# Database - Using SQLite for local development
-# Note: To sync with Supabase, you need to update data in SQLite directly
-# or use database migration/sync tools
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Database Configuration
+# Use PostgreSQL (Supabase) for production, SQLite for local development
+if config('USE_SUPABASE', default=False, cast=bool):
+    # Supabase PostgreSQL with Session Pooler (for Render/IPv4 platforms)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('SUPABASE_DB_NAME', default='postgres'),
+            'USER': config('SUPABASE_DB_USER', default='postgres.atwsdqeeymqpvsugeyko'),
+            'PASSWORD': config('SUPABASE_DB_PASSWORD'),
+            'HOST': config('SUPABASE_DB_HOST', default='aws-0-eu-central-1.pooler.supabase.com'),
+            'PORT': config('SUPABASE_DB_PORT', default='6543'),  # Session Pooler port
+            'OPTIONS': {
+                'sslmode': 'require',
+                'connect_timeout': 10,
+            },
+            'CONN_MAX_AGE': 600,
+        }
     }
-}
-
-# Supabase PostgreSQL configuration (currently not working due to network/IPv6 issues)
-# To use Supabase, you need to:
-# 1. Fix IPv6 connectivity OR
-# 2. Get the correct pooler connection string from Supabase dashboard
-"""
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('SUPABASE_DB_NAME'),
-        'USER': config('SUPABASE_DB_USER'),
-        'PASSWORD': config('SUPABASE_DB_PASSWORD'),
-        'HOST': config('SUPABASE_DB_HOST'),
-        'PORT': config('SUPABASE_DB_PORT', default='5432'),
-        'OPTIONS': {
-            'sslmode': 'require',
-            'connect_timeout': 10,
-        },
-        'CONN_MAX_AGE': 600,
+else:
+    # SQLite for local development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
-"""
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
