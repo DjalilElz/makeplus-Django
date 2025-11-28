@@ -47,6 +47,9 @@ urlpatterns = [
     path('dashboard/stats/', views.DashboardStatsView.as_view(), name='dashboard-stats'),
     path('my-room/statistics/', views.MyRoomStatisticsView.as_view(), name='my-room-statistics'),
     
+    # Participant endpoints
+    path('my-ateliers/', views.MyAteliersView.as_view(), name='my-ateliers'),
+    
     # Notification endpoints
     path('notifications/', views.NotificationListView.as_view(), name='notification-list'),
     path('notifications/<uuid:pk>/', views.NotificationDetailView.as_view(), name='notification-detail'),

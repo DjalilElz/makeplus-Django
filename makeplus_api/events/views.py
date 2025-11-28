@@ -15,7 +15,7 @@ from .auth_views import (
     NotificationListView, NotificationDetailView,
     MarkNotificationReadView,
     SelectEventView, SwitchEventView, MyEventsView,
-    MyRoomStatisticsView
+    MyRoomStatisticsView, MyAteliersView
 )
 from .models import (
     Event, Room, Session, Participant, RoomAccess, UserEventAssignment,

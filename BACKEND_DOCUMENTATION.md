@@ -724,12 +724,80 @@ Users can be assigned to multiple events with different roles:
 | POST | `/api/session-access/` | Grant access | Gestionnaire |
 | GET | `/api/session-access/{id}/` | Get access details | Authenticated |
 | PUT/PATCH | `/api/session-access/{id}/` | Update access | Gestionnaire |
+| GET | `/api/my-ateliers/` | Get participant's paid ateliers with full details | Authenticated (Participant) |
 
-**Query Parameters:**
+**Query Parameters (session-access):**
 - `participant_id` - Filter by participant
 - `session_id` - Filter by session
 - `payment_status` - Filter by payment status
 - `has_access` - Filter by access status
+
+**My Ateliers Endpoint** (`GET /api/my-ateliers/`)
+
+Returns all paid ateliers for the authenticated participant with complete session information and payment status.
+
+**Response Format:**
+```json
+{
+  "participant": {
+    "id": "uuid",
+    "name": "Ahmed Benali",
+    "email": "participant@example.com",
+    "badge_id": "PART-1234"
+  },
+  "summary": {
+    "total_ateliers": 4,
+    "paid_count": 2,
+    "pending_count": 2,
+    "total_paid": 9500.00,
+    "total_pending": 9500.00,
+    "total_amount": 19000.00
+  },
+  "ateliers": [
+    {
+      "id": "access_uuid",
+      "session_id": "session_uuid",
+      "title": "Atelier: Pitch Deck & Levée de Fonds",
+      "description": "Learn to create a convincing pitch deck...",
+      "speaker_name": "Sarah Meziane",
+      "speaker_title": "Venture Capitalist",
+      "speaker_bio": "...",
+      "speaker_photo_url": "https://...",
+      "theme": "Financement",
+      "room": {
+        "id": "room_uuid",
+        "name": "Hall Exposition",
+        "capacity": 500
+      },
+      "start_time": "2025-11-30T20:00:00Z",
+      "end_time": "2025-11-30T23:00:00Z",
+      "price": 5000.00,
+      "payment_status": "paid",
+      "has_access": true,
+      "amount_paid": 5000.00,
+      "paid_at": "2025-11-28T19:00:00Z",
+      "registered_at": "2025-11-28T18:00:00Z"
+    }
+  ]
+}
+```
+
+**Payment Status Values:**
+- `paid` - Payment completed, access granted
+- `pending` - Payment pending, no access
+- `free` - Free atelier, access granted
+
+**Usage:**
+```bash
+GET /api/my-ateliers/
+Authorization: Bearer <jwt_token>
+```
+
+The endpoint automatically:
+- Extracts participant from authenticated user and event context
+- Filters only paid ateliers (is_paid=True)
+- Returns full session details including speaker info, room, dates
+- Calculates payment summary (paid vs pending amounts)
 
 ---
 

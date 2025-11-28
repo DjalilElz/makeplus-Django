@@ -1125,3 +1125,113 @@ class MyRoomStatisticsView(APIView):
             },
             'recent_scans': recent_data
         }, status=status.HTTP_200_OK)
+
+
+class MyAteliersView(APIView):
+    """
+    Get all paid ateliers for the authenticated participant
+    Returns complete atelier information with payment status
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get participant's paid ateliers with full details"""
+        from .models import SessionAccess, Participant
+        
+        user = request.user
+        
+        # Get event context from JWT token
+        event_context = getattr(request, 'event_context', None)
+        if not event_context:
+            return Response(
+                {'detail': 'No event context found. Please select an event first.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        try:
+            # Get participant profile
+            participant = Participant.objects.get(
+                user=user,
+                event=event_context
+            )
+        except Participant.DoesNotExist:
+            return Response(
+                {'detail': 'Participant profile not found for this event.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get all session access records for this participant (paid ateliers)
+        session_accesses = SessionAccess.objects.filter(
+            participant=participant,
+            session__session_type='atelier',
+            session__is_paid=True
+        ).select_related(
+            'session',
+            'session__room',
+            'session__event'
+        ).order_by('-created_at')
+        
+        # Build response with full atelier details
+        ateliers_data = []
+        total_paid = 0
+        total_pending = 0
+        
+        for access in session_accesses:
+            session = access.session
+            
+            atelier_data = {
+                'id': str(access.id),
+                'session_id': str(session.id),
+                'title': session.title,
+                'description': session.description,
+                'speaker_name': session.speaker_name,
+                'speaker_title': session.speaker_title,
+                'speaker_bio': session.speaker_bio,
+                'speaker_photo_url': session.speaker_photo_url,
+                'theme': session.theme,
+                'room': {
+                    'id': str(session.room.id),
+                    'name': session.room.name,
+                    'capacity': session.room.capacity
+                } if session.room else None,
+                'start_time': session.start_time.isoformat(),
+                'end_time': session.end_time.isoformat(),
+                'price': float(session.price),
+                'payment_status': access.payment_status,
+                'has_access': access.has_access,
+                'amount_paid': float(access.amount_paid),
+                'paid_at': access.paid_at.isoformat() if access.paid_at else None,
+                'registered_at': access.created_at.isoformat()
+            }
+            
+            ateliers_data.append(atelier_data)
+            
+            # Calculate totals
+            if access.payment_status == 'paid':
+                total_paid += float(access.amount_paid)
+            elif access.payment_status == 'pending':
+                total_pending += float(session.price)
+        
+        # Build summary
+        paid_count = sum(1 for a in ateliers_data if a['payment_status'] == 'paid')
+        pending_count = sum(1 for a in ateliers_data if a['payment_status'] == 'pending')
+        
+        response_data = {
+            'participant': {
+                'id': str(participant.id),
+                'name': user.get_full_name() or user.username,
+                'email': user.email,
+                'badge_id': participant.badge_id
+            },
+            'summary': {
+                'total_ateliers': len(ateliers_data),
+                'paid_count': paid_count,
+                'pending_count': pending_count,
+                'total_paid': total_paid,
+                'total_pending': total_pending,
+                'total_amount': total_paid + total_pending
+            },
+            'ateliers': ateliers_data
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
