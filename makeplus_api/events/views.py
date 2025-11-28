@@ -14,7 +14,8 @@ from .auth_views import (
     DashboardStatsView,
     NotificationListView, NotificationDetailView,
     MarkNotificationReadView,
-    SelectEventView, SwitchEventView, MyEventsView
+    SelectEventView, SwitchEventView, MyEventsView,
+    MyRoomStatisticsView
 )
 from .models import (
     Event, Room, Session, Participant, RoomAccess, UserEventAssignment,
@@ -156,6 +157,104 @@ class RoomViewSet(viewsets.ModelViewSet):
         } for access in accesses]
         
         return Response(data)
+    
+    @action(detail=True, methods=['get'])
+    def statistics(self, request, pk=None):
+        """Get detailed statistics for this room - Admin/Gestionnaire only"""
+        room = self.get_object()
+        
+        # Check if user is admin or gestionnaire_des_salles
+        user = request.user
+        is_admin = user.is_superuser
+        
+        # Check if user is gestionnaire for this event
+        event_context = getattr(request, 'event_context', None)
+        is_gestionnaire = False
+        if event_context:
+            assignment = UserEventAssignment.objects.filter(
+                user=user,
+                event=event_context,
+                role='gestionnaire_des_salles',
+                is_active=True
+            ).exists()
+            is_gestionnaire = assignment
+        
+        if not (is_admin or is_gestionnaire):
+            return Response(
+                {'detail': 'You do not have permission to view statistics for this room.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        today = timezone.now().date()
+        
+        # Total scans (all time)
+        total_scans = RoomAccess.objects.filter(room=room).count()
+        
+        # Today's scans
+        today_scans = RoomAccess.objects.filter(
+            room=room,
+            accessed_at__date=today
+        ).count()
+        
+        # Granted vs Denied
+        granted_count = RoomAccess.objects.filter(
+            room=room,
+            status='granted'
+        ).count()
+        
+        denied_count = RoomAccess.objects.filter(
+            room=room,
+            status='denied'
+        ).count()
+        
+        # Unique participants (all time)
+        unique_participants = RoomAccess.objects.filter(
+            room=room,
+            status='granted'
+        ).values('participant').distinct().count()
+        
+        # Unique participants today
+        unique_today = RoomAccess.objects.filter(
+            room=room,
+            accessed_at__date=today,
+            status='granted'
+        ).values('participant').distinct().count()
+        
+        # Recent scans (last 20)
+        recent_scans = RoomAccess.objects.filter(
+            room=room
+        ).select_related('participant__user', 'session').order_by('-accessed_at')[:20]
+        
+        recent_data = [{
+            'id': scan.id,
+            'participant': {
+                'id': scan.participant.id,
+                'name': scan.participant.user.get_full_name() or scan.participant.user.username,
+                'email': scan.participant.user.email,
+                'badge_id': scan.participant.badge_id
+            },
+            'session': scan.session.title if scan.session else None,
+            'status': scan.status,
+            'accessed_at': scan.accessed_at,
+            'verified_by': scan.verified_by.username if scan.verified_by else None
+        } for scan in recent_scans]
+        
+        return Response({
+            'room': {
+                'id': str(room.id),
+                'name': room.name,
+                'capacity': room.capacity
+            },
+            'statistics': {
+                'total_scans': total_scans,
+                'today_scans': today_scans,
+                'granted': granted_count,
+                'denied': denied_count,
+                'unique_participants': unique_participants,
+                'unique_participants_today': unique_today
+            },
+            'recent_scans': recent_data
+        })
     
     @action(detail=True, methods=['post'])
     def verify_access(self, request, pk=None):

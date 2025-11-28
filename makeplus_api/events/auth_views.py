@@ -965,3 +965,163 @@ class MyEventsView(APIView):
             return Response({
                 'detail': 'An error occurred while fetching events'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class MyRoomStatisticsView(APIView):
+    """
+    Get statistics for the controller's assigned room
+    Only accessible by controllers (controlleur_des_badges)
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @swagger_auto_schema(
+        operation_description="Get statistics for the controller's assigned room",
+        responses={
+            200: openapi.Response(
+                description="Room statistics retrieved successfully",
+                examples={
+                    "application/json": {
+                        "room": {
+                            "id": "uuid",
+                            "name": "Salle Principale",
+                            "capacity": 100
+                        },
+                        "statistics": {
+                            "total_scans": 45,
+                            "today_scans": 12,
+                            "granted": 38,
+                            "denied": 7,
+                            "unique_participants": 25,
+                            "unique_participants_today": 8
+                        },
+                        "recent_scans": [
+                            {
+                                "id": "uuid",
+                                "participant": {
+                                    "id": "uuid",
+                                    "name": "John Doe",
+                                    "email": "john@example.com",
+                                    "badge_id": "BADGE123"
+                                },
+                                "session": "Innovation et Startups",
+                                "status": "granted",
+                                "accessed_at": "2025-11-28T14:30:00Z",
+                                "verified_by": "controller_username"
+                            }
+                        ]
+                    }
+                }
+            ),
+            403: "Forbidden - User is not a controller or has no room assignment",
+            404: "Not found - No event context or room assignment"
+        }
+    )
+    def get(self, request):
+        user = request.user
+        event_context = getattr(request, 'event_context', None)
+        
+        if not event_context:
+            return Response(
+                {'detail': 'No event context found. Please select an event first.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if user is a controller
+        assignment = UserEventAssignment.objects.filter(
+            user=user,
+            event=event_context,
+            role='controlleur_des_badges',
+            is_active=True
+        ).first()
+        
+        if not assignment:
+            return Response(
+                {'detail': 'You must be a controller to access room statistics.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get the room assigned to this controller
+        from .models import RoomAssignment, RoomAccess
+        room_assignment = RoomAssignment.objects.filter(
+            user=user,
+            event=event_context,
+            is_active=True
+        ).select_related('room').first()
+        
+        if not room_assignment:
+            return Response(
+                {'detail': 'You have no room assigned. Please contact the administrator.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        room = room_assignment.room
+        today = timezone.now().date()
+        
+        # Total scans (all time)
+        total_scans = RoomAccess.objects.filter(room=room).count()
+        
+        # Today's scans
+        today_scans = RoomAccess.objects.filter(
+            room=room,
+            accessed_at__date=today
+        ).count()
+        
+        # Granted vs Denied
+        granted_count = RoomAccess.objects.filter(
+            room=room,
+            status='granted'
+        ).count()
+        
+        denied_count = RoomAccess.objects.filter(
+            room=room,
+            status='denied'
+        ).count()
+        
+        # Unique participants (all time)
+        unique_participants = RoomAccess.objects.filter(
+            room=room,
+            status='granted'
+        ).values('participant').distinct().count()
+        
+        # Unique participants today
+        unique_today = RoomAccess.objects.filter(
+            room=room,
+            accessed_at__date=today,
+            status='granted'
+        ).values('participant').distinct().count()
+        
+        # Recent scans (last 20)
+        recent_scans = RoomAccess.objects.filter(
+            room=room
+        ).select_related('participant__user', 'session', 'verified_by').order_by('-accessed_at')[:20]
+        
+        recent_data = [{
+            'id': str(scan.id),
+            'participant': {
+                'id': str(scan.participant.id),
+                'name': scan.participant.user.get_full_name() or scan.participant.user.username,
+                'email': scan.participant.user.email,
+                'badge_id': scan.participant.badge_id
+            },
+            'session': scan.session.title if scan.session else None,
+            'status': scan.status,
+            'accessed_at': scan.accessed_at.isoformat(),
+            'verified_by': scan.verified_by.username if scan.verified_by else None
+        } for scan in recent_scans]
+        
+        return Response({
+            'room': {
+                'id': str(room.id),
+                'name': room.name,
+                'capacity': room.capacity
+            },
+            'statistics': {
+                'total_scans': total_scans,
+                'today_scans': today_scans,
+                'granted': granted_count,
+                'denied': denied_count,
+                'unique_participants': unique_participants,
+                'unique_participants_today': unique_today
+            },
+            'recent_scans': recent_data
+        }, status=status.HTTP_200_OK)
