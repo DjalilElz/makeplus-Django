@@ -4,6 +4,43 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 import uuid
+import json
+
+
+class UserProfile(models.Model):
+    """
+    User Profile - Stores user-level QR code (ONE per user across all events)
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    qr_code_data = models.JSONField(default=dict, blank=True, help_text="User's QR code data (used across all events)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "User Profile"
+        verbose_name_plural = "User Profiles"
+    
+    def __str__(self):
+        return f"Profile: {self.user.username}"
+    
+    def get_or_create_qr_code(self):
+        """Generate or return existing user-level QR code"""
+        if not self.qr_code_data:
+            # Generate unique badge ID for user
+            badge_id = f"USER-{self.user.id}-{uuid.uuid4().hex[:8].upper()}"
+            self.qr_code_data = {
+                "user_id": self.user.id,
+                "badge_id": badge_id
+            }
+            self.save()
+        return self.qr_code_data
+    
+    @staticmethod
+    def get_qr_for_user(user):
+        """Get or create user profile and return QR code"""
+        profile, created = UserProfile.objects.get_or_create(user=user)
+        return profile.get_or_create_qr_code()
+
 
 class Event(models.Model):
     """Main Event Model"""

@@ -258,28 +258,72 @@ class RoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def verify_access(self, request, pk=None):
-        """Verify QR code for room access"""
+        """Verify QR code for room access - User-level QR with event/session access control"""
         room = self.get_object()
         serializer = QRVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         qr_data = serializer.validated_data['qr_data']
+        session_id = serializer.validated_data.get('session')
         
         try:
-            # Find participant by QR code
-            participant = Participant.objects.get(
-                qr_code_data=qr_data,
-                event=room.event
-            )
+            # Parse QR data (user-level QR code)
+            import json
+            qr_dict = json.loads(qr_data) if isinstance(qr_data, str) else qr_data
+            user_id = qr_dict.get('user_id')
             
-            # Check if participant is allowed
+            if not user_id:
+                return Response({
+                    'status': 'invalid',
+                    'message': 'Invalid QR code format'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get user
+            from django.contrib.auth.models import User
+            user = User.objects.get(id=user_id)
+            
+            # Check event access via UserEventAssignment
+            event = room.event
+            assignment = UserEventAssignment.objects.filter(
+                user=user,
+                event=event,
+                is_active=True
+            ).first()
+            
+            if not assignment:
+                return Response({
+                    'status': 'denied',
+                    'message': 'User does not have access to this event',
+                    'user': {
+                        'name': user.get_full_name(),
+                        'email': user.email
+                    }
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Get participant profile
+            participant = Participant.objects.filter(
+                user=user,
+                event=event
+            ).first()
+            
+            if not participant:
+                return Response({
+                    'status': 'denied',
+                    'message': 'Participant profile not found for this event',
+                    'user': {
+                        'name': user.get_full_name(),
+                        'email': user.email
+                    }
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Check room access (if allowed_rooms is restricted)
             allowed_rooms = participant.allowed_rooms.all()
             if allowed_rooms.exists() and room not in allowed_rooms:
                 # Create denied access record
                 RoomAccess.objects.create(
                     participant=participant,
                     room=room,
-                    session=serializer.validated_data.get('session'),
+                    session_id=session_id,
                     verified_by=request.user,
                     status='denied',
                     denial_reason='Not authorized for this room'
@@ -287,41 +331,97 @@ class RoomViewSet(viewsets.ModelViewSet):
                 
                 return Response({
                     'status': 'denied',
-                    'message': 'Participant not authorized for this room',
+                    'message': 'Not authorized for this room',
                     'participant': {
-                        'id': participant.id,
-                        'name': participant.user.get_full_name(),
-                        'badge_id': participant.badge_id
+                        'id': str(participant.id),
+                        'name': user.get_full_name(),
+                        'badge_id': qr_dict.get('badge_id')
                     }
                 }, status=status.HTTP_403_FORBIDDEN)
             
-            # Grant access
+            # Check session access (if scanning for a specific paid session)
+            if session_id:
+                session = Session.objects.get(id=session_id)
+                
+                # If paid session, verify payment
+                if session.is_paid:
+                    session_access = SessionAccess.objects.filter(
+                        participant=participant,
+                        session=session,
+                        has_access=True
+                    ).first()
+                    
+                    if not session_access:
+                        # Create denied access record
+                        RoomAccess.objects.create(
+                            participant=participant,
+                            room=room,
+                            session=session,
+                            verified_by=request.user,
+                            status='denied',
+                            denial_reason='Payment required for this atelier'
+                        )
+                        
+                        return Response({
+                            'status': 'denied',
+                            'message': 'Payment required for this atelier',
+                            'participant': {
+                                'id': str(participant.id),
+                                'name': user.get_full_name(),
+                                'badge_id': qr_dict.get('badge_id')
+                            },
+                            'session': {
+                                'title': session.title,
+                                'price': str(session.price) if session.price else '0.00'
+                            }
+                        }, status=status.HTTP_402_PAYMENT_REQUIRED)
+            
+            # Grant access - all checks passed
             access = RoomAccess.objects.create(
                 participant=participant,
                 room=room,
-                session=serializer.validated_data.get('session'),
+                session_id=session_id,
                 verified_by=request.user,
                 status='granted'
             )
             
             return Response({
                 'status': 'granted',
-                'message': 'Access granted',
+                'message': 'Access granted successfully',
                 'participant': {
-                    'id': participant.id,
-                    'name': participant.user.get_full_name(),
-                    'email': participant.user.email,
-                    'badge_id': participant.badge_id
+                    'id': str(participant.id),
+                    'name': user.get_full_name(),
+                    'email': user.email,
+                    'badge_id': qr_dict.get('badge_id'),
+                    'photo_url': participant.photo.url if participant.photo else None
                 },
-                'access_id': access.id,
-                'accessed_at': access.accessed_at
-            })
+                'access': {
+                    'id': str(access.id),
+                    'accessed_at': access.accessed_at.isoformat(),
+                    'room_name': room.name
+                }
+            }, status=status.HTTP_200_OK)
             
-        except Participant.DoesNotExist:
+        except User.DoesNotExist:
             return Response({
                 'status': 'invalid',
-                'message': 'Invalid QR code or participant not found'
+                'message': 'Invalid QR code - user not found'
             }, status=status.HTTP_404_NOT_FOUND)
+        except Session.DoesNotExist:
+            return Response({
+                'status': 'invalid',
+                'message': 'Session not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except json.JSONDecodeError:
+            return Response({
+                'status': 'invalid',
+                'message': 'Invalid QR code format'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': f'Verification error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SessionViewSet(viewsets.ModelViewSet):

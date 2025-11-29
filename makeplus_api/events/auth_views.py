@@ -122,14 +122,27 @@ class CustomLoginView(APIView):
                 badge_info = None
                 if assignment.role in ['participant', 'exposant']:
                     try:
+                        from .models import UserProfile
+                        
+                        # Get user-level QR code (ONE QR for all events)
+                        user_qr_data = UserProfile.get_qr_for_user(authenticated_user)
+                        
+                        # Get participant profile to check check-in status
                         participant = Participant.objects.get(user=authenticated_user, event=event)
                         badge_info = {
-                            'badge_id': participant.badge_id,
-                            'qr_code_data': participant.qr_code_data,
+                            'badge_id': user_qr_data.get('badge_id'),
+                            'qr_code_data': json.dumps(user_qr_data),
                             'is_checked_in': participant.is_checked_in
                         }
                     except Participant.DoesNotExist:
-                        pass
+                        # User has role but no participant profile yet
+                        from .models import UserProfile
+                        user_qr_data = UserProfile.get_qr_for_user(authenticated_user)
+                        badge_info = {
+                            'badge_id': user_qr_data.get('badge_id'),
+                            'qr_code_data': json.dumps(user_qr_data),
+                            'is_checked_in': False
+                        }
                 
                 available_events.append({
                     'id': str(event.id),
@@ -780,15 +793,29 @@ class SelectEventView(APIView):
             badge_info = None
             if assignment.role in ['participant', 'exposant']:
                 try:
+                    from .models import UserProfile
+                    
+                    # Get user-level QR code (ONE QR for all events)
+                    user_qr_data = UserProfile.get_qr_for_user(request.user)
+                    
+                    # Get participant profile to check check-in status
                     participant = Participant.objects.get(user=request.user, event=event)
                     badge_info = {
-                        'badge_id': participant.badge_id,
-                        'qr_code_data': participant.qr_code_data,
+                        'badge_id': user_qr_data.get('badge_id'),
+                        'qr_code_data': json.dumps(user_qr_data),
                         'is_checked_in': participant.is_checked_in,
                         'checked_in_at': participant.checked_in_at.isoformat() if participant.checked_in_at else None
                     }
                 except Participant.DoesNotExist:
-                    pass
+                    # User has role but no participant profile yet
+                    from .models import UserProfile
+                    user_qr_data = UserProfile.get_qr_for_user(request.user)
+                    badge_info = {
+                        'badge_id': user_qr_data.get('badge_id'),
+                        'qr_code_data': json.dumps(user_qr_data),
+                        'is_checked_in': False,
+                        'checked_in_at': None
+                    }
             
             # Generate new tokens with event context
             refresh = RefreshToken.for_user(request.user)

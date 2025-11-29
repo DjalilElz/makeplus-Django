@@ -1,8 +1,8 @@
 # MakePlus Backend - Complete Documentation
 
-**Version:** 1.1  
-**Last Updated:** November 25, 2025  
-**Status:** ✅ Production Ready | ✅ Flutter Compatible
+**Version:** 2.0  
+**Last Updated:** November 29, 2025  
+**Status:** ✅ Production Ready | ✅ Flutter Compatible | ✅ User-Level QR System
 
 ---
 
@@ -38,7 +38,8 @@
 - ✅ Multi-event management system
 - ✅ Role-based access control (4 roles)
 - ✅ JWT authentication with event context
-- ✅ QR code generation and verification
+- ✅ **User-level QR code system (ONE QR per user across all events)**
+- ✅ QR code verification with multi-level access control (event + session)
 - ✅ Real-time session status management
 - ✅ File uploads (PDF: programmes, guides, plans)
 - ✅ Paid atelier system with access control
@@ -151,6 +152,238 @@ Uses Django's built-in `User` model:
 **Token Usage:**
 ```http
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
+```
+
+### Login Flow with User-Level QR Codes (v2.0)
+
+#### Overview
+Users now have **ONE QR code** that works across all events they have access to. The login endpoint returns all accessible events with the same QR code for each.
+
+#### Scenario 1: User with Single Event
+
+**Request:**
+```http
+POST /api/auth/login/
+Content-Type: application/json
+
+{
+  "email": "participant@example.com",
+  "password": "password123"
+}
+```
+
+**Response:**
+```json
+{
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 15,
+    "username": "participant_test",
+    "email": "participant@example.com",
+    "first_name": "Ahmed",
+    "last_name": "Benali"
+  },
+  "current_event": {
+    "id": "6442555a-2295-41f7-81ee-0a902a9c4102",
+    "name": "StartupWeek Oran 2025",
+    "role": "participant",
+    "start_date": "2026-01-26T00:00:00Z",
+    "end_date": "2026-01-31T23:59:59Z",
+    "status": "upcoming",
+    "location": "Oran Convention Center",
+    "badge": {
+      "badge_id": "USER-15-A1B2C3D4",
+      "qr_code_data": "{\"user_id\": 15, \"badge_id\": \"USER-15-A1B2C3D4\"}",
+      "is_checked_in": false
+    }
+  },
+  "requires_event_selection": false
+}
+```
+
+**Flow:**
+```
+User logs in
+    ↓
+Backend finds 1 event
+    ↓
+Auto-select that event
+    ↓
+Return JWT with event_id in token
+    ↓
+User can immediately use the app
+```
+
+#### Scenario 2: User with Multiple Events
+
+**Request:**
+```http
+POST /api/auth/login/
+Content-Type: application/json
+
+{
+  "email": "multi.event@example.com",
+  "password": "password123"
+}
+```
+
+**Response:**
+```json
+{
+  "user": {
+    "id": 25,
+    "username": "multi_user",
+    "email": "multi.event@example.com",
+    "first_name": "Karim",
+    "last_name": "Mansouri"
+  },
+  "requires_event_selection": true,
+  "available_events": [
+    {
+      "id": "event-1-uuid",
+      "name": "StartupWeek Oran 2025",
+      "role": "participant",
+      "start_date": "2026-01-26T00:00:00Z",
+      "end_date": "2026-01-31T23:59:59Z",
+      "status": "upcoming",
+      "location": "Oran",
+      "badge": {
+        "badge_id": "USER-25-X9Y8Z7W6",
+        "qr_code_data": "{\"user_id\": 25, \"badge_id\": \"USER-25-X9Y8Z7W6\"}",
+        "is_checked_in": false
+      }
+    },
+    {
+      "id": "event-2-uuid",
+      "name": "Tech Summit Algeria",
+      "role": "exposant",
+      "start_date": "2026-02-15T00:00:00Z",
+      "end_date": "2026-02-17T23:59:59Z",
+      "status": "upcoming",
+      "location": "Alger",
+      "badge": {
+        "badge_id": "USER-25-X9Y8Z7W6",
+        "qr_code_data": "{\"user_id\": 25, \"badge_id\": \"USER-25-X9Y8Z7W6\"}",
+        "is_checked_in": false
+      }
+    },
+    {
+      "id": "event-3-uuid",
+      "name": "Innovation Festival",
+      "role": "controlleur_des_badges",
+      "start_date": "2026-03-10T00:00:00Z",
+      "end_date": "2026-03-12T23:59:59Z",
+      "status": "upcoming",
+      "location": "Constantine",
+      "badge": null
+    }
+  ],
+  "temp_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Note:** 
+- All events show the **SAME QR code** (`USER-25-X9Y8Z7W6`)
+- Controllers don't get badge info (they scan, they don't get scanned)
+- User must call `/api/auth/select-event/` next
+
+**Flow:**
+```
+User logs in
+    ↓
+Backend finds 3 events
+    ↓
+Return list of events with temp_token
+    ↓
+User selects an event
+    ↓
+Call /api/auth/select-event/
+    ↓
+Return JWT with selected event_id
+    ↓
+User can use the app
+```
+
+#### Event Selection Endpoint
+
+**Request:**
+```http
+POST /api/auth/select-event/
+Authorization: Bearer <temp_token>
+Content-Type: application/json
+
+{
+  "event_id": "event-1-uuid"
+}
+```
+
+**Response:**
+```json
+{
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 25,
+    "username": "multi_user",
+    "email": "multi.event@example.com",
+    "first_name": "Karim",
+    "last_name": "Mansouri"
+  },
+  "current_event": {
+    "id": "event-1-uuid",
+    "name": "StartupWeek Oran 2025",
+    "role": "participant",
+    "start_date": "2026-01-26T00:00:00Z",
+    "end_date": "2026-01-31T23:59:59Z",
+    "status": "upcoming",
+    "location": "Oran",
+    "logo_url": "https://...",
+    "banner_url": "https://...",
+    "badge": {
+      "badge_id": "USER-25-X9Y8Z7W6",
+      "qr_code_data": "{\"user_id\": 25, \"badge_id\": \"USER-25-X9Y8Z7W6\"}",
+      "is_checked_in": false,
+      "checked_in_at": null
+    },
+    "permissions": ["view_sessions", "access_rooms", "check_in"]
+  }
+}
+```
+
+#### QR Code Access Control
+
+**Multi-Level Access Verification:**
+
+1. **Event Level** - Does user have access to this event?
+   - Checked via `UserEventAssignment`
+   - If no assignment: **Access Denied**
+
+2. **Room Level** - Can user enter this specific room?
+   - Checked via `Participant.allowed_rooms`
+   - If empty: user can access all rooms
+   - If specified: user can only access listed rooms
+   - If room not in list: **Access Denied**
+
+3. **Session Level** - For paid ateliers, has user paid?
+   - Checked via `SessionAccess`
+   - Free sessions: automatic access
+   - Paid sessions without payment: **Payment Required**
+
+**Example Access Check:**
+```
+Controller scans QR: {"user_id": 15, "badge_id": "USER-15-ABC123"}
+    ↓
+Backend checks UserEventAssignment
+    ✓ User has access to Event A as participant
+    ↓
+Backend checks Participant.allowed_rooms
+    ✓ No restrictions OR room is in allowed list
+    ↓
+If session is paid, check SessionAccess
+    ✓ User has paid OR session is free
+    ↓
+✅ GRANT ACCESS - Create RoomAccess record
 ```
 
 ### Multi-Event Support
@@ -348,7 +581,56 @@ Users can be assigned to multiple events with different roles:
 
 ---
 
-#### 5. Participant
+#### 5. UserProfile (NEW in v2.0)
+**Purpose:** Store user-level QR code (ONE per user across all events)
+
+**Fields:**
+- `id` (Auto) - Primary key
+- `user` (OneToOne User) - User account
+- `qr_code_data` (JSON) - User's QR code (same for all events)
+- `created_at` (DateTime) - Profile creation
+- `updated_at` (DateTime) - Last update
+
+**QR Code Format:**
+```json
+{
+  "user_id": 15,
+  "badge_id": "USER-15-A1B2C3D4"
+}
+```
+
+**Key Features:**
+- ✅ Automatically created when needed
+- ✅ Same QR code used across all events
+- ✅ Badge ID format: `USER-{user_id}-{8_random_chars}`
+- ✅ Simplifies user experience (one QR for everything)
+
+**Example:**
+```json
+{
+  "id": 1,
+  "user": 15,
+  "qr_code_data": {
+    "user_id": 15,
+    "badge_id": "USER-15-A1B2C3D4"
+  },
+  "created_at": "2025-11-29T10:00:00Z",
+  "updated_at": "2025-11-29T10:00:00Z"
+}
+```
+
+**Usage:**
+```python
+from events.models import UserProfile
+
+# Get or create QR code for user
+qr_data = UserProfile.get_qr_for_user(user)
+# Returns: {"user_id": 15, "badge_id": "USER-15-A1B2C3D4"}
+```
+
+---
+
+#### 6. Participant
 **Purpose:** Participant profiles with badge information
 
 **Fields:**
@@ -897,25 +1179,99 @@ POST /api/session-questions/{id}/answer/
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| POST | `/api/qr/verify/` | Verify QR code | Controller |
+| POST | `/api/rooms/{room_id}/verify_access/` | Verify user QR code for room access | Controller |
 | POST | `/api/qr/generate/` | Generate QR code | Gestionnaire |
+
+#### **NEW: User-Level QR Code System (v2.0)**
+
+**Key Changes:**
+- ✅ **ONE QR code per user** (stored in UserProfile model)
+- ✅ Same QR code works across all events user has access to
+- ✅ Multi-level access control: Event → Room → Session
+- ✅ Backend determines access based on UserEventAssignment and SessionAccess
+
+**QR Code Format:**
+```json
+{
+  "user_id": 15,
+  "badge_id": "USER-15-A1B2C3D4"
+}
+```
+
+**How It Works:**
+1. User logs in → receives same QR code for all their events
+2. Controller scans QR code at room entrance
+3. Backend checks:
+   - ✓ Does user have access to this event? (UserEventAssignment)
+   - ✓ Does user have access to this room? (Participant.allowed_rooms)
+   - ✓ If paid session, has user paid? (SessionAccess)
+4. Grant or deny access accordingly
 
 **QR Verify Request:**
 ```json
+POST /api/rooms/{room_id}/verify_access/
 {
-  "qr_data": "PARTICIPANT:uuid:BADGE-001",
-  "room_id": "room-uuid"
+  "qr_data": "{\"user_id\": 15, \"badge_id\": \"USER-15-A1B2C3D4\"}",
+  "session": "session-uuid"  // Optional: for session-specific access
 }
 ```
 
-**QR Verify Response:**
+**QR Verify Response (Access Granted):**
 ```json
 {
-  "valid": true,
-  "participant": {...},
-  "access_granted": true
+  "status": "granted",
+  "message": "Access granted successfully",
+  "participant": {
+    "id": "participant-uuid",
+    "name": "Ahmed Benali",
+    "email": "participant@example.com",
+    "badge_id": "USER-15-A1B2C3D4",
+    "photo_url": null
+  },
+  "access": {
+    "id": "access-uuid",
+    "accessed_at": "2025-11-29T10:30:00Z",
+    "room_name": "Hall Exposition"
+  }
 }
 ```
+
+**QR Verify Response (Access Denied - No Event Access):**
+```json
+{
+  "status": "denied",
+  "message": "User does not have access to this event",
+  "user": {
+    "name": "Ahmed Benali",
+    "email": "participant@example.com"
+  }
+}
+```
+
+**QR Verify Response (Access Denied - Payment Required):**
+```json
+{
+  "status": "denied",
+  "message": "Payment required for this atelier",
+  "participant": {
+    "id": "participant-uuid",
+    "name": "Ahmed Benali",
+    "badge_id": "USER-15-A1B2C3D4"
+  },
+  "session": {
+    "title": "UX Design Workshop",
+    "price": "6000.00"
+  }
+}
+```
+
+**Status Codes:**
+- `200 OK` - Access granted
+- `402 Payment Required` - Paid session, user hasn't paid
+- `403 Forbidden` - No event access or room not authorized
+- `404 Not Found` - User/participant/session not found
+- `400 Bad Request` - Invalid QR format
+- `500 Internal Server Error` - Server error
 
 ---
 
