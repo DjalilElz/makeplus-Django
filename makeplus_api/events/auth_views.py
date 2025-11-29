@@ -20,6 +20,7 @@ from .serializers import (
 )
 from .models import UserEventAssignment, Event, Participant
 import jwt
+import json
 from django.conf import settings
 from datetime import timedelta
 
