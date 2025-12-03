@@ -1189,10 +1189,13 @@ class MyAteliersView(APIView):
             )
         
         # Get all session access records for this participant (paid ateliers)
+        # Only return ateliers that are paid or free (exclude pending payments)
         session_accesses = SessionAccess.objects.filter(
             participant=participant,
             session__session_type='atelier',
             session__is_paid=True
+        ).exclude(
+            payment_status='pending'  # Exclude pending payments
         ).select_related(
             'session',
             'session__room',
@@ -1217,6 +1220,8 @@ class MyAteliersView(APIView):
                 'speaker_bio': session.speaker_bio,
                 'speaker_photo_url': session.speaker_photo_url,
                 'theme': session.theme,
+                'room_id': str(session.room.id) if session.room else None,
+                'room_name': session.room.name if session.room else None,
                 'room': {
                     'id': str(session.room.id),
                     'name': session.room.name,
@@ -1224,6 +1229,10 @@ class MyAteliersView(APIView):
                 } if session.room else None,
                 'start_time': session.start_time.isoformat(),
                 'end_time': session.end_time.isoformat(),
+                'status': session.status,
+                'session_type': session.session_type,
+                'youtube_live_url': session.youtube_live_url if session.youtube_live_url else None,
+                'is_live': session.is_live,
                 'price': float(session.price),
                 'payment_status': access.payment_status,
                 'has_access': access.has_access,
@@ -1234,15 +1243,13 @@ class MyAteliersView(APIView):
             
             ateliers_data.append(atelier_data)
             
-            # Calculate totals
+            # Calculate totals (only for paid items, not free)
             if access.payment_status == 'paid':
                 total_paid += float(access.amount_paid)
-            elif access.payment_status == 'pending':
-                total_pending += float(session.price)
         
         # Build summary
         paid_count = sum(1 for a in ateliers_data if a['payment_status'] == 'paid')
-        pending_count = sum(1 for a in ateliers_data if a['payment_status'] == 'pending')
+        free_count = sum(1 for a in ateliers_data if a['payment_status'] == 'free')
         
         response_data = {
             'participant': {
@@ -1254,10 +1261,8 @@ class MyAteliersView(APIView):
             'summary': {
                 'total_ateliers': len(ateliers_data),
                 'paid_count': paid_count,
-                'pending_count': pending_count,
-                'total_paid': total_paid,
-                'total_pending': total_pending,
-                'total_amount': total_paid + total_pending
+                'free_count': free_count,
+                'total_paid': total_paid
             },
             'ateliers': ateliers_data
         }
