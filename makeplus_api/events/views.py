@@ -669,6 +669,40 @@ class SessionQuestionViewSet(viewsets.ModelViewSet):
         
         return queryset
     
+    def create(self, request, *args, **kwargs):
+        """
+        Create a new question - automatically extracts participant from authenticated user
+        """
+        # Get event context from JWT token
+        event_context = getattr(request, 'event_context', None)
+        if not event_context:
+            return Response(
+                {'error': 'No event context found. Please select an event first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get the participant from the authenticated user and current event
+        try:
+            participant = Participant.objects.get(
+                user=request.user,
+                event=event_context
+            )
+        except Participant.DoesNotExist:
+            return Response(
+                {'error': 'Participant profile not found for this event'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Add participant to request data
+        data = request.data.copy()
+        data['participant'] = participant.id
+        
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsGestionnaire])
     def answer(self, request, pk=None):
         """Answer a question"""
