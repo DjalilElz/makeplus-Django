@@ -1,8 +1,24 @@
 # MakePlus Backend - Complete Documentation
 
-**Version:** 2.0  
+**Version:** 2.1  
 **Last Updated:** November 29, 2025  
 **Status:** ✅ Production Ready | ✅ Flutter Compatible | ✅ User-Level QR System
+
+---
+
+## 🎥 NEW: YouTube Live Streaming & Q&A System
+
+**See:** [YOUTUBE_AND_QA_INTEGRATION.md](YOUTUBE_AND_QA_INTEGRATION.md) for complete Flutter integration guide
+
+✅ **YouTube Live Streaming:** Sessions can include live YouTube stream URLs for hybrid events  
+✅ **Q&A System:** Participants can ask questions on sessions, gestionnaires can answer  
+✅ **Real-time Support:** Poll for updates during live sessions  
+✅ **Full API Coverage:** Complete endpoints documented below  
+
+**Quick Links:**
+- [Session Questions API](#session-questions-qa-system-endpoints)
+- [YouTube Live Integration](#youtube-live-streaming-integration)
+- [Frontend Integration Examples](#youtube-live-streaming-integration)
 
 ---
 
@@ -41,13 +57,13 @@
 - ✅ **User-level QR code system (ONE QR per user across all events)**
 - ✅ QR code verification with multi-level access control (event + session)
 - ✅ Real-time session status management
+- ✅ **YouTube live streaming integration** 🆕
+- ✅ **Session Q&A system (participant questions + gestionnaire answers)** 🆕
 - ✅ File uploads (PDF: programmes, guides, plans)
 - ✅ Paid atelier system with access control
 - ✅ Event announcements with role-based targeting
-- ✅ Session Q&A system
 - ✅ Room staff assignments with time slots
 - ✅ Exposant booth visit tracking
-- ✅ YouTube live streaming integration
 - ✅ French language support (statuses, roles)
 - ✅ **Flutter frontend integration ready**
 - ✅ **CORS configured for mobile/web apps**
@@ -962,6 +978,11 @@ qr_data = UserProfile.get_qr_for_user(user)
 
 **Note:** `/start/` and `/end/` are aliases for `mark_live` and `mark_completed` added for Flutter frontend compatibility.
 
+**Session Fields:**
+- `youtube_live_url` - YouTube live stream URL (optional, for hybrid/remote participation)
+- `is_live` - Boolean indicating if session is currently running
+- `status` - Current session status
+
 ---
 
 ### Participant Management Endpoints
@@ -1159,10 +1180,10 @@ POST /api/session-questions/{id}/answer/
 | POST | `/api/exposant-scans/` | Record scan | Exposant |
 | GET | `/api/exposant-scans/{id}/` | Get scan details | Authenticated |
 | GET | `/api/exposant-scans/my_scans/` | Get my scans with stats | Exposant |
+| GET | `/api/exposant-scans/export_excel/` | Export all visits to Excel | Exposant |
 
-**Query Parameters:**
-- `exposant_id` - Filter by exposant
-- `event_id` - Filter by event
+**Query Parameters (my_scans):**
+- `event_id` - Filter by specific event (required)
 
 **My Scans Response:**
 ```json
@@ -1171,6 +1192,25 @@ POST /api/session-questions/{id}/answer/
   "today_visits": 15,
   "scans": [...]
 }
+```
+
+**Export Excel Response:**
+- **Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+- **File Name:** `Statistiques_Visiteurs_{username}_{timestamp}.xlsx`
+- **Sheets:**
+  - **Résumé Global:** Summary of all events (event name, total visits, first/last visit)
+  - **{Event Name}:** Detailed visitor list for each event (date/time, name, email, badge ID, notes)
+- **Features:**
+  - Professional styling with headers
+  - Auto-adjusted column widths
+  - Total visits across all events
+  - Separate sheet per event
+  - All data from all events where exposant participated
+
+**Usage Example:**
+```http
+GET /api/exposant-scans/export_excel/
+Authorization: Bearer <exposant_jwt_token>
 ```
 
 ---
@@ -1272,6 +1312,534 @@ POST /api/rooms/{room_id}/verify_access/
 - `404 Not Found` - User/participant/session not found
 - `400 Bad Request` - Invalid QR format
 - `500 Internal Server Error` - Server error
+
+---
+
+### Session Questions (Q&A System) Endpoints
+
+| Method | Endpoint | Description | Permission |
+|--------|----------|-------------|------------|
+| GET | `/api/session-questions/` | List questions for sessions | Authenticated |
+| POST | `/api/session-questions/` | Ask a question (participant) | Participant |
+| GET | `/api/session-questions/{id}/` | Get question details | Authenticated |
+| PUT/PATCH | `/api/session-questions/{id}/` | Update question | Owner or Gestionnaire |
+| DELETE | `/api/session-questions/{id}/` | Delete question | Owner or Gestionnaire |
+| POST | `/api/session-questions/{id}/answer/` | Answer question | Gestionnaire |
+
+**Query Parameters:**
+- `session` - Filter by session ID
+- `participant` - Filter by participant ID
+- `is_answered` - Filter by answered status (true/false)
+
+**Ordering:**
+- Default: `-asked_at` (newest first)
+- Available: `asked_at`, `answered_at`
+
+#### **Q&A System Overview**
+
+The Q&A system allows participants to ask questions during sessions (conferences/ateliers) and gestionnaires to answer them in real-time or later.
+
+**Workflow:**
+1. **Participant asks question** during or after session
+2. **Question appears** in Q&A list (unanswered)
+3. **Gestionnaire reviews** questions
+4. **Gestionnaire answers** question
+5. **Participant sees answer** in real-time
+
+**Question Model Structure:**
+- `session` - Which session the question is for
+- `participant` - Who asked the question
+- `question_text` - The question content
+- `is_answered` - Boolean flag (default: false)
+- `answer_text` - The answer (blank until answered)
+- `answered_by` - Gestionnaire who answered
+- `asked_at` - When question was asked
+- `answered_at` - When question was answered
+
+---
+
+#### **1. Ask a Question (Participant)**
+
+**Request:**
+```http
+POST /api/session-questions/
+Authorization: Bearer <participant_jwt_token>
+Content-Type: application/json
+
+{
+  "session": "session-uuid",
+  "question_text": "What are the key differences between MVP and Prototype?"
+}
+```
+
+**Note:** The `participant` field is **automatically extracted** from the authenticated user and event context. You do NOT need to include it in the request body.
+
+**Response (201 Created):**
+```json
+{
+  "id": "question-uuid",
+  "session": "session-uuid",
+  "session_title": "Atelier: Product Development",
+  "participant": "participant-uuid",
+  "participant_name": "Ahmed Benali",
+  "question_text": "What are the key differences between MVP and Prototype?",
+  "is_answered": false,
+  "answer_text": "",
+  "answered_by": null,
+  "answered_by_name": null,
+  "asked_at": "2025-11-29T14:30:00Z",
+  "answered_at": null
+}
+```
+
+**Validation:**
+- ✅ Participant must be authenticated (JWT token required)
+- ✅ Must have valid event context (from JWT token)
+- ✅ Participant profile must exist for the current event
+- ✅ Session must exist
+- ✅ Question text is required (max 1000 characters)
+
+**Error Response (400 Bad Request) - No Event Context:**
+```json
+{
+  "error": "No event context found. Please select an event first."
+}
+```
+
+**Error Response (400 Bad Request) - No Participant Profile:**
+```json
+{
+  "error": "Participant profile not found for this event"
+}
+```
+
+---
+
+#### **2. List Questions (Filter by Session)**
+
+**Request:**
+```http
+GET /api/session-questions/?session=session-uuid
+Authorization: Bearer <jwt_token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "count": 12,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": "question-1-uuid",
+      "session": "session-uuid",
+      "session_title": "Atelier: Product Development",
+      "participant": "participant-1-uuid",
+      "participant_name": "Ahmed Benali",
+      "question_text": "What are the key differences between MVP and Prototype?",
+      "is_answered": true,
+      "answer_text": "An MVP (Minimum Viable Product) is a basic version of your product with just enough features to satisfy early customers and provide feedback for future development. A Prototype is a preliminary model built to test a concept or process, often not meant for public release.",
+      "answered_by": "gestionnaire-uuid",
+      "answered_by_name": "Fatima Cherif",
+      "asked_at": "2025-11-29T14:30:00Z",
+      "answered_at": "2025-11-29T14:45:00Z"
+    },
+    {
+      "id": "question-2-uuid",
+      "session": "session-uuid",
+      "session_title": "Atelier: Product Development",
+      "participant": "participant-2-uuid",
+      "participant_name": "Yasmine Khelifi",
+      "question_text": "How long should MVP development take?",
+      "is_answered": false,
+      "answer_text": "",
+      "answered_by": null,
+      "answered_by_name": null,
+      "asked_at": "2025-11-29T15:00:00Z",
+      "answered_at": null
+    }
+  ]
+}
+```
+
+---
+
+#### **3. Filter Unanswered Questions**
+
+**Request:**
+```http
+GET /api/session-questions/?session=session-uuid&is_answered=false
+Authorization: Bearer <gestionnaire_jwt_token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "count": 3,
+  "results": [
+    {
+      "id": "question-uuid",
+      "participant_name": "Yasmine Khelifi",
+      "question_text": "How long should MVP development take?",
+      "is_answered": false,
+      "asked_at": "2025-11-29T15:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+#### **4. Answer a Question (Gestionnaire Only)**
+
+**Request:**
+```http
+POST /api/session-questions/{question_id}/answer/
+Authorization: Bearer <gestionnaire_jwt_token>
+Content-Type: application/json
+
+{
+  "answer_text": "MVP development typically takes 2-3 months, but it depends on the complexity of your product and the features you include. Focus on the core value proposition first."
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "question-uuid",
+  "session": "session-uuid",
+  "session_title": "Atelier: Product Development",
+  "participant": "participant-uuid",
+  "participant_name": "Yasmine Khelifi",
+  "question_text": "How long should MVP development take?",
+  "is_answered": true,
+  "answer_text": "MVP development typically takes 2-3 months, but it depends on the complexity of your product and the features you include. Focus on the core value proposition first.",
+  "answered_by": "gestionnaire-uuid",
+  "answered_by_name": "Fatima Cherif",
+  "asked_at": "2025-11-29T15:00:00Z",
+  "answered_at": "2025-11-29T15:20:00Z"
+}
+```
+
+**Validation:**
+- ✅ Only Gestionnaires can answer questions
+- ✅ Answer text is required
+- ✅ Automatically sets `is_answered=true`, `answered_by=user`, `answered_at=now()`
+
+---
+
+#### **5. Get Questions for Participant**
+
+**Request:**
+```http
+GET /api/session-questions/?participant=participant-uuid
+Authorization: Bearer <participant_jwt_token>
+```
+
+**Use Case:** Participant viewing their own questions across all sessions
+
+**Response:**
+```json
+{
+  "count": 5,
+  "results": [
+    {
+      "session_title": "Atelier: Product Development",
+      "question_text": "What are the key differences between MVP and Prototype?",
+      "is_answered": true,
+      "answer_text": "...",
+      "asked_at": "2025-11-29T14:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
+#### **Q&A Frontend Integration Guide**
+
+**For Participants:**
+1. **Viewing Session Q&A:**
+   ```dart
+   // Fetch questions for a session
+   GET /api/session-questions/?session={session_id}&ordering=-asked_at
+   
+   // Display answered and unanswered questions
+   // Show participant names, timestamps
+   ```
+
+2. **Asking Question:**
+   ```dart
+   // Submit question during/after session
+   // NOTE: participant field is auto-extracted from JWT token
+   POST /api/session-questions/
+   {
+     "session": session_id,
+     "question_text": user_input
+   }
+   
+   // Show success message
+   // No need to include participant_id in request body
+   ```
+
+3. **Viewing My Questions:**
+   ```dart
+   // Show all participant's questions
+   GET /api/session-questions/?participant={participant_id}
+   
+   // Filter by answered/unanswered
+   GET /api/session-questions/?participant={participant_id}&is_answered=false
+   ```
+
+**For Gestionnaires:**
+1. **View Unanswered Questions:**
+   ```dart
+   // Dashboard: Show pending questions
+   GET /api/session-questions/?is_answered=false&ordering=asked_at
+   
+   // Group by session
+   ```
+
+2. **Answer Questions:**
+   ```dart
+   // Answer modal/dialog
+   POST /api/session-questions/{id}/answer/
+   {
+     "answer_text": gestionnaire_response
+   }
+   
+   // Update UI immediately
+   ```
+
+**Real-time Updates (Optional):**
+- Use polling: Fetch questions every 30 seconds during live sessions
+- WebSocket: For real-time Q&A (future enhancement)
+
+---
+
+### YouTube Live Streaming Integration
+
+#### **Overview**
+
+Each session (conference or atelier) can have a YouTube live stream URL for remote/hybrid participation.
+
+**Session Model Field:**
+- `youtube_live_url` - URLField storing YouTube live stream URL (optional)
+
+**Use Cases:**
+- **Hybrid Events:** Participants attend physically + watch online
+- **Recorded Sessions:** YouTube live streams auto-save recordings
+- **Remote Access:** Participants who can't attend physically
+
+---
+
+#### **Session Response with YouTube Live URL**
+
+**Example Session Response:**
+```json
+{
+  "id": "session-uuid",
+  "title": "Conférence: Fundraising Strategies",
+  "description": "Learn how to raise funds for your startup",
+  "speaker_name": "Karim Benyoucef",
+  "speaker_title": "Angel Investor",
+  "room_name": "Salle Principale",
+  "start_time": "2025-11-30T09:00:00Z",
+  "end_time": "2025-11-30T10:30:00Z",
+  "session_type": "conference",
+  "status": "en_cours",
+  "is_paid": false,
+  "youtube_live_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "cover_image_url": "https://...",
+  "is_live": true
+}
+```
+
+**Key Fields:**
+- `youtube_live_url` - Full YouTube URL (null if no livestream)
+- `is_live` - Boolean indicating if session is currently live
+- `status` - Session status (pas_encore, en_cours, termine)
+
+---
+
+#### **Frontend Integration - YouTube Live**
+
+**1. Check if Session Has Live Stream:**
+```dart
+// Parse session response
+if (session.youtube_live_url != null && session.youtube_live_url.isNotEmpty) {
+  // Show YouTube embed or "Watch Live" button
+  showYouTubeLiveButton();
+}
+```
+
+**2. Display YouTube Embed (Web):**
+```html
+<!-- Extract video ID from URL -->
+<!-- https://www.youtube.com/watch?v=VIDEO_ID -->
+<iframe 
+  width="560" 
+  height="315" 
+  src="https://www.youtube.com/embed/VIDEO_ID" 
+  frameborder="0" 
+  allowfullscreen>
+</iframe>
+```
+
+**3. Open YouTube App (Mobile Flutter):**
+```dart
+import 'package:url_launcher/url_launcher.dart';
+
+Future<void> openYouTubeLive(String youtubeUrl) async {
+  final Uri url = Uri.parse(youtubeUrl);
+  
+  if (await canLaunchUrl(url)) {
+    await launchUrl(
+      url,
+      mode: LaunchMode.externalApplication, // Opens YouTube app
+    );
+  } else {
+    // Show error: Cannot open YouTube
+  }
+}
+```
+
+**4. Embedded Player (Flutter - YouTube Player Plugin):**
+```dart
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+
+// Extract video ID from URL
+String? videoId = YoutubePlayer.convertUrlToId(session.youtube_live_url);
+
+if (videoId != null) {
+  YoutubePlayerController controller = YoutubePlayerController(
+    initialVideoId: videoId,
+    flags: YoutubePlayerFlags(
+      autoPlay: false,
+      mute: false,
+      isLive: true, // Enable live stream mode
+    ),
+  );
+  
+  return YoutubePlayer(
+    controller: controller,
+    showVideoProgressIndicator: true,
+  );
+}
+```
+
+**5. Show Live Indicator:**
+```dart
+// When session is live AND has YouTube URL
+if (session.is_live && session.youtube_live_url != null) {
+  return Row(
+    children: [
+      Container(
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          children: [
+            Icon(Icons.circle, color: Colors.white, size: 8),
+            SizedBox(width: 4),
+            Text('EN DIRECT', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+      ),
+      SizedBox(width: 8),
+      TextButton(
+        onPressed: () => openYouTubeLive(session.youtube_live_url),
+        child: Text('Regarder en ligne'),
+      ),
+    ],
+  );
+}
+```
+
+---
+
+#### **YouTube Live URL Management (Gestionnaires)**
+
+**Create Session with YouTube Live:**
+```http
+POST /api/sessions/
+Authorization: Bearer <gestionnaire_jwt_token>
+Content-Type: application/json
+
+{
+  "event": "event-uuid",
+  "room": "room-uuid",
+  "title": "Conférence: Startup Success Stories",
+  "start_time": "2025-11-30T14:00:00Z",
+  "end_time": "2025-11-30T16:00:00Z",
+  "session_type": "conference",
+  "youtube_live_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+}
+```
+
+**Update YouTube URL:**
+```http
+PATCH /api/sessions/{session_id}/
+Authorization: Bearer <gestionnaire_jwt_token>
+Content-Type: application/json
+
+{
+  "youtube_live_url": "https://www.youtube.com/watch?v=NEW_VIDEO_ID"
+}
+```
+
+**Remove YouTube URL:**
+```http
+PATCH /api/sessions/{session_id}/
+{
+  "youtube_live_url": ""
+}
+```
+
+---
+
+#### **YouTube Live Best Practices**
+
+**For Event Organizers:**
+1. **Setup YouTube Live:** Create YouTube live stream before event
+2. **Add URL:** Copy YouTube URL → paste in session creation/edit
+3. **Test Stream:** Verify stream works before session starts
+4. **Start Session:** Mark session as live when starting
+5. **Recording:** YouTube auto-saves stream recording
+
+**For Frontend Developers:**
+1. **Null Checks:** Always check if `youtube_live_url` exists
+2. **URL Validation:** Validate YouTube URL format
+3. **Error Handling:** Handle cases where video doesn't exist
+4. **Mobile UX:** Provide both "Open YouTube App" and "Embedded Player" options
+5. **Live Indicator:** Show visual indicator when session is live with streaming
+
+**YouTube URL Formats Supported:**
+- `https://www.youtube.com/watch?v=VIDEO_ID`
+- `https://youtu.be/VIDEO_ID`
+- `https://www.youtube.com/live/VIDEO_ID`
+
+**Example Flutter Helper:**
+```dart
+class YouTubeHelper {
+  static String? extractVideoId(String? url) {
+    if (url == null || url.isEmpty) return null;
+    
+    final regExp = RegExp(
+      r'(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})',
+    );
+    
+    final match = regExp.firstMatch(url);
+    return match?.group(1);
+  }
+  
+  static bool hasValidYouTubeUrl(String? url) {
+    return extractVideoId(url) != null;
+  }
+}
+```
 
 ---
 

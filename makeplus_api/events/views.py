@@ -816,3 +816,180 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
             })
         except Participant.DoesNotExist:
             return Response({'error': 'Exposant participant record not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsExposant])
+    def export_excel(self, request):
+        """Export all booth visits to Excel file"""
+        from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        
+        try:
+            # Get all events for this exposant
+            exposant_participants = Participant.objects.filter(
+                user=request.user
+            ).select_related('event')
+            
+            if not exposant_participants.exists():
+                return Response(
+                    {'error': 'No exposant participant records found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Create workbook
+            wb = Workbook()
+            wb.remove(wb.active)  # Remove default sheet
+            
+            # Styles
+            header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF", size=12)
+            border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+            
+            # Create summary sheet
+            summary_ws = wb.create_sheet("Résumé Global")
+            summary_headers = ["Événement", "Total Visites", "Première Visite", "Dernière Visite"]
+            summary_ws.append(summary_headers)
+            
+            # Style summary headers
+            for col in range(1, len(summary_headers) + 1):
+                cell = summary_ws.cell(row=1, column=col)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = border
+            
+            total_visits_all_events = 0
+            
+            # Process each event
+            for exposant in exposant_participants:
+                event = exposant.event
+                scans = ExposantScan.objects.filter(
+                    exposant=exposant
+                ).select_related('scanned_participant__user', 'event').order_by('scanned_at')
+                
+                visit_count = scans.count()
+                total_visits_all_events += visit_count
+                
+                # Add to summary
+                if visit_count > 0:
+                    first_visit = scans.first().scanned_at.strftime('%Y-%m-%d %H:%M')
+                    last_visit = scans.last().scanned_at.strftime('%Y-%m-%d %H:%M')
+                else:
+                    first_visit = "N/A"
+                    last_visit = "N/A"
+                
+                summary_ws.append([
+                    event.name,
+                    visit_count,
+                    first_visit,
+                    last_visit
+                ])
+                
+                # Create sheet for each event with visits
+                if visit_count > 0:
+                    # Sanitize sheet name (max 31 chars, no special chars)
+                    sheet_name = event.name[:28] + "..." if len(event.name) > 31 else event.name
+                    sheet_name = sheet_name.replace('/', '-').replace('\\', '-').replace('*', '').replace('?', '').replace('[', '').replace(']', '')
+                    
+                    ws = wb.create_sheet(sheet_name)
+                    
+                    # Headers
+                    headers = [
+                        "Date & Heure",
+                        "Nom Complet",
+                        "Email",
+                        "Badge ID",
+                        "Notes"
+                    ]
+                    ws.append(headers)
+                    
+                    # Style headers
+                    for col in range(1, len(headers) + 1):
+                        cell = ws.cell(row=1, column=col)
+                        cell.fill = header_fill
+                        cell.font = header_font
+                        cell.alignment = Alignment(horizontal='center', vertical='center')
+                        cell.border = border
+                    
+                    # Add data
+                    for scan in scans:
+                        participant = scan.scanned_participant
+                        ws.append([
+                            scan.scanned_at.strftime('%Y-%m-%d %H:%M:%S'),
+                            participant.user.get_full_name() or participant.user.username,
+                            participant.user.email,
+                            participant.badge_id,
+                            scan.notes or ""
+                        ])
+                    
+                    # Auto-adjust column widths
+                    for col in range(1, len(headers) + 1):
+                        column_letter = get_column_letter(col)
+                        max_length = 0
+                        for cell in ws[column_letter]:
+                            try:
+                                if len(str(cell.value)) > max_length:
+                                    max_length = len(str(cell.value))
+                            except:
+                                pass
+                        adjusted_width = min(max_length + 2, 50)
+                        ws.column_dimensions[column_letter].width = adjusted_width
+                    
+                    # Apply borders to all cells
+                    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=len(headers)):
+                        for cell in row:
+                            cell.border = border
+            
+            # Add total row to summary
+            summary_ws.append([
+                "TOTAL",
+                total_visits_all_events,
+                "",
+                ""
+            ])
+            last_row = summary_ws.max_row
+            for col in range(1, 3):
+                cell = summary_ws.cell(row=last_row, column=col)
+                cell.font = Font(bold=True, size=12)
+                cell.fill = PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid")
+                cell.border = border
+            
+            # Auto-adjust summary column widths
+            for col in range(1, len(summary_headers) + 1):
+                column_letter = get_column_letter(col)
+                max_length = 0
+                for cell in summary_ws[column_letter]:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                summary_ws.column_dimensions[column_letter].width = adjusted_width
+            
+            # Apply borders to summary
+            for row in summary_ws.iter_rows(min_row=1, max_row=summary_ws.max_row, min_col=1, max_col=len(summary_headers)):
+                for cell in row:
+                    cell.border = border
+            
+            # Prepare response
+            response = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            filename = f'Statistiques_Visiteurs_{request.user.username}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            wb.save(response)
+            return response
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Error generating Excel file: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
