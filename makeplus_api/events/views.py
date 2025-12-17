@@ -978,12 +978,25 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
                 for cell in row:
                     cell.border = border
             
+            # Check if this is for sharing (mobile) or direct download (web)
+            action = request.query_params.get('action', 'download')
+            
             # Prepare response
             response = HttpResponse(
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
             filename = f'Statistiques_Visiteurs_{request.user.username}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            # For sharing (mobile): inline, for download (web/desktop): attachment
+            if action == 'share':
+                # Mobile share - don't force download, just provide the file
+                response['Content-Disposition'] = f'inline; filename="{filename}"'
+            else:
+                # Desktop/web download - force download
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            # Add filename in header for mobile apps to use
+            response['X-Filename'] = filename
             
             wb.save(response)
             return response

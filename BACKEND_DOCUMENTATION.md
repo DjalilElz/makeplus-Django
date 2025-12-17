@@ -1197,6 +1197,13 @@ POST /api/session-questions/{id}/answer/
 **Export Excel Response:**
 - **Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
 - **File Name:** `Statistiques_Visiteurs_{username}_{timestamp}.xlsx`
+- **Query Parameters:**
+  - `action` (optional): `download` (default) or `share`
+    - `download`: Forces file download (Content-Disposition: attachment) - for web/desktop
+    - `share`: Returns file inline (Content-Disposition: inline) - for mobile share sheet
+- **Response Headers:**
+  - `Content-Disposition`: `attachment` or `inline` based on action
+  - `X-Filename`: Original filename (useful for mobile apps)
 - **Sheets:**
   - **Résumé Global:** Summary of all events (event name, total visits, first/last visit)
   - **{Event Name}:** Detailed visitor list for each event (date/time, name, email, badge ID, notes)
@@ -1207,9 +1214,17 @@ POST /api/session-questions/{id}/answer/
   - Separate sheet per event
   - All data from all events where exposant participated
 
-**Usage Example:**
+**Usage Examples:**
+
+Desktop/Web Download:
 ```http
 GET /api/exposant-scans/export_excel/
+Authorization: Bearer <exposant_jwt_token>
+```
+
+Mobile Share (for share_plus):
+```http
+GET /api/exposant-scans/export_excel/?action=share
 Authorization: Bearer <exposant_jwt_token>
 ```
 
