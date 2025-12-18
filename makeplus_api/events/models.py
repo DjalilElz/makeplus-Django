@@ -98,6 +98,7 @@ class Event(models.Model):
 class UserEventAssignment(models.Model):
     """User-Event Role Assignment"""
     ROLE_CHOICES = [
+        ('organisateur', 'Organisateur'),
         ('gestionnaire_des_salles', 'Gestionnaire des Salles'),
         ('controlleur_des_badges', 'Contrôleur des Badges'),
         ('participant', 'Participant'),

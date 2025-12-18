@@ -79,9 +79,9 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if user.userassignments.all %}
+                            {% if user.event_assignments.all %}
                                 <div class="d-flex flex-column gap-1">
-                                    {% for assignment in user.userassignments.all %}
+                                    {% for assignment in user.event_assignments.all %}
                                         <small class="text-truncate" style="max-width: 150px;" title="{{ assignment.event.name }}">
                                             {{ assignment.event.name }}
                                         </small>
@@ -92,9 +92,9 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if user.userassignments.all %}
+                            {% if user.event_assignments.all %}
                                 <div class="d-flex flex-column gap-1">
-                                    {% for assignment in user.userassignments.all %}
+                                    {% for assignment in user.event_assignments.all %}
                                         {% if assignment.role == 'organisateur' %}
                                             <span class="badge bg-primary">Organizer</span>
                                         {% elif assignment.role == 'gestionnaire_des_salles' %}

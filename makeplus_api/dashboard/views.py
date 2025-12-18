@@ -533,7 +533,7 @@ def user_list(request):
     
     # Base query with optimizations
     users = User.objects.prefetch_related(
-        'userassignments__event',
+        'event_assignments__event',
         'profile',
         'participations__event',
         'participations__allowed_rooms'
@@ -541,7 +541,7 @@ def user_list(request):
     
     # Filter by role if specified
     if role_filter != 'all':
-        users = users.filter(userassignments__role=role_filter).distinct()
+        users = users.filter(event_assignments__role=role_filter).distinct()
     
     # Get counts for each role
     role_counts = {
