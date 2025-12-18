@@ -635,9 +635,9 @@ def user_create(request):
                 participant.metadata['profile_picture_url'] = profile_picture_url
                 participant.save()
             
-            # Assign room to gestionnaire if applicable
+            # Assign room to gestionnaire or controlleur if applicable
             assigned_room = form.cleaned_data.get('assigned_room')
-            if role == 'gestionnaire_des_salles' and assigned_room:
+            if (role in ['gestionnaire_des_salles', 'controlleur_des_badges']) and assigned_room:
                 # Store room assignment in UserEventAssignment metadata
                 assignment = UserEventAssignment.objects.get(user=user, event=event)
                 assignment.metadata = {'assigned_room_id': str(assigned_room.id)}

@@ -44,7 +44,7 @@
                         {{ form.role }}
                     </div>
                     
-                    <!-- Conditional: Room assignment for Gestionnaire des Salles -->
+                    <!-- Conditional: Room assignment for Gestionnaire des Salles and Controlleur -->
                     <div class="mb-3" id="roomAssignmentField" style="display: none;">
                         <label for="{{ form.assigned_room.id_for_label }}" class="form-label">
                             <i class="bi bi-door-open"></i> Assigned Room
@@ -89,8 +89,8 @@ function toggleConditionalFields() {
     const roomField = document.getElementById('roomAssignmentField');
     const profileField = document.getElementById('profilePictureField');
     
-    // Show/hide room assignment for gestionnaire_des_salles
-    if (selectedRole === 'gestionnaire_des_salles') {
+    // Show/hide room assignment for gestionnaire_des_salles and controlleur_des_badges
+    if (selectedRole === 'gestionnaire_des_salles' || selectedRole === 'controlleur_des_badges') {
         roomField.style.display = 'block';
         profileField.style.display = 'none';
     } 

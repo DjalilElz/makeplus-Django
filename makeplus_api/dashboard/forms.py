@@ -325,14 +325,14 @@ class QuickUserForm(forms.Form):
         })
     )
     
-    # Conditional field for gestionnaire_des_salles
+    # Conditional field for gestionnaire_des_salles and controlleur_des_badges
     assigned_room = forms.ModelChoiceField(
         queryset=Room.objects.all(),
         required=False,
         widget=forms.Select(attrs={
             'class': 'form-select'
         }),
-        help_text="Select room for gestionnaire des salles"
+        help_text="Select room to assign (for gestionnaire des salles or controlleur des badges)"
     )
     
     # Conditional field for participants
