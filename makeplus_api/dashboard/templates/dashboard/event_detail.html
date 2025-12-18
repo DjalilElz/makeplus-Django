@@ -620,4 +620,135 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
-</script>{% endblock %}
+</script>
+
+<!-- Event Users Section (Bottom of Page) -->
+<div class="container-fluid mt-5 mb-4">
+    <hr class="my-5">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-people"></i> Event Users</h3>
+    </div>
+    
+    <!-- Role Filter Buttons -->
+    <div class="mb-4">
+        <div class="btn-group" role="group">
+            <a href="?role=all" class="btn {% if role_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <i class="bi bi-people"></i> All Users ({{ role_counts.all }})
+            </a>
+            <a href="?role=organisateur" class="btn {% if role_filter == 'organisateur' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <i class="bi bi-person-badge"></i> Organizers ({{ role_counts.organisateur }})
+            </a>
+            <a href="?role=gestionnaire_des_salles" class="btn {% if role_filter == 'gestionnaire_des_salles' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <i class="bi bi-door-open"></i> Room Managers ({{ role_counts.gestionnaire_des_salles }})
+            </a>
+            <a href="?role=controlleur_des_badges" class="btn {% if role_filter == 'controlleur_des_badges' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <i class="bi bi-qr-code-scan"></i> Controllers ({{ role_counts.controlleur_des_badges }})
+            </a>
+            <a href="?role=exposant" class="btn {% if role_filter == 'exposant' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <i class="bi bi-shop"></i> Exhibitors ({{ role_counts.exposant }})
+            </a>
+            <a href="?role=participant" class="btn {% if role_filter == 'participant' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <i class="bi bi-person"></i> Participants ({{ role_counts.participant }})
+            </a>
+        </div>
+    </div>
+    
+    <!-- Users Table -->
+    <div class="stat-card">
+        {% if event_users %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Full Name</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Badge ID</th>
+                        <th>Phone</th>
+                        <th>Role</th>
+                        <th>Assigned By</th>
+                        <th>Assigned Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for assignment in event_users %}
+                    <tr>
+                        <td>
+                            <strong>{{ assignment.user.first_name }} {{ assignment.user.last_name }}</strong>
+                            {% if not assignment.user.first_name and not assignment.user.last_name %}
+                                <span class="text-muted">Not set</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ assignment.user.username }}</code></td>
+                        <td>{{ assignment.user.email|default:"No email" }}</td>
+                        <td>
+                            {% if assignment.user.profile.qr_code_data %}
+                                <code class="small text-primary">{{ assignment.user.profile.qr_code_data.badge_id }}</code>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if assignment.user.participations.first %}
+                                <span class="text-muted">In profile</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if assignment.role == 'organisateur' %}
+                                <span class="badge bg-primary">Organizer</span>
+                            {% elif assignment.role == 'gestionnaire_des_salles' %}
+                                <span class="badge bg-info">Room Manager</span>
+                            {% elif assignment.role == 'controlleur_des_badges' %}
+                                <span class="badge bg-warning">Controller</span>
+                            {% elif assignment.role == 'exposant' %}
+                                <span class="badge bg-success">Exhibitor</span>
+                            {% elif assignment.role == 'participant' %}
+                                <span class="badge bg-secondary">Participant</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if assignment.assigned_by %}
+                                {{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.username }}
+                            {% else %}
+                                <span class="text-muted">System</span>
+                            {% endif %}
+                        </td>
+                        <td><small>{{ assignment.assigned_at|date:"M d, Y" }}</small></td>
+                        <td>
+                            {% if assignment.user.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                            {% if assignment.user.is_staff %}
+                                <span class="badge bg-dark">Staff</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'dashboard:user_detail' assignment.user.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> Details
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-person-x" style="font-size: 3rem; color: #ccc;"></i>
+            <p class="text-muted mt-3">No users in this event yet.</p>
+            <a href="{% url 'dashboard:user_create' %}" class="btn btn-primary">
+                <i class="bi bi-person-plus"></i> Add First User
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

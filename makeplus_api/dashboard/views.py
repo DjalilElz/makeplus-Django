@@ -168,17 +168,36 @@ def event_detail(request, event_id):
         'speaker_title', 'is_paid', 'price', 'youtube_live_url', 'room__name', 'room__id'
     )
     
-    # Get all user assignments in ONE query with prefetch
+    # Get all user assignments in ONE query with prefetch (includes profile for badge ID)
     all_assignments = UserEventAssignment.objects.filter(
         event=event,
         is_active=True
-    ).select_related('user').only('role', 'user__username', 'user__first_name', 'user__last_name')
+    ).select_related('user__profile', 'assigned_by').prefetch_related('user__participations')
     
     # Separate by role in Python (faster than 4 separate queries)
     organisateurs = [a for a in all_assignments if a.role == 'organisateur']
     gestionnaires = [a for a in all_assignments if a.role == 'gestionnaire_des_salles']
     controleurs = [a for a in all_assignments if a.role == 'controlleur_des_badges']
     exposants = [a for a in all_assignments if a.role == 'exposant']
+    
+    # Get filter parameter for user list
+    role_filter = request.GET.get('role', 'all')
+    
+    # Filter assignments for user list display
+    if role_filter != 'all':
+        filtered_assignments = [a for a in all_assignments if a.role == role_filter]
+    else:
+        filtered_assignments = list(all_assignments)
+    
+    # Get role counts
+    role_counts = {
+        'all': len(all_assignments),
+        'organisateur': len(organisateurs),
+        'gestionnaire_des_salles': len(gestionnaires),
+        'controlleur_des_badges': len(controleurs),
+        'exposant': len(exposants),
+        'participant': len([a for a in all_assignments if a.role == 'participant']),
+    }
     
     # Use aggregate for statistics (single query instead of multiple counts)
     participant_stats = Participant.objects.filter(event=event).aggregate(
@@ -262,6 +281,10 @@ def event_detail(request, event_id):
         'answered_questions': answered_questions,
         'caisses': caisses,
         'caisse_stats': caisse_stats,
+        # User list data
+        'event_users': filtered_assignments,
+        'role_filter': role_filter,
+        'role_counts': role_counts,
     }
     
     # Cache the context for 2 minutes
