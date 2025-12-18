@@ -290,32 +290,34 @@
                 <p class="text-muted">No room access history</p>
                 {% endif %}
                 
-                <!-- Badge Scans -->
-                <h5 class="mt-4"><i class="bi bi-qr-code-scan"></i> Badge Scan History</h5>
+                <!-- Badge Scans by Exposants -->
+                <h5 class="mt-4"><i class="bi bi-qr-code-scan"></i> Exposant Scan History</h5>
                 <hr>
                 {% if data.scans %}
                 <div class="table-responsive">
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Scanned By</th>
-                                <th>Room</th>
+                                <th>Exposant</th>
+                                <th>Event</th>
                                 <th>Scan Time</th>
+                                <th>Notes</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for scan in data.scans %}
                             <tr>
-                                <td>{{ scan.controller.get_full_name|default:scan.controller.username }}</td>
-                                <td>{{ scan.room.name|default:"N/A" }}</td>
-                                <td><small>{{ scan.scan_time|date:"M d, Y H:i" }}</small></td>
+                                <td>{{ scan.exposant.user.get_full_name|default:scan.exposant.user.username }}</td>
+                                <td>{{ scan.event.name }}</td>
+                                <td><small>{{ scan.scanned_at|date:"M d, Y H:i" }}</small></td>
+                                <td><small>{{ scan.notes|default:"-" }}</small></td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
                 {% else %}
-                <p class="text-muted">No scan history</p>
+                <p class="text-muted">No exposant scan history</p>
                 {% endif %}
             </div>
             {% endfor %}

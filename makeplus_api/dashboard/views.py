@@ -696,10 +696,10 @@ def user_detail(request, user_id):
             participant=participant
         ).select_related('room', 'session', 'verified_by').order_by('-accessed_at')
         
-        # Get scans by controllers
+        # Get scans by exposants
         scans = ExposantScan.objects.filter(
             scanned_participant=participant
-        ).select_related('controller', 'room').order_by('-scan_time')
+        ).select_related('exposant__user', 'event').order_by('-scanned_at')
         
         participant_data.append({
             'participant': participant,
