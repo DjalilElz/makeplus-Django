@@ -1,0 +1,168 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}{% if is_edit %}Edit{% else %}Create{% endif %} Payable Item{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-{% if is_edit %}pencil{% else %}plus-circle{% endif %}"></i>
+                    {% if is_edit %}Edit{% else %}Create{% endif %} Payable Item
+                </h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">
+                    <i class="bi bi-calendar-event"></i> Event: <strong>{{ event.name }}</strong>
+                </p>
+
+                {% if form.errors %}
+                    <div class="alert alert-danger">
+                        <strong>Please correct the errors below:</strong>
+                        <ul class="mb-0">
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    <li>{{ field }}: {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                <form method="post" id="payableItemForm">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="id_event" class="form-label">
+                            <i class="bi bi-calendar-event"></i> Event *
+                        </label>
+                        {{ form.event }}
+                        {% if form.event.help_text %}
+                            <div class="form-text">{{ form.event.help_text }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_name" class="form-label">
+                            <i class="bi bi-tag"></i> Item Name *
+                        </label>
+                        {{ form.name }}
+                        {% if form.name.help_text %}
+                            <div class="form-text">{{ form.name.help_text }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_description" class="form-label">
+                            <i class="bi bi-text-paragraph"></i> Description
+                        </label>
+                        {{ form.description }}
+                        {% if form.description.help_text %}
+                            <div class="form-text">{{ form.description.help_text }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="id_price" class="form-label">
+                                <i class="bi bi-cash"></i> Price (DZD) *
+                            </label>
+                            {{ form.price }}
+                            {% if form.price.help_text %}
+                                <div class="form-text">{{ form.price.help_text }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="id_item_type" class="form-label">
+                                <i class="bi bi-list-ul"></i> Item Type *
+                            </label>
+                            {{ form.item_type }}
+                            {% if form.item_type.help_text %}
+                                <div class="form-text">{{ form.item_type.help_text }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_session" class="form-label">
+                            <i class="bi bi-calendar3"></i> Linked Session (Optional)
+                        </label>
+                        {{ form.session }}
+                        {% if form.session.help_text %}
+                            <div class="form-text">{{ form.session.help_text }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="form-check">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="id_is_active">
+                                <i class="bi bi-check-circle"></i> Active (available in caisse)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'dashboard:payable_items_list' event.id %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-success" id="submitBtn">
+                            <span id="btnText">
+                                <i class="bi bi-check-circle"></i> {% if is_edit %}Update{% else %}Create{% endif %} Item
+                            </span>
+                            <span id="btnLoading" style="display: none;">
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                Processing...
+                            </span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 2px solid #e5e7eb;
+        padding: 10px 15px;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.25);
+    }
+    
+    .card {
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .card-header {
+        border-radius: 10px 10px 0 0 !important;
+    }
+</style>
+
+<script>
+    // Prevent multiple form submissions
+    document.getElementById('payableItemForm').addEventListener('submit', function(e) {
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const btnLoading = document.getElementById('btnLoading');
+        
+        // Check if already submitting
+        if (submitBtn.disabled) {
+            e.preventDefault();
+            return false;
+        }
+        
+        // Disable the button and show loading state
+        submitBtn.disabled = true;
+        btnText.style.display = 'none';
+        btnLoading.style.display = 'inline';
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}All Users{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-people"></i> All Users</h2>
+        <a href="{% url 'dashboard:user_create' %}" class="btn btn-primary">
+            <i class="bi bi-person-plus"></i> Create User
+        </a>
+    </div>
+    
+    <div class="stat-card">
+        {% if users %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Badge ID</th>
+                        <th>Event Roles</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td><strong>{{ user.get_full_name|default:"-" }}</strong></td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            {% if user.profile.qr_code_data %}
+                                <code class="small">{{ user.profile.qr_code_data.badge_id }}</code>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.userassignments.all %}
+                                <span class="badge bg-info">{{ user.userassignments.count }} event(s)</span>
+                            {% else %}
+                                <span class="text-muted">No assignments</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'dashboard:user_detail' user.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-person-x" style="font-size: 3rem; color: #ccc;"></i>
+            <p class="text-muted mt-3">No users yet.</p>
+            <a href="{% url 'dashboard:user_create' %}" class="btn btn-primary">
+                <i class="bi bi-person-plus"></i> Create First User
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

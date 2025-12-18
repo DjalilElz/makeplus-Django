@@ -46,6 +46,12 @@ urlpatterns = [
     # API Endpoints
     path('api/', include('events.urls')),
     
+    # Dashboard (Admin Panel)
+    path('dashboard/', include('dashboard.urls')),
+    
+    # Caisse (Cash Register)
+    path('caisse/', include('caisse.urls')),
+    
     # Browsable API auth
     path('api-auth/', include('rest_framework.urls')),
 ]

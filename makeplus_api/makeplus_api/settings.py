@@ -15,9 +15,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-temporary-key-change-this-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ['*']  # Update for production
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+
+# Performance: Enable template caching in production
+if not DEBUG:
+    TEMPLATES_CACHED = True
+else:
+    TEMPLATES_CACHED = False
 
 # Application definition
 INSTALLED_APPS = [
@@ -38,20 +44,33 @@ INSTALLED_APPS = [
     
     # Local apps
     'events',
+    'dashboard',  # Admin dashboard
+    'caisse',  # Cash register system
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # Must be at top
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files
+    'django.middleware.gzip.GZipMiddleware',  # Compress responses
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.cache.UpdateCacheMiddleware',  # Cache middleware
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.cache.FetchFromCacheMiddleware',  # Cache middleware
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'events.middleware.EventContextMiddleware',  # Extract event context from JWT
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# CSRF Settings
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
+CSRF_COOKIE_SAMESITE = 'Lax'
 
 ROOT_URLCONF = 'makeplus_api.urls'
 
@@ -67,6 +86,13 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
+            'loaders': [
+                ('django.template.loaders.cached.Loader', [
+                    'django.template.loaders.filesystem.Loader',
+                    'django.template.loaders.app_directories.Loader',
+                ]) if not DEBUG else 'django.template.loaders.filesystem.Loader',
+                'django.template.loaders.app_directories.Loader',
+            ] if not DEBUG else None,
         },
     },
 ]
@@ -88,8 +114,15 @@ if config('USE_SUPABASE', default=False, cast=bool):
             'OPTIONS': {
                 'sslmode': 'require',
                 'connect_timeout': 10,
+                'keepalives': 1,
+                'keepalives_idle': 30,
+                'keepalives_interval': 10,
+                'keepalives_count': 5,
+                'options': '-c statement_timeout=30000',  # 30 second query timeout
             },
-            'CONN_MAX_AGE': 600,
+            'CONN_MAX_AGE': 600,  # Reuse connections for 10 minutes
+            'CONN_HEALTH_CHECKS': True,  # Check connection health
+            'ATOMIC_REQUESTS': False,  # Disabled for better performance (handle transactions manually)
         }
     }
 else:
@@ -100,6 +133,27 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+
+# Caching Configuration (using in-memory cache for speed)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'makeplus-cache',
+        'TIMEOUT': 300,  # 5 minutes default
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+        }
+    }
+}
+
+# Cache configuration
+CACHE_MIDDLEWARE_ALIAS = 'default'
+CACHE_MIDDLEWARE_SECONDS = 300  # 5 minutes
+CACHE_MIDDLEWARE_KEY_PREFIX = 'makeplus'
+
+# Session optimization
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
+SESSION_CACHE_ALIAS = 'default'
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
@@ -243,3 +297,8 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+# Dashboard Authentication Settings
+LOGIN_URL = '/dashboard/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/dashboard/login/'

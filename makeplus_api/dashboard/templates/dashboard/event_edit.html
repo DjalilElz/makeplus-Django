@@ -1,0 +1,278 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Edit Event - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">Edit Event</h2>
+            <p class="text-muted mb-0">Update details for {{ event.name }}</p>
+        </div>
+        <div>
+            <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Details
+            </a>
+        </div>
+    </div>
+
+    <!-- Event Edit Form -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Event Information</h5>
+                    
+                    <!-- Display form errors -->
+                    {% if form.errors %}
+                        <div class="alert alert-danger" role="alert">
+                            <h6 class="alert-heading">Please correct the following errors:</h6>
+                            <ul class="mb-0">
+                                {% for field in form %}
+                                    {% for error in field.errors %}
+                                        <li>{{ field.label }}: {{ error }}</li>
+                                    {% endfor %}
+                                {% endfor %}
+                                {% for error in form.non_field_errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    <form method="post" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <!-- Event Name -->
+                            <div class="col-md-12 mb-3">
+                                <label for="{{ form.name.id_for_label }}" class="form-label">
+                                    Event Name <span class="text-danger">*</span>
+                                </label>
+                                {{ form.name }}
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.name.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Description -->
+                            <div class="col-md-12 mb-3">
+                                <label for="{{ form.description.id_for_label }}" class="form-label">
+                                    Description
+                                </label>
+                                {{ form.description }}
+                                {% if form.description.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.description.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Location -->
+                            <div class="col-md-12 mb-3">
+                                <label for="{{ form.location.id_for_label }}" class="form-label">
+                                    Location <span class="text-danger">*</span>
+                                </label>
+                                {{ form.location }}
+                                {% if form.location.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.location.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Start Date -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.start_date.id_for_label }}" class="form-label">
+                                    Start Date <span class="text-danger">*</span>
+                                </label>
+                                {{ form.start_date }}
+                                {% if form.start_date.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.start_date.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- End Date -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.end_date.id_for_label }}" class="form-label">
+                                    End Date <span class="text-danger">*</span>
+                                </label>
+                                {{ form.end_date }}
+                                {% if form.end_date.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.end_date.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Max Participants -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.max_participants.id_for_label }}" class="form-label">
+                                    Max Participants
+                                </label>
+                                {{ form.max_participants }}
+                                {% if form.max_participants.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.max_participants.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.status.id_for_label }}" class="form-label">
+                                    Status <span class="text-danger">*</span>
+                                </label>
+                                {{ form.status }}
+                                {% if form.status.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.status.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Guide File URL -->
+                            <div class="col-md-12 mb-3">
+                                <label for="{{ form.guide_file.id_for_label }}" class="form-label">
+                                    Guide File URL
+                                </label>
+                                {{ form.guide_file }}
+                                {% if form.guide_file.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.guide_file.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- President -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.president.id_for_label }}" class="form-label">
+                                    President
+                                </label>
+                                {{ form.president }}
+                                {% if form.president.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.president.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Vice President -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.vice_president.id_for_label }}" class="form-label">
+                                    Vice President
+                                </label>
+                                {{ form.vice_president }}
+                                {% if form.vice_president.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.vice_president.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Secretary General -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.secretary_general.id_for_label }}" class="form-label">
+                                    Secretary General
+                                </label>
+                                {{ form.secretary_general }}
+                                {% if form.secretary_general.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.secretary_general.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Treasurer -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.treasurer.id_for_label }}" class="form-label">
+                                    Treasurer
+                                </label>
+                                {{ form.treasurer }}
+                                {% if form.treasurer.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.treasurer.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Contact Email -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.contact_email.id_for_label }}" class="form-label">
+                                    Contact Email
+                                </label>
+                                {{ form.contact_email }}
+                                {% if form.contact_email.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.contact_email.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Contact Phone -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.contact_phone.id_for_label }}" class="form-label">
+                                    Contact Phone
+                                </label>
+                                {{ form.contact_phone }}
+                                {% if form.contact_phone.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.contact_phone.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-secondary">
+                                Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Panel -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">Event Information</h6>
+                    <hr>
+                    <p class="small mb-2">
+                        <strong>Created:</strong><br>
+                        {{ event.created_at|date:"M d, Y H:i" }}
+                    </p>
+                    <p class="small mb-2">
+                        <strong>Last Updated:</strong><br>
+                        {{ event.updated_at|date:"M d, Y H:i" }}
+                    </p>
+                    <p class="small mb-0">
+                        <strong>Created By:</strong><br>
+                        {{ event.created_by.get_full_name|default:event.created_by.username }}
+                    </p>
+                </div>
+            </div>
+
+            <div class="alert alert-info">
+                <h6 class="alert-heading">
+                    <i class="bi bi-info-circle"></i> Note
+                </h6>
+                <p class="small mb-0">
+                    Editing the event will not affect existing rooms, sessions, or participants. 
+                    To modify those, use their respective management sections.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

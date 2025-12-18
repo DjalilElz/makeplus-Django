@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Print Badge - {{ name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        @media print {
+            .no-print {
+                display: none;
+            }
+            body {
+                margin: 0;
+                padding: 20px;
+            }
+        }
+        
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .badge-container {
+            background: white;
+            border: 2px solid #333;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 400px;
+            margin: 20px auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .event-name {
+            color: #667eea;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .participant-name {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #333;
+            margin: 20px 0;
+        }
+        
+        .participant-email {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+        
+        .qr-code-container {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 10px;
+        }
+        
+        .qr-code {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+            display: block;
+        }
+        
+        .qr-text {
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 1rem;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            font-size: 0.85rem;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+        }
+        
+        .print-button {
+            margin: 20px auto;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="badge-container">
+        <div class="event-name">
+            {{ caisse.event.name }}
+        </div>
+        
+        <div class="participant-name">
+            {{ name }}
+        </div>
+        
+        <div class="participant-email">
+            {{ email }}
+        </div>
+        
+        <div class="qr-code-container">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ qr_code }}" 
+                 alt="QR Code" 
+                 class="qr-code">
+            <div class="qr-text">{{ qr_code }}</div>
+        </div>
+        
+        <div class="instructions">
+            <strong>Badge ID:</strong> {{ qr_code }}<br>
+            <small>Present this badge at event sessions and activities</small>
+        </div>
+    </div>
+    
+    <div class="text-center no-print">
+        <button onclick="window.print()" class="btn btn-primary btn-lg print-button">
+            <i class="bi bi-printer"></i> Print Badge
+        </button>
+        <button onclick="window.close()" class="btn btn-secondary btn-lg ms-2">
+            Close
+        </button>
+    </div>
+    
+    <script>
+        // Auto-print on load
+        window.onload = function() {
+            // Small delay to ensure page is fully rendered
+            setTimeout(function() {
+                window.print();
+            }, 500);
+        };
+    </script>
+</body>
+</html>

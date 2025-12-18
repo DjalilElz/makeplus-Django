@@ -1,0 +1,615 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}{{ event.name }} - Event Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">{{ event.name }}</h2>
+            <p class="text-muted mb-0">
+                <i class="bi bi-calendar"></i> {{ event.start_date|date:"M d, Y" }} - {{ event.end_date|date:"M d, Y" }}
+                <span class="ms-3"><i class="bi bi-geo-alt"></i> {{ event.location }}</span>
+            </p>
+        </div>
+        <div>
+            <a href="?refresh=1" class="btn btn-outline-secondary me-2" title="Refresh data">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </a>
+            <a href="{% url 'dashboard:event_edit' event.id %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil"></i> Edit
+            </a>
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteEventModal">
+                <i class="bi bi-trash"></i> Delete
+            </button>
+        </div>
+    </div>
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Participants</p>
+                        <h3 class="mb-0">{{ total_participants }}</h3>
+                        <small class="text-success">{{ checked_in_participants }} checked in</small>
+                    </div>
+                    <div class="stat-icon primary">
+                        <i class="bi bi-people"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Rooms</p>
+                        <h3 class="mb-0">{{ rooms.count }}</h3>
+                    </div>
+                    <div class="stat-icon success">
+                        <i class="bi bi-door-open"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Sessions</p>
+                        <h3 class="mb-0">{{ total_sessions }}</h3>
+                        <small>{{ conferences }} conf, {{ ateliers }} atelier</small>
+                    </div>
+                    <div class="stat-icon warning">
+                        <i class="bi bi-collection"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Exposants</p>
+                        <h3 class="mb-0">{{ exposants.count }}</h3>
+                        <small>{{ exposant_scans }} scans</small>
+                    </div>
+                    <div class="stat-icon info">
+                        <i class="bi bi-shop"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="eventTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button">
+                <i class="bi bi-info-circle"></i> Overview
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="rooms-tab" data-bs-toggle="tab" data-bs-target="#rooms" type="button">
+                <i class="bi bi-door-open"></i> Rooms ({{ rooms.count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="sessions-tab" data-bs-toggle="tab" data-bs-target="#sessions" type="button">
+                <i class="bi bi-collection"></i> Sessions ({{ total_sessions }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button">
+                <i class="bi bi-people"></i> Users
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="caisses-tab" data-bs-toggle="tab" data-bs-target="#caisses" type="button">
+                <i class="bi bi-cash-register"></i> Caisses ({{ caisses.count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="payable-items-tab" data-bs-toggle="tab" data-bs-target="#payable-items" type="button">
+                <i class="bi bi-currency-dollar"></i> Payable Items
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="eventTabsContent">
+        <!-- Overview Tab -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="stat-card mb-4">
+                        <h5><i class="bi bi-info-circle"></i> Event Information</h5>
+                        <hr>
+                        <dl class="row">
+                            <dt class="col-sm-3">Name:</dt>
+                            <dd class="col-sm-9">{{ event.name }}</dd>
+                            
+                            <dt class="col-sm-3">Status:</dt>
+                            <dd class="col-sm-9">
+                                {% if event.status == 'active' %}
+                                    <span class="badge bg-success">Active</span>
+                                {% elif event.status == 'upcoming' %}
+                                    <span class="badge bg-primary">Upcoming</span>
+                                {% elif event.status == 'completed' %}
+                                    <span class="badge bg-secondary">Completed</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Cancelled</span>
+                                {% endif %}
+                            </dd>
+                            
+                            <dt class="col-sm-3">Dates:</dt>
+                            <dd class="col-sm-9">{{ event.start_date|date:"F d, Y" }} - {{ event.end_date|date:"F d, Y" }}</dd>
+                            
+                            <dt class="col-sm-3">Location:</dt>
+                            <dd class="col-sm-9">{{ event.location }}</dd>
+                            
+                            {% if event.location_details %}
+                            <dt class="col-sm-3">Location Details:</dt>
+                            <dd class="col-sm-9">{{ event.location_details }}</dd>
+                            {% endif %}
+                            
+                            {% if event.description %}
+                            <dt class="col-sm-3">Description:</dt>
+                            <dd class="col-sm-9">{{ event.description }}</dd>
+                            {% endif %}
+                            
+                            {% if event.organizer_contact %}
+                            <dt class="col-sm-3">Contact:</dt>
+                            <dd class="col-sm-9">{{ event.organizer_contact }}</dd>
+                            {% endif %}
+                            
+                            {% if event.created_by %}
+                            <dt class="col-sm-3">Created By:</dt>
+                            <dd class="col-sm-9">{{ event.created_by.get_full_name|default:event.created_by.username }}</dd>
+                            {% endif %}
+                            
+                            <dt class="col-sm-3">Created At:</dt>
+                            <dd class="col-sm-9">{{ event.created_at|date:"F d, Y H:i" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <h5><i class="bi bi-bar-chart"></i> Statistics</h5>
+                        <hr>
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><strong>Room Accesses:</strong> {{ room_accesses }}</li>
+                            <li class="mb-2"><strong>Exposant Scans:</strong> {{ exposant_scans }}</li>
+                            <li class="mb-2"><strong>Questions:</strong> {{ total_questions }} ({{ answered_questions }} answered)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Rooms Tab -->
+        <div class="tab-pane fade" id="rooms" role="tabpanel">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="bi bi-door-open"></i> Event Rooms</h5>
+                    <a href="{% url 'dashboard:room_create' event.id %}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-circle"></i> Add Room
+                    </a>
+                </div>
+                {% if rooms %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Room Name</th>
+                                <th>Capacity</th>
+                                <th>Location</th>
+                                <th>Current/Max</th>
+                                <th>Sessions</th>
+                                <th>Description</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for room in rooms %}
+                            <tr>
+                                <td><strong>{{ room.name }}</strong></td>
+                                <td>{{ room.capacity }}</td>
+                                <td>{{ room.location|default:"-" }}</td>
+                                <td>
+                                    <small>{{ room.current_participants }}/{{ room.capacity }}</small>
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar" style="width: {{ room.occupancy_percentage }}%"></div>
+                                    </div>
+                                </td>
+                                <td><span class="badge bg-primary">{{ room.sessions.count }}</span></td>
+                                <td><small>{{ room.description|truncatewords:10|default:"-" }}</small></td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{% url 'dashboard:room_edit' room.id %}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger delete-room-btn" data-room-id="{{ room.id }}" data-room-name="{{ room.name|escapejs }}" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No rooms added yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Sessions Tab -->
+        <div class="tab-pane fade" id="sessions" role="tabpanel">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="bi bi-collection"></i> Event Sessions</h5>
+                    <a href="{% url 'dashboard:session_create' event.id %}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-circle"></i> Add Session
+                    </a>
+                </div>
+                {% if sessions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Session Title</th>
+                                <th>Type</th>
+                                <th>Room</th>
+                                <th>Date/Time</th>
+                                <th>Speaker</th>
+                                <th>Pricing</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for session in sessions %}
+                            <tr>
+                                <td>
+                                    <strong>{{ session.title }}</strong>
+                                    {% if session.youtube_live_url %}
+                                        <i class="bi bi-youtube text-danger"></i>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if session.session_type == 'conference' %}
+                                        <span class="badge bg-primary">Conference</span>
+                                    {% elif session.session_type == 'atelier' %}
+                                        <span class="badge bg-warning text-dark">Atelier</span>
+                                    {% else %}
+                                        <span class="badge bg-info">Workshop</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ session.room.name }}</td>
+                                <td><small>{{ session.start_time|date:"M d, H:i" }} - {{ session.end_time|date:"H:i" }}</small></td>
+                                <td>
+                                    {{ session.speaker_name|default:"-" }}
+                                    {% if session.speaker_title %}
+                                        <br><small class="text-muted">{{ session.speaker_title }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if session.is_paid %}
+                                        <span class="badge bg-success">Paid ({{ session.price }} DA)</span>
+                                    {% else %}
+                                        <span class="badge bg-info">Free</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{% url 'dashboard:session_edit' session.id %}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger delete-session-btn" data-session-id="{{ session.id }}" data-session-title="{{ session.title|escapejs }}" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No sessions added yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Users Tab -->
+        <div class="tab-pane fade" id="users" role="tabpanel">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="stat-card">
+                        <h6><i class="bi bi-person-badge"></i> Organisateurs</h6>
+                        <hr>
+                        {% if organisateurs %}
+                            <ul class="list-group">
+                                {% for org in organisateurs %}
+                                <li class="list-group-item">
+                                    {{ org.user.get_full_name|default:org.user.username }}
+                                    <br><small class="text-muted">{{ org.user.email }}</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted small">No organisateurs</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <div class="stat-card">
+                        <h6><i class="bi bi-person-workspace"></i> Gestionnaires des Salles</h6>
+                        <hr>
+                        {% if gestionnaires %}
+                            <ul class="list-group">
+                                {% for gest in gestionnaires %}
+                                <li class="list-group-item">
+                                    {{ gest.user.get_full_name|default:gest.user.username }}
+                                    <br><small class="text-muted">{{ gest.user.email }}</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted small">No gestionnaires</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <div class="stat-card">
+                        <h6><i class="bi bi-qr-code-scan"></i> Contrôleurs des Badges</h6>
+                        <hr>
+                        {% if controleurs %}
+                            <ul class="list-group">
+                                {% for ctrl in controleurs %}
+                                <li class="list-group-item">
+                                    {{ ctrl.user.get_full_name|default:ctrl.user.username }}
+                                    <br><small class="text-muted">{{ ctrl.user.email }}</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted small">No contrôleurs</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <div class="stat-card">
+                        <h6><i class="bi bi-shop"></i> Exposants</h6>
+                        <hr>
+                        {% if exposants %}
+                            <ul class="list-group">
+                                {% for exp in exposants %}
+                                <li class="list-group-item">
+                                    {{ exp.user.get_full_name|default:exp.user.username }}
+                                    <br><small class="text-muted">{{ exp.user.email }}</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted small">No exposants</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Caisses Tab -->
+        <div class="tab-pane fade" id="caisses" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5><i class="bi bi-cash-register"></i> Cash Registers (Caisses)</h5>
+                <a href="{% url 'dashboard:caisse_create' %}?event={{ event.id }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Add Caisse
+                </a>
+            </div>
+            
+            {% if caisse_stats %}
+                <div class="row">
+                    {% for stat in caisse_stats %}
+                    <div class="col-md-6 mb-3">
+                        <div class="stat-card">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-cash-register"></i> {{ stat.caisse.name }}
+                                    {% if stat.caisse.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </h6>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <p class="text-muted small mb-1">Email</p>
+                                    <p class="mb-0"><small>{{ stat.caisse.email }}</small></p>
+                                </div>
+                                <div class="col-6">
+                                    <p class="text-muted small mb-1">Created</p>
+                                    <p class="mb-0"><small>{{ stat.caisse.created_at|date:"M d, Y" }}</small></p>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <p class="text-muted small mb-1">Total Amount</p>
+                                    <h5 class="text-success mb-0">{{ stat.total_amount|floatformat:2 }}</h5>
+                                </div>
+                                <div class="col-4">
+                                    <p class="text-muted small mb-1">Participants</p>
+                                    <h5 class="text-primary mb-0">{{ stat.total_participants }}</h5>
+                                </div>
+                                <div class="col-4">
+                                    <p class="text-muted small mb-1">Transactions</p>
+                                    <h5 class="text-info mb-0">{{ stat.transaction_count }}</h5>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex gap-2 mt-3">
+                                <a href="{% url 'dashboard:caisse_detail' stat.caisse.id %}" class="btn btn-sm btn-outline-primary flex-fill">
+                                    <i class="bi bi-eye"></i> View Details
+                                </a>
+                                <a href="{% url 'dashboard:caisse_edit' stat.caisse.id %}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                        onclick="if(confirm('Delete this caisse?')) { document.getElementById('delete-caisse-{{ stat.caisse.id }}').submit(); }">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                <form id="delete-caisse-{{ stat.caisse.id }}" method="post" 
+                                      action="{% url 'dashboard:caisse_delete' stat.caisse.id %}" style="display:none;">
+                                    {% csrf_token %}
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> No caisses created yet. Click "Add Caisse" to create your first cash register.
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Payable Items Tab -->
+        <div class="tab-pane fade" id="payable-items" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5><i class="bi bi-currency-dollar"></i> Payable Items</h5>
+                <a href="{% url 'dashboard:payable_item_create' event.id %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Add Item
+                </a>
+            </div>
+            
+            <div class="mb-3">
+                <a href="{% url 'dashboard:payable_items_list' event.id %}" class="btn btn-outline-primary">
+                    <i class="bi bi-list"></i> Manage All Payable Items
+                </a>
+            </div>
+            
+            <div class="alert alert-info">
+                <h6 class="alert-heading"><i class="bi bi-info-circle"></i> About Payable Items</h6>
+                <p class="mb-0">
+                    Payable items are things participants can purchase at caisses during check-in, such as:
+                </p>
+                <ul class="mb-0 mt-2">
+                    <li><strong>Paid Ateliers:</strong> Workshop fees</li>
+                    <li><strong>Dinner/Meals:</strong> Food and beverage</li>
+                    <li><strong>Other Items:</strong> Merchandise, materials, etc.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteEventModal" tabindex="-1" aria-labelledby="deleteEventModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteEventModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Confirm Delete
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">Are you sure you want to delete this event?</p>
+                <div class="alert alert-warning mb-3">
+                    <strong>Event Name:</strong> {{ event.name }}<br>
+                    <strong>Location:</strong> {{ event.location }}<br>
+                    <strong>Dates:</strong> {{ event.start_date|date:"M d, Y" }} - {{ event.end_date|date:"M d, Y" }}
+                </div>
+                <p class="text-danger small mb-0">
+                    <i class="bi bi-exclamation-circle"></i> 
+                    <strong>Warning:</strong> This action cannot be undone. All associated rooms, sessions, and participant assignments will also be deleted.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancel
+                </button>
+                <form method="post" action="{% url 'dashboard:event_delete' event.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Yes, Delete Event
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+// Delete room handler with event delegation
+document.addEventListener('DOMContentLoaded', function() {
+    document.body.addEventListener('click', function(e) {
+        if (e.target.closest('.delete-room-btn')) {
+            const button = e.target.closest('.delete-room-btn');
+            const roomId = button.getAttribute('data-room-id');
+            const roomName = button.getAttribute('data-room-name');
+            
+            if (confirm(`Are you sure you want to delete the room "${roomName}"?\n\nThis will also remove all sessions associated with this room.`)) {
+                // Create form dynamically
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/dashboard/rooms/${roomId}/delete/`;
+                form.style.display = 'none';
+                
+                // Add CSRF token
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrfmiddlewaretoken';
+                csrfInput.value = csrfToken;
+                form.appendChild(csrfInput);
+                
+                // Add to body and submit
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
+        if (e.target.closest('.delete-session-btn')) {
+            const button = e.target.closest('.delete-session-btn');
+            const sessionId = button.getAttribute('data-session-id');
+            const sessionTitle = button.getAttribute('data-session-title');
+            
+            if (confirm(`Are you sure you want to delete the session "${sessionTitle}"?`)) {
+                // Create form dynamically
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/dashboard/sessions/${sessionId}/delete/`;
+                form.style.display = 'none';
+                
+                // Add CSRF token
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrfmiddlewaretoken';
+                csrfInput.value = csrfToken;
+                form.appendChild(csrfInput);
+                
+                // Add to body and submit
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    });
+});
+</script>{% endblock %}
