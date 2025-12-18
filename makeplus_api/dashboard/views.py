@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import login, authenticate, logout
 from django.contrib import messages
 from django.db.models import Count, Q, Sum, Prefetch
+from django.db import models
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -525,12 +526,37 @@ def event_create_step4(request):
 @login_required
 @user_passes_test(is_staff_user)
 def user_list(request):
-    """List all users"""
+    """List all users with role filtering"""
     
-    users = User.objects.all().prefetch_related('userassignments', 'profile')
+    # Get filter parameter
+    role_filter = request.GET.get('role', 'all')
+    
+    # Base query with optimizations
+    users = User.objects.prefetch_related(
+        'userassignments__event',
+        'profile',
+        'participations__event',
+        'participations__allowed_rooms'
+    ).order_by('-date_joined')
+    
+    # Filter by role if specified
+    if role_filter != 'all':
+        users = users.filter(userassignments__role=role_filter).distinct()
+    
+    # Get counts for each role
+    role_counts = {
+        'all': User.objects.count(),
+        'organisateur': UserEventAssignment.objects.filter(role='organisateur').values('user').distinct().count(),
+        'gestionnaire_des_salles': UserEventAssignment.objects.filter(role='gestionnaire_des_salles').values('user').distinct().count(),
+        'controlleur_des_badges': UserEventAssignment.objects.filter(role='controlleur_des_badges').values('user').distinct().count(),
+        'exposant': UserEventAssignment.objects.filter(role='exposant').values('user').distinct().count(),
+        'participant': UserEventAssignment.objects.filter(role='participant').values('user').distinct().count(),
+    }
     
     context = {
-        'users': users
+        'users': users,
+        'role_filter': role_filter,
+        'role_counts': role_counts
     }
     
     return render(request, 'dashboard/user_list.html', context)
@@ -594,7 +620,8 @@ def user_create(request):
 @login_required
 @user_passes_test(is_staff_user)
 def user_detail(request, user_id):
-    """User detail with QR code"""
+    """User detail with comprehensive information"""
+    from caisse.models import CaisseTransaction
     
     user = get_object_or_404(User, id=user_id)
     
@@ -612,22 +639,64 @@ def user_detail(request, user_id):
     buffer.seek(0)
     qr_image = base64.b64encode(buffer.getvalue()).decode()
     
-    # Get user's event assignments
+    # Get user's event assignments with role details
     assignments = UserEventAssignment.objects.filter(
         user=user
-    ).select_related('event')
+    ).select_related('event', 'assigned_by').order_by('-created_at')
     
-    # Get participant profiles
+    # Get participant profiles with detailed information
     participant_profiles = Participant.objects.filter(
         user=user
-    ).select_related('event')
+    ).select_related('event').prefetch_related('allowed_rooms')
+    
+    # For each participant profile, get their event data
+    participant_data = []
+    for participant in participant_profiles:
+        event = participant.event
+        
+        # Get paid sessions (ateliers) for this participant in this event
+        paid_sessions = Session.objects.filter(
+            event=event,
+            is_paid=True
+        ).values('id', 'title', 'price', 'start_time', 'room__name')
+        
+        # Get transactions for this participant in this event
+        transactions = CaisseTransaction.objects.filter(
+            participant=participant
+        ).select_related('caisse', 'created_by').order_by('-created_at')
+        
+        # Calculate total spent
+        total_spent = transactions.aggregate(total=models.Sum('total_amount'))['total'] or 0
+        
+        # Get room access history
+        room_accesses = RoomAccess.objects.filter(
+            participant=participant
+        ).select_related('room', 'session', 'verified_by').order_by('-accessed_at')
+        
+        # Get scans by controllers
+        scans = ExposantScan.objects.filter(
+            scanned_participant=participant
+        ).select_related('controller', 'room').order_by('-scan_time')
+        
+        participant_data.append({
+            'participant': participant,
+            'event': event,
+            'paid_sessions': paid_sessions,
+            'transactions': transactions,
+            'total_spent': total_spent,
+            'room_accesses': room_accesses,
+            'scans': scans,
+            'transaction_count': transactions.count(),
+            'scan_count': scans.count(),
+            'room_access_count': room_accesses.count()
+        })
     
     context = {
         'user': user,
         'qr_data': qr_data,
         'qr_image': qr_image,
         'assignments': assignments,
-        'participant_profiles': participant_profiles
+        'participant_data': participant_data
     }
     
     return render(request, 'dashboard/user_detail.html', context)

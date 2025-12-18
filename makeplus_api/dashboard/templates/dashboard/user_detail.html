@@ -1,50 +1,77 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}User Details - {{ user.get_full_name }}{% endblock %}
+{% block page_title %}{{ user.get_full_name|default:user.username }} - Details{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}</h2>
+        <a href="{% url 'dashboard:user_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Users
+        </a>
+    </div>
+    
     <div class="row">
-        <div class="col-md-8">
+        <!-- Left Column: User Info & Assignments -->
+        <div class="col-lg-8">
+            <!-- Basic Information Card -->
             <div class="stat-card mb-4">
-                <h4 class="mb-4"><i class="bi bi-person"></i> User Information</h4>
+                <h4 class="mb-4"><i class="bi bi-info-circle"></i> Basic Information</h4>
                 
-                <dl class="row">
-                    <dt class="col-sm-3">Full Name:</dt>
-                    <dd class="col-sm-9">{{ user.get_full_name|default:"-" }}</dd>
-                    
-                    <dt class="col-sm-3">Username:</dt>
-                    <dd class="col-sm-9">{{ user.username }}</dd>
-                    
-                    <dt class="col-sm-3">Email:</dt>
-                    <dd class="col-sm-9">{{ user.email }}</dd>
-                    
-                    <dt class="col-sm-3">Badge ID:</dt>
-                    <dd class="col-sm-9"><code>{{ qr_data.badge_id }}</code></dd>
-                    
-                    <dt class="col-sm-3">Status:</dt>
-                    <dd class="col-sm-9">
-                        {% if user.is_active %}
-                            <span class="badge bg-success">Active</span>
-                        {% else %}
-                            <span class="badge bg-danger">Inactive</span>
-                        {% endif %}
-                        {% if user.is_staff %}
-                            <span class="badge bg-primary">Staff</span>
-                        {% endif %}
-                    </dd>
-                </dl>
-                
-                <h5 class="mt-4"><i class="bi bi-calendar-event"></i> Event Assignments</h5>
-                <hr>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Full Name</label>
+                        <p class="fw-bold">{{ user.first_name }} {{ user.last_name|default:"Not set" }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Username</label>
+                        <p class="fw-bold"><code>{{ user.username }}</code></p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Email</label>
+                        <p class="fw-bold">{{ user.email|default:"Not set" }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Badge ID</label>
+                        <p class="fw-bold"><code class="text-primary">{{ qr_data.badge_id }}</code></p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Joined Date</label>
+                        <p>{{ user.date_joined|date:"F d, Y" }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Account Status</label>
+                        <p>
+                            {% if user.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                            {% if user.is_staff %}
+                                <span class="badge bg-dark">Staff</span>
+                            {% endif %}
+                            {% if user.is_superuser %}
+                                <span class="badge bg-danger">Superuser</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Event Assignments Card -->
+            <div class="stat-card mb-4">
+                <h4 class="mb-3"><i class="bi bi-calendar-check"></i> Event Assignments ({{ assignments.count }})</h4>
                 
                 {% if assignments %}
                 <div class="table-responsive">
-                    <table class="table table-sm">
+                    <table class="table table-hover">
                         <thead>
                             <tr>
                                 <th>Event</th>
                                 <th>Role</th>
+                                <th>Assigned By</th>
+                                <th>Date</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -52,11 +79,32 @@
                             {% for assignment in assignments %}
                             <tr>
                                 <td>
-                                    <a href="{% url 'dashboard:event_detail' assignment.event.id %}">
-                                        {{ assignment.event.name }}
+                                    <a href="{% url 'dashboard:event_detail' assignment.event.id %}" class="text-decoration-none">
+                                        <strong>{{ assignment.event.name }}</strong><br>
+                                        <small class="text-muted">{{ assignment.event.start_date|date:"M d, Y" }}</small>
                                     </a>
                                 </td>
-                                <td>{{ assignment.get_role_display }}</td>
+                                <td>
+                                    {% if assignment.role == 'organisateur' %}
+                                        <span class="badge bg-primary">Organizer</span>
+                                    {% elif assignment.role == 'gestionnaire_des_salles' %}
+                                        <span class="badge bg-info">Room Manager</span>
+                                    {% elif assignment.role == 'controlleur_des_badges' %}
+                                        <span class="badge bg-warning text-dark">Controller</span>
+                                    {% elif assignment.role == 'exposant' %}
+                                        <span class="badge bg-success">Exhibitor</span>
+                                    {% elif assignment.role == 'participant' %}
+                                        <span class="badge bg-secondary">Participant</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if assignment.assigned_by %}
+                                        {{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.username }}
+                                    {% else %}
+                                        <span class="text-muted">System</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ assignment.created_at|date:"M d, Y" }}</small></td>
                                 <td>
                                     {% if assignment.is_active %}
                                         <span class="badge bg-success">Active</span>
@@ -70,21 +118,221 @@
                     </table>
                 </div>
                 {% else %}
-                <p class="text-muted">No event assignments</p>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> This user has no event assignments yet.
+                </div>
                 {% endif %}
             </div>
+            
+            <!-- Participant Details (if applicable) -->
+            {% if participant_data %}
+            {% for data in participant_data %}
+            <div class="stat-card mb-4">
+                <h4 class="mb-3">
+                    <i class="bi bi-ticket-perforated"></i> Participant Details - {{ data.event.name }}
+                </h4>
+                
+                <!-- Participant Stats Row -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="stat-mini-card text-center">
+                            <h5 class="mb-1">{{ data.total_spent|floatformat:2 }}€</h5>
+                            <p class="text-muted small mb-0">Total Spent</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-mini-card text-center">
+                            <h5 class="mb-1">{{ data.transaction_count }}</h5>
+                            <p class="text-muted small mb-0">Transactions</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-mini-card text-center">
+                            <h5 class="mb-1">{{ data.room_access_count }}</h5>
+                            <p class="text-muted small mb-0">Room Accesses</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-mini-card text-center">
+                            <h5 class="mb-1">{{ data.scan_count }}</h5>
+                            <p class="text-muted small mb-0">Badge Scans</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Check-in Status -->
+                <div class="alert {% if data.participant.is_checked_in %}alert-success{% else %}alert-warning{% endif %}">
+                    <i class="bi {% if data.participant.is_checked_in %}bi-check-circle-fill{% else %}bi-clock{% endif %}"></i>
+                    {% if data.participant.is_checked_in %}
+                        Checked in on {{ data.participant.checked_in_at|date:"M d, Y H:i" }}
+                    {% else %}
+                        Not checked in yet
+                    {% endif %}
+                </div>
+                
+                <!-- Paid Sessions Section -->
+                <h5 class="mt-4"><i class="bi bi-cash-coin"></i> Paid Workshops/Ateliers</h5>
+                <hr>
+                {% if data.paid_sessions %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Workshop</th>
+                                <th>Room</th>
+                                <th>Date & Time</th>
+                                <th>Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for session in data.paid_sessions %}
+                            <tr>
+                                <td><strong>{{ session.title }}</strong></td>
+                                <td>{{ session.room__name }}</td>
+                                <td><small>{{ session.start_time|date:"M d, Y H:i" }}</small></td>
+                                <td><span class="badge bg-success">{{ session.price }}€</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No paid workshops registered</p>
+                {% endif %}
+                
+                <!-- Transactions Section -->
+                <h5 class="mt-4"><i class="bi bi-receipt"></i> Payment Transactions</h5>
+                <hr>
+                {% if data.transactions %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Caisse</th>
+                                <th>Items</th>
+                                <th>Amount</th>
+                                <th>Method</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trans in data.transactions %}
+                            <tr>
+                                <td><small>{{ trans.created_at|date:"M d, H:i" }}</small></td>
+                                <td>{{ trans.caisse.name }}</td>
+                                <td>{{ trans.items|length }} item(s)</td>
+                                <td><strong>{{ trans.total_amount }}€</strong></td>
+                                <td>
+                                    {% if trans.payment_method == 'cash' %}
+                                        <span class="badge bg-success">Cash</span>
+                                    {% elif trans.payment_method == 'card' %}
+                                        <span class="badge bg-primary">Card</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ trans.payment_method }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No transactions yet</p>
+                {% endif %}
+                
+                <!-- Room Access History -->
+                <h5 class="mt-4"><i class="bi bi-door-open"></i> Room Access History</h5>
+                <hr>
+                {% if data.room_accesses %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Room</th>
+                                <th>Session</th>
+                                <th>Access Time</th>
+                                <th>Verified By</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for access in data.room_accesses %}
+                            <tr>
+                                <td>{{ access.room.name }}</td>
+                                <td>
+                                    {% if access.session %}
+                                        {{ access.session.title }}
+                                    {% else %}
+                                        <span class="text-muted">General access</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ access.accessed_at|date:"M d, H:i" }}</small></td>
+                                <td>
+                                    {% if access.verified_by %}
+                                        {{ access.verified_by.get_full_name|default:access.verified_by.username }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if access.status == 'granted' %}
+                                        <span class="badge bg-success">Granted</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Denied</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No room access history</p>
+                {% endif %}
+                
+                <!-- Badge Scans -->
+                <h5 class="mt-4"><i class="bi bi-qr-code-scan"></i> Badge Scan History</h5>
+                <hr>
+                {% if data.scans %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Scanned By</th>
+                                <th>Room</th>
+                                <th>Scan Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for scan in data.scans %}
+                            <tr>
+                                <td>{{ scan.controller.get_full_name|default:scan.controller.username }}</td>
+                                <td>{{ scan.room.name|default:"N/A" }}</td>
+                                <td><small>{{ scan.scan_time|date:"M d, Y H:i" }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No scan history</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endif %}
         </div>
         
-        <div class="col-md-4">
-            <div class="stat-card text-center">
+        <!-- Right Column: QR Code & Quick Stats -->
+        <div class="col-lg-4">
+            <div class="stat-card text-center mb-4">
                 <h5 class="mb-3"><i class="bi bi-qr-code"></i> User QR Code</h5>
-                <p class="text-muted small">Universal QR code for all events</p>
+                <p class="text-muted small">Universal badge for all events</p>
                 
-                <img src="data:image/png;base64,{{ qr_image }}" class="img-fluid mb-3" style="max-width: 250px;">
+                <img src="data:image/png;base64,{{ qr_image }}" class="img-fluid mb-3" style="max-width: 250px; border: 3px solid #dee2e6; border-radius: 8px; padding: 10px;">
                 
                 <div class="mb-3">
-                    <p class="small mb-1"><strong>Badge ID:</strong></p>
-                    <code>{{ qr_data.badge_id }}</code>
+                    <p class="small mb-1 text-muted">Badge ID:</p>
+                    <code class="text-primary fs-6">{{ qr_data.badge_id }}</code>
                 </div>
                 
                 <div class="d-grid">
@@ -93,7 +341,42 @@
                     </a>
                 </div>
             </div>
+            
+            <!-- Quick Stats Card -->
+            <div class="stat-card">
+                <h5 class="mb-3"><i class="bi bi-graph-up"></i> Quick Statistics</h5>
+                <div class="d-flex flex-column gap-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Events:</span>
+                        <strong>{{ assignments.count }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Active Roles:</span>
+                        <strong>{{ assignments|length }}</strong>
+                    </div>
+                    {% if participant_data %}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Participant in:</span>
+                        <strong>{{ participant_data|length }} event(s)</strong>
+                    </div>
+                    {% endif %}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Account Age:</span>
+                        <strong>{{ user.date_joined|timesince }}</strong>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<style>
+.stat-mini-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    border: 1px solid #dee2e6;
+}
+</style>
+
 {% endblock %}

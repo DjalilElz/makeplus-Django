@@ -103,22 +103,21 @@ def create_test_event():
         
         created_users[username] = {'user': user, 'role': role}
     
-    # 3. Assign users to event with roles
+    # 3. Assign users to event with roles (including participants)
     print("\n🔐 Assigning roles to event...")
     for username, data in created_users.items():
         user = data['user']
         role = data['role']
         
-        if role != 'participant':  # Participants are created separately
-            assignment, created = UserEventAssignment.objects.get_or_create(
-                user=user,
-                event=event,
-                defaults={'role': role, 'is_active': True}
-            )
-            if created:
-                print(f"   ✅ Assigned {user.username} as {role}")
-            else:
-                print(f"   ℹ️  {user.username} already assigned as {role}")
+        assignment, created = UserEventAssignment.objects.get_or_create(
+            user=user,
+            event=event,
+            defaults={'role': role, 'is_active': True}
+        )
+        if created:
+            print(f"   ✅ Assigned {user.username} as {role}")
+        else:
+            print(f"   ℹ️  {user.username} already assigned as {role}")
     
     # 4. Create Participants (including regular participants)
     print("\n👤 Creating participants...")
