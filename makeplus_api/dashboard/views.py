@@ -686,7 +686,7 @@ def user_detail(request, user_id):
         # Get transactions for this participant in this event
         transactions = CaisseTransaction.objects.filter(
             participant=participant
-        ).select_related('caisse', 'created_by').order_by('-created_at')
+        ).select_related('caisse').order_by('-created_at')
         
         # Calculate total spent
         total_spent = transactions.aggregate(total=models.Sum('total_amount'))['total'] or 0
