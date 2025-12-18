@@ -254,6 +254,9 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Handle all form submissions
             document.querySelectorAll('form').forEach(function(form) {
+                // Only add the handler if the form doesn't already have a submit listener
+                let hasCustomHandler = false;
+                
                 form.addEventListener('submit', function(e) {
                     const submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
                     
@@ -264,15 +267,24 @@
                             return false;
                         }
                         
-                        // Disable button and show processing state
-                        submitButton.disabled = true;
-                        
-                        // Add spinner and processing text
-                        if (submitButton.tagName === 'BUTTON') {
-                            const originalContent = submitButton.innerHTML;
-                            submitButton.setAttribute('data-original-content', originalContent);
-                            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Processing...';
-                        }
+                        // Use a small delay to allow the form to submit
+                        setTimeout(function() {
+                            // Disable button and show processing state
+                            submitButton.disabled = true;
+                            
+                            // Add spinner and processing text
+                            if (submitButton.tagName === 'BUTTON') {
+                                const originalContent = submitButton.innerHTML;
+                                submitButton.setAttribute('data-original-content', originalContent);
+                                
+                                // Check button text to show appropriate message
+                                if (originalContent.toLowerCase().includes('login')) {
+                                    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Logging in...';
+                                } else {
+                                    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Processing...';
+                                }
+                            }
+                        }, 10);
                         
                         // Button stays disabled until page reloads/redirects
                         // If there's a validation error and page reloads, button will be reset automatically
