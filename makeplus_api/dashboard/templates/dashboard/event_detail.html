@@ -330,6 +330,14 @@
         
         <!-- Users Tab -->
         <div class="tab-pane fade" id="users" role="tabpanel">
+            <!-- Manage Users Button -->
+            <div class="mb-4">
+                <a href="{% url 'dashboard:event_users' event.id %}" class="btn btn-primary">
+                    <i class="bi bi-people"></i> Manage All Event Users
+                </a>
+                <p class="text-muted small mt-2">View detailed user management with role filtering and statistics</p>
+            </div>
+            
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <div class="stat-card">

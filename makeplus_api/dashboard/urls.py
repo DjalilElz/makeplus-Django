@@ -32,6 +32,9 @@ urlpatterns = [
     path('users/<int:user_id>/', views.user_detail, name='user_detail'),
     path('users/<int:user_id>/qr-code/download/', views.download_qr_code, name='download_qr_code'),
     
+    # Event-specific User Management
+    path('events/<uuid:event_id>/users/', views.event_users, name='event_users'),
+    
     # Caisse Management
     path('caisses/', views.caisse_list, name='caisse_list'),
     path('caisses/create/', views.caisse_create, name='caisse_create'),

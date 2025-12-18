@@ -642,7 +642,7 @@ def user_detail(request, user_id):
     # Get user's event assignments with role details
     assignments = UserEventAssignment.objects.filter(
         user=user
-    ).select_related('event', 'assigned_by').order_by('-created_at')
+    ).select_related('event', 'assigned_by').order_by('-assigned_at')
     
     # Get participant profiles with detailed information
     participant_profiles = Participant.objects.filter(
@@ -724,6 +724,93 @@ def download_qr_code(request, user_id):
     response['Content-Disposition'] = f'attachment; filename="{user.username}_qr_code.png"'
     
     return response
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def event_users(request, event_id):
+    """Manage users for a specific event with role filtering"""
+    from caisse.models import CaisseTransaction
+    
+    event = get_object_or_404(Event, id=event_id)
+    
+    # Get filter parameter
+    role_filter = request.GET.get('role', 'all')
+    
+    # Get all user assignments for this event
+    assignments = UserEventAssignment.objects.filter(
+        event=event
+    ).select_related('user', 'user__profile', 'assigned_by').order_by('-assigned_at')
+    
+    # Filter by role if specified
+    if role_filter != 'all':
+        assignments = assignments.filter(role=role_filter)
+    
+    # Get counts for each role in this event
+    role_counts = {
+        'all': UserEventAssignment.objects.filter(event=event).count(),
+        'organisateur': UserEventAssignment.objects.filter(event=event, role='organisateur').count(),
+        'gestionnaire_des_salles': UserEventAssignment.objects.filter(event=event, role='gestionnaire_des_salles').count(),
+        'controlleur_des_badges': UserEventAssignment.objects.filter(event=event, role='controlleur_des_badges').count(),
+        'exposant': UserEventAssignment.objects.filter(event=event, role='exposant').count(),
+        'participant': UserEventAssignment.objects.filter(event=event, role='participant').count(),
+    }
+    
+    # Get detailed stats for each user
+    user_stats = []
+    for assignment in assignments:
+        user = assignment.user
+        
+        # Get participant profile if exists
+        participant = Participant.objects.filter(user=user, event=event).first()
+        
+        stats = {
+            'assignment': assignment,
+            'user': user,
+            'participant': participant,
+            'is_checked_in': participant.is_checked_in if participant else False,
+            'checked_in_at': participant.checked_in_at if participant else None,
+        }
+        
+        # If participant, get additional stats
+        if participant:
+            # Total spent
+            total_spent = CaisseTransaction.objects.filter(
+                participant=participant
+            ).aggregate(total=models.Sum('total_amount'))['total'] or 0
+            
+            # Transaction count
+            transaction_count = CaisseTransaction.objects.filter(
+                participant=participant
+            ).count()
+            
+            # Room access count
+            room_access_count = RoomAccess.objects.filter(
+                participant=participant
+            ).count()
+            
+            # Scan count
+            scan_count = ExposantScan.objects.filter(
+                scanned_participant=participant
+            ).count()
+            
+            stats.update({
+                'total_spent': total_spent,
+                'transaction_count': transaction_count,
+                'room_access_count': room_access_count,
+                'scan_count': scan_count,
+            })
+        
+        user_stats.append(stats)
+    
+    context = {
+        'event': event,
+        'user_stats': user_stats,
+        'role_filter': role_filter,
+        'role_counts': role_counts,
+    }
+    
+    return render(request, 'dashboard/event_users.html', context)
 
 
 # ==================== Event Management ====================
