@@ -44,6 +44,24 @@
                         {{ form.role }}
                     </div>
                     
+                    <!-- Conditional: Room assignment for Gestionnaire des Salles -->
+                    <div class="mb-3" id="roomAssignmentField" style="display: none;">
+                        <label for="{{ form.assigned_room.id_for_label }}" class="form-label">
+                            <i class="bi bi-door-open"></i> Assigned Room
+                        </label>
+                        {{ form.assigned_room }}
+                        <small class="form-text text-muted">{{ form.assigned_room.help_text }}</small>
+                    </div>
+                    
+                    <!-- Conditional: Profile Picture for Participants -->
+                    <div class="mb-3" id="profilePictureField" style="display: none;">
+                        <label for="{{ form.profile_picture_url.id_for_label }}" class="form-label">
+                            <i class="bi bi-image"></i> Profile Picture URL (Optional)
+                        </label>
+                        {{ form.profile_picture_url }}
+                        <small class="form-text text-muted">{{ form.profile_picture_url.help_text }}</small>
+                    </div>
+                    
                     <div class="alert alert-info">
                         <i class="bi bi-qr-code"></i> <strong>Note:</strong> A unique QR code will be automatically generated.
                     </div>
@@ -61,4 +79,49 @@
         </div>
     </div>
 </div>
+
+<script>
+// Toggle conditional fields based on selected role
+function toggleConditionalFields() {
+    const roleSelect = document.querySelector('select[name="role"]');
+    const selectedRole = roleSelect.value;
+    
+    const roomField = document.getElementById('roomAssignmentField');
+    const profileField = document.getElementById('profilePictureField');
+    
+    // Show/hide room assignment for gestionnaire_des_salles
+    if (selectedRole === 'gestionnaire_des_salles') {
+        roomField.style.display = 'block';
+        profileField.style.display = 'none';
+    } 
+    // Show/hide profile picture for participant
+    else if (selectedRole === 'participant') {
+        roomField.style.display = 'none';
+        profileField.style.display = 'block';
+    } 
+    // Hide both for other roles
+    else {
+        roomField.style.display = 'none';
+        profileField.style.display = 'none';
+    }
+}
+
+// Update room options when event changes (for future enhancement with dynamic loading)
+function updateRoomOptions(eventId) {
+    // For now, just inform user to save and select room
+    // Future: Can add AJAX call to dynamically load rooms
+    console.log('Event changed:', eventId);
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleConditionalFields();
+    
+    // If event is already selected, load rooms
+    const eventSelect = document.querySelector('select[name="event"]');
+    if (eventSelect.value) {
+        updateRoomOptions(eventSelect.value);
+    }
+});
+</script>
 {% endblock %}

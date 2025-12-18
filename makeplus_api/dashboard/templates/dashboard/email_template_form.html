@@ -120,13 +120,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Form submission prevention
-    const form = document.getElementById('templateForm');
-    form.addEventListener('submit', function(e) {
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
-    });
+    // Note: Form submission handling is done by the global script in base.html
 });
 </script>
 {% endblock %}

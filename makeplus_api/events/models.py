@@ -111,6 +111,7 @@ class UserEventAssignment(models.Model):
     is_active = models.BooleanField(default=True)
     assigned_at = models.DateTimeField(auto_now_add=True)
     assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='assigned_users')
+    metadata = models.JSONField(default=dict, blank=True, help_text="Additional data like assigned_room_id")
     
     class Meta:
         unique_together = ('user', 'event')
@@ -168,6 +169,11 @@ class Session(models.Model):
     TYPE_CHOICES = [
         ('conference', 'Conférence'),
         ('atelier', 'Atelier'),
+        ('communication', 'Communication'),
+        ('table_ronde', 'Table ronde'),
+        ('lunch_symposium', 'Lunch symposium'),
+        ('symposium', 'Symposium'),
+        ('session_photo', 'Session photo de communication'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -246,6 +252,9 @@ class Participant(models.Model):
     
     # Exposant plan (PDF file for exposants only)
     plan_file = models.FileField(upload_to='exposants/plans/', blank=True, null=True, help_text="Plan PDF for exposants")
+    
+    # Additional data
+    metadata = models.JSONField(default=dict, blank=True, help_text="Additional data like profile_picture_url")
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

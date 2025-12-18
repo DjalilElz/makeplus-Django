@@ -620,13 +620,28 @@ def user_create(request):
                 assigned_by=request.user
             )
             
-            # Create participant profile
-            Participant.objects.create(
+            # Create participant profile with optional profile picture
+            profile_picture_url = form.cleaned_data.get('profile_picture_url', '')
+            participant = Participant.objects.create(
                 user=user,
                 event=event,
                 badge_id=qr_data['badge_id'],
                 qr_code_data=qr_data
             )
+            
+            # Store profile picture URL in metadata if provided
+            if profile_picture_url:
+                participant.metadata = participant.metadata or {}
+                participant.metadata['profile_picture_url'] = profile_picture_url
+                participant.save()
+            
+            # Assign room to gestionnaire if applicable
+            assigned_room = form.cleaned_data.get('assigned_room')
+            if role == 'gestionnaire_des_salles' and assigned_room:
+                # Store room assignment in UserEventAssignment metadata
+                assignment = UserEventAssignment.objects.get(user=user, event=event)
+                assignment.metadata = {'assigned_room_id': str(assigned_room.id)}
+                assignment.save()
             
             messages.success(request, f'User "{user.get_full_name()}" created successfully!')
             return redirect('dashboard:user_detail', user_id=user.id)

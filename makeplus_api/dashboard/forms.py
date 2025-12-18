@@ -313,15 +313,53 @@ class QuickUserForm(forms.Form):
     event = forms.ModelChoiceField(
         queryset=Event.objects.all(),
         widget=forms.Select(attrs={
-            'class': 'form-select'
+            'class': 'form-select',
+            'onchange': 'updateRoomOptions(this.value)'
         })
     )
     role = forms.ChoiceField(
         choices=UserEventAssignment.ROLE_CHOICES,
         widget=forms.Select(attrs={
-            'class': 'form-select'
+            'class': 'form-select',
+            'onchange': 'toggleConditionalFields()'
         })
     )
+    
+    # Conditional field for gestionnaire_des_salles
+    assigned_room = forms.ModelChoiceField(
+        queryset=Room.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        help_text="Select room for gestionnaire des salles"
+    )
+    
+    # Conditional field for participants
+    profile_picture_url = forms.URLField(
+        required=False,
+        widget=forms.URLInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'https://example.com/profile.jpg'
+        }),
+        help_text="Optional profile picture URL for participants"
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set initial room queryset - show all rooms, will be filtered by JavaScript
+        # Or filter by event if provided in POST data
+        if 'event' in self.data:
+            try:
+                event_id = self.data.get('event')
+                self.fields['assigned_room'].queryset = Room.objects.filter(event_id=event_id)
+            except (ValueError, TypeError):
+                pass
+        elif self.initial.get('event'):
+            self.fields['assigned_room'].queryset = Room.objects.filter(event=self.initial['event'])
+        else:
+            # Show all rooms initially
+            self.fields['assigned_room'].queryset = Room.objects.all().select_related('event')
 
 
 class RoomAssignmentForm(forms.Form):
