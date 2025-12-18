@@ -1,0 +1,131 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}{% if is_edit %}Edit{% else %}Create{% endif %} Event Email Template{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="mb-4">
+        <a href="{% url 'dashboard:event_email_templates' event.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Templates
+        </a>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="bi bi-envelope"></i> {% if is_edit %}Edit{% else %}Create{% endif %} Template for {{ event.name }}</h4>
+                    {% if base_template %}
+                    <p class="mb-0 small text-muted">Based on: {{ base_template.name }}</p>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="post" id="templateForm">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Template Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   value="{% if template %}{{ template.name }}{% elif base_template %}{{ base_template.name }}{% endif %}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">Email Subject <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="subject" name="subject" 
+                                   value="{% if template %}{{ template.subject }}{% elif base_template %}{{ base_template.subject }}{% endif %}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="body" class="form-label">Email Body <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="body" name="body" rows="15" required>{% if template %}{{ template.body }}{% elif base_template %}{{ base_template.body }}{% endif %}</textarea>
+                            <small class="form-text text-muted">Supports HTML and template variables</small>
+                        </div>
+                        
+                        {% if base_template %}
+                        <input type="hidden" name="base_template_id" value="{{ base_template.id }}">
+                        {% endif %}
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> {% if is_edit %}Update{% else %}Create{% endif %} Template
+                            </button>
+                            <a href="{% url 'dashboard:event_email_templates' event.id %}" class="btn btn-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-code-square"></i> Template Variables</h5>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">Click to insert variable:</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for var in template_variables %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary insert-var" 
+                                data-var="{{ var }}">
+                            {{ var }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                    
+                    <hr class="my-3">
+                    
+                    <h6>Variable Descriptions:</h6>
+                    <ul class="small">
+                        <li><code>{{event_name}}</code> - Event name</li>
+                        <li><code>{{event_location}}</code> - Event location</li>
+                        <li><code>{{event_start_date}}</code> - Start date</li>
+                        <li><code>{{event_end_date}}</code> - End date</li>
+                        <li><code>{{participant_name}}</code> - Participant full name</li>
+                        <li><code>{{participant_email}}</code> - Participant email</li>
+                        <li><code>{{participant_phone}}</code> - Participant phone</li>
+                        <li><code>{{badge_id}}</code> - Participant badge ID</li>
+                        <li><code>{{qr_code_url}}</code> - QR code URL</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const bodyTextarea = document.getElementById('body');
+    const subjectInput = document.getElementById('subject');
+    
+    // Insert variable buttons
+    document.querySelectorAll('.insert-var').forEach(button => {
+        button.addEventListener('click', function() {
+            const varText = this.dataset.var;
+            const target = document.activeElement;
+            
+            if (target === bodyTextarea || target === subjectInput) {
+                const start = target.selectionStart;
+                const end = target.selectionEnd;
+                const text = target.value;
+                target.value = text.substring(0, start) + varText + text.substring(end);
+                target.focus();
+                target.selectionStart = target.selectionEnd = start + varText.length;
+            } else {
+                bodyTextarea.value += varText;
+                bodyTextarea.focus();
+            }
+        });
+    });
+    
+    // Form submission prevention
+    const form = document.getElementById('templateForm');
+    form.addEventListener('submit', function(e) {
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Event Email Templates - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="mb-4">
+        <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Event
+        </a>
+    </div>
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-envelope-fill"></i> Email Templates</h2>
+            <p class="text-muted mb-0">{{ event.name }}</p>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'dashboard:event_email_template_create' event.id %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Create Custom Template
+            </a>
+            <a href="{% url 'dashboard:event_email_logs' event.id %}" class="btn btn-outline-info">
+                <i class="bi bi-clock-history"></i> View Email History
+            </a>
+        </div>
+    </div>
+    
+    <!-- Event-Specific Templates -->
+    {% if event_templates %}
+    <h4 class="mb-3"><i class="bi bi-star-fill text-warning"></i> Event Templates</h4>
+    <div class="row mb-4">
+        {% for template in event_templates %}
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="card h-100 border-primary">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-envelope-fill text-primary"></i> {{ template.name }}
+                    </h5>
+                    {% if template.base_template %}
+                    <span class="badge bg-info mb-2">Based on: {{ template.base_template.name }}</span>
+                    {% endif %}
+                    <hr>
+                    <p class="mb-2"><strong>Subject:</strong></p>
+                    <p class="text-muted small">{{ template.subject }}</p>
+                    <p class="mb-2 mt-3"><strong>Body Preview:</strong></p>
+                    <p class="text-muted small" style="max-height: 80px; overflow: hidden;">
+                        {{ template.body|truncatewords:25 }}
+                    </p>
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="d-flex gap-2 mb-2">
+                        <a href="{% url 'dashboard:send_event_email' event.id template.id %}" 
+                           class="btn btn-sm btn-success flex-fill">
+                            <i class="bi bi-send"></i> Send Email
+                        </a>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <i class="bi bi-calendar"></i> {{ template.created_at|date:"M d, Y" }}
+                        </small>
+                        <div class="btn-group">
+                            <a href="{% url 'dashboard:event_email_template_edit' event.id template.id %}" 
+                               class="btn btn-sm btn-outline-primary" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                                    onclick="if(confirm('Delete this template?')) { document.getElementById('delete-event-template-{{ template.id }}').submit(); }" 
+                                    title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <form id="delete-event-template-{{ template.id }}" method="post" 
+                          action="{% url 'dashboard:event_email_template_delete' event.id template.id %}" style="display:none;">
+                        {% csrf_token %}
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- Global Templates - Available to Use -->
+    <h4 class="mb-3"><i class="bi bi-globe"></i> Available Global Templates</h4>
+    {% if global_templates %}
+    <p class="text-muted">Click "Use Template" to customize for this event:</p>
+    <div class="row">
+        {% for template in global_templates %}
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-envelope text-secondary"></i> {{ template.name }}
+                    </h5>
+                    {% if template.description %}
+                    <p class="text-muted small">{{ template.description }}</p>
+                    {% endif %}
+                    <hr>
+                    <p class="mb-2"><strong>Subject:</strong></p>
+                    <p class="text-muted small">{{ template.subject }}</p>
+                </div>
+                <div class="card-footer bg-light">
+                    <a href="{% url 'dashboard:event_email_template_create' event.id %}?base_template_id={{ template.id }}" 
+                       class="btn btn-sm btn-primary w-100">
+                        <i class="bi bi-plus-circle"></i> Use Template
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No global templates available. 
+        <a href="{% url 'dashboard:email_template_create' %}" class="alert-link">Create a global template</a> first.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

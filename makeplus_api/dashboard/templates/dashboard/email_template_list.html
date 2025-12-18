@@ -1,0 +1,73 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Email Templates{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-envelope"></i> Email Templates</h2>
+        <a href="{% url 'dashboard:email_template_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Create Template
+        </a>
+    </div>
+    
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> <strong>Email Templates</strong> are reusable templates that can be customized for each event. 
+        Use template variables like <code>{{event_name}}</code>, <code>{{participant_name}}</code>, etc. to personalize emails.
+    </div>
+    
+    {% if templates %}
+        <div class="row">
+            {% for template in templates %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-envelope-fill text-primary"></i> {{ template.name }}
+                        </h5>
+                        {% if template.description %}
+                        <p class="text-muted small">{{ template.description }}</p>
+                        {% endif %}
+                        <hr>
+                        <p class="mb-2"><strong>Subject:</strong></p>
+                        <p class="text-muted small">{{ template.subject }}</p>
+                        <p class="mb-2 mt-3"><strong>Body Preview:</strong></p>
+                        <p class="text-muted small" style="max-height: 100px; overflow: hidden;">
+                            {{ template.body|truncatewords:30 }}
+                        </p>
+                    </div>
+                    <div class="card-footer bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="bi bi-person"></i> {{ template.created_by.username }}<br>
+                                <i class="bi bi-calendar"></i> {{ template.created_at|date:"M d, Y" }}
+                            </small>
+                            <div class="btn-group">
+                                <a href="{% url 'dashboard:email_template_edit' template.id %}" 
+                                   class="btn btn-sm btn-outline-primary" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                        onclick="if(confirm('Delete this template?')) { document.getElementById('delete-template-{{ template.id }}').submit(); }" 
+                                        title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <form id="delete-template-{{ template.id }}" method="post" 
+                              action="{% url 'dashboard:email_template_delete' template.id %}" style="display:none;">
+                            {% csrf_token %}
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-circle"></i> No email templates created yet. 
+            <a href="{% url 'dashboard:email_template_create' %}" class="alert-link">Create your first template</a>.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

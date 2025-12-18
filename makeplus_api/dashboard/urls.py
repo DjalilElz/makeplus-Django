@@ -4,6 +4,7 @@ URL Configuration for Dashboard
 
 from django.urls import path
 from . import views
+from . import views_email
 
 app_name = 'dashboard'
 
@@ -57,4 +58,20 @@ urlpatterns = [
     path('events/<uuid:event_id>/sessions/create/', views.session_create, name='session_create'),
     path('sessions/<uuid:session_id>/edit/', views.session_edit, name='session_edit'),
     path('sessions/<uuid:session_id>/delete/', views.session_delete, name='session_delete'),
+    
+    # Email Templates (Global)
+    path('email-templates/', views_email.email_template_list, name='email_template_list'),
+    path('email-templates/create/', views_email.email_template_create, name='email_template_create'),
+    path('email-templates/<int:template_id>/edit/', views_email.email_template_edit, name='email_template_edit'),
+    path('email-templates/<int:template_id>/delete/', views_email.email_template_delete, name='email_template_delete'),
+    
+    # Event Email Templates
+    path('events/<uuid:event_id>/email-templates/', views_email.event_email_templates, name='event_email_templates'),
+    path('events/<uuid:event_id>/email-templates/create/', views_email.event_email_template_create, name='event_email_template_create'),
+    path('events/<uuid:event_id>/email-templates/<int:template_id>/edit/', views_email.event_email_template_edit, name='event_email_template_edit'),
+    path('events/<uuid:event_id>/email-templates/<int:template_id>/delete/', views_email.event_email_template_delete, name='event_email_template_delete'),
+    
+    # Send Emails
+    path('events/<uuid:event_id>/email-templates/<int:template_id>/send/', views_email.send_event_email, name='send_event_email'),
+    path('events/<uuid:event_id>/email-logs/', views_email.event_email_logs, name='event_email_logs'),
 ]

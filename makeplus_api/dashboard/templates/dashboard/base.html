@@ -251,6 +251,11 @@
                     <i class="bi bi-cash-register"></i> Caisses
                 </a>
             </li>
+            <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:email_template_list' %}" class="sidebar-nav-link {% if 'email' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-envelope"></i> Email Templates
+                </a>
+            </li>
             <li class="sidebar-nav-item mt-4">
                 <a href="/admin/" class="sidebar-nav-link" target="_blank">
                     <i class="bi bi-gear"></i> Django Admin
