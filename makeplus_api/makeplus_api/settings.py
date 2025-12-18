@@ -17,7 +17,8 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-temporary-key-change-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+# Allow Render domain and localhost
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='makeplus-django-5.onrender.com,localhost,127.0.0.1').split(',')
 
 # Performance: Enable template caching in production
 if not DEBUG:
