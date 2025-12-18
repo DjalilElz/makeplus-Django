@@ -18,7 +18,17 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-temporary-key-change-
 DEBUG = config('DEBUG', default=False, cast=bool)
 
 # Allow Render domain and localhost
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='makeplus-django-5.onrender.com,localhost,127.0.0.1').split(',')
+# Always include these domains even if ALLOWED_HOSTS env var is set
+allowed_hosts_str = config('ALLOWED_HOSTS', default='')
+if allowed_hosts_str:
+    ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_str.split(',') if h.strip()]
+else:
+    ALLOWED_HOSTS = []
+
+# Always add these critical hosts
+ALLOWED_HOSTS.extend(['makeplus-django-5.onrender.com', 'localhost', '127.0.0.1'])
+# Remove duplicates while preserving order
+ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 
 # Performance: Enable template caching in production
 if not DEBUG:
