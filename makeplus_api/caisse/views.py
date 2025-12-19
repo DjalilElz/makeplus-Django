@@ -351,12 +351,29 @@ def print_badge(request, participant_id):
         messages.error(request, 'Participant not found')
         return redirect('caisse:dashboard')
     
+    # Generate QR code image
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(participant.badge_id)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = BytesIO()
+    img.save(buffer, format='PNG')
+    qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
+    
     context = {
         'caisse': caisse,
         'participant': participant,
+        'event': caisse.event,
         'name': participant.user.get_full_name() or participant.user.username,
         'email': participant.user.email,
-        'qr_code': participant.qr_code
+        'badge_id': participant.badge_id,
+        'qr_code_base64': qr_code_base64
     }
     
     return render(request, 'caisse/print_badge.html', context)
