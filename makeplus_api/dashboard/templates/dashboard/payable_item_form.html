@@ -147,22 +147,7 @@
 </style>
 
 <script>
-    // Prevent multiple form submissions
-    document.getElementById('payableItemForm').addEventListener('submit', function(e) {
-        const submitBtn = document.getElementById('submitBtn');
-        const btnText = document.getElementById('btnText');
-        const btnLoading = document.getElementById('btnLoading');
-        
-        // Check if already submitting
-        if (submitBtn.disabled) {
-            e.preventDefault();
-            return false;
-        }
-        
-        // Disable the button and show loading state
-        submitBtn.disabled = true;
-        btnText.style.display = 'none';
-        btnLoading.style.display = 'inline';
-    });
+    // Note: Form submission handling is done by the global script in base.html
+    // No need for duplicate handler here
 </script>
 {% endblock %}
