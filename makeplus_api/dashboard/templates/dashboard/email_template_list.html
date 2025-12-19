@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-envelope"></i> Email Templates</h2>
+        <h2><i class="bi bi-envelope"></i> Email Templates {% if template_count %}({{ template_count }}){% endif %}</h2>
         <a href="{% url 'dashboard:email_template_create' %}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Create Template
         </a>
@@ -16,7 +16,7 @@
         Use template variables like <code>{{event_name}}</code>, <code>{{participant_name}}</code>, etc. to personalize emails.
     </div>
     
-    {% if templates %}
+    {% if templates and template_count > 0 %}
         <div class="row">
             {% for template in templates %}
             <div class="col-md-6 col-lg-4 mb-4">

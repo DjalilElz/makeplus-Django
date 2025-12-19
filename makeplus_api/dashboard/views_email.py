@@ -21,10 +21,15 @@ def replace_template_variables(text, context):
 @login_required
 def email_template_list(request):
     """List all global email templates"""
-    templates = EmailTemplate.objects.all().select_related('created_by')
+    templates = EmailTemplate.objects.all().select_related('created_by').order_by('-created_at')
+    
+    # Debug info for troubleshooting
+    if request.GET.get('debug'):
+        messages.info(request, f'Found {templates.count()} email templates')
     
     context = {
         'templates': templates,
+        'template_count': templates.count(),
     }
     return render(request, 'dashboard/email_template_list.html', context)
 
