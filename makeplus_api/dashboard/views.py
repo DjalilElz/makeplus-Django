@@ -34,10 +34,8 @@ from events.models import (
     SessionQuestion, Annonce
 )
 from .forms import (
-    EventDetailsForm, EventEditForm, RoomForm, SessionForm, SessionEditForm,
-    UserEventAssignmentForm, ParticipantForm, ParticipantEditForm,
-    ExhibitorForm, ExhibitorEditForm, ControllerForm, ControllerEditForm,
-    EmailForm, UserCreationForm, QuickUserForm, RoomAssignmentForm
+    EventDetailsForm, EventEditForm, RoomForm, SessionForm,
+    UserCreationForm, QuickUserForm, RoomAssignmentForm
 )
 
 
@@ -418,14 +416,20 @@ def event_create_step3(request):
         action = request.POST.get('action')
         
         if action == 'add_session':
-            form = SessionForm(request.POST)
+            form = SessionForm(request.POST, event=event)
             if form.is_valid():
                 session = form.save(commit=False)
                 session.event = event
                 session.room = current_room
+                session.created_by = request.user
                 session.save()
                 messages.success(request, f'Session "{session.title}" added to {current_room.name}!')
                 return redirect('dashboard:event_create_step3')
+            else:
+                # Show form errors
+                for field, errors in form.errors.items():
+                    for error in errors:
+                        messages.error(request, f'{field}: {error}')
         
         elif action == 'next_room':
             # Move to next room or finish
@@ -444,7 +448,7 @@ def event_create_step3(request):
             messages.info(request, f'Skipped sessions for {current_room.name}')
             return redirect('dashboard:event_create_step3')
     
-    form = SessionForm(initial={'start_time': event.start_date, 'end_time': event.start_date})
+    form = SessionForm(initial={'start_time': event.start_date, 'end_time': event.start_date}, event=event)
     
     context = {
         'form': form,
