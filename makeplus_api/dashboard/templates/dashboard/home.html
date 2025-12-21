@@ -156,6 +156,12 @@
                                     <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-sm btn-outline-primary">
                                         <i class="bi bi-eye"></i> View
                                     </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger delete-event-btn" 
+                                            data-event-id="{{ event.id }}" 
+                                            data-event-name="{{ event.name }}"
+                                            title="Delete Event">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -175,4 +181,104 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Delete event handler
+    document.body.addEventListener('click', function(e) {
+        if (e.target.closest('.delete-event-btn')) {
+            const button = e.target.closest('.delete-event-btn');
+            const eventId = button.getAttribute('data-event-id');
+            const eventName = button.getAttribute('data-event-name');
+            
+            if (confirm(`Are you sure you want to delete "${eventName}"?\n\nThis action cannot be undone. All associated rooms, sessions, and participant assignments will also be deleted.`)) {
+                // Get CSRF token
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+                if (!csrfToken) {
+                    // Create a hidden form to get CSRF token
+                    const tempForm = document.createElement('form');
+                    tempForm.innerHTML = '{% csrf_token %}';
+                    document.body.appendChild(tempForm);
+                    const token = tempForm.querySelector('[name=csrfmiddlewaretoken]').value;
+                    document.body.removeChild(tempForm);
+                    
+                    submitDelete(eventId, token, button);
+                } else {
+                    submitDelete(eventId, csrfToken.value, button);
+                }
+            }
+        }
+    });
+    
+    function submitDelete(eventId, csrfToken, button) {
+        // Show loading state
+        button.disabled = true;
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        
+        // Submit deletion via fetch
+        fetch(`/dashboard/events/${eventId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            if (response.redirected) {
+                // Successful deletion - remove the row from table
+                const row = button.closest('tr');
+                row.style.opacity = '0.5';
+                setTimeout(() => {
+                    row.remove();
+                    
+                    // Update statistics
+                    updateStatistics();
+                    
+                    // Check if table is empty
+                    const tbody = document.querySelector('tbody');
+                    if (tbody && tbody.children.length === 0) {
+                        location.reload(); // Reload to show "no events" message
+                    }
+                }, 300);
+                
+                // Show success message
+                showMessage('Event deleted successfully!', 'success');
+            } else {
+                throw new Error('Deletion failed');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showMessage('Error deleting event. Please try again.', 'danger');
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-trash"></i>';
+        });
+    }
+    
+    function updateStatistics() {
+        // Decrease total events count
+        const totalEventsEl = document.querySelector('.stat-card h2');
+        if (totalEventsEl) {
+            const currentCount = parseInt(totalEventsEl.textContent);
+            totalEventsEl.textContent = currentCount - 1;
+        }
+    }
+    
+    function showMessage(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(alertDiv);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+});
+</script>
 {% endblock %}
