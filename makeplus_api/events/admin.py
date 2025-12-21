@@ -19,7 +19,7 @@ class EventAdmin(admin.ModelAdmin):
             'fields': ('location', 'location_details')
         }),
         ('Branding', {
-            'fields': ('logo_url', 'banner_url')
+            'fields': ('logo', 'banner')
         }),
         ('Configuration', {
             'fields': ('status', 'themes', 'settings', 'organizer_contact')

@@ -41,7 +41,7 @@
                         </div>
                     {% endif %}
 
-                    <form method="post" class="needs-validation" novalidate>
+                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
                         {% csrf_token %}
                         
                         <div class="row">
@@ -136,10 +136,95 @@
                                 {% endif %}
                             </div>
 
-                            <!-- Guide File URL -->
-                            <div class="col-md-12 mb-3">
+                            <!-- Image Uploads Section -->
+                            <div class="col-12 mt-3">
+                                <h5 class="mb-3">
+                                    <i class="bi bi-image"></i> Event Images (Optional)
+                                </h5>
+                            </div>
+
+                            <!-- Logo -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.logo.id_for_label }}" class="form-label">
+                                    <i class="bi bi-award"></i> Logo Image
+                                </label>
+                                {% if event.logo %}
+                                    <div class="mb-2">
+                                        <img src="{{ event.logo.url }}" alt="Current Logo" class="img-thumbnail" style="max-height: 100px;">
+                                    </div>
+                                {% endif %}
+                                {{ form.logo }}
+                                {% if form.logo.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.logo.errors.0 }}
+                                    </div>
+                                {% endif %}
+                                {% if event.logo %}
+                                    <div class="form-text">
+                                        Current: <a href="{{ event.logo.url }}" target="_blank">View Image <i class="bi bi-box-arrow-up-right"></i></a>
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">Upload event logo (JPG, PNG, etc.)</div>
+                            </div>
+
+                            <!-- Banner -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.banner.id_for_label }}" class="form-label">
+                                    <i class="bi bi-card-image"></i> Banner Image
+                                </label>
+                                {% if event.banner %}
+                                    <div class="mb-2">
+                                        <img src="{{ event.banner.url }}" alt="Current Banner" class="img-thumbnail" style="max-height: 100px;">
+                                    </div>
+                                {% endif %}
+                                {{ form.banner }}
+                                {% if form.banner.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.banner.errors.0 }}
+                                    </div>
+                                {% endif %}
+                                {% if event.banner %}
+                                    <div class="form-text">
+                                        Current: <a href="{{ event.banner.url }}" target="_blank">View Image <i class="bi bi-box-arrow-up-right"></i></a>
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">Upload event banner (JPG, PNG, etc.)</div>
+                            </div>
+
+                            <div class="col-12">
+                                <hr>
+                            </div>
+
+                            <!-- PDF Files Section -->
+                            <div class="col-12 mt-3">
+                                <h5 class="mb-3">
+                                    <i class="bi bi-file-earmark-pdf"></i> Event Documents (Optional)
+                                </h5>
+                            </div>
+
+                            <!-- Programme File -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.programme_file.id_for_label }}" class="form-label">
+                                    <i class="bi bi-calendar2-week"></i> Programme PDF
+                                </label>
+                                {{ form.programme_file }}
+                                {% if form.programme_file.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.programme_file.errors.0 }}
+                                    </div>
+                                {% endif %}
+                                {% if event.programme_file %}
+                                    <div class="form-text">
+                                        Current: <a href="{{ event.programme_file.url }}" target="_blank">View PDF <i class="bi bi-box-arrow-up-right"></i></a>
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">Upload event schedule/program (PDF only)</div>
+                            </div>
+
+                            <!-- Guide File -->
+                            <div class="col-md-6 mb-3">
                                 <label for="{{ form.guide_file.id_for_label }}" class="form-label">
-                                    Guide File URL
+                                    <i class="bi bi-book"></i> Guide PDF
                                 </label>
                                 {{ form.guide_file }}
                                 {% if form.guide_file.errors %}
@@ -147,6 +232,16 @@
                                         {{ form.guide_file.errors.0 }}
                                     </div>
                                 {% endif %}
+                                {% if event.guide_file %}
+                                    <div class="form-text">
+                                        Current: <a href="{{ event.guide_file.url }}" target="_blank">View PDF <i class="bi bi-box-arrow-up-right"></i></a>
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">Upload participant guide/handbook (PDF only)</div>
+                            </div>
+
+                            <div class="col-12">
+                                <hr>
                             </div>
 
                             <!-- President -->

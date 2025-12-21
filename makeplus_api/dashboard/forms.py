@@ -30,7 +30,8 @@ class EventDetailsForm(forms.ModelForm):
         fields = [
             'name', 'description', 'start_date', 'end_date', 
             'location', 'location_details', 'status',
-            'logo_url', 'banner_url', 'organizer_contact'
+            'logo', 'banner', 'organizer_contact',
+            'programme_file', 'guide_file'
         ]
         widgets = {
             'name': forms.TextInput(attrs={
@@ -62,17 +63,25 @@ class EventDetailsForm(forms.ModelForm):
             'status': forms.Select(attrs={
                 'class': 'form-select'
             }),
-            'logo_url': forms.URLInput(attrs={
+            'logo': forms.FileInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'https://example.com/logo.png'
+                'accept': 'image/*'
             }),
-            'banner_url': forms.URLInput(attrs={
+            'banner': forms.FileInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'https://example.com/banner.jpg'
+                'accept': 'image/*'
             }),
             'organizer_contact': forms.EmailInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'contact@event.com'
+            }),
+            'programme_file': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': '.pdf'
+            }),
+            'guide_file': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': '.pdf'
             }),
         }
     

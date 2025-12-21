@@ -852,8 +852,8 @@ class SelectEventView(APIView):
                     'end_date': event.end_date.isoformat(),
                     'status': event.status,
                     'location': event.location,
-                    'logo_url': event.logo_url,
-                    'banner_url': event.banner_url,
+                    'logo': event.logo.url if event.logo else None,
+                    'banner': event.banner.url if event.banner else None,
                     'badge': badge_info,
                     'permissions': permissions
                 }
@@ -979,7 +979,7 @@ class MyEventsView(APIView):
                     'start_date': event.start_date.isoformat(),
                     'end_date': event.end_date.isoformat(),
                     'location': event.location,
-                    'logo_url': event.logo_url,
+                    'logo': event.logo.url if event.logo else None,
                     'badge': badge_info
                 })
             

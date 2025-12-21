@@ -58,8 +58,8 @@ class Event(models.Model):
     end_date = models.DateTimeField()
     location = models.CharField(max_length=200)
     location_details = models.TextField(blank=True)
-    logo_url = models.URLField(blank=True)
-    banner_url = models.URLField(blank=True)
+    logo = models.ImageField(upload_to='events/logos/', blank=True, null=True, help_text="Event logo image")
+    banner = models.ImageField(upload_to='events/banners/', blank=True, null=True, help_text="Event banner image")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='upcoming')
     
     # Event configuration

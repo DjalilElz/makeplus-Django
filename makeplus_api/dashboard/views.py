@@ -302,7 +302,7 @@ def event_create_step1(request):
     """Step 1: Event Details"""
     
     if request.method == 'POST':
-        form = EventDetailsForm(request.POST)
+        form = EventDetailsForm(request.POST, request.FILES)
         if form.is_valid():
             # Save event
             event = form.save(commit=False)
@@ -864,7 +864,7 @@ def event_edit(request, event_id):
     
     if request.method == 'POST':
         # Don't include number_of_rooms in edit form
-        form = EventDetailsForm(request.POST, instance=event)
+        form = EventDetailsForm(request.POST, request.FILES, instance=event)
         if form.is_valid():
             form.save()
             messages.success(request, f'Event "{event.name}" updated successfully!')
