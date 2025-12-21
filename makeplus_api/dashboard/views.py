@@ -423,7 +423,7 @@ def event_create_step3(request):
             if form.is_valid():
                 session = form.save(commit=False)
                 session.event = event
-                session.room = current_room
+                session.room = current_room  # Force the current room
                 session.created_by = request.user
                 session.save()
                 messages.success(request, f'Session "{session.title}" added to {current_room.name}!')
@@ -452,6 +452,9 @@ def event_create_step3(request):
             return redirect('dashboard:event_create_step3')
     
     form = SessionForm(initial={'start_time': event.start_date, 'end_time': event.start_date}, event=event)
+    # Hide room field since we're setting it automatically
+    form.fields['room'].widget = form.fields['room'].hidden_widget()
+    form.fields['room'].required = False
     
     context = {
         'form': form,
