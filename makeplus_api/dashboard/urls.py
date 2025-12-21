@@ -31,10 +31,13 @@ urlpatterns = [
     path('users/', views.user_list, name='user_list'),
     path('users/create/', views.user_create, name='user_create'),
     path('users/<int:user_id>/', views.user_detail, name='user_detail'),
+    path('users/<int:user_id>/delete/', views.user_delete, name='user_delete'),
     path('users/<int:user_id>/qr-code/download/', views.download_qr_code, name='download_qr_code'),
+    path('assignments/<int:assignment_id>/change-role/', views.user_change_role, name='user_change_role'),
     
     # Event-specific User Management
     path('events/<uuid:event_id>/users/', views.event_users, name='event_users'),
+    path('events/<uuid:event_id>/users/<int:user_id>/delete/', views.event_user_delete, name='event_user_delete'),
     
     # Caisse Management
     path('caisses/', views.caisse_list, name='caisse_list'),

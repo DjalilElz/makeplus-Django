@@ -20,27 +20,32 @@
         </div>
     </div>
     
+    <!-- Search Bar -->
+    <div class="mb-4">
+        <input type="text" id="userSearchInput" class="form-control" placeholder="Search by name, email, or username...">
+    </div>
+    
     <!-- Role Filter Buttons -->
     <div class="mb-4">
         <div class="btn-group" role="group">
-            <a href="?role=all" class="btn {% if role_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <button type="button" class="btn btn-primary" data-role="all">
                 <i class="bi bi-people"></i> All ({{ role_counts.all }})
-            </a>
-            <a href="?role=organisateur" class="btn {% if role_filter == 'organisateur' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-role="organisateur">
                 <i class="bi bi-person-badge"></i> Organizers ({{ role_counts.organisateur }})
-            </a>
-            <a href="?role=gestionnaire_des_salles" class="btn {% if role_filter == 'gestionnaire_des_salles' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-role="gestionnaire_des_salles">
                 <i class="bi bi-door-open"></i> Room Managers ({{ role_counts.gestionnaire_des_salles }})
-            </a>
-            <a href="?role=controlleur_des_badges" class="btn {% if role_filter == 'controlleur_des_badges' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-role="controlleur_des_badges">
                 <i class="bi bi-qr-code-scan"></i> Controllers ({{ role_counts.controlleur_des_badges }})
-            </a>
-            <a href="?role=exposant" class="btn {% if role_filter == 'exposant' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-role="exposant">
                 <i class="bi bi-shop"></i> Exhibitors ({{ role_counts.exposant }})
-            </a>
-            <a href="?role=participant" class="btn {% if role_filter == 'participant' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-role="participant">
                 <i class="bi bi-person"></i> Participants ({{ role_counts.participant }})
-            </a>
+            </button>
         </div>
     </div>
     
@@ -48,7 +53,7 @@
     <div class="stat-card">
         {% if user_stats %}
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover" id="usersTable">
                 <thead>
                     <tr>
                         <th>User</th>
@@ -69,7 +74,7 @@
                 </thead>
                 <tbody>
                     {% for stat in user_stats %}
-                    <tr>
+                    <tr data-role="{{ stat.assignment.role }}" data-username="{{ stat.user.username|lower }}" data-email="{{ stat.user.email|lower }}" data-fullname="{{ stat.user.first_name|lower }} {{ stat.user.last_name|lower }}">
                         <td>
                             <strong>{{ stat.user.first_name }} {{ stat.user.last_name }}</strong><br>
                             <small class="text-muted">@{{ stat.user.username }}</small>
@@ -150,9 +155,14 @@
                         </td>
                         <td><small>{{ stat.assignment.assigned_at|date:"M d, Y H:i" }}</small></td>
                         <td>
-                            <a href="{% url 'dashboard:user_detail' stat.user.id %}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i> View
-                            </a>
+                            <div class="btn-group" role="group">
+                                <a href="{% url 'dashboard:user_detail' stat.user.id %}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-user-btn" data-user-id="{{ stat.user.id }}" data-user-name="{{ stat.user.get_full_name|default:stat.user.username }}" data-event-id="{{ event.id }}" title="Remove from Event">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -200,4 +210,92 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const userSearchInput = document.getElementById('userSearchInput');
+    const roleButtons = document.querySelectorAll('.btn-group button[data-role]');
+    const usersTable = document.getElementById('usersTable');
+    let currentRole = 'all';
+    
+    // Search functionality
+    if (userSearchInput && usersTable) {
+        userSearchInput.addEventListener('input', function() {
+            filterUsers();
+        });
+    }
+    
+    // Role filter functionality
+    roleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Update active button
+            roleButtons.forEach(btn => {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline-primary');
+            });
+            this.classList.remove('btn-outline-primary');
+            this.classList.add('btn-primary');
+            
+            // Update current role
+            currentRole = this.getAttribute('data-role');
+            filterUsers();
+        });
+    });
+    
+    function filterUsers() {
+        const searchTerm = userSearchInput ? userSearchInput.value.toLowerCase() : '';
+        const rows = usersTable ? usersTable.querySelectorAll('tbody tr') : [];
+        
+        rows.forEach(row => {
+            const fullname = row.getAttribute('data-fullname') || '';
+            const username = row.getAttribute('data-username') || '';
+            const email = row.getAttribute('data-email') || '';
+            const role = row.getAttribute('data-role') || '';
+            
+            const matchesSearch = !searchTerm || 
+                fullname.includes(searchTerm) || 
+                username.includes(searchTerm) || 
+                email.includes(searchTerm);
+            
+            const matchesRole = currentRole === 'all' || role === currentRole;
+            
+            if (matchesSearch && matchesRole) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+    
+    // Delete user handler
+    document.body.addEventListener('click', function(e) {
+        if (e.target.closest('.delete-user-btn')) {
+            const button = e.target.closest('.delete-user-btn');
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const eventId = button.getAttribute('data-event-id');
+            
+            if (confirm(`Are you sure you want to remove "${userName}" from this event?\n\nThis will remove their assignment and access to this event.`)) {
+                // Create form dynamically
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/dashboard/events/${eventId}/users/${userId}/delete/`;
+                form.style.display = 'none';
+                
+                // Add CSRF token
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrfmiddlewaretoken';
+                csrfInput.value = csrfToken;
+                form.appendChild(csrfInput);
+                
+                // Add to body and submit
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    });
+});
+</script>
 {% endblock %}

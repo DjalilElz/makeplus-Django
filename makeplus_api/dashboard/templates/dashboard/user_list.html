@@ -11,25 +11,58 @@
         </a>
     </div>
     
+    <!-- Search and Event Filter -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <form method="get" class="d-flex gap-2">
+                <input type="text" name="search" class="form-control" placeholder="Search by name, email, or username..." value="{{ search_query }}">
+                <input type="hidden" name="role" value="{{ role_filter }}">
+                <input type="hidden" name="event" value="{{ event_filter }}">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="bi bi-search"></i> Search
+                </button>
+                {% if search_query %}
+                <a href="?role={{ role_filter }}&event={{ event_filter }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> Clear
+                </a>
+                {% endif %}
+            </form>
+        </div>
+        <div class="col-md-6">
+            <form method="get" class="d-flex gap-2">
+                <select name="event" class="form-select" onchange="this.form.submit()">
+                    <option value="all">All Events</option>
+                    {% for event in events %}
+                    <option value="{{ event.id }}" {% if event_filter == event.id|stringformat:"s" %}selected{% endif %}>
+                        {{ event.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="role" value="{{ role_filter }}">
+                <input type="hidden" name="search" value="{{ search_query }}">
+            </form>
+        </div>
+    </div>
+    
     <!-- Role Filter Buttons -->
     <div class="mb-4">
         <div class="btn-group" role="group">
-            <a href="?role=all" class="btn {% if role_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <a href="?role=all&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 <i class="bi bi-people"></i> All Users ({{ role_counts.all }})
             </a>
-            <a href="?role=organisateur" class="btn {% if role_filter == 'organisateur' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <a href="?role=organisateur&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'organisateur' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 <i class="bi bi-person-badge"></i> Organizers ({{ role_counts.organisateur }})
             </a>
-            <a href="?role=gestionnaire_des_salles" class="btn {% if role_filter == 'gestionnaire_des_salles' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <a href="?role=gestionnaire_des_salles&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'gestionnaire_des_salles' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 <i class="bi bi-door-open"></i> Room Managers ({{ role_counts.gestionnaire_des_salles }})
             </a>
-            <a href="?role=controlleur_des_badges" class="btn {% if role_filter == 'controlleur_des_badges' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <a href="?role=controlleur_des_badges&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'controlleur_des_badges' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 <i class="bi bi-qr-code-scan"></i> Controllers ({{ role_counts.controlleur_des_badges }})
             </a>
-            <a href="?role=exposant" class="btn {% if role_filter == 'exposant' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <a href="?role=exposant&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'exposant' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 <i class="bi bi-shop"></i> Exhibitors ({{ role_counts.exposant }})
             </a>
-            <a href="?role=participant" class="btn {% if role_filter == 'participant' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <a href="?role=participant&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'participant' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 <i class="bi bi-person"></i> Participants ({{ role_counts.participant }})
             </a>
         </div>

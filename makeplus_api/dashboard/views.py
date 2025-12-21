@@ -34,8 +34,10 @@ from events.models import (
     SessionQuestion, Annonce
 )
 from .forms import (
-    EventDetailsForm, RoomForm, SessionForm, UserCreationForm,
-    QuickUserForm, RoomAssignmentForm
+    EventDetailsForm, EventEditForm, RoomForm, SessionForm, SessionEditForm,
+    UserEventAssignmentForm, ParticipantForm, ParticipantEditForm,
+    ExhibitorForm, ExhibitorEditForm, ControllerForm, ControllerEditForm,
+    EmailForm, UserCreationForm, QuickUserForm, RoomAssignmentForm
 )
 
 
@@ -549,10 +551,12 @@ def event_create_step4(request):
 @login_required
 @user_passes_test(is_staff_user)
 def user_list(request):
-    """List all users with role filtering"""
+    """List all users with role and event filtering"""
     
-    # Get filter parameter
+    # Get filter parameters
     role_filter = request.GET.get('role', 'all')
+    event_filter = request.GET.get('event', 'all')
+    search_query = request.GET.get('search', '').strip()
     
     # Base query with optimizations
     users = User.objects.prefetch_related(
@@ -566,6 +570,19 @@ def user_list(request):
     if role_filter != 'all':
         users = users.filter(event_assignments__role=role_filter).distinct()
     
+    # Filter by event if specified
+    if event_filter != 'all':
+        users = users.filter(event_assignments__event__id=event_filter).distinct()
+    
+    # Filter by search query
+    if search_query:
+        users = users.filter(
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(username__icontains=search_query) |
+            Q(email__icontains=search_query)
+        )
+    
     # Get counts for each role
     role_counts = {
         'all': User.objects.count(),
@@ -576,10 +593,16 @@ def user_list(request):
         'participant': UserEventAssignment.objects.filter(role='participant').values('user').distinct().count(),
     }
     
+    # Get all events for filter dropdown
+    events = Event.objects.all().order_by('-start_date')
+    
     context = {
         'users': users,
         'role_filter': role_filter,
-        'role_counts': role_counts
+        'event_filter': event_filter,
+        'search_query': search_query,
+        'role_counts': role_counts,
+        'events': events
     }
     
     return render(request, 'dashboard/user_list.html', context)
@@ -742,6 +765,68 @@ def user_detail(request, user_id):
 
 @login_required
 @user_passes_test(is_staff_user)
+def user_delete(request, user_id):
+    """Delete a user and all their associated data"""
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    if request.method == 'POST':
+        # Don't allow deleting superusers or current user
+        if user.is_superuser:
+            messages.error(request, 'Cannot delete superuser accounts.')
+            return redirect('dashboard:user_detail', user_id=user.id)
+        
+        if user == request.user:
+            messages.error(request, 'You cannot delete your own account.')
+            return redirect('dashboard:user_detail', user_id=user.id)
+        
+        user_name = user.get_full_name() or user.username
+        
+        # Delete the user (cascading deletes will handle related objects)
+        user.delete()
+        
+        messages.success(request, f'User "{user_name}" has been permanently deleted.')
+        return redirect('dashboard:user_list')
+    
+    # If GET request, redirect to user detail
+    messages.warning(request, 'Invalid request.')
+    return redirect('dashboard:user_detail', user_id=user.id)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def user_change_role(request, assignment_id):
+    """Change user's role for a specific event"""
+    
+    assignment = get_object_or_404(UserEventAssignment, id=assignment_id)
+    
+    if request.method == 'POST':
+        new_role = request.POST.get('role')
+        
+        # Validate role
+        valid_roles = ['organisateur', 'gestionnaire_des_salles', 'controlleur_des_badges', 'exposant', 'participant']
+        if new_role not in valid_roles:
+            messages.error(request, 'Invalid role selected.')
+            return redirect('dashboard:user_detail', user_id=assignment.user.id)
+        
+        old_role = assignment.get_role_display()
+        assignment.role = new_role
+        assignment.save()
+        
+        # Invalidate cache
+        invalidate_event_cache(assignment.event.id)
+        
+        new_role_display = assignment.get_role_display()
+        messages.success(request, f'User role changed from {old_role} to {new_role_display} for event "{assignment.event.name}".')
+        return redirect('dashboard:user_detail', user_id=assignment.user.id)
+    
+    # If GET request, redirect to user detail
+    messages.warning(request, 'Invalid request.')
+    return redirect('dashboard:user_detail', user_id=assignment.user.id)
+
+
+@login_required
+@user_passes_test(is_staff_user)
 def download_qr_code(request, user_id):
     """Download QR code as PNG"""
     
@@ -851,6 +936,33 @@ def event_users(request, event_id):
     return render(request, 'dashboard/event_users.html', context)
 
 
+@login_required
+@user_passes_test(is_staff_user)
+def event_user_delete(request, event_id, user_id):
+    """Remove user from event (delete UserEventAssignment)"""
+    
+    event = get_object_or_404(Event, id=event_id)
+    user = get_object_or_404(User, id=user_id)
+    
+    if request.method == 'POST':
+        # Get assignment
+        assignment = get_object_or_404(UserEventAssignment, event=event, user=user)
+        user_name = user.get_full_name() or user.username
+        
+        # Delete the assignment (this removes user from event)
+        assignment.delete()
+        
+        # Invalidate cache
+        invalidate_event_cache(event.id)
+        
+        messages.success(request, f'User "{user_name}" has been removed from this event.')
+        return redirect('dashboard:event_detail', event_id=event.id)
+    
+    # If GET request, redirect to event detail
+    messages.warning(request, 'Invalid request.')
+    return redirect('dashboard:event_detail', event_id=event.id)
+
+
 # ==================== Event Management ====================
 
 @login_required
@@ -863,14 +975,14 @@ def event_edit(request, event_id):
     event = get_object_or_404(Event, id=event_id)
     
     if request.method == 'POST':
-        # Don't include number_of_rooms in edit form
-        form = EventDetailsForm(request.POST, request.FILES, instance=event)
+        # Use EventEditForm which doesn't include number_of_rooms
+        form = EventEditForm(request.POST, request.FILES, instance=event)
         if form.is_valid():
             form.save()
             messages.success(request, f'Event "{event.name}" updated successfully!')
             return redirect('dashboard:event_detail', event_id=event.id)
     else:
-        form = EventDetailsForm(instance=event)
+        form = EventEditForm(instance=event)
     
     context = {
         'form': form,

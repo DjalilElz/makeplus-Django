@@ -7,9 +7,14 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}</h2>
-        <a href="{% url 'dashboard:user_list' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Users
-        </a>
+        <div>
+            <a href="{% url 'dashboard:user_list' %}" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left"></i> Back to Users
+            </a>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteUserModal">
+                <i class="bi bi-trash"></i> Delete User
+            </button>
+        </div>
     </div>
     
     <div class="row">
@@ -73,6 +78,7 @@
                                 <th>Assigned By</th>
                                 <th>Date</th>
                                 <th>Status</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -112,7 +118,53 @@
                                         <span class="badge bg-secondary">Inactive</span>
                                     {% endif %}
                                 </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#changeRoleModal{{ assignment.id }}" title="Change Role">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
                             </tr>
+                            
+                            <!-- Change Role Modal for this assignment -->
+                            <div class="modal fade" id="changeRoleModal{{ assignment.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Change Role - {{ assignment.event.name }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form method="post" action="{% url 'dashboard:user_change_role' assignment.id %}">
+                                            {% csrf_token %}
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label">User:</label>
+                                                    <p class="fw-bold">{{ user.get_full_name|default:user.username }}</p>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Event:</label>
+                                                    <p class="fw-bold">{{ assignment.event.name }}</p>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="role{{ assignment.id }}" class="form-label">New Role</label>
+                                                    <select class="form-select" id="role{{ assignment.id }}" name="role" required>
+                                                        <option value="organisateur" {% if assignment.role == 'organisateur' %}selected{% endif %}>Organizer</option>
+                                                        <option value="gestionnaire_des_salles" {% if assignment.role == 'gestionnaire_des_salles' %}selected{% endif %}>Room Manager</option>
+                                                        <option value="controlleur_des_badges" {% if assignment.role == 'controlleur_des_badges' %}selected{% endif %}>Controller</option>
+                                                        <option value="exposant" {% if assignment.role == 'exposant' %}selected{% endif %}>Exhibitor</option>
+                                                        <option value="participant" {% if assignment.role == 'participant' %}selected{% endif %}>Participant</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="bi bi-check-circle"></i> Change Role
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -367,6 +419,44 @@
                         <strong>{{ user.date_joined|timesince }}</strong>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete User Modal -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1" aria-labelledby="deleteUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteUserModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Confirm Delete User
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">Are you sure you want to <strong>permanently delete</strong> this user?</p>
+                <div class="alert alert-warning mb-3">
+                    <strong>User:</strong> {{ user.get_full_name|default:user.username }}<br>
+                    <strong>Email:</strong> {{ user.email }}<br>
+                    <strong>Username:</strong> {{ user.username }}<br>
+                    <strong>Badge ID:</strong> {{ qr_data.badge_id }}
+                </div>
+                <p class="text-danger small mb-0">
+                    <i class="bi bi-exclamation-circle"></i> 
+                    <strong>Warning:</strong> This action cannot be undone. All user data, event assignments, participant profiles, transactions, and access records will be permanently deleted.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancel
+                </button>
+                <form method="post" action="{% url 'dashboard:user_delete' user.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Yes, Delete User
+                    </button>
+                </form>
             </div>
         </div>
     </div>
