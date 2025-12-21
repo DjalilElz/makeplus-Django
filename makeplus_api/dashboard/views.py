@@ -12,7 +12,7 @@ from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from django.views.decorators.cache import cache_page
+from django.views.decorators.cache import cache_page, never_cache
 from datetime import timedelta
 import json
 import qrcode
@@ -136,7 +136,10 @@ def dashboard_home(request):
         'recent_scans': recent_scans,
     }
     
-    return render(request, 'dashboard/home.html', context)
+    response = render(request, 'dashboard/home.html', context)
+    # Smart caching: allows browser to cache for 30 seconds but must revalidate after
+    response['Cache-Control'] = 'private, max-age=30, must-revalidate'
+    return response
 
 
 # ==================== Event Detail View ====================
@@ -1007,6 +1010,9 @@ def event_delete(request, event_id):
     if request.method == 'POST':
         event_name = event.name
         event.delete()
+        # Invalidate cache
+        invalidate_event_cache(event_id)
+        cache.delete('dashboard_home')
         messages.success(request, f'Event "{event_name}" deleted successfully!')
         return redirect('dashboard:home')
     
