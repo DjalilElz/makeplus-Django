@@ -420,6 +420,8 @@ def event_create_step3(request):
         
         if action == 'add_session':
             form = SessionForm(request.POST, event=event)
+            # Make room field not required and set value
+            form.fields['room'].required = False
             if form.is_valid():
                 session = form.save(commit=False)
                 session.event = event
