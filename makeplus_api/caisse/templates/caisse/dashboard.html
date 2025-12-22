@@ -97,11 +97,6 @@
             transform: translateX(5px);
         }
         
-        .participant-item.checked-in {
-            background-color: #d1fae5;
-            border-color: #10b981;
-        }
-        
         .participant-info {
             flex: 1;
         }
@@ -249,7 +244,7 @@
                     
                     <div id="participantsList">
                         {% for participant in all_participants %}
-                        <div class="participant-item {% if participant.caisse_transactions.exists %}checked-in{% endif %}" 
+                        <div class="participant-item" 
                              data-id="{{ participant.id }}"
                              data-name="{{ participant.user.get_full_name|default:participant.user.username }}"
                              data-email="{{ participant.user.email }}"
@@ -267,17 +262,6 @@
                                         <i class="bi bi-qr-code me-1"></i> {{ participant.qr_code }}
                                     </span>
                                 </div>
-                            </div>
-                            <div>
-                                {% if participant.caisse_transactions.exists %}
-                                    <span class="participant-badge bg-success text-white">
-                                        <i class="bi bi-check-circle"></i> Checked In
-                                    </span>
-                                {% else %}
-                                    <span class="participant-badge bg-secondary text-white">
-                                        <i class="bi bi-clock"></i> Pending
-                                    </span>
-                                {% endif %}
                             </div>
                         </div>
                         {% empty %}
@@ -389,9 +373,19 @@
         <div class="row mt-4">
             <div class="col-12">
                 <div class="stat-card">
-                    <h5 class="mb-3">
-                        <i class="bi bi-clock-history"></i> Recent Transactions
-                    </h5>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-clock-history"></i> Recent Transactions
+                        </h5>
+                        <div class="input-group" style="max-width: 300px;">
+                            <span class="input-group-text">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" class="form-control" id="transactionSearchInput" 
+                                   placeholder="Search transactions..." 
+                                   autocomplete="off">
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>
@@ -403,9 +397,10 @@
                                     <th><i class="bi bi-gear"></i> Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="transactionsTableBody">
                                 {% for transaction in recent_transactions %}
-                                <tr>
+                                <tr class="transaction-row" 
+                                    data-searchtext="{{ transaction.participant.user.get_full_name|default:transaction.participant.user.username|lower }} {{ transaction.participant.user.email|lower }} {{ transaction.total_amount }} {% for item in transaction.items.all %}{{ item.name|lower }} {% endfor %}">
                                     <td>
                                         <strong>{{ transaction.participant.user.get_full_name|default:transaction.participant.user.username }}</strong><br>
                                         <small class="text-muted">{{ transaction.participant.user.email }}</small>
@@ -481,7 +476,7 @@
             // Highlight selected participant
             document.querySelectorAll('.participant-item').forEach(function(item) {
                 item.style.borderColor = '#e5e7eb';
-                item.style.background = item.classList.contains('checked-in') ? '#d1fae5' : 'white';
+                item.style.background = 'white';
             });
             element.style.borderColor = '#667eea';
             element.style.background = '#ede9fe';
@@ -649,9 +644,24 @@
             // Remove highlighting from all participants
             document.querySelectorAll('.participant-item').forEach(function(item) {
                 item.style.borderColor = '#e5e7eb';
-                item.style.background = item.classList.contains('checked-in') ? '#d1fae5' : 'white';
+                item.style.background = 'white';
             });
         }
+        
+        // Transaction search filtering
+        document.getElementById('transactionSearchInput').addEventListener('input', function() {
+            const searchText = this.value.toLowerCase().trim();
+            const transactions = document.querySelectorAll('.transaction-row');
+            
+            transactions.forEach(function(transaction) {
+                const transactionText = transaction.getAttribute('data-searchtext');
+                if (searchText === '' || transactionText.includes(searchText)) {
+                    transaction.style.display = '';
+                } else {
+                    transaction.style.display = 'none';
+                }
+            });
+        });
         
         // Cancel transaction functions
         function confirmCancelTransaction(transactionId, participantName, amount) {
