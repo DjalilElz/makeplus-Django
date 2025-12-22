@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.cache import never_cache
 from django.db.models import Q
 from django.utils import timezone
 import json
@@ -78,6 +79,7 @@ def caisse_logout(request):
 
 # ==================== Dashboard ====================
 
+@never_cache
 @caisse_required
 def caisse_dashboard(request):
     """Main dashboard for caisse operators"""
@@ -364,15 +366,16 @@ def transaction_history(request):
 @caisse_required
 @require_http_methods(["POST"])
 def cancel_transaction(request, transaction_id):
-    """Cancel a transaction"""
+    """Cancel a transaction and remove granted access"""
     import json
+    from events.models import Session
     
     caisse = request.caisse
     
     try:
         transaction = CaisseTransaction.objects.get(id=transaction_id, caisse=caisse, status='completed')
     except CaisseTransaction.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Transaction not found'})
+        return JsonResponse({'success': False, 'message': 'Transaction not found or already cancelled'})
     
     # Parse JSON body
     try:
@@ -381,11 +384,48 @@ def cancel_transaction(request, transaction_id):
     except json.JSONDecodeError:
         reason = request.POST.get('reason', 'No reason provided')
     
+    # Get the participant before canceling
+    participant = transaction.participant
+    
+    # Collect room IDs from the cancelled items that need to be removed
+    rooms_to_remove = []
+    for item in transaction.items.all():
+        if item.session and item.session.room:
+            rooms_to_remove.append(str(item.session.room.id))
+    
+    # Remove access to these rooms from participant's metadata
+    if rooms_to_remove and participant.metadata and 'allowed_rooms' in participant.metadata:
+        allowed_rooms = participant.metadata.get('allowed_rooms', [])
+        if isinstance(allowed_rooms, list):
+            # Check if any other completed transactions grant access to these rooms
+            # Only remove if no other completed transaction provides access
+            other_completed_transactions = CaisseTransaction.objects.filter(
+                participant=participant,
+                status='completed'
+            ).exclude(id=transaction.id).prefetch_related('items__session__room')
+            
+            # Collect room IDs from other completed transactions
+            rooms_from_other_transactions = set()
+            for other_trans in other_completed_transactions:
+                for item in other_trans.items.all():
+                    if item.session and item.session.room:
+                        rooms_from_other_transactions.add(str(item.session.room.id))
+            
+            # Remove only rooms not granted by other transactions
+            new_allowed_rooms = [
+                room_id for room_id in allowed_rooms 
+                if room_id not in rooms_to_remove or room_id in rooms_from_other_transactions
+            ]
+            
+            participant.metadata['allowed_rooms'] = new_allowed_rooms
+            participant.save()
+    
+    # Cancel the transaction
     transaction.cancel(cancelled_by=caisse.name, reason=reason)
     
     return JsonResponse({
         'success': True,
-        'message': 'Transaction cancelled successfully'
+        'message': 'Transaction cancelled successfully and access revoked'
     })
 
 

@@ -674,18 +674,24 @@
                     reason: reason || 'No reason provided'
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
-                    alert('Transaction cancelled successfully!');
-                    location.reload();
+                    alert(data.message || 'Transaction cancelled successfully and access revoked!');
+                    // Force reload without cache
+                    location.reload(true);
                 } else {
                     alert('Error: ' + data.message);
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Failed to cancel transaction');
+                alert('Failed to cancel transaction: ' + error.message);
             });
         }
     </script>
