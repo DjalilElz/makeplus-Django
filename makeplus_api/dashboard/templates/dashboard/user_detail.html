@@ -75,6 +75,7 @@
                             <tr>
                                 <th>Event</th>
                                 <th>Role</th>
+                                <th>Assigned Room</th>
                                 <th>Assigned By</th>
                                 <th>Date</th>
                                 <th>Status</th>
@@ -82,7 +83,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for assignment in assignments %}
+                            {% for item in assignments_with_rooms %}
+                            {% with assignment=item.assignment assigned_room=item.assigned_room %}
                             <tr>
                                 <td>
                                     <a href="{% url 'dashboard:event_detail' assignment.event.id %}" class="text-decoration-none">
@@ -101,6 +103,17 @@
                                         <span class="badge bg-success">Exhibitor</span>
                                     {% elif assignment.role == 'participant' %}
                                         <span class="badge bg-secondary">Participant</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if assigned_room %}
+                                        <span class="badge bg-dark">
+                                            <i class="bi bi-door-open"></i> {{ assigned_room.name }}
+                                        </span>
+                                    {% elif assignment.role in 'organisateur,gestionnaire_des_salles,controlleur_des_badges' %}
+                                        <span class="text-muted small">No room assigned</span>
+                                    {% else %}
+                                        <span class="text-muted small">N/A</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -165,6 +178,7 @@
                                     </div>
                                 </div>
                             </div>
+                            {% endwith %}
                             {% endfor %}
                         </tbody>
                     </table>

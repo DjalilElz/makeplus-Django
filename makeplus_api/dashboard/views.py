@@ -749,6 +749,25 @@ def user_detail(request, user_id):
         user=user
     ).select_related('event', 'assigned_by').order_by('-assigned_at')
     
+    # For each assignment, fetch assigned room if applicable
+    assignments_with_rooms = []
+    for assignment in assignments:
+        assigned_room = None
+        # Check if role is one that can have room assignment
+        if assignment.role in ['organisateur', 'gestionnaire_des_salles', 'controlleur_des_badges']:
+            # Get room ID from metadata
+            room_id = assignment.metadata.get('assigned_room_id') if assignment.metadata else None
+            if room_id:
+                try:
+                    assigned_room = Room.objects.get(id=room_id)
+                except Room.DoesNotExist:
+                    pass
+        
+        assignments_with_rooms.append({
+            'assignment': assignment,
+            'assigned_room': assigned_room
+        })
+    
     # Get participant profiles with detailed information
     participant_profiles = Participant.objects.filter(
         user=user
@@ -801,6 +820,7 @@ def user_detail(request, user_id):
         'qr_data': qr_data,
         'qr_image': qr_image,
         'assignments': assignments,
+        'assignments_with_rooms': assignments_with_rooms,
         'participant_data': participant_data
     }
     
