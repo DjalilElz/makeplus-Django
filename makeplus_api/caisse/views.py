@@ -95,9 +95,16 @@ def caisse_dashboard(request):
     total_participants = caisse.get_total_participants()
     transaction_count = caisse.get_transaction_count()
     
-    # Get all participants for this event with their paid items
+    # Get only participants (users with role 'participant') for this event
+    from events.models import UserEventAssignment
+    participant_user_ids = UserEventAssignment.objects.filter(
+        event=event,
+        role='participant'
+    ).values_list('user_id', flat=True)
+    
     all_participants = Participant.objects.filter(
-        event=event
+        event=event,
+        user_id__in=participant_user_ids
     ).select_related('user').prefetch_related(
         'caisse_transactions__items',
         'caisse_transactions__caisse'
@@ -145,9 +152,17 @@ def search_participant(request):
     if not query:
         return JsonResponse({'success': False, 'message': 'Please enter a search term'})
     
-    # Search participants
+    # Get only users with 'participant' role
+    from events.models import UserEventAssignment
+    participant_user_ids = UserEventAssignment.objects.filter(
+        event=event,
+        role='participant'
+    ).values_list('user_id', flat=True)
+    
+    # Search participants with participant role only
     participants = Participant.objects.filter(
-        event=event
+        event=event,
+        user_id__in=participant_user_ids
     ).filter(
         Q(user__first_name__icontains=query) |
         Q(user__last_name__icontains=query) |
