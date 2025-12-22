@@ -502,7 +502,7 @@ def event_create_step4(request):
         action = request.POST.get('action')
         
         if action == 'add_user':
-            form = UserCreationForm(request.POST)
+            form = UserCreationForm(request.POST, event=event)
             if form.is_valid():
                 # Create user
                 user = form.save()
@@ -512,13 +512,23 @@ def event_create_step4(request):
                 
                 # Assign to event
                 role = form.cleaned_data['role']
-                UserEventAssignment.objects.create(
+                assignment = UserEventAssignment.objects.create(
                     user=user,
                     event=event,
                     role=role,
                     is_active=True,
                     assigned_by=request.user
                 )
+                
+                # Assign room if role is organisateur, gestionnaire or controlleur
+                assigned_room = form.cleaned_data.get('assigned_room')
+                if role in ['organisateur', 'gestionnaire_des_salles', 'controlleur_des_badges'] and assigned_room:
+                    assignment.metadata = assignment.metadata or {}
+                    assignment.metadata['assigned_room_id'] = str(assigned_room.id)
+                    assignment.save()
+                    messages.success(request, f'User "{user.get_full_name()}" created with role: {role} and assigned to room: {assigned_room.name}')
+                else:
+                    messages.success(request, f'User "{user.get_full_name()}" created with role: {role}')
                 
                 # Create participant profile
                 Participant.objects.create(
@@ -528,7 +538,6 @@ def event_create_step4(request):
                     qr_code_data=qr_data
                 )
                 
-                messages.success(request, f'User "{user.get_full_name()}" created with role: {role}')
                 return redirect('dashboard:event_create_step4')
         
         elif action == 'finish':
@@ -553,7 +562,7 @@ def event_create_step4(request):
             messages.info(request, 'Event created! You can add users later.')
             return redirect('dashboard:event_detail', event_id=event.id)
     else:
-        form = UserCreationForm()
+        form = UserCreationForm(event=event)
     
     context = {
         'form': form,
@@ -680,13 +689,15 @@ def user_create(request):
             
             # Assign room to gestionnaire or controlleur if applicable
             assigned_room = form.cleaned_data.get('assigned_room')
-            if (role in ['gestionnaire_des_salles', 'controlleur_des_badges']) and assigned_room:
+            if (role in ['organisateur', 'gestionnaire_des_salles', 'controlleur_des_badges']) and assigned_room:
                 # Store room assignment in UserEventAssignment metadata
                 assignment = UserEventAssignment.objects.get(user=user, event=event)
                 assignment.metadata = {'assigned_room_id': str(assigned_room.id)}
                 assignment.save()
+                messages.success(request, f'User "{user.get_full_name()}" created successfully and assigned to room: {assigned_room.name}!')
+            else:
+                messages.success(request, f'User "{user.get_full_name()}" created successfully!')
             
-            messages.success(request, f'User "{user.get_full_name()}" created successfully!')
             return redirect('dashboard:user_detail', user_id=user.id)
     else:
         form = QuickUserForm()

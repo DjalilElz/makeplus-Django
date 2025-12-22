@@ -134,6 +134,19 @@
                                 </ul>
                             </div>
                         </div>
+                        
+                        <div class="col-md-12 mb-3" id="roomFieldContainer" style="display: none;">
+                            <label for="{{ form.assigned_room.id_for_label }}" class="form-label">Assign to Room</label>
+                            {{ form.assigned_room }}
+                            {% if form.assigned_room.field.queryset.count == 0 %}
+                                <div class="alert alert-warning mt-2">
+                                    <i class="bi bi-exclamation-triangle"></i> No rooms available for this event. Please create rooms first in step 2.
+                                </div>
+                            {% endif %}
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i> Select a room for organisateur, gestionnaire des salles, or controlleur des badges
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="alert alert-info">
@@ -150,4 +163,57 @@
         </div>
     </div>
 </div>
+
+<script>
+function toggleRoomField() {
+    const roleSelect = document.querySelector('select[name="role"]');
+    const roomContainer = document.getElementById('roomFieldContainer');
+    const roomSelect = document.querySelector('select[name="assigned_room"]');
+    
+    console.log('toggleRoomField called');
+    console.log('roleSelect:', roleSelect);
+    console.log('roomContainer:', roomContainer);
+    console.log('roomSelect:', roomSelect);
+    
+    if (roleSelect && roomContainer) {
+        const selectedRole = roleSelect.value;
+        console.log('Selected role:', selectedRole);
+        const rolesRequiringRoom = ['organisateur', 'gestionnaire_des_salles', 'controlleur_des_badges'];
+        
+        if (rolesRequiringRoom.includes(selectedRole)) {
+            roomContainer.style.display = 'block';
+            if (roomSelect) {
+                roomSelect.required = false; // Optional
+            }
+        } else {
+            roomContainer.style.display = 'none';
+            if (roomSelect) {
+                roomSelect.required = false;
+                roomSelect.value = ''; // Clear selection
+            }
+        }
+    } else {
+        console.error('Elements not found:', {
+            roleSelect: !!roleSelect,
+            roomContainer: !!roomContainer,
+            roomSelect: !!roomSelect
+        });
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing room field toggle');
+    const roleSelect = document.querySelector('select[name="role"]');
+    
+    if (roleSelect) {
+        // Bind change event
+        roleSelect.addEventListener('change', toggleRoomField);
+        // Initialize visibility
+        toggleRoomField();
+    } else {
+        console.error('Role select not found');
+    }
+});
+</script>
 {% endblock %}

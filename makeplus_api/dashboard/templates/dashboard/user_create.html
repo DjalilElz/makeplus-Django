@@ -89,8 +89,8 @@ function toggleConditionalFields() {
     const roomField = document.getElementById('roomAssignmentField');
     const profileField = document.getElementById('profilePictureField');
     
-    // Show/hide room assignment for gestionnaire_des_salles and controlleur_des_badges
-    if (selectedRole === 'gestionnaire_des_salles' || selectedRole === 'controlleur_des_badges') {
+    // Show/hide room assignment for organisateur, gestionnaire_des_salles and controlleur_des_badges
+    if (selectedRole === 'organisateur' || selectedRole === 'gestionnaire_des_salles' || selectedRole === 'controlleur_des_badges') {
         roomField.style.display = 'block';
         profileField.style.display = 'none';
     } 

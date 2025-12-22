@@ -324,10 +324,27 @@ class UserCreationForm(forms.ModelForm):
     role = forms.ChoiceField(
         choices=UserEventAssignment.ROLE_CHOICES,
         widget=forms.Select(attrs={
-            'class': 'form-select'
+            'class': 'form-select',
+            'onchange': 'toggleRoomField()'
         }),
         help_text="User's role for this event"
     )
+    
+    # Conditional field for organisateur, gestionnaire_des_salles and controlleur_des_badges
+    assigned_room = forms.ModelChoiceField(
+        queryset=Room.objects.none(),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        help_text="Select room to assign (for organisateur, gestionnaire des salles or controlleur des badges)"
+    )
+    
+    def __init__(self, *args, **kwargs):
+        event = kwargs.pop('event', None)
+        super().__init__(*args, **kwargs)
+        if event:
+            self.fields['assigned_room'].queryset = Room.objects.filter(event=event)
     
     class Meta:
         model = User
