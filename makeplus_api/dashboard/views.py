@@ -498,6 +498,8 @@ def event_create_step4(request):
         event=event
     ).select_related('user')
     
+    form = None  # Initialize form variable
+    
     if request.method == 'POST':
         action = request.POST.get('action')
         
@@ -539,6 +541,15 @@ def event_create_step4(request):
                 )
                 
                 return redirect('dashboard:event_create_step4')
+            else:
+                # Display form errors
+                for field, errors in form.errors.items():
+                    for error in errors:
+                        if field == '__all__':
+                            messages.error(request, f'{error}')
+                        else:
+                            messages.error(request, f'{field}: {error}')
+                # Keep the form with errors to display
         
         elif action == 'finish':
             # Clear session data
@@ -561,7 +572,9 @@ def event_create_step4(request):
             
             messages.info(request, 'Event created! You can add users later.')
             return redirect('dashboard:event_detail', event_id=event.id)
-    else:
+    
+    # Create form for GET requests or if POST with errors
+    if not form:
         form = UserCreationForm(event=event)
     
     context = {

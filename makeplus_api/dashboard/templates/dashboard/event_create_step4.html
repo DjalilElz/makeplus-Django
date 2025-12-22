@@ -86,6 +86,19 @@
                     <i class="bi bi-person-plus"></i> Add User & Assign Role
                 </h5>
                 
+                {% if form.errors %}
+                    <div class="alert alert-danger">
+                        <strong>Please correct the following errors:</strong>
+                        <ul class="mb-0">
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    <li>{{ field }}: {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+                
                 <form method="post">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="add_user">
