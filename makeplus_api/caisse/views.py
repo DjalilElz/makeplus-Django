@@ -243,11 +243,13 @@ def process_transaction(request):
         participant_id = data.get('participant_id')
         item_ids = data.get('items', [])
         notes = data.get('notes', '')
+        action = data.get('action', 'process_and_print')  # Default to process_and_print
     except json.JSONDecodeError:
         # Fallback to POST data
         participant_id = request.POST.get('participant_id')
         item_ids = request.POST.getlist('items[]')
         notes = request.POST.get('notes', '')
+        action = request.POST.get('action', 'process_and_print')
     
     if not participant_id:
         return JsonResponse({'success': False, 'message': 'Participant ID required'})
@@ -257,6 +259,15 @@ def process_transaction(request):
     except Participant.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Participant not found'})
     
+    # For print_badge action, we don't need items
+    if action == 'print_badge':
+        return JsonResponse({
+            'success': True,
+            'message': 'Badge print initiated',
+            'action': 'print_badge'
+        })
+    
+    # For process and process_and_print, items are required
     if not item_ids:
         return JsonResponse({'success': False, 'message': 'Please select at least one item'})
     
@@ -278,11 +289,39 @@ def process_transaction(request):
     )
     transaction.items.set(items)
     
+    # Grant access to the selected sessions/ateliers
+    # Update participant's allowed_rooms with sessions linked to the paid items
+    from events.models import Session
+    
+    for item in items:
+        if item.session:
+            # Get the session
+            session = item.session
+            
+            # Grant access by adding session's room to participant's allowed_rooms
+            if session.room:
+                # Get or update participant's allowed_rooms in metadata
+                if not participant.metadata:
+                    participant.metadata = {}
+                
+                allowed_rooms = participant.metadata.get('allowed_rooms', [])
+                if not isinstance(allowed_rooms, list):
+                    allowed_rooms = []
+                
+                # Add room ID if not already present
+                room_id_str = str(session.room.id)
+                if room_id_str not in allowed_rooms:
+                    allowed_rooms.append(room_id_str)
+                
+                participant.metadata['allowed_rooms'] = allowed_rooms
+                participant.save()
+    
     return JsonResponse({
         'success': True,
         'message': 'Transaction processed successfully',
         'transaction_id': transaction.id,
-        'total_amount': float(total_amount)
+        'total_amount': float(total_amount),
+        'action': action
     })
 
 

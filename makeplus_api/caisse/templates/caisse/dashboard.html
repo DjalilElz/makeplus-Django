@@ -352,12 +352,28 @@
                             <textarea class="form-control" id="notes" rows="2" placeholder="Add any notes about this transaction..."></textarea>
                         </div>
                         
-                        <button type="button" class="btn btn-success w-100 py-2" onclick="processTransaction()">
-                            <i class="bi bi-check-circle"></i> Process Transaction & Print Badge
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary w-100 mt-2" onclick="clearForm()">
-                            <i class="bi bi-x-circle"></i> Cancel
-                        </button>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <button type="button" class="btn btn-primary w-100 py-2" onclick="processTransaction('process')">
+                                    <i class="bi bi-cash-coin"></i> Process Transaction
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button type="button" class="btn btn-info w-100 py-2" onclick="processTransaction('print_badge')">
+                                    <i class="bi bi-printer"></i> Print Badge
+                                </button>
+                            </div>
+                            <div class="col-12">
+                                <button type="button" class="btn btn-success w-100 py-2" onclick="processTransaction('process_and_print')">
+                                    <i class="bi bi-check-circle"></i> Process & Print Badge
+                                </button>
+                            </div>
+                            <div class="col-12">
+                                <button type="button" class="btn btn-outline-secondary w-100" onclick="clearForm()">
+                                    <i class="bi bi-x-circle"></i> Cancel
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     
                     <div id="noParticipantSelected" class="no-participant-selected">
@@ -527,26 +543,42 @@
         }
         
         // Process transaction
-        function processTransaction() {
+        function processTransaction(action) {
             if (!selectedParticipantId) {
                 alert('Please select a participant');
                 return;
             }
             
-            const selectedItems = Array.from(document.querySelectorAll('#payableItems input[type="checkbox"]:checked'))
+            // For print_badge action, no items need to be selected
+            const selectedItems = Array.from(document.querySelectorAll('#payableItems input[type="checkbox"]:checked:not(:disabled)'))
                 .map(cb => cb.value);
             
-            if (selectedItems.length === 0) {
-                alert('Please select at least one item');
+            // Validate items for process and process_and_print actions
+            if ((action === 'process' || action === 'process_and_print') && selectedItems.length === 0) {
+                alert('Please select at least one item to process');
                 return;
             }
             
             const notes = document.getElementById('notes').value;
             
-            // Disable process button to prevent duplicate submissions
-            const processBtn = document.querySelector('button[onclick="processTransaction()"]');
-            processBtn.disabled = true;
-            processBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+            // Find which button was clicked and disable it
+            let buttonElement;
+            if (action === 'process') {
+                buttonElement = document.querySelector('button[onclick="processTransaction(\'process\')"]');
+            } else if (action === 'print_badge') {
+                buttonElement = document.querySelector('button[onclick="processTransaction(\'print_badge\')"]');
+            } else if (action === 'process_and_print') {
+                buttonElement = document.querySelector('button[onclick="processTransaction(\'process_and_print\')"]');
+            }
+            
+            if (buttonElement) {
+                buttonElement.disabled = true;
+                const originalHTML = buttonElement.innerHTML;
+                buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+                
+                // Store reference for re-enabling
+                buttonElement.originalHTML = originalHTML;
+            }
             
             fetch('{% url "caisse:process_transaction" %}', {
                 method: 'POST',
@@ -557,36 +589,51 @@
                 body: JSON.stringify({
                     participant_id: selectedParticipantId,
                     items: selectedItems,
-                    notes: notes
+                    notes: notes,
+                    action: action
                 })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Open badge print window
-                    const printUrl = `{% url 'caisse:print_badge' 0 %}`.replace('0', selectedParticipantId);
-                    const printWindow = window.open(printUrl, '_blank', 'width=800,height=600');
+                    // Handle print badge actions
+                    if (action === 'print_badge' || action === 'process_and_print') {
+                        const printUrl = `{% url 'caisse:print_badge' 0 %}`.replace('0', selectedParticipantId);
+                        window.open(printUrl, '_blank', 'width=800,height=600');
+                    }
                     
                     // Show success message
-                    alert('Transaction processed successfully! Print window opened.');
+                    let message = 'Action completed successfully!';
+                    if (action === 'process') {
+                        message = 'Transaction processed successfully! Access granted.';
+                    } else if (action === 'print_badge') {
+                        message = 'Print window opened!';
+                    } else if (action === 'process_and_print') {
+                        message = 'Transaction processed and print window opened!';
+                    }
+                    alert(message);
                     
-                    // Reload page after a short delay to allow print window to open
+                    // Reload page after a short delay
                     setTimeout(function() {
                         location.reload();
                     }, 500);
                 } else {
                     alert('Error: ' + data.message);
                     // Re-enable button on error
-                    processBtn.disabled = false;
-                    processBtn.innerHTML = '<i class="bi bi-check-circle"></i> Process Transaction & Print Badge';
+                    if (buttonElement) {
+                        buttonElement.disabled = false;
+                        buttonElement.innerHTML = buttonElement.originalHTML;
+                    }
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Failed to process transaction');
+                alert('Failed to process request');
                 // Re-enable button on error
-                processBtn.disabled = false;
-                processBtn.innerHTML = '<i class="bi bi-check-circle"></i> Process Transaction & Print Badge';
+                if (buttonElement) {
+                    buttonElement.disabled = false;
+                    buttonElement.innerHTML = buttonElement.originalHTML;
+                }
             });
         }
         
