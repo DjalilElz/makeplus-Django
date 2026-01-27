@@ -39,6 +39,11 @@ urlpatterns = [
     path('events/<uuid:event_id>/users/', views.event_users, name='event_users'),
     path('events/<uuid:event_id>/users/<int:user_id>/delete/', views.event_user_delete, name='event_user_delete'),
     
+    # Event Registrations
+    path('events/<uuid:event_id>/registrations/', views.event_registrations, name='event_registrations'),
+    path('registrations/<uuid:registration_id>/approve/', views.approve_registration, name='approve_registration'),
+    path('registrations/<uuid:registration_id>/delete/', views.delete_registration, name='delete_registration'),
+    
     # Caisse Management
     path('caisses/', views.caisse_list, name='caisse_list'),
     path('caisses/create/', views.caisse_create, name='caisse_create'),
@@ -76,5 +81,6 @@ urlpatterns = [
     
     # Send Emails
     path('events/<uuid:event_id>/email-templates/<int:template_id>/send/', views_email.send_event_email, name='send_event_email'),
+    path('events/<uuid:event_id>/email-templates/<int:template_id>/send-to-registrants/', views_email.send_email_to_registrants, name='send_email_to_registrants'),
     path('events/<uuid:event_id>/email-logs/', views_email.event_email_logs, name='event_email_logs'),
 ]

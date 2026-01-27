@@ -1484,3 +1484,145 @@ def session_delete(request, session_id):
     
     messages.warning(request, 'Invalid request.')
     return redirect('dashboard:event_detail', event_id=event_id)
+
+
+# ==================== Event Registration Management ====================
+
+@login_required
+@user_passes_test(is_staff_user)
+def event_registrations(request, event_id):
+    """View and manage event registrations"""
+    from events.models import EventRegistration
+    
+    event = get_object_or_404(Event, id=event_id)
+    
+    # Filter options
+    filter_type = request.GET.get('filter', 'all')
+    search_query = request.GET.get('search', '')
+    
+    registrations = EventRegistration.objects.filter(event=event).select_related('user', 'participant')
+    
+    # Apply filters
+    if filter_type == 'confirmed':
+        registrations = registrations.filter(is_confirmed=True)
+    elif filter_type == 'not_confirmed':
+        registrations = registrations.filter(is_confirmed=False)
+    elif filter_type == 'spam':
+        registrations = registrations.filter(is_spam=True)
+    elif filter_type == 'no_account':
+        registrations = registrations.filter(user__isnull=True)
+    elif filter_type == 'with_account':
+        registrations = registrations.filter(user__isnull=False)
+    
+    # Apply search
+    if search_query:
+        registrations = registrations.filter(
+            Q(nom__icontains=search_query) |
+            Q(prenom__icontains=search_query) |
+            Q(email__icontains=search_query) |
+            Q(telephone__icontains=search_query) |
+            Q(etablissement__icontains=search_query)
+        )
+    
+    registrations = registrations.order_by('-created_at')
+    
+    # Statistics
+    stats = {
+        'total': EventRegistration.objects.filter(event=event).count(),
+        'confirmed': EventRegistration.objects.filter(event=event, is_confirmed=True).count(),
+        'not_confirmed': EventRegistration.objects.filter(event=event, is_confirmed=False).count(),
+        'spam': EventRegistration.objects.filter(event=event, is_spam=True).count(),
+        'with_account': EventRegistration.objects.filter(event=event, user__isnull=False).count(),
+        'no_account': EventRegistration.objects.filter(event=event, user__isnull=True).count(),
+    }
+    
+    context = {
+        'event': event,
+        'registrations': registrations,
+        'stats': stats,
+        'filter_type': filter_type,
+        'search_query': search_query,
+    }
+    
+    return render(request, 'dashboard/event_registrations.html', context)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def approve_registration(request, registration_id):
+    """Approve registration and create user account"""
+    from events.models import EventRegistration
+    import uuid
+    
+    registration = get_object_or_404(EventRegistration, id=registration_id)
+    
+    if request.method == 'POST':
+        if registration.user:
+            messages.warning(request, 'User account already exists for this registration.')
+            return redirect('dashboard:event_registrations', event_id=registration.event.id)
+        
+        try:
+            # Create user account
+            username = registration.email.split('@')[0] + str(uuid.uuid4().hex[:4])
+            user = User.objects.create_user(
+                username=username,
+                email=registration.email,
+                first_name=registration.prenom,
+                last_name=registration.nom,
+                password=User.objects.make_random_password(12)
+            )
+            
+            # Get or create user profile with QR code
+            qr_data = UserProfile.get_qr_for_user(user)
+            
+            # Create participant
+            participant = Participant.objects.create(
+                user=user,
+                event=registration.event,
+                badge_id=qr_data['badge_id'],
+                qr_code_data=json.dumps(qr_data)
+            )
+            
+            # Create user event assignment
+            UserEventAssignment.objects.create(
+                user=user,
+                event=registration.event,
+                role='participant',
+                assigned_by=request.user
+            )
+            
+            # Link registration to user and participant
+            registration.user = user
+            registration.participant = participant
+            registration.is_confirmed = True
+            registration.save()
+            
+            messages.success(request, f'User account created for {registration.get_full_name()}!')
+            
+        except Exception as e:
+            messages.error(request, f'Error creating user account: {str(e)}')
+        
+        return redirect('dashboard:event_registrations', event_id=registration.event.id)
+    
+    messages.warning(request, 'Invalid request.')
+    return redirect('dashboard:event_registrations', event_id=registration.event.id)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def delete_registration(request, registration_id):
+    """Delete a registration"""
+    from events.models import EventRegistration
+    
+    registration = get_object_or_404(EventRegistration, id=registration_id)
+    event_id = registration.event.id
+    
+    if request.method == 'POST':
+        registration_name = registration.get_full_name()
+        registration.delete()
+        messages.success(request, f'Registration for {registration_name} deleted successfully!')
+        return redirect('dashboard:event_registrations', event_id=event_id)
+    
+    messages.warning(request, 'Invalid request.')
+    return redirect('dashboard:event_registrations', event_id=event_id)
+

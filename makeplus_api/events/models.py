@@ -62,6 +62,11 @@ class Event(models.Model):
     banner = models.ImageField(upload_to='events/banners/', blank=True, null=True, help_text="Event banner image")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='upcoming')
     
+    # Registration settings
+    registration_enabled = models.BooleanField(default=True, help_text="Enable public registration for this event")
+    registration_description = models.TextField(blank=True, help_text="Custom registration page description")
+    registration_fields_config = models.JSONField(default=dict, blank=True, help_text="Configuration for which fields are enabled/required")
+    
     # Event configuration
     settings = models.JSONField(default=dict, blank=True)
     themes = models.JSONField(default=list, blank=True)
@@ -476,3 +481,78 @@ def update_room_participant_count(sender, instance, **kwargs):
         accessed_at__date=room.event.start_date.date()
     ).values('participant').distinct().count()
     room.save(update_fields=['current_participants'])
+
+
+class EventRegistration(models.Model):
+    """Public event registration submissions"""
+    SECTEUR_CHOICES = [
+        ('prive', 'Privé'),
+        ('public', 'Public'),
+    ]
+    
+    PAYS_CHOICES = [
+        ('algerie', 'Algérie'),
+        ('maroc', 'Maroc'),
+        ('tunisie', 'Tunisie'),
+        ('autre', 'Autre'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='registrations')
+    
+    # Personal Information (Ordered as per requirements)
+    nom = models.CharField(max_length=100, help_text="Last name")
+    prenom = models.CharField(max_length=100, help_text="First name")
+    email = models.EmailField(help_text="Email address")
+    telephone = models.CharField(max_length=20, help_text="Phone number")
+    
+    # Location
+    pays = models.CharField(max_length=100, default='algerie', help_text="Country")
+    wilaya = models.CharField(max_length=100, blank=True, help_text="Wilaya (for Algeria)")
+    
+    # Professional Information
+    secteur = models.CharField(max_length=20, choices=SECTEUR_CHOICES, help_text="Sector: Private or Public")
+    etablissement = models.CharField(max_length=200, help_text="Institution/Organization")
+    specialite = models.CharField(max_length=200, blank=True, help_text="Specialty/Field")
+    
+    # Workshop Selection (stored as JSON: {day: [workshop_ids]})
+    ateliers_selected = models.JSONField(default=dict, blank=True, help_text="Selected workshops per day")
+    
+    # Status
+    is_confirmed = models.BooleanField(default=False, help_text="Email confirmation status")
+    confirmation_sent_at = models.DateTimeField(null=True, blank=True)
+    
+    # User account (created after confirmation)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='event_registrations')
+    participant = models.ForeignKey(Participant, on_delete=models.SET_NULL, null=True, blank=True, related_name='registration')
+    
+    # Anti-spam
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    spam_score = models.IntegerField(default=0, help_text="Higher score = more likely spam")
+    is_spam = models.BooleanField(default=False)
+    
+    # Metadata
+    metadata = models.JSONField(default=dict, blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Event Registration'
+        verbose_name_plural = 'Event Registrations'
+        indexes = [
+            models.Index(fields=['event', '-created_at']),
+            models.Index(fields=['email', 'event']),
+            models.Index(fields=['is_confirmed']),
+            models.Index(fields=['is_spam']),
+        ]
+    
+    def __str__(self):
+        return f"{self.prenom} {self.nom} - {self.event.name}"
+    
+    def get_full_name(self):
+        """Return full name"""
+        return f"{self.prenom} {self.nom}"

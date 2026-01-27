@@ -367,3 +367,94 @@ def event_email_logs(request, event_id):
         'logs': logs,
     }
     return render(request, 'dashboard/event_email_logs.html', context)
+
+
+@login_required
+def send_email_to_registrants(request, event_id, template_id):
+    """Send email to event registrants (not yet participants)"""
+    from events.models import EventRegistration
+    
+    event = get_object_or_404(Event, id=event_id)
+    template = get_object_or_404(EventEmailTemplate, id=template_id, event=event)
+    
+    if request.method == 'POST':
+        target_type = request.POST.get('target_type', 'all_registrants')
+        
+        # Get registrations based on target type
+        registrations = EventRegistration.objects.filter(event=event, is_spam=False)
+        
+        if target_type == 'confirmed':
+            registrations = registrations.filter(is_confirmed=True)
+        elif target_type == 'not_confirmed':
+            registrations = registrations.filter(is_confirmed=False)
+        elif target_type == 'no_user_account':
+            registrations = registrations.filter(user__isnull=True)
+        # else: all_registrants (default, no filter)
+        
+        if not registrations.exists():
+            messages.warning(request, 'No registrants match the selected criteria.')
+            return redirect('dashboard:send_email_to_registrants', event_id=event.id, template_id=template.id)
+        
+        # Send emails
+        sent_count = 0
+        failed_count = 0
+        errors = []
+        
+        for registration in registrations:
+            try:
+                # Build context for template variables
+                context = {
+                    'event_name': event.name,
+                    'event_location': event.location,
+                    'event_start_date': event.start_date.strftime('%d/%m/%Y'),
+                    'event_end_date': event.end_date.strftime('%d/%m/%Y'),
+                    'first_name': registration.prenom,
+                    'last_name': registration.nom,
+                    'participant_name': registration.get_full_name(),
+                    'email': registration.email,
+                    'telephone': registration.telephone,
+                    'etablissement': registration.etablissement,
+                }
+                
+                # Replace variables in subject and body
+                personalized_subject = replace_template_variables(template.subject, context)
+                personalized_body = replace_template_variables(template.body_html or template.body, context)
+                
+                # Send email
+                send_mail(
+                    subject=personalized_subject,
+                    message=personalized_body,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[registration.email],
+                    html_message=personalized_body,
+                    fail_silently=False,
+                )
+                sent_count += 1
+            except Exception as e:
+                failed_count += 1
+                errors.append(f"{registration.email}: {str(e)}")
+        
+        if sent_count > 0:
+            messages.success(request, f'Email sent to {sent_count} registrant(s) successfully!')
+        if failed_count > 0:
+            messages.warning(request, f'Failed to send to {failed_count} registrant(s). Errors: {"; ".join(errors[:3])}')
+        
+        return redirect('dashboard:event_email_templates', event_id=event.id)
+    
+    # GET request - show send form
+    from events.models import EventRegistration
+    
+    all_count = EventRegistration.objects.filter(event=event, is_spam=False).count()
+    confirmed_count = EventRegistration.objects.filter(event=event, is_confirmed=True, is_spam=False).count()
+    not_confirmed_count = EventRegistration.objects.filter(event=event, is_confirmed=False, is_spam=False).count()
+    no_account_count = EventRegistration.objects.filter(event=event, user__isnull=True, is_spam=False).count()
+    
+    context = {
+        'event': event,
+        'template': template,
+        'all_count': all_count,
+        'confirmed_count': confirmed_count,
+        'not_confirmed_count': not_confirmed_count,
+        'no_account_count': no_account_count,
+    }
+    return render(request, 'dashboard/send_email_to_registrants.html', context)

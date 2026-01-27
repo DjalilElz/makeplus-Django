@@ -2,7 +2,11 @@
 
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Event, Room, Session, Participant, RoomAccess, UserEventAssignment
+from .models import (
+    Event, Room, Session, Participant, RoomAccess, UserEventAssignment,
+    EventRegistration, SessionAccess, Annonce, SessionQuestion, 
+    RoomAssignment, ExposantScan, UserProfile
+)
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
@@ -241,3 +245,52 @@ class UserEventAssignmentAdmin(admin.ModelAdmin):
             obj.get_role_display().upper()
         )
     role_badge.short_description = 'Role'
+
+
+@admin.register(EventRegistration)
+class EventRegistrationAdmin(admin.ModelAdmin):
+    list_display = ['get_full_name', 'email', 'event', 'secteur', 'is_confirmed', 'is_spam', 'created_at']
+    list_filter = ['event', 'secteur', 'is_confirmed', 'is_spam', 'pays', 'created_at']
+    search_fields = ['nom', 'prenom', 'email', 'telephone', 'etablissement']
+    readonly_fields = ['id', 'ip_address', 'user_agent', 'spam_score', 'created_at', 'updated_at']
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('Personal Information', {
+            'fields': ('nom', 'prenom', 'email', 'telephone')
+        }),
+        ('Location', {
+            'fields': ('pays', 'wilaya')
+        }),
+        ('Professional Information', {
+            'fields': ('secteur', 'etablissement', 'specialite')
+        }),
+        ('Event & Workshops', {
+            'fields': ('event', 'ateliers_selected')
+        }),
+        ('Status', {
+            'fields': ('is_confirmed', 'confirmation_sent_at', 'user', 'participant')
+        }),
+        ('Anti-Spam', {
+            'fields': ('is_spam', 'spam_score', 'ip_address', 'user_agent'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('id', 'metadata', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    actions = ['mark_as_confirmed', 'mark_as_spam', 'mark_as_not_spam']
+    
+    def mark_as_confirmed(self, request, queryset):
+        queryset.update(is_confirmed=True)
+    mark_as_confirmed.short_description = "Mark selected as confirmed"
+    
+    def mark_as_spam(self, request, queryset):
+        queryset.update(is_spam=True)
+    mark_as_spam.short_description = "Mark selected as spam"
+    
+    def mark_as_not_spam(self, request, queryset):
+        queryset.update(is_spam=False)
+    mark_as_not_spam.short_description = "Mark selected as not spam"

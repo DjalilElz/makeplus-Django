@@ -5,6 +5,7 @@ Events app URL configuration - COMPLETE VERSION
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+from . import views_registration
 
 # Create router and register viewsets
 router = DefaultRouter()
@@ -58,4 +59,12 @@ urlpatterns = [
     # Session action aliases for Flutter frontend compatibility
     path('sessions/<uuid:pk>/start/', views.SessionViewSet.as_view({'post': 'mark_live'}), name='session-start'),
     path('sessions/<uuid:pk>/end/', views.SessionViewSet.as_view({'post': 'mark_completed'}), name='session-end'),
+    
+    # Public Event Registration URLs
+    path('events/<uuid:event_id>/register/', views_registration.event_registration_page, name='event_registration'),
+    path('events/<uuid:event_id>/register/submit/', views_registration.event_registration_submit, name='event_registration_submit'),
+    path('registration/success/<uuid:registration_id>/', views_registration.registration_success, name='registration_success'),
+    
+    # API endpoint for event registration (JSON)
+    path('api/events/<uuid:event_id>/register/', views_registration.event_registration_api, name='event_registration_api'),
 ]
