@@ -1626,3 +1626,142 @@ def delete_registration(request, registration_id):
     messages.warning(request, 'Invalid request.')
     return redirect('dashboard:event_registrations', event_id=event_id)
 
+
+# ==================== API Endpoints ====================
+
+@login_required
+def api_events_list(request):
+    """API endpoint to get events with registration counts"""
+    from events.models import EventRegistration
+    
+    events = Event.objects.all().order_by('-created_at')
+    
+    events_data = []
+    for event in events:
+        registration_count = EventRegistration.objects.filter(
+            event=event,
+            status='approved',
+            is_spam=False
+        ).count()
+        
+        events_data.append({
+            'id': str(event.id),
+            'name': event.name,
+            'start_date': event.start_date.strftime('%Y-%m-%d') if event.start_date else None,
+            'registration_count': registration_count
+        })
+    
+    return JsonResponse({'events': events_data})
+
+
+# ==================== Public Form Views ====================
+
+def public_form_view(request, slug):
+    """Public view for custom registration forms"""
+    from dashboard.models_form import FormConfiguration, FormSubmission
+    from django.utils import timezone
+    from django.conf import settings
+    
+    form_config = get_object_or_404(FormConfiguration, slug=slug, is_active=True)
+    
+    if request.method == 'POST':
+        # Collect form data
+        form_data = {}
+        email = None
+        errors = []
+        
+        for field in form_config.fields_config:
+            field_name = field.get('name')
+            
+            # Handle checkbox fields (multiple values)
+            if field.get('type') == 'checkbox':
+                value = request.POST.getlist(field_name)
+            else:
+                value = request.POST.get(field_name, '')
+            
+            # Validate required fields
+            if field.get('required'):
+                if not value or (isinstance(value, list) and len(value) == 0):
+                    errors.append(f'{field.get("label")} is required.')
+                    continue
+            
+            form_data[field_name] = value
+            
+            # Extract email for confirmation
+            if field.get('type') == 'email':
+                email = value
+        
+        # If there are errors, redisplay form with errors
+        if errors:
+            context = {
+                'form_config': form_config,
+                'fields': form_config.fields_config,
+                'errors': errors,
+                'form_data': form_data,
+            }
+            return render(request, 'dashboard/public_form.html', context)
+        
+        # Get IP address
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip_address = x_forwarded_for.split(',')[0]
+        else:
+            ip_address = request.META.get('REMOTE_ADDR')
+        
+        # Create submission
+        submission = FormSubmission.objects.create(
+            form=form_config,
+            data=form_data,
+            email=email or '',
+            ip_address=ip_address,
+            user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
+            status='pending'
+        )
+        
+        # Increment form submission count
+        form_config.increment_submission_count()
+        
+        # Send confirmation email if enabled
+        if form_config.send_confirmation_email and email and form_config.confirmation_email_template:
+            try:
+                from django.core.mail import send_mail
+                from dashboard.views_email import replace_template_variables
+                
+                # Build context
+                context = {
+                    'form_name': form_config.name,
+                    'submission_id': str(submission.id),
+                }
+                context.update(form_data)
+                
+                template = form_config.confirmation_email_template
+                subject = replace_template_variables(template.subject, context)
+                body_html = replace_template_variables(template.body_html or template.body, context)
+                
+                send_mail(
+                    subject=subject,
+                    message='',
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[email],
+                    html_message=body_html,
+                    fail_silently=True,
+                )
+            except Exception as e:
+                print(f"Error sending confirmation email: {e}")
+        
+        # Show success page
+        context = {
+            'form_config': form_config,
+            'success': True,
+            'submitted_email': email,
+        }
+        return render(request, 'dashboard/public_form.html', context)
+    
+    # GET request - display form
+    context = {
+        'form_config': form_config,
+        'fields': form_config.fields_config,
+        'success': False,
+    }
+    
+    return render(request, 'dashboard/public_form.html', context)

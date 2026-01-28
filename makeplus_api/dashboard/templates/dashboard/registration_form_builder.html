@@ -1,0 +1,541 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}{{ form.name|default:"Create Registration Form" }} - Form Builder{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="bi bi-ui-checks me-2"></i>{{ form.name|default:"Create New Registration Form" }}</h2>
+            <p class="text-muted">Build a custom registration form with drag-and-drop fields</p>
+        </div>
+    </div>
+
+    <form method="post" id="formBuilderForm" onsubmit="return prepareFormSubmission();">
+        {% csrf_token %}
+        
+        <div class="row">
+            <!-- Left Panel: Form Builder -->
+            <div class="col-lg-8">
+                <!-- Form Information Card -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Form Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="formName" class="form-label">Form Name *</label>
+                            <input type="text" class="form-control" id="formName" name="name" 
+                                   value="{{ form.name }}" required 
+                                   placeholder="e.g., Conference 2026 Registration"
+                                   onkeyup="generateSlug()">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="formSlug" class="form-label">Slug (URL) *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">/forms/</span>
+                                <input type="text" class="form-control" id="formSlug" name="slug" 
+                                       value="{{ form.slug }}" required 
+                                       pattern="[a-z0-9-]+"
+                                       placeholder="conference-2026-registration">
+                            </div>
+                            <small class="text-muted">Only lowercase letters, numbers, and hyphens</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="formDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="formDescription" name="description" 
+                                      rows="2" placeholder="Describe this form...">{{ form.description }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="formEvent" class="form-label">Link to Event (Optional)</label>
+                            <select class="form-select" id="formEvent" name="event_id">
+                                <option value="">-- No event (Global form) --</option>
+                                {% for event in events %}
+                                    <option value="{{ event.id }}" {% if form.event_id == event.id %}selected{% endif %}>
+                                        {{ event.event_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="successMessage" class="form-label">Success Message</label>
+                            <textarea class="form-control" id="successMessage" name="success_message" 
+                                      rows="2" placeholder="Thank you for submitting!">{{ form.success_message|default:"Thank you for your submission!" }}</textarea>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="isActive" name="is_active" 
+                                   {% if form.is_active or not form %}checked{% endif %}>
+                            <label class="form-check-label" for="isActive">
+                                Form is active
+                            </label>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="allowMultiple" name="allow_multiple_submissions"
+                                   {% if form.allow_multiple_submissions %}checked{% endif %}>
+                            <label class="form-check-label" for="allowMultiple">
+                                Allow multiple submissions from same user
+                            </label>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="sendEmail" name="send_confirmation_email"
+                                   {% if form.send_confirmation_email %}checked{% endif %}>
+                            <label class="form-check-label" for="sendEmail">
+                                Send confirmation email
+                            </label>
+                        </div>
+
+                        <div class="mb-3" id="emailTemplateDiv" style="display: {% if form.send_confirmation_email %}block{% else %}none{% endif %};">
+                            <label for="emailTemplate" class="form-label">Email Template</label>
+                            <select class="form-select" id="emailTemplate" name="confirmation_email_template">
+                                <option value="">-- Select template --</option>
+                                {% for template in email_templates %}
+                                    <option value="{{ template.id }}" {% if form.confirmation_email_template_id == template.id %}selected{% endif %}>
+                                        {{ template.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Fields Builder Card -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-plus-square me-2"></i>Form Fields</h5>
+                        <button type="button" class="btn btn-sm btn-primary" id="addFieldBtn">
+                            <i class="bi bi-plus-circle me-1"></i>Add Field
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="fieldsContainer">
+                            <!-- Fields will be dynamically added here -->
+                        </div>
+                        
+                        <div id="noFieldsMessage" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                            <p class="mt-3">No fields added yet. Click "Add Field" to start building your form.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hidden input to store fields JSON -->
+                <input type="hidden" id="fieldsConfigInput" name="fields_config" value="">
+
+                <!-- Action Buttons -->
+                <div class="mb-4">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-check-circle me-2"></i>Save Form
+                    </button>
+                    <a href="{% url 'dashboard:registration_form_builder' %}" class="btn btn-secondary btn-lg">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
+                    </a>
+                </div>
+            </div>
+
+            <!-- Right Panel: Live Preview -->
+            <div class="col-lg-4">
+                <div class="card sticky-top" style="top: 80px;">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-eye me-2"></i>Live Preview</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="previewContainer">
+                            <p class="text-muted text-center">Preview will appear here as you add fields</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+.field-item {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    cursor: move;
+    transition: all 0.2s;
+}
+
+.field-item:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 2px 8px rgba(13,110,253,0.2);
+}
+
+.field-item.dragging {
+    opacity: 0.5;
+}
+
+.field-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.field-type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.drag-handle {
+    cursor: move;
+    color: #6c757d;
+    font-size: 1.2rem;
+}
+
+#previewContainer {
+    min-height: 300px;
+}
+
+.preview-field {
+    margin-bottom: 1rem;
+}
+</style>
+
+<script>
+let fieldCounter = 0;
+let formFields = [];
+
+// Initialize form fields from existing data
+{% if form.fields_config %}
+    formFields = {{ form.fields_config|safe }};
+    fieldCounter = formFields.length;
+{% endif %}
+
+// DOM Ready - Initialize everything
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing form builder...');
+    
+    // Render existing fields if any
+    {% if form.fields_config %}
+        formFields.forEach((field, index) => {
+            renderField(field, index);
+        });
+        updatePreview();
+    {% endif %}
+    
+    // Add Field button
+    const addFieldBtn = document.getElementById('addFieldBtn');
+    if (addFieldBtn) {
+        addFieldBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Add field clicked');
+            addField();
+        });
+    } else {
+        console.error('Add Field button not found!');
+    }
+    
+    // Toggle email template selector
+    const sendEmailCheckbox = document.getElementById('sendEmail');
+    if (sendEmailCheckbox) {
+        sendEmailCheckbox.addEventListener('change', function() {
+            document.getElementById('emailTemplateDiv').style.display = this.checked ? 'block' : 'none';
+        });
+    }
+});
+
+// Generate slug from name
+function generateSlug() {
+    const name = document.getElementById('formName').value;
+    const slug = name.toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim();
+    document.getElementById('formSlug').value = slug;
+}
+
+// Add new field
+function addField() {
+    console.log('addField() called, current fieldCounter:', fieldCounter);
+    
+    try {
+        const field = {
+            name: `field_${fieldCounter}`,
+            label: `Field ${fieldCounter + 1}`,
+            type: 'text',
+            required: false,
+            placeholder: '',
+            options: []
+        };
+        
+        formFields.push(field);
+        console.log('Field added to array:', field);
+        
+        renderField(field, fieldCounter);
+        console.log('Field rendered');
+        
+        fieldCounter++;
+        
+        toggleNoFieldsMessage();
+        updatePreview();
+        console.log('Preview updated, total fields:', formFields.length);
+    } catch (error) {
+        console.error('Error in addField():', error);
+    }
+}
+
+// Render field in builder
+function renderField(field, index) {
+    console.log('renderField() called for index:', index, 'field:', field);
+    
+    try {
+        const container = document.getElementById('fieldsContainer');
+        if (!container) {
+            console.error('fieldsContainer not found!');
+            return;
+        }
+        
+        const fieldHtml = `
+            <div class="field-item" draggable="true" data-index="${index}" 
+                 ondragstart="dragStart(event)" ondragover="dragOver(event)" 
+                 ondrop="drop(event)" ondragend="dragEnd(event)">
+            <div class="field-header">
+                <div>
+                    <i class="bi bi-grip-vertical drag-handle me-2"></i>
+                    <strong>${field.label}</strong>
+                    <span class="badge bg-info field-type-badge ms-2">${field.type}</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-danger" onclick="event.preventDefault(); event.stopPropagation(); removeField(${index});">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+            
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label small">Label</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.label}" 
+                           onchange="updateField(${index}, 'label', this.value)">
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label small">Field Name</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.name}" 
+                           onchange="updateField(${index}, 'name', this.value)"
+                           pattern="[a-z0-9_]+">
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label small">Type</label>
+                    <select class="form-select form-select-sm" 
+                            onchange="updateField(${index}, 'type', this.value); updatePreview();">
+                        <option value="text" ${field.type === 'text' ? 'selected' : ''}>Text</option>
+                        <option value="email" ${field.type === 'email' ? 'selected' : ''}>Email</option>
+                        <option value="tel" ${field.type === 'tel' ? 'selected' : ''}>Phone</option>
+                        <option value="number" ${field.type === 'number' ? 'selected' : ''}>Number</option>
+                        <option value="textarea" ${field.type === 'textarea' ? 'selected' : ''}>Textarea</option>
+                        <option value="select" ${field.type === 'select' ? 'selected' : ''}>Dropdown</option>
+                        <option value="checkbox" ${field.type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
+                        <option value="radio" ${field.type === 'radio' ? 'selected' : ''}>Radio</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label small">
+                        <input type="checkbox" ${field.required ? 'checked' : ''} 
+                               onchange="updateField(${index}, 'required', this.checked)">
+                        Required
+                    </label>
+                </div>
+                
+                <div class="col-12">
+                    <label class="form-label small">Placeholder</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.placeholder || ''}" 
+                           onchange="updateField(${index}, 'placeholder', this.value)">
+                </div>
+                
+                ${['select', 'radio', 'checkbox'].includes(field.type) ? `
+                <div class="col-12">
+                    <label class="form-label small">Options (one per line)</label>
+                    <textarea class="form-control form-control-sm" rows="3" 
+                              onchange="updateFieldOptions(${index}, this.value)">${(field.options || []).join('\n')}</textarea>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+    
+        container.insertAdjacentHTML('beforeend', fieldHtml);
+        console.log('Field HTML inserted');
+        toggleNoFieldsMessage();
+    } catch (error) {
+        console.error('Error in renderField():', error);
+    }
+}
+
+// Update field property
+function updateField(index, property, value) {
+    if (formFields[index]) {
+        formFields[index][property] = value;
+        updatePreview();
+        
+        // Re-render field if type changed
+        if (property === 'type') {
+            const container = document.getElementById('fieldsContainer');
+            container.innerHTML = '';
+            formFields.forEach((field, idx) => {
+                renderField(field, idx);
+            });
+        }
+    }
+}
+
+// Update field options
+function updateFieldOptions(index, value) {
+    if (formFields[index]) {
+        formFields[index].options = value.split('\n').filter(opt => opt.trim() !== '');
+        updatePreview();
+    }
+}
+
+// Remove field
+function removeField(index) {
+    if (confirm('Remove this field?')) {
+        formFields.splice(index, 1);
+        
+        // Re-render all fields with updated indices
+        const container = document.getElementById('fieldsContainer');
+        container.innerHTML = '';
+        formFields.forEach((field, idx) => {
+            renderField(field, idx);
+        });
+        
+        toggleNoFieldsMessage();
+        updatePreview();
+    }
+}
+
+// Toggle no fields message
+function toggleNoFieldsMessage() {
+    const noFieldsMsg = document.getElementById('noFieldsMessage');
+    const fieldsContainer = document.getElementById('fieldsContainer');
+    noFieldsMsg.style.display = fieldsContainer.children.length === 0 ? 'block' : 'none';
+}
+
+// Drag and drop functions
+let draggedElement = null;
+
+function dragStart(e) {
+    draggedElement = e.currentTarget;
+    e.currentTarget.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function dragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+}
+
+function drop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    
+    if (draggedElement !== e.currentTarget) {
+        const draggedIndex = parseInt(draggedElement.dataset.index);
+        const targetIndex = parseInt(e.currentTarget.dataset.index);
+        
+        // Swap fields
+        const temp = formFields[draggedIndex];
+        formFields[draggedIndex] = formFields[targetIndex];
+        formFields[targetIndex] = temp;
+        
+        // Re-render
+        const container = document.getElementById('fieldsContainer');
+        container.innerHTML = '';
+        formFields.forEach((field, idx) => {
+            renderField(field, idx);
+        });
+        
+        updatePreview();
+    }
+    
+    return false;
+}
+
+function dragEnd(e) {
+    e.currentTarget.classList.remove('dragging');
+}
+
+// Update live preview
+function updatePreview() {
+    const previewContainer = document.getElementById('previewContainer');
+    
+    if (formFields.length === 0) {
+        previewContainer.innerHTML = '<p class="text-muted text-center">Preview will appear here as you add fields</p>';
+        return;
+    }
+    
+    let html = '<form>';
+    
+    formFields.forEach(field => {
+        html += `<div class="preview-field mb-3">`;
+        html += `<label class="form-label">${field.label}${field.required ? ' *' : ''}</label>`;
+        
+        switch (field.type) {
+            case 'textarea':
+                html += `<textarea class="form-control" placeholder="${field.placeholder || ''}" ${field.required ? 'required' : ''}></textarea>`;
+                break;
+            case 'select':
+                html += `<select class="form-select" ${field.required ? 'required' : ''}>`;
+                html += `<option value="">-- Select --</option>`;
+                (field.options || []).forEach(opt => {
+                    html += `<option value="${opt}">${opt}</option>`;
+                });
+                html += `</select>`;
+                break;
+            case 'radio':
+                (field.options || []).forEach(opt => {
+                    html += `<div class="form-check">`;
+                    html += `<input class="form-check-input" type="radio" name="${field.name}" value="${opt}" ${field.required ? 'required' : ''}>`;
+                    html += `<label class="form-check-label">${opt}</label>`;
+                    html += `</div>`;
+                });
+                break;
+            case 'checkbox':
+                (field.options || []).forEach(opt => {
+                    html += `<div class="form-check">`;
+                    html += `<input class="form-check-input" type="checkbox" value="${opt}">`;
+                    html += `<label class="form-check-label">${opt}</label>`;
+                    html += `</div>`;
+                });
+                break;
+            default:
+                html += `<input type="${field.type}" class="form-control" placeholder="${field.placeholder || ''}" ${field.required ? 'required' : ''}>`;
+        }
+        
+        html += `</div>`;
+    });
+    
+    html += '</form>';
+    previewContainer.innerHTML = html;
+}
+
+// Prepare form submission
+function prepareFormSubmission() {
+    const fieldsConfigInput = document.getElementById('fieldsConfigInput');
+    fieldsConfigInput.value = JSON.stringify(formFields);
+    return true;
+}
+</script>
+{% endblock %}

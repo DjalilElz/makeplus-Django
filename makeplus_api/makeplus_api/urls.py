@@ -11,6 +11,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
 )
+from dashboard.views import public_form_view
 
 # Swagger/OpenAPI Schema
 schema_view = get_schema_view(
@@ -48,6 +49,9 @@ urlpatterns = [
     
     # Dashboard (Admin Panel)
     path('dashboard/', include('dashboard.urls')),
+    
+    # Public Forms
+    path('forms/<slug:slug>/', public_form_view, name='public_form'),
     
     # Caisse (Cash Register)
     path('caisse/', include('caisse.urls')),

@@ -1,0 +1,360 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+{% load form_filters %}
+
+{% block title %}{{ form.name }} - Submissions{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="bi bi-inbox-fill me-2"></i>{{ form.name }} - Submissions</h2>
+                    <p class="text-muted mb-0">
+                        <a href="{% url 'dashboard:registration_form_builder' %}" class="text-decoration-none">
+                            <i class="bi bi-arrow-left me-1"></i>Back to Forms
+                        </a>
+                    </p>
+                </div>
+                <div>
+                    <span class="badge bg-primary fs-5">{{ submissions|length }} Submission{{ submissions|length|pluralize }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form Info Card -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <h5 class="mb-2">{{ form.name }}</h5>
+                    {% if form.description %}
+                        <p class="text-muted mb-2">{{ form.description }}</p>
+                    {% endif %}
+                    <p class="mb-0">
+                        <span class="badge bg-{{ form.is_active|yesno:'success,secondary' }} me-2">
+                            {{ form.is_active|yesno:'Active,Inactive' }}
+                        </span>
+                        {% if form.event %}
+                            <span class="badge bg-info me-2">
+                                <i class="bi bi-calendar-event me-1"></i>{{ form.event.event_name }}
+                            </span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="mb-2">
+                        <strong>Public URL:</strong>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="formUrl" 
+                               value="{{ request.scheme }}://{{ request.get_host }}/forms/{{ form.slug }}/" readonly>
+                        <button class="btn btn-outline-primary" onclick="copyUrl()">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter and Export Bar -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <label class="form-label mb-2">Filter by Status:</label>
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="statusFilter" id="filterAll" value="all" checked onchange="filterSubmissions('all')">
+                        <label class="btn btn-outline-primary" for="filterAll">
+                            All ({{ submissions|length }})
+                        </label>
+
+                        <input type="radio" class="btn-check" name="statusFilter" id="filterPending" value="pending" onchange="filterSubmissions('pending')">
+                        <label class="btn btn-outline-warning" for="filterPending">
+                            Pending ({{ pending_count }})
+                        </label>
+
+                        <input type="radio" class="btn-check" name="statusFilter" id="filterApproved" value="approved" onchange="filterSubmissions('approved')">
+                        <label class="btn btn-outline-success" for="filterApproved">
+                            Approved ({{ approved_count }})
+                        </label>
+
+                        <input type="radio" class="btn-check" name="statusFilter" id="filterRejected" value="rejected" onchange="filterSubmissions('rejected')">
+                        <label class="btn btn-outline-danger" for="filterRejected">
+                            Rejected ({{ rejected_count }})
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-6 text-end">
+                    <button class="btn btn-success" onclick="exportToCSV()">
+                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>Export to CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submissions Table -->
+    {% if submissions %}
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="submissionsTable">
+                        <thead>
+                            <tr>
+                                <th width="5%">#</th>
+                                {% for field in form_fields %}
+                                    <th>{{ field.label }}</th>
+                                {% endfor %}
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Submitted</th>
+                                <th width="10%">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for submission in submissions %}
+                                <tr class="submission-row" data-status="{{ submission.status }}">
+                                    <td>{{ forloop.counter }}</td>
+                                    {% for field in form_fields %}
+                                        <td>
+                                            {% if field.name in submission.data %}
+                                                {% if submission.data|lookup:field.name|length > 50 %}
+                                                    {{ submission.data|lookup:field.name|slice:":50" }}...
+                                                {% else %}
+                                                    {{ submission.data|lookup:field.name }}
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    {% endfor %}
+                                    <td>{{ submission.email|default:"-" }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if submission.status == 'approved' %}success{% elif submission.status == 'rejected' %}danger{% elif submission.status == 'spam' %}dark{% else %}warning{% endif %}">
+                                            {{ submission.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small>{{ submission.submitted_at|date:"M d, Y H:i" }}</small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-info" onclick="viewDetails('{{ submission.id }}')">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            {% if submission.status == 'pending' %}
+                                                <button class="btn btn-outline-success" onclick="updateStatus('{{ submission.id }}', 'approved')">
+                                                    <i class="bi bi-check"></i>
+                                                </button>
+                                                <button class="btn btn-outline-danger" onclick="updateStatus('{{ submission.id }}', 'rejected')">
+                                                    <i class="bi bi-x"></i>
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
+                <h4 class="mt-3 text-muted">No Submissions Yet</h4>
+                <p class="text-muted">Share the form URL to start receiving submissions.</p>
+                <button class="btn btn-primary" onclick="copyUrl()">
+                    <i class="bi bi-clipboard me-2"></i>Copy Form URL
+                </button>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- View Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Submission Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailsContent">
+                <!-- Details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Copy URL to clipboard
+function copyUrl() {
+    const urlInput = document.getElementById('formUrl');
+    urlInput.select();
+    document.execCommand('copy');
+    
+    // Show feedback
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check"></i>';
+    btn.classList.add('btn-success');
+    btn.classList.remove('btn-outline-primary');
+    
+    setTimeout(() => {
+        btn.innerHTML = originalHTML;
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-primary');
+    }, 2000);
+}
+
+// Filter submissions by status
+function filterSubmissions(status) {
+    const rows = document.querySelectorAll('.submission-row');
+    rows.forEach(row => {
+        if (status === 'all' || row.dataset.status === status) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// View submission details
+function viewDetails(submissionId) {
+    // In a real implementation, this would fetch details via AJAX
+    const submission = {{ submissions_json|safe }}.find(s => s.id === submissionId);
+    
+    let html = '<div class="row">';
+    html += '<div class="col-12 mb-3">';
+    html += '<h6>Submission Information</h6>';
+    html += '<table class="table table-sm">';
+    
+    // Add all form fields
+    {% for field in form_fields %}
+        html += '<tr><th width="30%">{{ field.label }}</th><td>' + (submission.data['{{ field.name }}'] || '-') + '</td></tr>';
+    {% endfor %}
+    
+    html += '<tr><th>Email</th><td>' + (submission.email || '-') + '</td></tr>';
+    html += '<tr><th>IP Address</th><td>' + (submission.ip_address || '-') + '</td></tr>';
+    html += '<tr><th>Submitted At</th><td>' + new Date(submission.submitted_at).toLocaleString() + '</td></tr>';
+    html += '<tr><th>Status</th><td><span class="badge bg-' + getStatusColor(submission.status) + '">' + submission.status + '</span></td></tr>';
+    
+    if (submission.admin_notes) {
+        html += '<tr><th>Admin Notes</th><td>' + submission.admin_notes + '</td></tr>';
+    }
+    
+    html += '</table>';
+    html += '</div></div>';
+    
+    document.getElementById('detailsContent').innerHTML = html;
+    new bootstrap.Modal(document.getElementById('detailsModal')).show();
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'pending': 'warning',
+        'approved': 'success',
+        'rejected': 'danger',
+        'spam': 'dark'
+    };
+    return colors[status] || 'secondary';
+}
+
+// Update submission status
+function updateStatus(submissionId, newStatus) {
+    if (confirm(`Are you sure you want to ${newStatus} this submission?`)) {
+        // AJAX request to update status
+        fetch(`/dashboard/submission/${submissionId}/update-status/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ status: newStatus })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error updating status');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error updating status');
+        });
+    }
+}
+
+// Export to CSV
+function exportToCSV() {
+    let csv = [];
+    
+    // Header row
+    let headers = ['#'];
+    {% for field in form_fields %}
+        headers.push('{{ field.label }}');
+    {% endfor %}
+    headers.push('Email', 'Status', 'Submitted At');
+    csv.push(headers.join(','));
+    
+    // Data rows
+    const rows = document.querySelectorAll('.submission-row');
+    rows.forEach((row, index) => {
+        if (row.style.display !== 'none') {
+            const cells = row.querySelectorAll('td');
+            let rowData = [];
+            cells.forEach(cell => {
+                let text = cell.textContent.trim().replace(/"/g, '""');
+                rowData.push(`"${text}"`);
+            });
+            csv.push(rowData.join(','));
+        }
+    });
+    
+    // Download
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '{{ form.slug }}_submissions_' + new Date().toISOString().split('T')[0] + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+// Prepare submissions data for modal
+const submissionsData = {{ submissions_json|safe }};
+</script>
+
+<style>
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.submission-row {
+    transition: background-color 0.2s;
+}
+
+.submission-row:hover {
+    background-color: #f8f9fa;
+}
+</style>
+{% endblock %}

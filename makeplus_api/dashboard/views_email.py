@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.core.mail import send_mail
 from django.conf import settings
 from django.db import models
+from django.db.models import Count, Q
 from django.utils import timezone
 from events.models import Event, Participant
 from .models_email import EmailTemplate, EventEmailTemplate, EmailLog
@@ -40,18 +41,27 @@ def email_template_create(request):
     if request.method == 'POST':
         name = request.POST.get('name')
         subject = request.POST.get('subject')
-        body = request.POST.get('body')
+        from_email = request.POST.get('from_email', '').strip()
         description = request.POST.get('description', '')
+        body_html = request.POST.get('body_html', '')
+        builder_config = request.POST.get('builder_config', '{}')
+        template_type = request.POST.get('template_type', 'custom')
+        is_active = request.POST.get('is_active', 'true') == 'true'
         
-        if not all([name, subject, body]):
-            messages.error(request, 'Please fill in all required fields.')
+        if not all([name, subject, body_html]):
+            messages.error(request, 'Please fill in all required fields and design your email.')
             return redirect('dashboard:email_template_create')
         
         template = EmailTemplate.objects.create(
             name=name,
             subject=subject,
-            body=body,
+            from_email=from_email,
+            body=body_html,  # Store HTML in body field for backward compatibility
+            body_html=body_html,
+            builder_config=builder_config,
             description=description,
+            template_type=template_type,
+            is_active=is_active,
             created_by=request.user
         )
         
@@ -67,6 +77,7 @@ def email_template_create(request):
     
     context = {
         'template_variables': template_variables,
+        'default_from_email': settings.DEFAULT_FROM_EMAIL,
     }
     return render(request, 'dashboard/email_template_form.html', context)
 
@@ -79,8 +90,18 @@ def email_template_edit(request, template_id):
     if request.method == 'POST':
         template.name = request.POST.get('name')
         template.subject = request.POST.get('subject')
-        template.body = request.POST.get('body')
+        template.from_email = request.POST.get('from_email', '').strip()
         template.description = request.POST.get('description', '')
+        body_html = request.POST.get('body_html', '')
+        builder_config = request.POST.get('builder_config', '{}')
+        template_type = request.POST.get('template_type', 'custom')
+        is_active = request.POST.get('is_active', 'true') == 'true'
+        
+        template.body = body_html  # Update body for backward compatibility
+        template.body_html = body_html
+        template.builder_config = builder_config
+        template.template_type = template_type
+        template.is_active = is_active
         template.save()
         
         messages.success(request, f'Email template "{template.name}" updated successfully!')
@@ -96,6 +117,7 @@ def email_template_edit(request, template_id):
     context = {
         'template': template,
         'template_variables': template_variables,
+        'default_from_email': settings.DEFAULT_FROM_EMAIL,
         'is_edit': True,
     }
     return render(request, 'dashboard/email_template_form.html', context)
@@ -137,10 +159,13 @@ def event_email_template_create(request, event_id):
         base_template_id = request.POST.get('base_template_id')
         name = request.POST.get('name')
         subject = request.POST.get('subject')
-        body = request.POST.get('body')
+        body_html = request.POST.get('body_html', '')
+        builder_config = request.POST.get('builder_config', '{}')
+        template_type = request.POST.get('template_type', 'custom')
+        is_active = request.POST.get('is_active', 'true') == 'true'
         
-        if not all([name, subject, body]):
-            messages.error(request, 'Please fill in all required fields.')
+        if not all([name, subject, body_html]):
+            messages.error(request, 'Please fill in all required fields and design your email.')
             return redirect('dashboard:event_email_template_create', event_id=event.id)
         
         base_template = None
@@ -152,7 +177,11 @@ def event_email_template_create(request, event_id):
             base_template=base_template,
             name=name,
             subject=subject,
-            body=body,
+            body=body_html,  # Store HTML in body for backward compatibility
+            body_html=body_html,
+            builder_config=builder_config,
+            template_type=template_type,
+            is_active=is_active,
             created_by=request.user
         )
         
@@ -189,7 +218,16 @@ def event_email_template_edit(request, event_id, template_id):
     if request.method == 'POST':
         event_template.name = request.POST.get('name')
         event_template.subject = request.POST.get('subject')
-        event_template.body = request.POST.get('body')
+        body_html = request.POST.get('body_html', '')
+        builder_config = request.POST.get('builder_config', '{}')
+        template_type = request.POST.get('template_type', 'custom')
+        is_active = request.POST.get('is_active', 'true') == 'true'
+        
+        event_template.body = body_html  # Update body for backward compatibility
+        event_template.body_html = body_html
+        event_template.builder_config = builder_config
+        event_template.template_type = template_type
+        event_template.is_active = is_active
         event_template.save()
         
         messages.success(request, f'Event email template "{event_template.name}" updated successfully!')
@@ -458,3 +496,403 @@ def send_email_to_registrants(request, event_id, template_id):
         'no_account_count': no_account_count,
     }
     return render(request, 'dashboard/send_email_to_registrants.html', context)
+
+
+@login_required
+def email_template_test(request, template_id):
+    """Send a test email from a template"""
+    template = get_object_or_404(EmailTemplate, id=template_id)
+    
+    if request.method == 'POST':
+        test_email = request.POST.get('test_email')
+        
+        if not test_email:
+            messages.error(request, 'Please provide a test email address.')
+            return redirect('dashboard:email_template_list')
+        
+        # Create sample context data for testing
+        context = {
+            'event_name': 'Sample Event Name',
+            'event_location': 'Sample Location',
+            'event_start_date': 'Jan 1, 2026',
+            'event_end_date': 'Jan 3, 2026',
+            'participant_name': 'John Doe',
+            'first_name': 'John',
+            'last_name': 'Doe',
+            'email': test_email,
+            'telephone': '+1234567890',
+            'etablissement': 'Sample Organization',
+            'badge_id': 'BADGE-12345',
+            'qr_code_url': 'https://example.com/qr-code.png',
+        }
+        
+        # Replace template variables
+        subject = replace_template_variables(template.subject, context)
+        body_html = replace_template_variables(template.body_html or template.body, context)
+        
+        try:
+            # Use custom from_email if provided, otherwise use default
+            from_address = template.from_email if template.from_email else settings.DEFAULT_FROM_EMAIL
+            
+            send_mail(
+                subject=subject,
+                message='',  # Plain text version (empty for now)
+                from_email=from_address,
+                recipient_list=[test_email],
+                html_message=body_html,
+                fail_silently=False,
+            )
+            
+            # Log the test email
+            EmailLog.objects.create(
+                template_name=template.name,
+                recipient_email=test_email,
+                subject=subject,
+                body=body_html,
+                status='sent',
+                sent_by=request.user
+            )
+            
+            messages.success(request, f'Test email sent successfully to {test_email}!')
+        except Exception as e:
+            messages.error(request, f'Failed to send test email: {str(e)}')
+            EmailLog.objects.create(
+                template_name=template.name,
+                recipient_email=test_email,
+                subject=subject,
+                body=body_html,
+                status='failed',
+                error_message=str(e),
+                sent_by=request.user
+            )
+    
+    return redirect('dashboard:email_template_list')
+
+
+@login_required
+def email_template_send(request, template_id):
+    """Send email to all registered users for a specific event"""
+    template = get_object_or_404(EmailTemplate, id=template_id)
+    
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        
+        if not event_id:
+            messages.error(request, 'Please select an event.')
+            return redirect('dashboard:email_template_list')
+        
+        event = get_object_or_404(Event, id=event_id)
+        
+        # Get all approved registrations for this event
+        from events.models import EventRegistration
+        registrations = EventRegistration.objects.filter(
+            event=event,
+            status='approved'
+        )
+        
+        if not registrations.exists():
+            messages.warning(request, f'No approved registrations found for {event.name}.')
+            return redirect('dashboard:email_template_list')
+        
+        sent_count = 0
+        failed_count = 0
+        
+        for registration in registrations:
+            # Create context with registration data
+            context = {
+                'event_name': event.name,
+                'event_location': event.location or 'TBD',
+                'event_start_date': event.start_date.strftime('%B %d, %Y') if event.start_date else 'TBD',
+                'event_end_date': event.end_date.strftime('%B %d, %Y') if event.end_date else 'TBD',
+                'participant_name': f"{registration.first_name} {registration.last_name}",
+                'first_name': registration.first_name,
+                'last_name': registration.last_name,
+                'email': registration.email,
+                'telephone': registration.telephone or 'N/A',
+                'etablissement': registration.etablissement or 'N/A',
+                'badge_id': registration.badge_id or 'N/A',
+                'qr_code_url': request.build_absolute_uri(f'/media/qr_codes/{registration.badge_id}.png') if registration.badge_id else '',
+            }
+            
+            # Replace template variables
+            subject = replace_template_variables(template.subject, context)
+            body_html = replace_template_variables(template.body_html or template.body, context)
+            
+            # Use custom from_email if provided, otherwise use default
+            from_address = template.from_email if template.from_email else settings.DEFAULT_FROM_EMAIL
+            
+            try:
+                send_mail(
+                    subject=subject,
+                    message='',
+                    from_email=from_address,
+                    recipient_list=[registration.email],
+                    html_message=body_html,
+                    fail_silently=False,
+                )
+                
+                EmailLog.objects.create(
+                    template_name=template.name,
+                    event=event,
+                    recipient_email=registration.email,
+                    subject=subject,
+                    body=body_html,
+                    status='sent',
+                    sent_by=request.user
+                )
+                sent_count += 1
+            except Exception as e:
+                EmailLog.objects.create(
+                    template_name=template.name,
+                    event=event,
+                    recipient_email=registration.email,
+                    subject=subject,
+                    body=body_html,
+                    status='failed',
+                    error_message=str(e),
+                    sent_by=request.user
+                )
+                failed_count += 1
+        
+        if sent_count > 0:
+            messages.success(request, f'Successfully sent {sent_count} emails to {event.name} registrations!')
+        if failed_count > 0:
+            messages.warning(request, f'{failed_count} emails failed to send.')
+    
+    return redirect('dashboard:email_template_list')
+
+
+@login_required
+def email_template_stats(request, template_id):
+    """Show statistics for an email template"""
+    template = get_object_or_404(EmailTemplate, id=template_id)
+    
+    # Get email logs for this template
+    logs = EmailLog.objects.filter(template=template).order_by('-sent_at')
+    
+    # Calculate statistics
+    total_sent = logs.filter(status='sent').count()
+    total_failed = logs.filter(status='failed').count()
+    total_attempts = logs.count()
+    
+    # Get unique recipients
+    unique_recipients = logs.values('recipient_email').distinct().count()
+    
+    # Get recent logs (last 50)
+    recent_logs = logs[:50]
+    
+    # Get sending trends (group by date)
+    from django.db.models.functions import TruncDate
+    daily_stats = logs.annotate(
+        date=TruncDate('sent_at')
+    ).values('date').annotate(
+        sent=Count('id', filter=Q(status='sent')),
+        failed=Count('id', filter=Q(status='failed'))
+    ).order_by('-date')[:30]
+    
+    context = {
+        'template': template,
+        'total_sent': total_sent,
+        'total_failed': total_failed,
+        'total_attempts': total_attempts,
+        'unique_recipients': unique_recipients,
+        'success_rate': round((total_sent / total_attempts * 100) if total_attempts > 0 else 0, 1),
+        'recent_logs': recent_logs,
+        'daily_stats': daily_stats,
+    }
+    
+    return render(request, 'dashboard/email_template_stats.html', context)
+
+
+@login_required
+def email_template_archive(request, template_id):
+    """Archive an email template"""
+    if request.method == 'POST':
+        template = get_object_or_404(EmailTemplate, id=template_id)
+        template.is_active = False
+        template.save()
+        messages.success(request, f'Email template "{template.name}" has been archived.')
+    
+    return redirect('dashboard:email_template_list')
+
+
+@login_required
+def registration_form_builder(request):
+    """List all custom registration forms"""
+    from .models_form import FormConfiguration
+    
+    forms = FormConfiguration.objects.select_related('event', 'created_by').all()
+    
+    context = {
+        'forms': forms,
+    }
+    
+    return render(request, 'dashboard/registration_form_list.html', context)
+
+
+@login_required
+def registration_form_create(request):
+    """Create a new custom registration form"""
+    from .models_form import FormConfiguration
+    from django.utils.text import slugify
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        description = request.POST.get('description', '')
+        event_id = request.POST.get('event_id')
+        slug = request.POST.get('slug') or slugify(name)
+        fields_config = request.POST.get('fields_config', '[]')
+        success_message = request.POST.get('success_message', 'Thank you for your registration!')
+        
+        # Validate
+        if not name:
+            messages.error(request, 'Form name is required.')
+            return redirect('dashboard:registration_form_create')
+        
+        # Check slug uniqueness
+        if FormConfiguration.objects.filter(slug=slug).exists():
+            messages.error(request, f'A form with slug "{slug}" already exists.')
+            return redirect('dashboard:registration_form_create')
+        
+        import json
+        try:
+            fields_config = json.loads(fields_config)
+        except:
+            messages.error(request, 'Invalid field configuration.')
+            return redirect('dashboard:registration_form_create')
+        
+        # Create form
+        form = FormConfiguration.objects.create(
+            name=name,
+            description=description,
+            slug=slug,
+            event_id=event_id if event_id else None,
+            fields_config=fields_config,
+            success_message=success_message,
+            send_confirmation_email=request.POST.get('send_confirmation_email') == 'on',
+            is_active=True,
+            created_by=request.user
+        )
+        
+        messages.success(request, f'Form "{form.name}" created successfully!')
+        messages.info(request, f'Public URL: {request.build_absolute_uri(form.get_public_url())}')
+        return redirect('dashboard:registration_form_edit', form_id=form.id)
+    
+    # GET request
+    from .models_email import EmailTemplate
+    events = Event.objects.all().order_by('-created_at')
+    email_templates = EmailTemplate.objects.filter(is_active=True)
+    
+    context = {
+        'events': events,
+        'email_templates': email_templates,
+    }
+    
+    return render(request, 'dashboard/registration_form_builder.html', context)
+
+
+@login_required
+def registration_form_edit(request, form_id):
+    """Edit an existing custom registration form"""
+    from .models_form import FormConfiguration
+    from django.utils.text import slugify
+    
+    form = get_object_or_404(FormConfiguration, id=form_id)
+    
+    if request.method == 'POST':
+        form.name = request.POST.get('name')
+        form.description = request.POST.get('description', '')
+        event_id = request.POST.get('event_id')
+        form.event_id = event_id if event_id else None
+        
+        # Update slug if changed
+        new_slug = request.POST.get('slug') or slugify(form.name)
+        if new_slug != form.slug:
+            if FormConfiguration.objects.filter(slug=new_slug).exclude(id=form.id).exists():
+                messages.error(request, f'A form with slug "{new_slug}" already exists.')
+                return redirect('dashboard:registration_form_edit', form_id=form.id)
+            form.slug = new_slug
+        
+        fields_config = request.POST.get('fields_config', '[]')
+        import json
+        try:
+            form.fields_config = json.loads(fields_config)
+        except:
+            messages.error(request, 'Invalid field configuration.')
+            return redirect('dashboard:registration_form_edit', form_id=form.id)
+        
+        form.success_message = request.POST.get('success_message', 'Thank you for your registration!')
+        form.send_confirmation_email = request.POST.get('send_confirmation_email') == 'on'
+        form.is_active = request.POST.get('is_active') == 'on'
+        form.save()
+        
+        messages.success(request, f'Form "{form.name}" updated successfully!')
+        return redirect('dashboard:registration_form_builder')
+    
+    # GET request
+    from .models_email import EmailTemplate
+    events = Event.objects.all().order_by('-created_at')
+    email_templates = EmailTemplate.objects.filter(is_active=True)
+    
+    context = {
+        'form': form,
+        'events': events,
+        'email_templates': email_templates,
+        'is_edit': True,
+    }
+    
+    return render(request, 'dashboard/registration_form_builder.html', context)
+
+
+@login_required
+def registration_form_delete(request, form_id):
+    """Delete a custom registration form"""
+    from .models_form import FormConfiguration
+    
+    if request.method == 'POST':
+        form = get_object_or_404(FormConfiguration, id=form_id)
+        name = form.name
+        form.delete()
+        messages.success(request, f'Form "{name}" deleted successfully!')
+    
+    return redirect('dashboard:registration_form_builder')
+
+
+@login_required
+def registration_form_submissions(request, form_id):
+    """View submissions for a form"""
+    from .models_form import FormConfiguration, FormSubmission
+    import json
+    
+    form = get_object_or_404(FormConfiguration, id=form_id)
+    submissions = FormSubmission.objects.filter(form=form).order_by('-submitted_at')
+    
+    # Count by status
+    pending_count = submissions.filter(status='pending').count()
+    approved_count = submissions.filter(status='approved').count()
+    rejected_count = submissions.filter(status='rejected').count()
+    
+    # Prepare submissions as JSON for JavaScript
+    submissions_list = []
+    for sub in submissions:
+        submissions_list.append({
+            'id': str(sub.id),
+            'data': sub.data,
+            'email': sub.email,
+            'ip_address': sub.ip_address,
+            'status': sub.status,
+            'admin_notes': sub.admin_notes,
+            'submitted_at': sub.submitted_at.isoformat(),
+        })
+    
+    context = {
+        'form': form,
+        'submissions': submissions,
+        'submissions_json': json.dumps(submissions_list),
+        'form_fields': form.fields_config,
+        'pending_count': pending_count,
+        'approved_count': approved_count,
+        'rejected_count': rejected_count,
+    }
+    
+    return render(request, 'dashboard/registration_form_submissions.html', context)

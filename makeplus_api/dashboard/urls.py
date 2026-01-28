@@ -72,6 +72,20 @@ urlpatterns = [
     path('email-templates/create/', views_email.email_template_create, name='email_template_create'),
     path('email-templates/<int:template_id>/edit/', views_email.email_template_edit, name='email_template_edit'),
     path('email-templates/<int:template_id>/delete/', views_email.email_template_delete, name='email_template_delete'),
+    path('email-templates/<int:template_id>/test/', views_email.email_template_test, name='email_template_test'),
+    path('email-templates/<int:template_id>/send/', views_email.email_template_send, name='email_template_send'),
+    path('email-templates/<int:template_id>/stats/', views_email.email_template_stats, name='email_template_stats'),
+    path('email-templates/<int:template_id>/archive/', views_email.email_template_archive, name='email_template_archive'),
+    
+    # Registration Form Builder
+    path('registration-form-builder/', views_email.registration_form_builder, name='registration_form_builder'),
+    path('registration-form-builder/create/', views_email.registration_form_create, name='registration_form_create'),
+    path('registration-form-builder/<uuid:form_id>/edit/', views_email.registration_form_edit, name='registration_form_edit'),
+    path('registration-form-builder/<uuid:form_id>/delete/', views_email.registration_form_delete, name='registration_form_delete'),
+    path('registration-form-builder/<uuid:form_id>/submissions/', views_email.registration_form_submissions, name='registration_form_submissions'),
+    
+    # API Endpoints
+    path('api/events/', views.api_events_list, name='api_events_list'),
     
     # Event Email Templates
     path('events/<uuid:event_id>/email-templates/', views_email.event_email_templates, name='event_email_templates'),

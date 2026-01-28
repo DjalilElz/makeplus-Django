@@ -17,6 +17,7 @@ class EmailTemplate(models.Model):
     
     name = models.CharField(max_length=200, help_text="Template name for easy identification")
     subject = models.CharField(max_length=300, help_text="Email subject line")
+    from_email = models.EmailField(max_length=200, blank=True, help_text="Sender email address (leave blank to use default)")
     body = models.TextField(help_text="Email body content (supports HTML)")
     body_html = models.TextField(blank=True, help_text="Visual builder HTML output")
     description = models.TextField(blank=True, help_text="Internal description of template purpose")
@@ -135,11 +136,13 @@ class EmailLog(models.Model):
         ('failed', 'Failed'),
     ]
     
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='email_logs')
-    template = models.ForeignKey(EventEmailTemplate, on_delete=models.SET_NULL, null=True, related_name='logs')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='email_logs', null=True, blank=True)
+    # Store template info as text to avoid relationship constraints
+    template_name = models.CharField(max_length=200, blank=True)
     
     subject = models.CharField(max_length=300)
     body = models.TextField()
+    recipient_email = models.EmailField(max_length=200, blank=True, help_text="For test emails")
     
     # Target settings
     target_type = models.CharField(max_length=50, choices=TARGET_TYPE_CHOICES)

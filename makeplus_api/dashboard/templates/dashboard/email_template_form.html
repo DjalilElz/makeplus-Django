@@ -2,125 +2,523 @@
 
 {% block page_title %}{% if is_edit %}Edit{% else %}Create{% endif %} Email Template{% endblock %}
 
+{% block extra_css %}
+<style>
+    #email-editor-container {
+        height: 700px;
+        width: 100%;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .template-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 8px 8px 0 0;
+    }
+    
+    .action-bar {
+        background: #f8f9fa;
+        padding: 15px;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .variable-pill {
+        display: inline-block;
+        padding: 4px 12px;
+        margin: 4px;
+        background: #e3f2fd;
+        color: #1976d2;
+        border-radius: 20px;
+        font-size: 12px;
+        font-family: 'Courier New', monospace;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid #90caf9;
+    }
+    
+    .variable-pill:hover {
+        background: #1976d2;
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+    }
+    
+    .template-type-badge {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        margin-right: 8px;
+    }
+    
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    
+    .save-status {
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 14px;
+        display: none;
+    }
+    
+    .save-status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .save-status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
-    <div class="mb-4">
-        <a href="{% url 'dashboard:email_template_list' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Templates
-        </a>
-    </div>
-    
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header">
-                    <h4><i class="bi bi-envelope"></i> {% if is_edit %}Edit{% else %}Create{% endif %} Email Template</h4>
+    <form method="post" id="templateForm">
+        {% csrf_token %}
+        
+        <!-- Hidden fields -->
+        <input type="hidden" name="template_type" id="template_type" value="{{ template.template_type|default:'custom' }}">
+        <input type="hidden" name="body_html" id="body_html">
+        <input type="hidden" name="builder_config" id="builder_config">
+        <input type="hidden" name="is_active" id="is_active" value="{{ template.is_active|default:'true' }}">
+        
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <a href="{% url 'dashboard:email_template_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+                <h3 class="mb-0">
+                    <i class="bi bi-envelope-paper"></i> 
+                    {% if is_edit %}Edit{% else %}Create{% endif %} Email Template
+                </h3>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-primary" id="previewBtn">
+                    <i class="bi bi-eye"></i> Preview
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="advancedBtn">
+                    <i class="bi bi-gear"></i> Advanced
+                </button>
+                <button type="submit" class="btn btn-primary" id="saveBtn">
+                    <i class="bi bi-save"></i> Save Template
+                </button>
+            </div>
+        </div>
+        
+        <!-- Template Information -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="template_name" class="form-label fw-bold">
+                                Template Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="template_name" name="name" 
+                                   value="{{ template.name|default:'' }}" required 
+                                   placeholder="e.g., Welcome Email">
+                            <small class="text-muted">Internal name for easy identification</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="template_subject" class="form-label fw-bold">
+                                Email Subject <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="template_subject" name="subject" 
+                                   value="{{ template.subject|default:'' }}" required 
+                                   placeholder="e.g., Welcome to {{event_name}}">
+                            <small class="text-muted">What recipients will see in their inbox</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="template_from_email" class="form-label fw-bold">
+                                Sender Email Address
+                            </label>
+                            <input type="email" class="form-control" id="template_from_email" name="from_email" 
+                                   value="{{ template.from_email|default:'' }}" 
+                                   placeholder="e.g., events@yourcompany.com">
+                            <small class="text-muted">Leave blank to use default sender ({{ default_from_email }})</small>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <form method="post" id="templateForm">
-                        {% csrf_token %}
-                        
-                        <div class="mb-3">
-                            <label for="name" class="form-label">Template Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="name" name="name" 
-                                   value="{{ template.name|default:'' }}" required>
-                            <small class="form-text text-muted">Internal name for easy identification</small>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="mb-0">
+                            <label for="template_description" class="form-label fw-bold">Description</label>
+                            <textarea class="form-control" id="template_description" name="description" 
+                                      rows="2" placeholder="Brief description of this template's purpose">{{ template.description|default:'' }}</textarea>
+                            <small class="text-muted">Internal notes about when to use this template</small>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="description" class="form-label">Description</label>
-                            <textarea class="form-control" id="description" name="description" rows="2">{{ template.description|default:'' }}</textarea>
-                            <small class="form-text text-muted">Internal description of template purpose</small>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="subject" class="form-label">Email Subject <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="subject" name="subject" 
-                                   value="{{ template.subject|default:'' }}" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="body" class="form-label">Email Body <span class="text-danger">*</span></label>
-                            <textarea class="form-control" id="body" name="body" rows="15" required>{{ template.body|default:'' }}</textarea>
-                            <small class="form-text text-muted">Supports HTML and template variables</small>
-                        </div>
-                        
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-save"></i> {% if is_edit %}Update{% else %}Create{% endif %} Template
-                            </button>
-                            <a href="{% url 'dashboard:email_template_list' %}" class="btn btn-secondary">
-                                Cancel
-                            </a>
-                        </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-code-square"></i> Template Variables</h5>
-                </div>
-                <div class="card-body">
-                    <p class="small text-muted">Click to insert variable:</p>
-                    <div class="d-flex flex-wrap gap-2">
-                        {% for var in template_variables %}
-                        <button type="button" class="btn btn-sm btn-outline-secondary insert-var" 
-                                data-var="{{ var }}">
-                            {{ var }}
-                        </button>
-                        {% endfor %}
+        <!-- Merge Tags Helper -->
+        <div class="card mb-3 border-info">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-code-square"></i> How to Use Merge Tags (Personalization)</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <p class="mb-2"><strong>What are Merge Tags?</strong></p>
+                        <p class="small mb-3">
+                            Merge tags are placeholders like {% verbatim %}<code>{{event_name}}</code>{% endverbatim %} that get automatically replaced with real data when sending emails.
+                            For example, {% verbatim %}<code>{{participant_name}}</code>{% endverbatim %} becomes "John Doe" for that specific recipient.
+                        </p>
+                        
+                        <p class="mb-2"><strong>How to use them:</strong></p>
+                        <ol class="small mb-3">
+                            <li><strong>Click</strong> any tag below to copy it to your clipboard</li>
+                            <li><strong>In Unlayer editor:</strong> Add a text block</li>
+                            <li><strong>Paste</strong> the tag (Ctrl+V) where you want personalized data</li>
+                            <li><strong>Example:</strong> Type "Hello {% verbatim %}{{participant_name}}{% endverbatim %}" in your email</li>
+                            <li>When sent, it becomes "Hello John Doe" for each recipient</li>
+                        </ol>
+                        
+                        <div class="alert alert-warning alert-sm mb-0">
+                            <small>
+                                <i class="bi bi-exclamation-triangle"></i> <strong>Important:</strong> 
+                                Keep the double curly braces {% verbatim %}<code>{{ }}</code>{% endverbatim %} exactly as shown. 
+                                Don't remove or modify them, or the tag won't work!
+                            </small>
+                        </div>
                     </div>
-                    
-                    <hr class="my-3">
-                    
-                    <h6>Variable Descriptions:</h6>
-                    <ul class="small">
-                        <li><code>{{event_name}}</code> - Event name</li>
-                        <li><code>{{event_location}}</code> - Event location</li>
-                        <li><code>{{event_start_date}}</code> - Start date</li>
-                        <li><code>{{event_end_date}}</code> - End date</li>
-                        <li><code>{{participant_name}}</code> - Participant full name</li>
-                        <li><code>{{participant_email}}</code> - Participant email</li>
-                        <li><code>{{participant_phone}}</code> - Participant phone</li>
-                        <li><code>{{badge_id}}</code> - Participant badge ID</li>
-                        <li><code>{{qr_code_url}}</code> - QR code URL</li>
-                    </ul>
+                    <div class="col-md-4">
+                        <p class="mb-2"><strong>Quick Example:</strong></p>
+                        <div class="bg-light p-3 rounded small">
+                            <p class="mb-2"><strong>Your email text:</strong></p>
+                            <code class="d-block mb-3">
+                                {% verbatim %}Hello {{first_name}},<br><br>
+                                Welcome to {{event_name}}!<br>
+                                Location: {{event_location}}<br>
+                                Your badge: {{badge_id}}{% endverbatim %}
+                            </code>
+                            
+                            <p class="mb-2"><strong>Recipient sees:</strong></p>
+                            <div class="bg-white p-2 rounded border">
+                                Hello <span class="text-primary">Ahmed</span>,<br><br>
+                                Welcome to <span class="text-primary">Tech Conference 2026</span>!<br>
+                                Location: <span class="text-primary">Algiers</span><br>
+                                Your badge: <span class="text-primary">BADGE-001</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+                
+                <hr>
+                
+                <p class="mb-2"><strong>Available Tags (click to copy):</strong></p>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for var in template_variables %}
+                    <span class="variable-pill" data-var="{{ var }}" title="Click to copy">{{ var }}</span>
+                    {% endfor %}
+                </div>
+                
+                <div class="mt-3">
+                    <p class="small mb-2"><strong>Tag Reference:</strong></p>
+                    <div class="row small">
+                        <div class="col-md-6">
+                            <ul class="mb-0">
+                                {% verbatim %}
+                                <li><code>{{event_name}}</code> → Event title</li>
+                                <li><code>{{event_location}}</code> → Where the event is</li>
+                                <li><code>{{event_start_date}}</code> → When it starts</li>
+                                <li><code>{{event_end_date}}</code> → When it ends</li>
+                                <li><code>{{participant_name}}</code> → Full name (First Last)</li>
+                                <li><code>{{first_name}}</code> → First name only</li>
+                                {% endverbatim %}
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="mb-0">
+                                {% verbatim %}
+                                <li><code>{{last_name}}</code> → Last name only</li>
+                                <li><code>{{email}}</code> → Email address</li>
+                                <li><code>{{telephone}}</code> → Phone number</li>
+                                <li><code>{{etablissement}}</code> → Institution/Organization</li>
+                                <li><code>{{badge_id}}</code> → Unique badge ID</li>
+                                <li><code>{{qr_code_url}}</code> → QR code image URL</li>
+                                {% endverbatim %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Email Builder Section -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-brush"></i> Design Your Email</h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="email-editor-container"></div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Advanced Settings Modal -->
+<div class="modal fade" id="advancedModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-gear"></i> Advanced Settings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="settingsType" class="form-label">Template Type</label>
+                    <select class="form-select" id="settingsType">
+                        <option value="invitation" {% if template.template_type == 'invitation' %}selected{% endif %}>Invitation</option>
+                        <option value="confirmation" {% if template.template_type == 'confirmation' %}selected{% endif %}>Confirmation</option>
+                        <option value="reminder" {% if template.template_type == 'reminder' %}selected{% endif %}>Reminder</option>
+                        <option value="follow_up" {% if template.template_type == 'follow_up' %}selected{% endif %}>Follow-up</option>
+                        <option value="announcement" {% if template.template_type == 'announcement' %}selected{% endif %}>Announcement</option>
+                        <option value="registration_confirmation" {% if template.template_type == 'registration_confirmation' %}selected{% endif %}>Registration Confirmation</option>
+                        <option value="custom" {% if template.template_type == 'custom' or not template.template_type %}selected{% endif %}>Custom</option>
+                    </select>
+                    <small class="text-muted">Helps organize and filter templates</small>
+                </div>
+                
+                <div class="mb-0">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="settingsActive" {% if template.is_active or not is_edit %}checked{% endif %}>
+                        <label class="form-check-label" for="settingsActive">
+                            <strong>Template Active</strong>
+                        </label>
+                        <small class="d-block text-muted">Only active templates can be used for sending emails</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveAdvancedBtn">Save Settings</button>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye"></i> Email Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 p-3 bg-light border-bottom">
+                    <strong>Subject:</strong> <span id="previewSubject"></span>
+                </div>
+                <iframe id="previewFrame" style="width: 100%; height: 600px; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display: none;">
+    <div class="text-center">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
+        <p class="mt-3">Loading Email Editor...</p>
+    </div>
+</div>
+
+<!-- Unlayer Email Editor Script -->
+<script src="https://editor.unlayer.com/embed.js"></script>
+
 <script>
+let emailEditor;
+let settingsModal;
+let previewModal;
+
 document.addEventListener('DOMContentLoaded', function() {
-    const bodyTextarea = document.getElementById('body');
-    const subjectInput = document.getElementById('subject');
+    // Show loading
+    document.getElementById('loadingOverlay').style.display = 'flex';
     
-    // Insert variable buttons
-    document.querySelectorAll('.insert-var').forEach(button => {
-        button.addEventListener('click', function() {
-            const varText = this.dataset.var;
-            const target = document.activeElement;
-            
-            if (target === bodyTextarea || target === subjectInput) {
-                const start = target.selectionStart;
-                const end = target.selectionEnd;
-                const text = target.value;
-                target.value = text.substring(0, start) + varText + text.substring(end);
-                target.focus();
-                target.selectionStart = target.selectionEnd = start + varText.length;
-            } else {
-                // If no field is focused, insert into body
-                bodyTextarea.value += varText;
-                bodyTextarea.focus();
+    // Initialize modals
+    advancedModal = new bootstrap.Modal(document.getElementById('advancedModal'));
+    previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+    
+    // Initialize Unlayer Email Editor
+    emailEditor = unlayer.createEditor({
+        id: 'email-editor-container',
+        projectId: 1234, // Replace with your Unlayer project ID if you have one
+        displayMode: 'email',
+        appearance: {
+            theme: 'light',
+            panels: {
+                tools: {
+                    dock: 'left'
+                }
             }
+        },
+        features: {
+            preview: true,
+            imageEditor: true,
+            textEditor: {
+                tables: true,
+                emojis: true
+            }
+        },
+        tools: {
+            form: {
+                enabled: false
+            }
+        },
+        mergeTags: [
+            {% for var in template_variables %}
+            {
+                name: '{{ var|slice:"2:-2" }}',
+                value: '{{ var }}',
+                sample: '{{ var }}'
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ]
+    });
+
+    // Editor ready event
+    emailEditor.addEventListener('editor:ready', function() {
+        console.log('Unlayer Editor is ready');
+        document.getElementById('loadingOverlay').style.display = 'none';
+        
+        // Load existing design if editing
+        {% if template.builder_config %}
+        try {
+            const design = {{ template.builder_config|safe }};
+            emailEditor.loadDesign(design);
+        } catch (e) {
+            console.error('Error loading design:', e);
+        }
+        {% endif %}
+    });
+    
+    // Advanced settings button
+    document.getElementById('advancedBtn').addEventListener('click', function() {
+        advancedModal.show();
+    });
+    
+    // Save advanced settings
+    document.getElementById('saveAdvancedBtn').addEventListener('click', function() {
+        document.getElementById('template_type').value = document.getElementById('settingsType').value;
+        document.getElementById('is_active').value = document.getElementById('settingsActive').checked;
+        
+        alert('Advanced settings saved!');
+        advancedModal.hide();
+    });
+    
+    // Preview button
+    document.getElementById('previewBtn').addEventListener('click', function() {
+        emailEditor.exportHtml(function(data) {
+            const html = data.html;
+            const previewFrame = document.getElementById('previewFrame');
+            const previewSubject = document.getElementById('previewSubject');
+            
+            // Get subject from visible input field
+            const subject = document.getElementById('template_subject').value || 'No subject';
+            previewSubject.textContent = subject;
+            
+            // Load HTML into iframe
+            previewFrame.srcdoc = html;
+            
+            // Show modal
+            previewModal.show();
         });
     });
     
-    // Note: Form submission handling is done by the global script in base.html
+    // Form submission
+    document.getElementById('templateForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const name = document.getElementById('template_name').value;
+        const subject = document.getElementById('template_subject').value;
+        
+        if (!name || !subject) {
+            alert('Please fill in template name and subject');
+            document.getElementById('template_name').focus();
+            return;
+        }
+        
+        // Show loading
+        const saveBtn = document.getElementById('saveBtn');
+        const originalText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+        
+        // Export design and HTML
+        emailEditor.exportHtml(function(data) {
+            const html = data.html;
+            const design = data.design;
+            
+            // Set hidden fields
+            document.getElementById('template_name').value = name;
+            document.getElementById('template_subject').value = subject;
+            document.getElementById('body_html').value = html;
+            document.getElementById('builder_config').value = JSON.stringify(design);
+            
+            // Submit form
+            document.getElementById('templateForm').submit();
+        });
+    });
+    
+    // Variable pills - copy to clipboard
+    document.querySelectorAll('.variable-pill').forEach(pill => {
+        pill.addEventListener('click', function() {
+            const varText = this.dataset.var;
+            navigator.clipboard.writeText(varText).then(function() {
+                const originalText = pill.textContent;
+                pill.textContent = '✓ Copied!';
+                pill.style.background = '#4caf50';
+                pill.style.color = 'white';
+                
+                setTimeout(function() {
+                    pill.textContent = originalText;
+                    pill.style.background = '#e3f2fd';
+                    pill.style.color = '#1976d2';
+                }, 1500);
+            });
+        });
+    });
 });
+
+function showSaveStatus(message, type) {
+    const status = document.getElementById('saveStatus');
+    status.textContent = message;
+    status.className = 'save-status ' + type;
+    status.style.display = 'block';
+    
+    setTimeout(function() {
+        status.style.display = 'none';
+    }, 3000);
+}
 </script>
 {% endblock %}
