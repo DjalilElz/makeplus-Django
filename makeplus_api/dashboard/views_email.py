@@ -1330,9 +1330,9 @@ def campaign_send(request, campaign_id):
     
     campaign = get_object_or_404(EmailCampaign, id=campaign_id)
     
-    # Check if campaign is in draft status
-    if campaign.status != 'draft':
-        messages.warning(request, 'This campaign has already been sent or is currently sending.')
+    # Allow sending from draft or sending status (for batch continuation)
+    if campaign.status not in ['draft', 'sending']:
+        messages.warning(request, 'This campaign has already been sent.')
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     
     # Check if there are recipients
@@ -1342,6 +1342,9 @@ def campaign_send(request, campaign_id):
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     
     if request.method == 'POST':
+        # Limit batch size to prevent timeout (send max 10 emails per request)
+        BATCH_SIZE = 10
+        
         # Update campaign status
         campaign.status = 'sending'
         campaign.save()
@@ -1371,7 +1374,10 @@ def campaign_send(request, campaign_id):
         sent_count = 0
         failed_count = 0
         
-        for recipient in recipients:
+        # Only process BATCH_SIZE recipients to prevent timeout
+        batch_recipients = recipients[:BATCH_SIZE]
+        
+        for recipient in batch_recipients:
             try:
                 # Build context for template variables
                 context = {
@@ -1461,18 +1467,32 @@ def campaign_send(request, campaign_id):
                 recipient.save()
                 failed_count += 1
         
+        # Check if there are more recipients to send
+        remaining = recipients.count()
+        
         # Update campaign status
-        campaign.status = 'sent'
-        campaign.total_sent = sent_count
-        campaign.total_delivered = sent_count
+        if remaining == 0:
+            # All recipients processed
+            campaign.status = 'sent'
+        else:
+            # Still have recipients pending, keep status as 'sending'
+            campaign.status = 'sending'
+        
+        campaign.total_sent += sent_count
+        campaign.total_delivered += sent_count
         campaign.save()
         
         if sent_count > 0:
-            messages.success(request, f'Campaign sent successfully to {sent_count} recipient(s)!')
+            messages.success(request, f'Sent {sent_count} email(s) successfully!')
         if failed_count > 0:
-            messages.warning(request, f'Failed to send to {failed_count} recipient(s).')
+            messages.warning(request, f'Failed to send {failed_count} email(s).')
         
-        return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+        if remaining > 0:
+            messages.info(request, f'{remaining} recipient(s) remaining. Click "Send" again to continue.')
+            return redirect('dashboard:campaign_send', campaign_id=campaign.id)
+        else:
+            messages.success(request, 'Campaign sent to all recipients!')
+            return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     
     # GET request - show confirmation page
     context = {
