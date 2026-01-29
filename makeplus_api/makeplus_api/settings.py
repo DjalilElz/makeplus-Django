@@ -315,11 +315,13 @@ LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/dashboard/login/'
 
 # Email Configuration
-# Use SendGrid API for production (HTTPS-based, works on cloud platforms)
-# Set SENDGRID_API_KEY in environment variables to enable
+# Use MailerLite API for production (handles delivery, tracking, bounces)
+MAILERLITE_API_TOKEN = config('MAILERLITE_API_TOKEN', default='')
+
+# Fallback SendGrid if MailerLite not configured
 SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
 
-# Fallback to SMTP if SendGrid not configured
+# SMTP fallback for local development
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = config('EMAIL_HOST', default='localhost')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)

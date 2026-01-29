@@ -1270,7 +1270,7 @@ def campaign_delete_recipient(request, campaign_id, recipient_id):
 
 @login_required
 def campaign_send_test(request, campaign_id):
-    """Send a test email for a campaign - Uses HTTP API for reliable delivery"""
+    """Send a test email for a campaign - Uses MailerLite API"""
     from .models_email import EmailCampaign
     from .email_sender import send_email
     from django.http import JsonResponse
@@ -1294,7 +1294,6 @@ def campaign_send_test(request, campaign_id):
                 'event_location': campaign.event.location if campaign.event else 'Sample Location',
                 'event_start_date': campaign.event.start_date.strftime('%B %d, %Y') if campaign.event and campaign.event.start_date else 'TBD',
                 'event_end_date': campaign.event.end_date.strftime('%B %d, %Y') if campaign.event and campaign.event.end_date else 'TBD',
-                'unsubscribe_url': request.build_absolute_uri('/unsubscribe/'),
             }
             
             # Replace template variables
@@ -1304,16 +1303,17 @@ def campaign_send_test(request, campaign_id):
             # Use custom from_email if provided, otherwise use default
             from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
             
-            # Send test email using HTTP API
+            # Send test email via MailerLite API
             success, error = send_email(
                 to_email=test_email,
                 subject=f"[TEST] {subject}",
                 html_content=body_html,
-                from_email=from_address
+                from_email=from_address,
+                to_name='Test User'
             )
             
             if success:
-                return JsonResponse({'success': True, 'message': f'Test email sent to {test_email}'})
+                return JsonResponse({'success': True, 'message': f'Test email sent to {test_email} via MailerLite'})
             else:
                 return JsonResponse({'success': False, 'error': error})
                 
@@ -1325,11 +1325,9 @@ def campaign_send_test(request, campaign_id):
 
 @login_required
 def campaign_send(request, campaign_id):
-    """Send campaign to all recipients - Single click, automatic sending via HTTP API"""
+    """Send campaign to all recipients - Single click via MailerLite API"""
     from .models_email import EmailCampaign, EmailRecipient, EmailLink
     from .email_sender import send_email
-    from bs4 import BeautifulSoup
-    import hashlib
     
     campaign = get_object_or_404(EmailCampaign, id=campaign_id)
     
@@ -1349,28 +1347,6 @@ def campaign_send(request, campaign_id):
         campaign.status = 'sending'
         campaign.save()
         
-        # Pre-process: Create EmailLink objects for all links in the email
-        base_html = campaign.body_html or campaign.body_text
-        soup = BeautifulSoup(base_html, 'html.parser')
-        link_map = {}  # original_url -> EmailLink object
-        
-        for link in soup.find_all('a', href=True):
-            original_url = link['href']
-            # Skip mailto, tel, and anchor links
-            if original_url.startswith(('mailto:', 'tel:', '#', 'javascript:')):
-                continue
-            
-            # Get or create EmailLink for this URL
-            if original_url not in link_map:
-                email_link, created = EmailLink.objects.get_or_create(
-                    campaign=campaign,
-                    original_url=original_url,
-                    defaults={
-                        'tracking_token': hashlib.sha256(f"{campaign.id}{original_url}{timezone.now().isoformat()}".encode()).hexdigest()[:32]
-                    }
-                )
-                link_map[original_url] = email_link
-        
         sent_count = 0
         failed_count = 0
         errors = []
@@ -1378,57 +1354,33 @@ def campaign_send(request, campaign_id):
         # Use custom from_email if provided, otherwise use default
         from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
         
-        # Send to ALL recipients in one click
+        # Send to ALL recipients via MailerLite
+        # MailerLite handles: open tracking, click tracking, unsubscribes automatically
         for recipient in recipients:
             try:
                 # Build context for template variables
+                recipient_name = recipient.name or recipient.email.split('@')[0]
                 context = {
-                    'name': recipient.name or recipient.email.split('@')[0],
+                    'name': recipient_name,
                     'email': recipient.email,
                     'event_name': campaign.event.name if campaign.event else '',
                     'event_location': campaign.event.location if campaign.event else '',
                     'event_start_date': campaign.event.start_date.strftime('%B %d, %Y') if campaign.event and campaign.event.start_date else '',
                     'event_end_date': campaign.event.end_date.strftime('%B %d, %Y') if campaign.event and campaign.event.end_date else '',
-                    'unsubscribe_url': request.build_absolute_uri(f'/track/email/unsubscribe/{recipient.tracking_token}/'),
                 }
                 
                 # Replace template variables
                 subject = replace_template_variables(campaign.subject, context)
                 body_html = replace_template_variables(campaign.body_html or campaign.body_text, context)
                 
-                # Add link tracking to all links
-                if campaign.track_clicks and link_map:
-                    soup = BeautifulSoup(body_html, 'html.parser')
-                    for link in soup.find_all('a', href=True):
-                        original_url = link['href']
-                        if original_url in link_map:
-                            email_link = link_map[original_url]
-                            tracking_url = request.build_absolute_uri(
-                                f'/track/email/click/{email_link.tracking_token}/{recipient.tracking_token}/'
-                            )
-                            link['href'] = tracking_url
-                    body_html = str(soup)
-                
-                # Add tracking pixel for opens
-                if campaign.track_opens:
-                    tracking_pixel = f'<img src="{request.build_absolute_uri(f"/track/email/open/{recipient.tracking_token}/")}" width="1" height="1" style="display:none;" />'
-                    body_html = body_html + tracking_pixel
-                
-                # Add unsubscribe footer
-                unsubscribe_footer = f'''
-                <div style="text-align:center; margin-top:30px; padding:20px; font-size:12px; color:#999; border-top:1px solid #eee;">
-                    <p>You received this email because you subscribed to our mailing list.</p>
-                    <p><a href="{context['unsubscribe_url']}" style="color:#999;">Unsubscribe</a> from this list.</p>
-                </div>
-                '''
-                body_html = body_html + unsubscribe_footer
-                
-                # Send email using HTTP API (works on Render)
+                # Send email via MailerLite API
+                # MailerLite automatically adds: tracking pixel, link tracking, unsubscribe link
                 success, error = send_email(
                     to_email=recipient.email,
                     subject=subject,
                     html_content=body_html,
-                    from_email=from_address
+                    from_email=from_address,
+                    to_name=recipient_name
                 )
                 
                 if success:
