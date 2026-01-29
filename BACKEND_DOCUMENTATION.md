@@ -1,8 +1,25 @@
 # MakePlus Backend - Complete Documentation
 
-**Version:** 2.1  
-**Last Updated:** November 29, 2025  
+**Version:** 2.2  
+**Last Updated:** December 21, 2025  
 **Status:** ✅ Production Ready | ✅ Flutter Compatible | ✅ User-Level QR System
+
+---
+
+## 📄 NEW: Event PDF Files (Programme & Guide)
+
+**See:** [EVENT_PDF_FILES_IMPLEMENTATION.md](EVENT_PDF_FILES_IMPLEMENTATION.md) for complete implementation details
+
+✅ **Programme PDF:** Upload event schedule/program document  
+✅ **Guide PDF:** Upload participant guide/handbook  
+✅ **Fast Storage:** Optimized file system storage with lazy loading  
+✅ **Full API Support:** Multipart/form-data upload with complete CRUD  
+✅ **Production Ready:** CDN-ready, scalable to cloud storage (S3, Azure, etc.)  
+
+**Quick Links:**
+- [Upload Event PDFs](#file-uploads)
+- [Event Model with PDF Fields](#event-model)
+- [Complete Implementation Guide](EVENT_PDF_FILES_IMPLEMENTATION.md)
 
 ---
 
@@ -442,12 +459,20 @@ Users can be assigned to multiple events with different roles:
 - `start_date` (DateTime) - Event start
 - `end_date` (DateTime) - Event end
 - `is_active` (Boolean) - Event status
-- `programme_file` (File) - PDF programme
-- `guide_file` (File) - PDF participant guide
+- `programme_file` (File) - 📄 **PDF programme** (event schedule/program)
+- `guide_file` (File) - 📄 **PDF participant guide** (event handbook)
 - `president` (FK User) - Event president
 - `created_by` (FK User) - Creator
 - `created_at` (DateTime) - Creation timestamp
 - `updated_at` (DateTime) - Last update
+
+**PDF Files (NEW):**
+- ✅ Programme PDF: Event schedule, agenda, timetable
+- ✅ Guide PDF: Participant handbook, information booklet
+- ✅ Storage: Organized in `media/events/programmes/` and `media/events/guides/`
+- ✅ Optional: Both fields are nullable (not all events need PDFs)
+- ✅ Fast Access: URLs returned in API, files served directly by web server
+- 📄 See [EVENT_PDF_FILES_IMPLEMENTATION.md](EVENT_PDF_FILES_IMPLEMENTATION.md) for details
 
 **Relationships:**
 - Has many: Rooms, Sessions, Participants, UserEventAssignments
@@ -462,10 +487,12 @@ Users can be assigned to multiple events with different roles:
   "start_date": "2025-12-01T09:00:00Z",
   "end_date": "2025-12-03T18:00:00Z",
   "is_active": true,
-  "programme_file": "/media/programmes/tech_summit_2025.pdf",
-  "guide_file": "/media/guides/participant_guide.pdf",
+  "programme_file": "http://localhost:8000/media/events/programmes/tech_summit_2025.pdf",
+  "guide_file": "http://localhost:8000/media/events/guides/participant_guide.pdf",
   "president": 5,
-  "created_by": 1
+  "created_by": 1,
+  "created_at": "2025-12-21T10:00:00Z",
+  "updated_at": "2025-12-21T10:00:00Z"
 }
 ```
 
@@ -2092,67 +2119,256 @@ permission_classes = [IsAuthenticated, IsEventMember]
 
 ## File Uploads
 
+### 📋 Overview
+
+MakePlus backend supports PDF file uploads for events and participants. The system is optimized for fast response times with efficient file storage and lazy loading.
+
+**📄 For Complete Implementation Details:** See [EVENT_PDF_FILES_IMPLEMENTATION.md](EVENT_PDF_FILES_IMPLEMENTATION.md)
+
 ### Supported Files
 
-| Model | Field | Type | Purpose |
-|-------|-------|------|---------|
-| Event | `programme_file` | PDF | Event programme |
-| Event | `guide_file` | PDF | Participant guide |
-| Participant | `plan_file` | PDF | Exposant booth plan |
+| Model | Field | Type | Purpose | Storage Path |
+|-------|-------|------|---------|--------------|
+| Event | `programme_file` | PDF | Event programme/schedule | `media/events/programmes/` |
+| Event | `guide_file` | PDF | Participant guide/handbook | `media/events/guides/` |
+| Participant | `plan_file` | PDF | Exposant booth plan | `media/plans/` |
+
+### Key Features
+
+✅ **Optimized Storage:** File system storage for fastest access  
+✅ **Lazy Loading:** Only URLs returned in API (not file content)  
+✅ **Organized Structure:** Separate directories per file type  
+✅ **Optional Fields:** Not all events require PDF files  
+✅ **Scalable:** Easy migration to cloud storage (S3, CloudFront, Azure, etc.)  
+✅ **Production Ready:** Nginx/Apache/CDN support for direct file serving
 
 ### Upload Configuration
 
-**File Storage:**
-- Development: Local filesystem (`MEDIA_ROOT`)
-- Production: AWS S3 / Azure Blob / Google Cloud Storage
-
-**Settings:**
+**File Storage Settings:**
 ```python
+# settings.py
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Optional: File size limits
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
 ```
 
-**File Size Limits:**
-- Max file size: 10MB (configurable)
-- Allowed formats: PDF only
+**URL Configuration:**
+```python
+# urls.py
+from django.conf import settings
+from django.conf.urls.static import static
 
-### Upload Example
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
 
-**Multipart Form Data:**
+**Storage Structure:**
+```
+makeplus_api/
+├── media/
+│   └── events/
+│       ├── programmes/
+│       │   ├── event1_programme.pdf
+│       │   └── event2_programme.pdf
+│       └── guides/
+│           ├── event1_guide.pdf
+│           └── event2_guide.pdf
+```
+
+### Upload Example (Event PDFs)
+
+**Multipart Form Data Request:**
 ```http
 POST /api/events/
 Content-Type: multipart/form-data
+Authorization: Bearer YOUR_JWT_TOKEN
 
 name: "Tech Summit 2025"
-description: "..."
+description: "Annual technology summit"
 start_date: "2025-12-01T09:00:00Z"
 end_date: "2025-12-03T18:00:00Z"
-programme_file: [PDF file]
-guide_file: [PDF file]
+location: "Paris Convention Center"
+status: "upcoming"
+programme_file: [PDF file - event program]
+guide_file: [PDF file - participant guide]
 ```
 
 **Response:**
 ```json
 {
-  "id": "uuid",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "Tech Summit 2025",
-  "programme_file": "/media/programmes/tech_summit_2025.pdf",
-  "guide_file": "/media/guides/participant_guide.pdf",
-  ...
+  "description": "Annual technology summit",
+  "start_date": "2025-12-01T09:00:00Z",
+  "end_date": "2025-12-03T18:00:00Z",
+  "location": "Paris Convention Center",
+  "status": "upcoming",
+  "programme_file": "http://localhost:8000/media/events/programmes/programme_abc123.pdf",
+  "guide_file": "http://localhost:8000/media/events/guides/guide_xyz789.pdf",
+  "created_at": "2025-12-21T10:30:00Z",
+  "updated_at": "2025-12-21T10:30:00Z"
 }
 ```
 
-### File Access
+### Update Only PDFs (PATCH Request)
 
-**Public URLs:**
-```
-http://localhost:8000/media/programmes/tech_summit_2025.pdf
-http://localhost:8000/media/guides/participant_guide.pdf
+```http
+PATCH /api/events/{event_id}/
+Content-Type: multipart/form-data
+Authorization: Bearer YOUR_JWT_TOKEN
+
+programme_file: [New PDF file]
 ```
 
-**Serving Files:**
-- Development: Django serves via `django.views.static.serve`
-- Production: Nginx/Apache or CDN
+### Client Examples
+
+**Python (requests):**
+```python
+import requests
+
+url = "http://localhost:8000/api/events/"
+headers = {"Authorization": "Bearer YOUR_JWT_TOKEN"}
+
+files = {
+    'programme_file': open('programme.pdf', 'rb'),
+    'guide_file': open('guide.pdf', 'rb')
+}
+
+data = {
+    'name': 'Tech Summit 2025',
+    'start_date': '2025-12-01T09:00:00Z',
+    'end_date': '2025-12-03T18:00:00Z',
+    'location': 'Paris Convention Center',
+    'status': 'upcoming'
+}
+
+response = requests.post(url, headers=headers, data=data, files=files)
+print(response.json())
+```
+
+**Flutter:**
+```dart
+import 'package:http/http.dart' as http;
+
+Future<void> uploadEventPDFs() async {
+  var uri = Uri.parse('http://localhost:8000/api/events/');
+  var request = http.MultipartRequest('POST', uri);
+  
+  request.headers['Authorization'] = 'Bearer YOUR_JWT_TOKEN';
+  
+  request.fields['name'] = 'Tech Summit 2025';
+  request.fields['start_date'] = '2025-12-01T09:00:00Z';
+  request.fields['end_date'] = '2025-12-03T18:00:00Z';
+  request.fields['location'] = 'Paris Convention Center';
+  request.fields['status'] = 'upcoming';
+  
+  request.files.add(
+    await http.MultipartFile.fromPath(
+      'programme_file',
+      '/path/to/programme.pdf',
+    ),
+  );
+  
+  request.files.add(
+    await http.MultipartFile.fromPath(
+      'guide_file',
+      '/path/to/guide.pdf',
+    ),
+  );
+  
+  var response = await request.send();
+  var responseData = await response.stream.bytesToString();
+  print(responseData);
+}
+```
+
+**cURL:**
+```bash
+curl -X POST http://localhost:8000/api/events/ \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -F "name=Tech Summit 2025" \
+  -F "start_date=2025-12-01T09:00:00Z" \
+  -F "end_date=2025-12-03T18:00:00Z" \
+  -F "location=Paris Convention Center" \
+  -F "status=upcoming" \
+  -F "programme_file=@/path/to/programme.pdf" \
+  -F "guide_file=@/path/to/guide.pdf"
+```
+
+### File Access & Download
+
+**Direct URL Access:**
+```
+http://localhost:8000/media/events/programmes/programme_abc123.pdf
+http://localhost:8000/media/events/guides/guide_xyz789.pdf
+```
+
+**In Flutter (Download/View):**
+```dart
+import 'package:url_launcher/url_launcher.dart';
+
+Future<void> openPDF(String pdfUrl) async {
+  if (await canLaunch(pdfUrl)) {
+    await launch(pdfUrl);
+  }
+}
+
+// Usage
+openPDF(event.programmeFile); // Opens PDF in browser/viewer
+```
+
+### Production Deployment
+
+**Option 1: Nginx Static Files**
+```nginx
+location /media/ {
+    alias /path/to/makeplus_api/media/;
+    expires 30d;
+    add_header Cache-Control "public, immutable";
+}
+```
+
+**Option 2: AWS S3**
+```python
+# Install: pip install boto3 django-storages
+INSTALLED_APPS += ['storages']
+AWS_STORAGE_BUCKET_NAME = 'makeplus-media'
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+```
+
+**Option 3: CDN (CloudFlare, CloudFront)**
+- Point CDN to media directory
+- Configure CORS for cross-origin access
+- Set cache headers for performance
+
+### Performance Benefits
+
+1. ⚡ **Fast API Response:** Only URLs returned, not file content
+2. 💾 **No Database Bloat:** Files stored on filesystem, not in DB
+3. 🚀 **Direct Serving:** Web server serves files directly (bypasses Django)
+4. 📦 **Lazy Loading:** Clients download files only when needed
+5. 🌍 **CDN Ready:** Easy integration with global CDN networks
+
+### Security Considerations
+
+**Current:**
+- ✅ JWT authentication required for upload
+- ✅ Permission checks (only authorized users can create/update events)
+- ✅ Relative path storage in database
+
+**Recommended Enhancements:**
+```python
+from django.core.validators import FileExtensionValidator
+
+programme_file = models.FileField(
+    upload_to='events/programmes/',
+    validators=[FileExtensionValidator(['pdf'])],
+    help_text="Event programme PDF (max 10MB)"
+)
+```
 
 ---
 
@@ -2771,7 +2987,164 @@ tail -f /var/log/django/makeplus.log
 
 ---
 
+## Admin Dashboard (Web Interface)
+
+### Overview
+
+The MakePlus backend includes a web-based admin dashboard for event management. Staff users can create and manage events through an intuitive multi-step form interface.
+
+**Access:** `http://localhost:8000/dashboard/`  
+**Authentication:** Django session-based (staff users only)  
+**Documentation:** See [DASHBOARD_PDF_UPLOAD.md](DASHBOARD_PDF_UPLOAD.md) for PDF upload details
+
+### Key Features
+
+#### 1. **Event Creation (Multi-Step)**
+
+**Step 1: Event Details**
+- Basic information (name, dates, location)
+- Event status configuration
+- Logo and banner URLs
+- Organizer contact
+- **NEW:** Programme PDF upload 📄
+- **NEW:** Guide PDF upload 📄
+- Number of rooms
+
+**Step 2: Room Configuration**
+- Add multiple rooms/salles
+- Set capacity and descriptions
+
+**Step 3: Session Management**
+- Create sessions for each room
+- Configure paid ateliers
+- Set speakers and themes
+
+**Step 4: User Assignment**
+- Assign roles to users
+- Create new users
+- Manage event team
+
+#### 2. **Event Management**
+
+**Event List:**
+- View all events with statistics
+- Filter by status
+- Quick access to details
+
+**Event Detail:**
+- Complete event overview
+- Statistics dashboard
+- Room and session management
+- User management
+- PDF document links
+
+**Event Edit:**
+- Update event information
+- Replace PDF documents
+- View current files with direct links
+
+#### 3. **PDF Document Management** 🆕
+
+**Upload PDFs During Creation:**
+- Programme PDF (event schedule)
+- Guide PDF (participant handbook)
+- Optional fields
+- PDF-only file selection
+
+**Manage PDFs in Edit Form:**
+- View current PDF files
+- Download links for existing files
+- Upload new files to replace old
+- Keep existing files by leaving blank
+
+**Features:**
+- 📄 Clear section: "Event Documents (Optional)"
+- 🎨 Icons for visual identification
+- 📝 Help text for each field
+- 🔗 "View PDF" links in edit form
+- ✅ Browser-level PDF validation
+
+**File Organization:**
+- Programme PDFs: `media/events/programmes/`
+- Guide PDFs: `media/events/guides/`
+- Direct URL access
+- Available via API
+
+#### 4. **Additional Features**
+
+- Session Q&A management
+- Announcement creation
+- User role assignment
+- Room staff scheduling
+- Statistics and analytics
+- Caisse management integration
+
+### Technical Details
+
+**Form Implementation:**
+```python
+# forms.py
+class EventDetailsForm(forms.ModelForm):
+    fields = [
+        'name', 'description', 'start_date', 'end_date',
+        'location', 'status', 'organizer_contact',
+        'programme_file', 'guide_file'  # PDF fields
+    ]
+```
+
+**View Processing:**
+```python
+# views.py
+def event_create_step1(request):
+    if request.method == 'POST':
+        form = EventDetailsForm(request.POST, request.FILES)
+        # Handles file uploads automatically
+```
+
+**Template:**
+```html
+<!-- event_create_step1.html -->
+<form method="post" enctype="multipart/form-data">
+    <!-- PDF upload fields with accept=".pdf" -->
+</form>
+```
+
+### Dashboard URLs
+
+| URL | Purpose |
+|-----|---------|
+| `/dashboard/` | Home (event list) |
+| `/dashboard/login/` | Staff login |
+| `/dashboard/logout/` | Logout |
+| `/dashboard/event/create/` | Create event (Step 1) |
+| `/dashboard/event/{id}/` | Event detail |
+| `/dashboard/event/{id}/edit/` | Edit event |
+| `/dashboard/event/{id}/delete/` | Delete event |
+
+### Access Control
+
+**Required:** Staff or superuser status (`is_staff=True` or `is_superuser=True`)
+
+**Login Redirect:**
+- Non-staff users: Error message
+- Unauthenticated: Redirect to login
+
+---
+
 ## Version History
+
+**v2.2 (December 21, 2025)**
+- ✅ Event PDF files implementation (programme_file, guide_file)
+- ✅ Event image uploads (logo, banner) - replaced URL fields with ImageField
+- ✅ Dashboard PDF upload in event creation form
+- ✅ Dashboard PDF upload in event edit form
+- ✅ Dashboard image upload with thumbnails and preview
+- ✅ Complete PDF documentation package created
+- ✅ Complete image upload documentation created
+- ✅ API support for multipart/form-data uploads
+- ✅ Optimized file storage with lazy loading
+- ✅ Image validation with Pillow
+- ✅ Updated backend documentation
 
 **v1.1 (November 25, 2025)**
 - ✅ Added Flutter frontend compatibility
@@ -2817,6 +3190,442 @@ tail -f /var/log/django/makeplus.log
 - Role-based UI examples
 
 ---
+
+---
+
+## 🚪 Room Assignment System for Organisateurs, Gestionnaires & Contrôleurs
+
+### Overview
+
+The system allows assigning specific rooms to users with the following roles:
+- **Organisateur** (Organizer)
+- **Gestionnaire des Salles** (Room Manager)
+- **Contrôleur des Badges** (Badge Controller)
+
+Room assignments are stored in the `UserEventAssignment` model's `metadata` field as JSON.
+
+### Data Structure
+
+**UserEventAssignment Model:**
+```python
+class UserEventAssignment(models.Model):
+    user = models.ForeignKey(User)
+    event = models.ForeignKey(Event)
+    role = models.CharField()  # organisateur, gestionnaire_des_salles, controlleur_des_badges, etc.
+    metadata = models.JSONField(default=dict, blank=True)  # Room assignment stored here
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_by = models.ForeignKey(User, related_name='assigned_users')
+    is_active = models.BooleanField(default=True)
+```
+
+**Room Assignment in Metadata:**
+```json
+{
+    "assigned_room_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+### Retrieving Room Assignment (Backend Logic)
+
+**Python Example (Dashboard):**
+```python
+# Get user's event assignment
+assignment = UserEventAssignment.objects.get(user=user, event=event)
+
+# Check if role can have room assignment
+if assignment.role in ['organisateur', 'gestionnaire_des_salles', 'controlleur_des_badges']:
+    # Get room ID from metadata
+    room_id = assignment.metadata.get('assigned_room_id')
+    
+    if room_id:
+        try:
+            assigned_room = Room.objects.get(id=room_id)
+            print(f"Assigned to: {assigned_room.name}")
+        except Room.DoesNotExist:
+            print("Room not found")
+    else:
+        print("No room assigned")
+else:
+    print("This role doesn't require room assignment")
+```
+
+### API Integration for Mobile Apps
+
+#### 1. Get User's Event Assignments with Room Info
+
+**Endpoint:** `GET /api/events/{event_id}/users/`
+
+**Response includes UserEventAssignment data:**
+```json
+{
+    "id": "assignment-uuid",
+    "user": {
+        "id": 1,
+        "username": "john_manager",
+        "email": "john@example.com",
+        "first_name": "John",
+        "last_name": "Manager"
+    },
+    "event": {
+        "id": "event-uuid",
+        "name": "Tech Conference 2025"
+    },
+    "role": "gestionnaire_des_salles",
+    "metadata": {
+        "assigned_room_id": "room-uuid"
+    },
+    "assigned_at": "2025-12-22T10:30:00Z",
+    "assigned_by": {
+        "id": 2,
+        "username": "admin"
+    },
+    "is_active": true
+}
+```
+
+#### 2. Get Room Details
+
+**Endpoint:** `GET /api/events/{event_id}/rooms/{room_id}/`
+
+**Response:**
+```json
+{
+    "id": "room-uuid",
+    "event": "event-uuid",
+    "name": "Auditorium A",
+    "capacity": 200,
+    "description": "Main conference hall",
+    "location": "Ground Floor, Section A",
+    "created_at": "2025-12-01T09:00:00Z"
+}
+```
+
+#### 3. Get All Rooms for an Event
+
+**Endpoint:** `GET /api/events/{event_id}/rooms/`
+
+**Response:**
+```json
+[
+    {
+        "id": "room1-uuid",
+        "name": "Auditorium A",
+        "capacity": 200,
+        ...
+    },
+    {
+        "id": "room2-uuid",
+        "name": "Workshop Room B",
+        "capacity": 50,
+        ...
+    }
+]
+```
+
+### Flutter/Dart Implementation Guide
+
+#### Step 1: Define Models
+
+```dart
+class UserEventAssignment {
+  final String id;
+  final User user;
+  final Event event;
+  final String role;
+  final Map<String, dynamic>? metadata;
+  final DateTime assignedAt;
+  final bool isActive;
+  
+  // Helper getter for assigned room ID
+  String? get assignedRoomId {
+    if (metadata == null) return null;
+    return metadata!['assigned_room_id'] as String?;
+  }
+  
+  // Check if role can have room assignment
+  bool get canHaveRoomAssignment {
+    return ['organisateur', 'gestionnaire_des_salles', 'controlleur_des_badges']
+        .contains(role);
+  }
+  
+  factory UserEventAssignment.fromJson(Map<String, dynamic> json) {
+    return UserEventAssignment(
+      id: json['id'],
+      user: User.fromJson(json['user']),
+      event: Event.fromJson(json['event']),
+      role: json['role'],
+      metadata: json['metadata'] as Map<String, dynamic>?,
+      assignedAt: DateTime.parse(json['assigned_at']),
+      isActive: json['is_active'],
+    );
+  }
+}
+
+class Room {
+  final String id;
+  final String eventId;
+  final String name;
+  final int capacity;
+  final String? description;
+  final String? location;
+  
+  factory Room.fromJson(Map<String, dynamic> json) {
+    return Room(
+      id: json['id'],
+      eventId: json['event'],
+      name: json['name'],
+      capacity: json['capacity'],
+      description: json['description'],
+      location: json['location'],
+    );
+  }
+}
+```
+
+#### Step 2: API Service
+
+```dart
+class ApiService {
+  final String baseUrl = 'https://makeplus-django-5.onrender.com/api';
+  final String? authToken;
+  
+  // Get user's assignments for an event
+  Future<List<UserEventAssignment>> getUserAssignments(String eventId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/events/$eventId/users/'),
+      headers: {
+        'Authorization': 'Bearer $authToken',
+        'Content-Type': 'application/json',
+      },
+    );
+    
+    if (response.statusCode == 200) {
+      final List data = json.decode(response.body);
+      return data.map((json) => UserEventAssignment.fromJson(json)).toList();
+    }
+    throw Exception('Failed to load assignments');
+  }
+  
+  // Get room details
+  Future<Room> getRoom(String eventId, String roomId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/events/$eventId/rooms/$roomId/'),
+      headers: {
+        'Authorization': 'Bearer $authToken',
+        'Content-Type': 'application/json',
+      },
+    );
+    
+    if (response.statusCode == 200) {
+      return Room.fromJson(json.decode(response.body));
+    }
+    throw Exception('Failed to load room');
+  }
+  
+  // Get all rooms for event
+  Future<List<Room>> getEventRooms(String eventId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/events/$eventId/rooms/'),
+      headers: {
+        'Authorization': 'Bearer $authToken',
+        'Content-Type': 'application/json',
+      },
+    );
+    
+    if (response.statusCode == 200) {
+      final List data = json.decode(response.body);
+      return data.map((json) => Room.fromJson(json)).toList();
+    }
+    throw Exception('Failed to load rooms');
+  }
+}
+```
+
+#### Step 3: Usage in Widget
+
+```dart
+class UserAssignmentWidget extends StatefulWidget {
+  final String eventId;
+  final String userId;
+  
+  @override
+  _UserAssignmentWidgetState createState() => _UserAssignmentWidgetState();
+}
+
+class _UserAssignmentWidgetState extends State<UserAssignmentWidget> {
+  UserEventAssignment? assignment;
+  Room? assignedRoom;
+  bool isLoading = true;
+  
+  @override
+  void initState() {
+    super.initState();
+    loadAssignmentAndRoom();
+  }
+  
+  Future<void> loadAssignmentAndRoom() async {
+    try {
+      // Get user's assignment
+      final assignments = await ApiService().getUserAssignments(widget.eventId);
+      assignment = assignments.firstWhere((a) => a.user.id == widget.userId);
+      
+      // If user has room assignment capability and a room assigned
+      if (assignment!.canHaveRoomAssignment && assignment!.assignedRoomId != null) {
+        assignedRoom = await ApiService().getRoom(
+          widget.eventId,
+          assignment!.assignedRoomId!,
+        );
+      }
+      
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading assignment: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return CircularProgressIndicator();
+    }
+    
+    return Card(
+      child: ListTile(
+        title: Text('Role: ${assignment?.role ?? "N/A"}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (assignment?.canHaveRoomAssignment == true)
+              Text(
+                assignedRoom != null
+                    ? 'Assigned Room: ${assignedRoom!.name}'
+                    : 'No room assigned',
+                style: TextStyle(
+                  color: assignedRoom != null ? Colors.green : Colors.grey,
+                ),
+              ),
+            if (assignedRoom != null) ...[
+              SizedBox(height: 4),
+              Text('Capacity: ${assignedRoom!.capacity}'),
+              if (assignedRoom!.location != null)
+                Text('Location: ${assignedRoom!.location}'),
+            ],
+          ],
+        ),
+        leading: Icon(
+          assignedRoom != null ? Icons.meeting_room : Icons.person,
+          color: assignedRoom != null ? Colors.green : Colors.grey,
+        ),
+      ),
+    );
+  }
+}
+```
+
+### Summary for Mobile Developers
+
+**To retrieve assigned room information:**
+
+1. **Fetch user's event assignment** → Get `metadata.assigned_room_id`
+2. **Check if role requires room** → Only `organisateur`, `gestionnaire_des_salles`, `controlleur_des_badges`
+3. **Fetch room details** → Use room ID to get full room information
+4. **Display in UI** → Show room name, capacity, location
+
+**Key Points:**
+- Room assignment is **optional** even for roles that support it
+- Always check if `assigned_room_id` exists in metadata before fetching room details
+- Room IDs are UUIDs (e.g., `"550e8400-e29b-41d4-a716-446655440000"`)
+- Use appropriate error handling for missing or invalid room IDs
+- Cache room data to reduce API calls
+
+---
+
+## 🔧 Fixing Missing Room Assignments (Backend)
+
+If existing users don't have room assignments in their metadata, use one of these methods:
+
+### Method 1: Management Command (Recommended)
+
+```bash
+# List all assignments missing rooms
+python manage.py fix_room_assignments
+
+# Fix specific assignment
+python manage.py fix_room_assignments \
+    --assignment-id "25" \
+    --room-id "room-uuid-here"
+
+# Dry run (preview changes)
+python manage.py fix_room_assignments \
+    --assignment-id "25" \
+    --room-id "room-uuid-here" \
+    --dry-run
+```
+
+### Method 2: Quick Fix Script
+
+For specific case (e.g., Assignment ID 25):
+
+```bash
+python manage.py shell < fix_assignment_25.py
+```
+
+Or in Django shell:
+```python
+from fix_assignment_25 import fix_assignment
+fix_assignment()
+```
+
+### Method 3: Django Admin Panel
+
+1. Go to **Django Admin** → **User Event Assignments**
+2. Find the assignment for user in the event
+3. Edit the **Metadata** field:
+   ```json
+   {"assigned_room_id": "your-room-uuid-here"}
+   ```
+4. Save
+
+### Method 4: Direct Django Shell
+
+```python
+from events.models import UserEventAssignment, Room
+
+# Get the assignment
+assignment = UserEventAssignment.objects.get(id="25")
+
+# Get the room
+room = Room.objects.get(event=assignment.event, name="Aula")
+
+# Assign room
+assignment.metadata = assignment.metadata or {}
+assignment.metadata['assigned_room_id'] = str(room.id)
+assignment.save()
+
+print(f"✓ Assigned {room.name} to {assignment.user.email}")
+```
+
+### Getting Room UUIDs
+
+```python
+from events.models import Room, Event
+
+# List all rooms for an event
+event = Event.objects.get(name="AOPA")
+for room in Room.objects.filter(event=event):
+    print(f"{room.name}: {room.id}")
+```
+
+**Output example:**
+```
+Aula: 550e8400-e29b-41d4-a716-446655440000
+Workshop Room: 660e8400-e29b-41d4-a716-446655440001
+```
 
 ---
 

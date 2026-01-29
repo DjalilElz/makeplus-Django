@@ -1,0 +1,4 @@
+this is a set of instruction to be implimented next 
+you have to impliment the email template so the email copagne work like mailerlite detailed stats about the number of who oppened the email and the numbver of who clicked on linked and statistics about every persor the number of opened link and so on also a detailed stats about every link in the email work exactly like mailerlite if you can use their api to build it instead of unlayer editor
+also i want stats about the formulair a detailed stats about every formulaire 
+also i want to use auto mailing for example after submitting the user the form the user will send and email for confirming the registration it must be automatic and the admin can prepare that email  
