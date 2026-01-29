@@ -317,6 +317,9 @@ LOGOUT_REDIRECT_URL = '/dashboard/login/'
 # Email Configuration
 # Use MailerLite API for production (handles delivery, tracking, bounces)
 MAILERLITE_API_TOKEN = config('MAILERLITE_API_TOKEN', default='')
+# IMPORTANT: This must be a verified email in your MailerLite account
+# Go to MailerLite > Settings > Domains to verify your domain first
+MAILERLITE_FROM_EMAIL = config('MAILERLITE_FROM_EMAIL', default='')
 
 # Fallback SendGrid if MailerLite not configured
 SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')

@@ -25,11 +25,14 @@ def send_email_via_mailerlite(to_email, subject, html_content, from_email=None, 
     
     Note: For bulk sending, use send_bulk_via_mailerlite() instead.
     
+    IMPORTANT: from_email MUST be from a verified domain in MailerLite.
+    Set MAILERLITE_FROM_EMAIL in your environment variables.
+    
     Args:
         to_email: Recipient email address
         subject: Email subject line
         html_content: HTML body of the email
-        from_email: Sender email (optional, uses DEFAULT_FROM_EMAIL)
+        from_email: Sender email (must be verified in MailerLite!)
         to_name: Recipient name (optional)
     
     Returns:
@@ -40,7 +43,11 @@ def send_email_via_mailerlite(to_email, subject, html_content, from_email=None, 
     if not api_token:
         return False, 'MailerLite API token not configured'
     
-    from_address = from_email or settings.DEFAULT_FROM_EMAIL
+    # IMPORTANT: Must use a verified email in MailerLite
+    # Priority: 1) MAILERLITE_FROM_EMAIL, 2) from_email param, 3) DEFAULT_FROM_EMAIL
+    mailerlite_from = getattr(settings, 'MAILERLITE_FROM_EMAIL', '')
+    from_address = mailerlite_from or from_email or settings.DEFAULT_FROM_EMAIL
+    
     recipient_name = to_name or to_email.split('@')[0]
     
     headers = {
@@ -171,11 +178,14 @@ def send_bulk_via_mailerlite(recipients, subject_template, html_template, from_e
     3. Create ONE campaign
     4. Send to the group
     
+    IMPORTANT: from_email MUST be from a verified domain in MailerLite!
+    Set MAILERLITE_FROM_EMAIL in environment variables.
+    
     Args:
         recipients: List of dicts with 'email', 'name', 'context' (for variable replacement)
         subject_template: Subject line (can contain {name}, {email} variables)
         html_template: HTML content (can contain {name}, {email} variables)
-        from_email: Sender email
+        from_email: Sender email (must be verified in MailerLite!)
         campaign_name: Optional campaign name
     
     Returns:
@@ -189,7 +199,10 @@ def send_bulk_via_mailerlite(recipients, subject_template, html_template, from_e
     if not recipients:
         return False, 'No recipients provided', 0
     
-    from_address = from_email or settings.DEFAULT_FROM_EMAIL
+    # IMPORTANT: Must use a verified email in MailerLite
+    # Priority: 1) MAILERLITE_FROM_EMAIL, 2) from_email param, 3) DEFAULT_FROM_EMAIL
+    mailerlite_from = getattr(settings, 'MAILERLITE_FROM_EMAIL', '')
+    from_address = mailerlite_from or from_email or settings.DEFAULT_FROM_EMAIL
     
     headers = {
         'Authorization': f'Bearer {api_token}',
