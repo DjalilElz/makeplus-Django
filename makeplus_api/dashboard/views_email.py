@@ -9,6 +9,8 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from events.models import Event, Participant
 from .models_email import EmailTemplate, EventEmailTemplate, EmailLog
+from smtplib import SMTPException
+import socket
 import re
 
 
@@ -1416,25 +1418,46 @@ def campaign_send(request, campaign_id):
                 # Use custom from_email if provided, otherwise use default
                 from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
                 
-                # Send email
-                send_mail(
-                    subject=subject,
-                    message='',
-                    from_email=from_address,
-                    recipient_list=[recipient.email],
-                    html_message=body_html,
-                    fail_silently=False,
-                )
-                
-                # Update recipient status
-                recipient.status = 'sent'
-                recipient.sent_at = timezone.now()
-                recipient.save()
-                
-                sent_count += 1
+                # Send email with timeout protection
+                try:
+                    send_mail(
+                        subject=subject,
+                        message='',
+                        from_email=from_address,
+                        recipient_list=[recipient.email],
+                        html_message=body_html,
+                        fail_silently=False,
+                    )
+                    
+                    # Update recipient status
+                    recipient.status = 'sent'
+                    recipient.sent_at = timezone.now()
+                    recipient.save()
+                    
+                    sent_count += 1
+                except SMTPException as e:
+                    # SMTP-specific errors
+                    recipient.status = 'failed'
+                    recipient.error_message = f'SMTP Error: {str(e)}'
+                    recipient.save()
+                    failed_count += 1
+                except socket.timeout:
+                    # Connection timeout
+                    recipient.status = 'failed'
+                    recipient.error_message = 'Email server timeout'
+                    recipient.save()
+                    failed_count += 1
+                except Exception as e:
+                    # Other errors
+                    recipient.status = 'failed'
+                    recipient.error_message = str(e)
+                    recipient.save()
+                    failed_count += 1
+                    
             except Exception as e:
+                # Outer exception for template processing errors
                 recipient.status = 'failed'
-                recipient.error_message = str(e)
+                recipient.error_message = f'Template error: {str(e)}'
                 recipient.save()
                 failed_count += 1
         
