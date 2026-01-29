@@ -175,7 +175,7 @@
                             
                             {% if event.created_by %}
                             <dt class="col-sm-3">Created By:</dt>
-                            <dd class="col-sm-9">{{ event.created_by.get_full_name|default:event.created_by.username }}</dd>
+                            <dd class="col-sm-9">{% if event.created_by %}{{ event.created_by.get_full_name|default:event.created_by.username }}{% else %}N/A{% endif %}</dd>
                             {% endif %}
                             
                             <dt class="col-sm-3">Created At:</dt>

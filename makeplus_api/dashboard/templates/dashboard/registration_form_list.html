@@ -68,7 +68,7 @@
                     
                     <div class="card-footer bg-light">
                         <small class="text-muted">
-                            <i class="bi bi-person"></i> {{ form.created_by.username }} | 
+                            {% if form.created_by %}<i class="bi bi-person"></i> {{ form.created_by.username }} |{% endif %} 
                             <i class="bi bi-calendar"></i> {{ form.created_at|date:"M d, Y" }}
                         </small>
                         

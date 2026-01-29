@@ -56,7 +56,7 @@
                         <div class="d-flex align-items-center text-muted small mb-2">
                             <i class="bi bi-calendar me-2"></i> {{ item.campaign.created_at|date:"M d, Y" }}
                             {% if item.campaign.created_by %}
-                                <span class="ms-3"><i class="bi bi-person me-1"></i> {{ item.campaign.created_by.username }}</span>
+                                {% if item.campaign.created_by %}<span class="ms-3"><i class="bi bi-person me-1"></i> {{ item.campaign.created_by.username }}</span>{% endif %}
                             {% endif %}
                         </div>
                         {% if item.campaign.event %}

@@ -129,7 +129,7 @@
                     <div class="card-footer bg-light">
                         <div class="mb-2">
                             <small class="text-muted">
-                                <i class="bi bi-person"></i> {{ template.created_by.username }} | 
+                                {% if template.created_by %}<i class="bi bi-person"></i> {{ template.created_by.username }} |{% endif %} 
                                 <i class="bi bi-calendar"></i> {{ template.created_at|date:"M d, Y" }}
                             </small>
                         </div>

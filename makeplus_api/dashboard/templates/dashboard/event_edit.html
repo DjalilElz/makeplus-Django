@@ -353,7 +353,7 @@
                     </p>
                     <p class="small mb-0">
                         <strong>Created By:</strong><br>
-                        {{ event.created_by.get_full_name|default:event.created_by.username }}
+                        {% if event.created_by %}{{ event.created_by.get_full_name|default:event.created_by.username }}{% else %}N/A{% endif %}
                     </p>
                 </div>
             </div>
