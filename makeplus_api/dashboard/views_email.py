@@ -1270,8 +1270,9 @@ def campaign_delete_recipient(request, campaign_id, recipient_id):
 
 @login_required
 def campaign_send_test(request, campaign_id):
-    """Send a test email for a campaign"""
+    """Send a test email for a campaign - Uses HTTP API for reliable delivery"""
     from .models_email import EmailCampaign
+    from .email_sender import send_email
     from django.http import JsonResponse
     import json
     
@@ -1303,17 +1304,19 @@ def campaign_send_test(request, campaign_id):
             # Use custom from_email if provided, otherwise use default
             from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
             
-            # Send test email
-            send_mail(
+            # Send test email using HTTP API
+            success, error = send_email(
+                to_email=test_email,
                 subject=f"[TEST] {subject}",
-                message='',
-                from_email=from_address,
-                recipient_list=[test_email],
-                html_message=body_html,
-                fail_silently=False,
+                html_content=body_html,
+                from_email=from_address
             )
             
-            return JsonResponse({'success': True, 'message': f'Test email sent to {test_email}'})
+            if success:
+                return JsonResponse({'success': True, 'message': f'Test email sent to {test_email}'})
+            else:
+                return JsonResponse({'success': False, 'error': error})
+                
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
     
@@ -1322,10 +1325,10 @@ def campaign_send_test(request, campaign_id):
 
 @login_required
 def campaign_send(request, campaign_id):
-    """Send campaign to all recipients"""
+    """Send campaign to all recipients - Single click, automatic sending via HTTP API"""
     from .models_email import EmailCampaign, EmailRecipient, EmailLink
+    from .email_sender import send_email
     from bs4 import BeautifulSoup
-    import secrets
     import hashlib
     
     campaign = get_object_or_404(EmailCampaign, id=campaign_id)
@@ -1336,15 +1339,13 @@ def campaign_send(request, campaign_id):
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     
     # Check if there are recipients
-    recipients = campaign.recipients.filter(status='pending')
-    if not recipients.exists():
+    recipients = list(campaign.recipients.filter(status='pending'))
+    if not recipients:
         messages.error(request, 'No recipients found for this campaign. Please add recipients first.')
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     
     if request.method == 'POST':
-        from django.core.mail import get_connection
-        
-        # Update campaign status
+        # Update campaign status immediately
         campaign.status = 'sending'
         campaign.save()
         
@@ -1372,95 +1373,82 @@ def campaign_send(request, campaign_id):
         
         sent_count = 0
         failed_count = 0
+        errors = []
         
-        # Create a persistent SMTP connection for all emails
-        try:
-            connection = get_connection(
-                fail_silently=False,
-                timeout=10  # 10 second timeout per operation
-            )
-            connection.open()
-            
-            for recipient in recipients:
-                try:
-                    # Build context for template variables
-                    context = {
-                        'name': recipient.name or recipient.email.split('@')[0],
-                        'email': recipient.email,
-                        'event_name': campaign.event.name if campaign.event else '',
-                        'event_location': campaign.event.location if campaign.event else '',
-                        'event_start_date': campaign.event.start_date.strftime('%B %d, %Y') if campaign.event and campaign.event.start_date else '',
-                        'event_end_date': campaign.event.end_date.strftime('%B %d, %Y') if campaign.event and campaign.event.end_date else '',
-                        'unsubscribe_url': request.build_absolute_uri(f'/track/email/unsubscribe/{recipient.tracking_token}/'),
-                    }
-                    
-                    # Replace template variables
-                    subject = replace_template_variables(campaign.subject, context)
-                    body_html = replace_template_variables(campaign.body_html or campaign.body_text, context)
-                    
-                    # Add link tracking to all links
-                    if campaign.track_clicks and link_map:
-                        soup = BeautifulSoup(body_html, 'html.parser')
-                        for link in soup.find_all('a', href=True):
-                            original_url = link['href']
-                            if original_url in link_map:
-                                email_link = link_map[original_url]
-                                tracking_url = request.build_absolute_uri(
-                                    f'/track/email/click/{email_link.tracking_token}/{recipient.tracking_token}/'
-                                )
-                                link['href'] = tracking_url
-                        body_html = str(soup)
-                    
-                    # Add tracking pixel for opens
-                    if campaign.track_opens:
-                        tracking_pixel = f'<img src="{request.build_absolute_uri(f"/track/email/open/{recipient.tracking_token}/")}" width="1" height="1" style="display:none;" />'
-                        body_html = body_html + tracking_pixel
-                    
-                    # Add unsubscribe footer
-                    unsubscribe_footer = f'''
-                    <div style="text-align:center; margin-top:30px; padding:20px; font-size:12px; color:#999; border-top:1px solid #eee;">
-                        <p>You received this email because you subscribed to our mailing list.</p>
-                        <p><a href="{context['unsubscribe_url']}" style="color:#999;">Unsubscribe</a> from this list.</p>
-                    </div>
-                    '''
-                    body_html = body_html + unsubscribe_footer
-                    
-                    # Use custom from_email if provided, otherwise use default
-                    from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
-                    
-                    # Send email using the persistent connection
-                    send_mail(
-                        subject=subject,
-                        message='',
-                        from_email=from_address,
-                        recipient_list=[recipient.email],
-                        html_message=body_html,
-                        connection=connection,
-                        fail_silently=True,  # Don't crash on individual failures
-                    )
-                    
-                    # Update recipient status
+        # Use custom from_email if provided, otherwise use default
+        from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
+        
+        # Send to ALL recipients in one click
+        for recipient in recipients:
+            try:
+                # Build context for template variables
+                context = {
+                    'name': recipient.name or recipient.email.split('@')[0],
+                    'email': recipient.email,
+                    'event_name': campaign.event.name if campaign.event else '',
+                    'event_location': campaign.event.location if campaign.event else '',
+                    'event_start_date': campaign.event.start_date.strftime('%B %d, %Y') if campaign.event and campaign.event.start_date else '',
+                    'event_end_date': campaign.event.end_date.strftime('%B %d, %Y') if campaign.event and campaign.event.end_date else '',
+                    'unsubscribe_url': request.build_absolute_uri(f'/track/email/unsubscribe/{recipient.tracking_token}/'),
+                }
+                
+                # Replace template variables
+                subject = replace_template_variables(campaign.subject, context)
+                body_html = replace_template_variables(campaign.body_html or campaign.body_text, context)
+                
+                # Add link tracking to all links
+                if campaign.track_clicks and link_map:
+                    soup = BeautifulSoup(body_html, 'html.parser')
+                    for link in soup.find_all('a', href=True):
+                        original_url = link['href']
+                        if original_url in link_map:
+                            email_link = link_map[original_url]
+                            tracking_url = request.build_absolute_uri(
+                                f'/track/email/click/{email_link.tracking_token}/{recipient.tracking_token}/'
+                            )
+                            link['href'] = tracking_url
+                    body_html = str(soup)
+                
+                # Add tracking pixel for opens
+                if campaign.track_opens:
+                    tracking_pixel = f'<img src="{request.build_absolute_uri(f"/track/email/open/{recipient.tracking_token}/")}" width="1" height="1" style="display:none;" />'
+                    body_html = body_html + tracking_pixel
+                
+                # Add unsubscribe footer
+                unsubscribe_footer = f'''
+                <div style="text-align:center; margin-top:30px; padding:20px; font-size:12px; color:#999; border-top:1px solid #eee;">
+                    <p>You received this email because you subscribed to our mailing list.</p>
+                    <p><a href="{context['unsubscribe_url']}" style="color:#999;">Unsubscribe</a> from this list.</p>
+                </div>
+                '''
+                body_html = body_html + unsubscribe_footer
+                
+                # Send email using HTTP API (works on Render)
+                success, error = send_email(
+                    to_email=recipient.email,
+                    subject=subject,
+                    html_content=body_html,
+                    from_email=from_address
+                )
+                
+                if success:
                     recipient.status = 'sent'
                     recipient.sent_at = timezone.now()
                     recipient.save()
                     sent_count += 1
-                    
-                except Exception as e:
-                    # Log error but continue with other recipients
+                else:
                     recipient.status = 'failed'
-                    recipient.error_message = str(e)[:500]  # Limit error message length
+                    recipient.error_message = error[:500] if error else 'Unknown error'
                     recipient.save()
                     failed_count += 1
-            
-            # Close the connection
-            connection.close()
-            
-        except Exception as e:
-            # Connection-level error
-            messages.error(request, f'Email server connection failed: {str(e)}')
-            campaign.status = 'draft'  # Revert to draft
-            campaign.save()
-            return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+                    errors.append(f"{recipient.email}: {error}")
+                    
+            except Exception as e:
+                recipient.status = 'failed'
+                recipient.error_message = str(e)[:500]
+                recipient.save()
+                failed_count += 1
+                errors.append(f"{recipient.email}: {str(e)}")
         
         # Update campaign status
         campaign.status = 'sent'
@@ -1469,8 +1457,11 @@ def campaign_send(request, campaign_id):
         campaign.total_delivered += sent_count
         campaign.save()
         
+        # Show results
         if failed_count > 0:
-            messages.success(request, f'Campaign sent to {sent_count} recipients. {failed_count} failed.')
+            messages.warning(request, f'Campaign sent to {sent_count} recipients. {failed_count} failed.')
+            if errors:
+                messages.error(request, f'Errors: {"; ".join(errors[:3])}{"..." if len(errors) > 3 else ""}')
         else:
             messages.success(request, f'Campaign successfully sent to all {sent_count} recipients!')
         
@@ -1479,6 +1470,6 @@ def campaign_send(request, campaign_id):
     # GET request - show confirmation page
     context = {
         'campaign': campaign,
-        'recipient_count': recipients.count(),
+        'recipient_count': len(recipients),
     }
     return render(request, 'dashboard/campaign_send_confirm.html', context)

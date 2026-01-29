@@ -313,14 +313,20 @@ LOGGING = {
 LOGIN_URL = '/dashboard/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/dashboard/login/'
+
 # Email Configuration
+# Use SendGrid API for production (HTTPS-based, works on cloud platforms)
+# Set SENDGRID_API_KEY in environment variables to enable
+SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
+
+# Fallback to SMTP if SendGrid not configured
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = config('EMAIL_HOST', default='localhost')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)  # 30 seconds timeout
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@makeplus.com')
 
 # Site URL for tracking links
