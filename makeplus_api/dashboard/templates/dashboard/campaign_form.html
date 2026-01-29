@@ -1,0 +1,532 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}{% if is_edit %}Edit Campaign{% else %}Create Campaign{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    #email-editor-container {
+        height: 700px;
+        width: 100%;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .campaign-header {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 8px 8px 0 0;
+    }
+    
+    .action-bar {
+        background: #f8f9fa;
+        padding: 15px;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .variable-pill {
+        display: inline-block;
+        padding: 4px 12px;
+        margin: 4px;
+        background: #d1ecf1;
+        color: #0c5460;
+        border-radius: 20px;
+        font-size: 12px;
+        font-family: 'Courier New', monospace;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid #bee5eb;
+    }
+    
+    .variable-pill:hover {
+        background: #0c5460;
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(12, 84, 96, 0.3);
+    }
+    
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    
+    .form-section {
+        background: white;
+        border-radius: 8px;
+        padding: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .section-title {
+        font-size: 1.2em;
+        font-weight: 600;
+        margin-bottom: 20px;
+        color: #333;
+        border-bottom: 2px solid #28a745;
+        padding-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <form method="post" id="campaignForm">
+        {% csrf_token %}
+        <input type="hidden" name="body_html" id="body_html">
+        <input type="hidden" name="builder_config" id="builder_config">
+        <input type="hidden" name="body_text" id="body_text">
+        
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <a href="{% if is_edit %}{% url 'dashboard:campaign_detail' campaign.id %}{% else %}{% url 'dashboard:email_template_list' %}{% endif %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+                <h3 class="mb-0">
+                    <i class="bi bi-megaphone"></i> 
+                    {% if is_edit %}Edit Campaign{% else %}Create New Campaign{% endif %}
+                </h3>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-primary" id="previewBtn">
+                    <i class="bi bi-eye"></i> Preview
+                </button>
+                <button type="submit" class="btn btn-success" id="saveBtn">
+                    <i class="bi bi-check-circle"></i> {% if is_edit %}Update{% else %}Create{% endif %} Campaign
+                </button>
+            </div>
+        </div>
+        
+        <!-- Campaign Details Section -->
+        <div class="form-section">
+            <div class="section-title">
+                <i class="bi bi-info-circle"></i> Campaign Information
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.name.id_for_label }}" class="form-label fw-bold">
+                        Campaign Name <span class="text-danger">*</span>
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                        <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+                    {% endif %}
+                    <small class="form-text text-muted">Internal name for your campaign</small>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.event.id_for_label }}" class="form-label fw-bold">
+                        Event (Optional)
+                    </label>
+                    {{ form.event }}
+                    {% if form.event.errors %}
+                        <div class="text-danger small mt-1">{{ form.event.errors.0 }}</div>
+                    {% endif %}
+                    <small class="form-text text-muted">Link this campaign to an event</small>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="{{ form.subject.id_for_label }}" class="form-label fw-bold">
+                    Email Subject <span class="text-danger">*</span>
+                </label>
+                {{ form.subject }}
+                {% if form.subject.errors %}
+                    <div class="text-danger small mt-1">{{ form.subject.errors.0 }}</div>
+                {% endif %}
+                <small class="form-text text-muted">The subject line recipients will see in their inbox</small>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.from_email.id_for_label }}" class="form-label fw-bold">
+                        From Email <span class="text-danger">*</span>
+                    </label>
+                    {{ form.from_email }}
+                    {% if form.from_email.errors %}
+                        <div class="text-danger small mt-1">{{ form.from_email.errors.0 }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.from_name.id_for_label }}" class="form-label fw-bold">
+                        From Name
+                    </label>
+                    {{ form.from_name }}
+                    {% if form.from_name.errors %}
+                        <div class="text-danger small mt-1">{{ form.from_name.errors.0 }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="{{ form.reply_to.id_for_label }}" class="form-label fw-bold">
+                    Reply-To Email (Optional)
+                </label>
+                {{ form.reply_to }}
+                {% if form.reply_to.errors %}
+                    <div class="text-danger small mt-1">{{ form.reply_to.errors.0 }}</div>
+                {% endif %}
+                <small class="form-text text-muted">Where replies will be sent</small>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-check">
+                        {{ form.track_opens }}
+                        <label class="form-check-label fw-bold" for="{{ form.track_opens.id_for_label }}">
+                            <i class="bi bi-envelope-open"></i> Track Email Opens
+                        </label>
+                        <small class="d-block text-muted ms-4">Monitor when recipients open your emails</small>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <div class="form-check">
+                        {{ form.track_clicks }}
+                        <label class="form-check-label fw-bold" for="{{ form.track_clicks.id_for_label }}">
+                            <i class="bi bi-cursor"></i> Track Link Clicks
+                        </label>
+                        <small class="d-block text-muted ms-4">Monitor which links recipients click</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Template Variables Section -->
+        <div class="form-section">
+            <div class="section-title">
+                <i class="bi bi-code-square"></i> Available Template Variables
+            </div>
+            <p class="text-muted mb-3">
+                <i class="bi bi-lightbulb"></i> Click any variable to copy it, then use it in your email design. 
+                These will be automatically replaced with actual values when emails are sent.
+            </p>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-primary mb-2">📧 Recipient Information</h6>
+                    <div class="mb-3">
+                        {% verbatim %}
+                        <span class="variable-pill" data-var="{{name}}">{{name}}</span>
+                        <small class="text-muted">- Recipient's full name</small><br>
+                        <span class="variable-pill" data-var="{{email}}">{{email}}</span>
+                        <small class="text-muted">- Recipient's email address</small><br>
+                        <span class="variable-pill" data-var="{{first_name}}">{{first_name}}</span>
+                        <small class="text-muted">- First name only</small><br>
+                        <span class="variable-pill" data-var="{{last_name}}">{{last_name}}</span>
+                        <small class="text-muted">- Last name only</small><br>
+                        <span class="variable-pill" data-var="{{telephone}}">{{telephone}}</span>
+                        <small class="text-muted">- Phone number</small><br>
+                        <span class="variable-pill" data-var="{{etablissement}}">{{etablissement}}</span>
+                        <small class="text-muted">- Organization/Institution</small>
+                        {% endverbatim %}
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-success mb-2">🎯 Event Information</h6>
+                    <div class="mb-3">
+                        {% verbatim %}
+                        <span class="variable-pill" data-var="{{event_name}}">{{event_name}}</span>
+                        <small class="text-muted">- Event title</small><br>
+                        <span class="variable-pill" data-var="{{event_location}}">{{event_location}}</span>
+                        <small class="text-muted">- Event venue/location</small><br>
+                        <span class="variable-pill" data-var="{{event_start_date}}">{{event_start_date}}</span>
+                        <small class="text-muted">- Start date</small><br>
+                        <span class="variable-pill" data-var="{{event_end_date}}">{{event_end_date}}</span>
+                        <small class="text-muted">- End date</small><br>
+                        {% endverbatim %}
+                    </div>
+                    
+                    <h6 class="fw-bold text-warning mb-2">🎫 Participant Data</h6>
+                    <div>
+                        {% verbatim %}
+                        <span class="variable-pill" data-var="{{participant_name}}">{{participant_name}}</span>
+                        <small class="text-muted">- Participant name</small><br>
+                        <span class="variable-pill" data-var="{{badge_id}}">{{badge_id}}</span>
+                        <small class="text-muted">- Badge ID</small><br>
+                        <span class="variable-pill" data-var="{{qr_code_url}}">{{qr_code_url}}</span>
+                        <small class="text-muted">- QR code image URL</small><br>
+                        <span class="variable-pill" data-var="{{unsubscribe_url}}">{{unsubscribe_url}}</span>
+                        <small class="text-muted">- Unsubscribe link</small>
+                        {% endverbatim %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Email Design Section -->
+        <div class="form-section">
+            <div class="section-title">
+                <i class="bi bi-brush"></i> Design Your Email
+            </div>
+            <div id="email-editor-container"></div>
+        </div>
+    </form>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye"></i> Email Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 p-3 bg-light border-bottom">
+                    <strong>Subject:</strong> <span id="previewSubject"></span>
+                </div>
+                <iframe id="previewFrame" style="width: 100%; height: 600px; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display: none;">
+    <div class="text-center">
+        <div class="spinner-border text-success" style="width: 3rem; height: 3rem;" role="status"></div>
+        <p class="mt-3 fw-bold">Loading Unlayer Email Editor...</p>
+        <small class="text-muted">This may take a few seconds</small>
+    </div>
+</div>
+
+<!-- Unlayer Email Editor Script -->
+<script src="https://editor.unlayer.com/embed.js"></script>
+
+<script>
+let emailEditor;
+let previewModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Show loading overlay
+    document.getElementById('loadingOverlay').style.display = 'flex';
+    
+    // Initialize preview modal
+    previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+    
+    // Initialize Unlayer Email Editor
+    emailEditor = unlayer.createEditor({
+        id: 'email-editor-container',
+        projectId: 1234,
+        displayMode: 'email',
+        appearance: {
+            theme: 'light',
+            panels: {
+                tools: {
+                    dock: 'left'
+                }
+            }
+        },
+        features: {
+            preview: true,
+            imageEditor: true,
+            textEditor: {
+                tables: true,
+                emojis: true
+            }
+        },
+        tools: {
+            form: {
+                enabled: false
+            }
+        },
+        mergeTags: {
+            name: {
+                name: "Recipient Name",
+                value: "{{name}}",
+                sample: "John Doe"
+            },
+            email: {
+                name: "Email Address",
+                value: "{{email}}",
+                sample: "john@example.com"
+            },
+            first_name: {
+                name: "First Name",
+                value: "{{first_name}}",
+                sample: "John"
+            },
+            last_name: {
+                name: "Last Name",
+                value: "{{last_name}}",
+                sample: "Doe"
+            },
+            telephone: {
+                name: "Phone Number",
+                value: "{{telephone}}",
+                sample: "+1234567890"
+            },
+            etablissement: {
+                name: "Organization",
+                value: "{{etablissement}}",
+                sample: "Acme Corp"
+            },
+            event_name: {
+                name: "Event Name",
+                value: "{{event_name}}",
+                sample: "MakePlus Summit 2026"
+            },
+            event_location: {
+                name: "Event Location",
+                value: "{{event_location}}",
+                sample: "Conference Center, Algiers"
+            },
+            event_start_date: {
+                name: "Event Start Date",
+                value: "{{event_start_date}}",
+                sample: "January 1, 2026"
+            },
+            event_end_date: {
+                name: "Event End Date",
+                value: "{{event_end_date}}",
+                sample: "January 3, 2026"
+            },
+            participant_name: {
+                name: "Participant Name",
+                value: "{{participant_name}}",
+                sample: "John Doe"
+            },
+            badge_id: {
+                name: "Badge ID",
+                value: "{{badge_id}}",
+                sample: "BADGE-12345"
+            },
+            qr_code_url: {
+                name: "QR Code URL",
+                value: "{{qr_code_url}}",
+                sample: "https://example.com/qr/12345.png"
+            },
+            unsubscribe_url: {
+                name: "Unsubscribe Link",
+                value: "{{unsubscribe_url}}",
+                sample: "https://example.com/unsubscribe"
+            }
+        }
+    });
+
+    // Editor ready event
+    emailEditor.addEventListener('editor:ready', function() {
+        console.log('Unlayer Editor is ready');
+        document.getElementById('loadingOverlay').style.display = 'none';
+        
+        {% if is_edit and campaign.body_html %}
+        // Load existing design if editing
+        try {
+            {% if campaign.builder_config %}
+            const design = {{ campaign.builder_config|safe }};
+            emailEditor.loadDesign(design);
+            {% else %}
+            // If no builder config, try to load from HTML
+            emailEditor.loadDesign({
+                body: {
+                    rows: []
+                },
+                html: "{{ campaign.body_html|escapejs }}"
+            });
+            {% endif %}
+        } catch (e) {
+            console.error('Error loading design:', e);
+        }
+        {% endif %}
+    });
+    
+    // Preview button
+    document.getElementById('previewBtn').addEventListener('click', function() {
+        emailEditor.exportHtml(function(data) {
+            const html = data.html;
+            const previewFrame = document.getElementById('previewFrame');
+            const previewSubject = document.getElementById('previewSubject');
+            
+            // Get subject from form
+            const subject = document.getElementById('{{ form.subject.id_for_label }}').value || 'No subject';
+            previewSubject.textContent = subject;
+            
+            // Load HTML into iframe
+            previewFrame.srcdoc = html;
+            
+            // Show modal
+            previewModal.show();
+        });
+    });
+    
+    // Form submission
+    document.getElementById('campaignForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Validate required fields
+        const name = document.getElementById('{{ form.name.id_for_label }}').value;
+        const subject = document.getElementById('{{ form.subject.id_for_label }}').value;
+        const fromEmail = document.getElementById('{{ form.from_email.id_for_label }}').value;
+        
+        if (!name || !subject || !fromEmail) {
+            alert('Please fill in all required fields (Campaign Name, Subject, From Email)');
+            return;
+        }
+        
+        // Show loading on submit button
+        const saveBtn = document.getElementById('saveBtn');
+        const originalText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+        
+        // Export HTML from Unlayer
+        emailEditor.exportHtml(function(data) {
+            const { design, html } = data;
+            
+            // Set hidden fields
+            document.getElementById('body_html').value = html;
+            document.getElementById('builder_config').value = JSON.stringify(design);
+            
+            // Extract text content for plain text version
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            document.getElementById('body_text').value = tempDiv.textContent || tempDiv.innerText || '';
+            
+            // Submit the form
+            e.target.submit();
+        });
+    });
+    
+    // Variable pills - copy to clipboard
+    document.querySelectorAll('.variable-pill').forEach(pill => {
+        pill.addEventListener('click', function() {
+            const varText = this.dataset.var;
+            navigator.clipboard.writeText(varText).then(function() {
+                const originalText = pill.textContent;
+                pill.textContent = '✓ Copied!';
+                pill.style.background = '#28a745';
+                pill.style.color = 'white';
+                
+                setTimeout(function() {
+                    pill.textContent = originalText;
+                    pill.style.background = '#d1ecf1';
+                    pill.style.color = '#0c5460';
+                }, 1500);
+            }).catch(function(err) {
+                console.error('Could not copy text: ', err);
+                alert('Copied: ' + varText);
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

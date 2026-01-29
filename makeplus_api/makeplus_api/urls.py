@@ -50,6 +50,9 @@ urlpatterns = [
     # Dashboard (Admin Panel)
     path('dashboard/', include('dashboard.urls')),
     
+    # Email and Form Tracking
+    path('track/', include('dashboard.urls_tracking')),
+    
     # Public Forms
     path('forms/<slug:slug>/', public_form_view, name='public_form'),
     

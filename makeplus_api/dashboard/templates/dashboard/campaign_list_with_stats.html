@@ -1,0 +1,250 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Email Campaigns{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header with Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="bi bi-megaphone"></i> Email Campaigns</h2>
+            <p class="text-muted mb-0">Create, manage, and track your email campaigns</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'dashboard:email_template_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Templates
+            </a>
+            <a href="{% url 'dashboard:campaign_create' %}" class="btn btn-success">
+                <i class="bi bi-plus-circle"></i> Create Campaign
+            </a>
+        </div>
+    </div>
+
+    {% if campaign_stats %}
+    <div class="row">
+        {% for item in campaign_stats %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="campaign-card card shadow-sm h-100">
+                <!-- Campaign Header -->
+                <div class="card-header campaign-header {% if item.campaign.status == 'sent' %}bg-success-subtle{% elif item.campaign.status == 'draft' %}bg-secondary-subtle{% elif item.campaign.status == 'sending' %}bg-warning-subtle{% else %}bg-danger-subtle{% endif %}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h5 class="mb-1 fw-bold">
+                                <i class="bi bi-envelope-fill"></i> {{ item.campaign.name|truncatewords:5 }}
+                            </h5>
+                            <p class="text-muted small mb-0">{{ item.campaign.subject|truncatewords:8 }}</p>
+                        </div>
+                        <span class="badge {% if item.campaign.status == 'sent' %}bg-success{% elif item.campaign.status == 'draft' %}bg-secondary{% elif item.campaign.status == 'sending' %}bg-warning text-dark{% elif item.campaign.status == 'archived' %}bg-dark{% else %}bg-danger{% endif %}">
+                            {% if item.campaign.status == 'draft' %}
+                                <i class="bi bi-pencil"></i> Draft
+                            {% elif item.campaign.status == 'sent' %}
+                                <i class="bi bi-check-circle"></i> Sent
+                            {% elif item.campaign.status == 'sending' %}
+                                <i class="bi bi-hourglass"></i> Sending
+                            {% elif item.campaign.status == 'archived' %}
+                                <i class="bi bi-archive"></i> Archived
+                            {% else %}
+                                {{ item.campaign.status|title }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Campaign Info -->
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center text-muted small mb-2">
+                            <i class="bi bi-calendar me-2"></i> {{ item.campaign.created_at|date:"M d, Y" }}
+                            {% if item.campaign.created_by %}
+                                <span class="ms-3"><i class="bi bi-person me-1"></i> {{ item.campaign.created_by.username }}</span>
+                            {% endif %}
+                        </div>
+                        {% if item.campaign.event %}
+                        <div class="text-muted small">
+                            <i class="bi bi-flag me-1"></i> Event: {{ item.campaign.event.name }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Stats Grid -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="stat-box bg-light p-2 rounded text-center">
+                                <div class="stat-icon"><i class="bi bi-people"></i></div>
+                                <div class="fw-bold fs-5">{{ item.total_recipients|default:0 }}</div>
+                                <div class="text-muted small">Recipients</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-box bg-light p-2 rounded text-center">
+                                <div class="stat-icon"><i class="bi bi-send"></i></div>
+                                <div class="fw-bold fs-5 text-primary">{{ item.sent_count|default:0 }}</div>
+                                <div class="text-muted small">Sent</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-box bg-info bg-opacity-10 p-2 rounded text-center">
+                                <div class="stat-icon text-info"><i class="bi bi-envelope-open"></i></div>
+                                <div class="fw-bold fs-5 text-info">{{ item.opened_count|default:0 }}</div>
+                                <div class="text-muted small">Opened</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-box bg-success bg-opacity-10 p-2 rounded text-center">
+                                <div class="stat-icon text-success"><i class="bi bi-cursor"></i></div>
+                                <div class="fw-bold fs-5 text-success">{{ item.clicked_count|default:0 }}</div>
+                                <div class="text-muted small">Clicked</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 flex-wrap">
+                        {% if item.campaign.status == 'draft' %}
+                        <a href="{% url 'dashboard:campaign_edit' item.campaign.id %}" class="btn btn-sm btn-warning flex-fill">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                        {% endif %}
+                        
+                        <a href="{% url 'dashboard:campaign_stats_detail' item.campaign.id %}" class="btn btn-sm btn-primary flex-fill">
+                            <i class="bi bi-graph-up"></i> Stats
+                        </a>
+                        
+                        {% if item.campaign.status == 'draft' %}
+                        <button type="button" class="btn btn-sm btn-info" onclick="testCampaign('{{ item.campaign.id }}')">
+                            <i class="bi bi-envelope-check"></i> Test
+                        </button>
+                        <button type="button" class="btn btn-sm btn-success" onclick="sendCampaign('{{ item.campaign.id }}')">
+                            <i class="bi bi-send"></i> Send
+                        </button>
+                        {% endif %}
+                        
+                        {% if item.campaign.status != 'archived' and item.campaign.status != 'sending' %}
+                        <form method="post" action="{% url 'dashboard:campaign_archive' item.campaign.id %}" style="display:inline;" class="flex-fill">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-secondary w-100" onclick="return confirm('Archive this campaign?')">
+                                <i class="bi bi-archive"></i> Archive
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="{% url 'dashboard:campaign_unarchive' item.campaign.id %}" style="display:inline;" class="flex-fill">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-success w-100">
+                                <i class="bi bi-arrow-counterclockwise"></i> Unarchive
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <div class="mb-4">
+            <i class="bi bi-megaphone" style="font-size: 4rem; color: #ddd;"></i>
+        </div>
+        <h4 class="text-muted mb-3">No Email Campaigns Yet</h4>
+        <p class="text-muted mb-4">Create your first email campaign to start engaging with your audience</p>
+        <a href="{% url 'dashboard:campaign_create' %}" class="btn btn-success btn-lg">
+            <i class="bi bi-plus-circle"></i> Create Your First Campaign
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.campaign-card {
+    transition: all 0.3s ease;
+    border: none;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.campaign-card:hover {
+    box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.15)!important;
+    transform: translateY(-4px);
+}
+
+.campaign-header {
+    border-bottom: 1px solid rgba(0,0,0,.05);
+    padding: 1rem;
+}
+
+.stat-box {
+    transition: all 0.2s ease;
+}
+
+.stat-box:hover {
+    transform: scale(1.05);
+}
+
+.stat-icon {
+    font-size: 1.2rem;
+    opacity: 0.7;
+    margin-bottom: 0.25rem;
+}
+
+.btn-group-actions {
+    gap: 0.5rem;
+}
+
+.bg-success-subtle {
+    background-color: rgba(25, 135, 84, 0.1);
+    border-left: 4px solid #198754;
+}
+
+.bg-secondary-subtle {
+    background-color: rgba(108, 117, 125, 0.1);
+    border-left: 4px solid #6c757d;
+}
+
+.bg-warning-subtle {
+    background-color: rgba(255, 193, 7, 0.1);
+    border-left: 4px solid #ffc107;
+}
+
+.bg-danger-subtle {
+    background-color: rgba(220, 53, 69, 0.1);
+    border-left: 4px solid #dc3545;
+}
+</style>
+
+<script>
+function testCampaign(campaignId) {
+    const email = prompt('Enter your email address to receive a test:');
+    if (email && email.includes('@')) {
+        // You can implement test email functionality here
+        fetch(`/dashboard/campaigns/${campaignId}/test/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ email: email })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Test email sent successfully to ' + email);
+            } else {
+                alert('Failed to send test email: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error sending test email');
+        });
+    } else if (email) {
+        alert('Please enter a valid email address');
+    }
+}
+
+function sendCampaign(campaignId) {
+    if (confirm('Are you sure you want to send this campaign to all recipients? This action cannot be undone.')) {
+        window.location.href = `/dashboard/campaigns/${campaignId}/send/`;
+    }
+}
+</script>
+
+{% endblock %}

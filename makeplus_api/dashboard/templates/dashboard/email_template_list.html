@@ -1,14 +1,20 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}Email Templates{% endblock %}
+{% block page_title %}Email Templates & Campaigns{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-envelope"></i> Email Templates {% if template_count %}({{ template_count }}){% endif %}</h2>
+        <h2><i class="bi bi-envelope"></i> Email Templates & Campaigns</h2>
         <div>
+            <a href="{% url 'dashboard:form_list_with_stats' %}" class="btn btn-outline-info me-2">
+                <i class="bi bi-ui-checks"></i> Form Analytics
+            </a>
             <a href="{% url 'dashboard:registration_form_builder' %}" class="btn btn-info me-2">
-                <i class="bi bi-ui-checks"></i> Build Registration Form
+                <i class="bi bi-plus-circle"></i> Build Form
+            </a>
+            <a href="{% url 'dashboard:campaign_create' %}" class="btn btn-success me-2">
+                <i class="bi bi-megaphone"></i> Create Campaign
             </a>
             <a href="{% url 'dashboard:email_template_create' %}" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Create Template
@@ -16,9 +22,88 @@
         </div>
     </div>
     
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> <strong>Email Templates</strong> are reusable templates that can be customized for each event. 
-        Use template variables like <code>{{event_name}}</code>, <code>{{participant_name}}</code>, etc. to personalize emails.
+    <!-- Email Campaigns Section (Mailerlite Style) -->
+    {% if campaigns and campaign_count > 0 %}
+    <div class="mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4><i class="bi bi-graph-up text-success"></i> Email Campaigns ({{ campaign_count }})</h4>
+            <a href="{% url 'dashboard:campaign_list_with_stats' %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-list-ul"></i> View All Campaigns
+            </a>
+        </div>
+        
+        <div class="row">
+            {% for campaign in campaigns|slice:":6" %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card shadow-sm hover-shadow h-100 border-start border-5 {% if campaign.status == 'sent' %}border-success{% elif campaign.status == 'draft' %}border-secondary{% elif campaign.status == 'sending' %}border-warning{% else %}border-danger{% endif %}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-megaphone text-primary"></i> {{ campaign.name }}
+                            </h5>
+                            <span class="badge bg-{% if campaign.status == 'sent' %}success{% elif campaign.status == 'draft' %}secondary{% elif campaign.status == 'sending' %}warning{% else %}danger{% endif %}">
+                                {{ campaign.get_status_display }}
+                            </span>
+                        </div>
+                        
+                        <p class="text-muted small mb-3">
+                            <i class="bi bi-envelope"></i> {{ campaign.subject|truncatewords:10 }}
+                        </p>
+                        
+                        <!-- Stats Cards (Mailerlite Style) -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <div class="bg-light p-2 rounded text-center">
+                                    <div class="text-muted small">Sent</div>
+                                    <div class="fw-bold">{{ campaign.total_sent|default:0 }}</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="bg-light p-2 rounded text-center">
+                                    <div class="text-muted small">Delivered</div>
+                                    <div class="fw-bold text-success">{{ campaign.total_delivered|default:0 }}</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="bg-info bg-opacity-10 p-2 rounded text-center">
+                                    <div class="text-muted small">Open Rate</div>
+                                    <div class="fw-bold text-info">{{ campaign.get_open_rate }}%</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="bg-success bg-opacity-10 p-2 rounded text-center">
+                                    <div class="text-muted small">Click Rate</div>
+                                    <div class="fw-bold text-success">{{ campaign.get_click_rate }}%</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <a href="{% url 'dashboard:campaign_stats_detail' campaign.id %}" class="btn btn-primary btn-sm">
+                                <i class="bi bi-graph-up"></i> View Detailed Stats
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white border-top-0">
+                        <small class="text-muted">
+                            <i class="bi bi-calendar"></i> {{ campaign.created_at|date:"M d, Y" }}
+                            {% if campaign.event %} | <i class="bi bi-flag"></i> {{ campaign.event.name }}{% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Email Templates Section -->
+    <div class="mb-3">
+        <h4><i class="bi bi-envelope-fill text-primary"></i> Email Templates ({{ template_count }})</h4>
+        <p class="text-muted small">
+            <i class="bi bi-info-circle"></i> Reusable templates that can be customized for each event. 
+            Use template variables like <code>{{event_name}}</code>, <code>{{participant_name}}</code>, etc.
+        </p>
     </div>
     
     {% if templates and template_count > 0 %}

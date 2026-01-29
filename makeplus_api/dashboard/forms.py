@@ -9,6 +9,7 @@ from events.models import Event, Room, Session, UserEventAssignment, Participant
 from django.core.exceptions import ValidationError
 from decimal import Decimal
 import json
+from dashboard.models_email import EmailCampaign, EmailTemplate
 
 
 class EventDetailsForm(forms.ModelForm):
@@ -619,3 +620,57 @@ class CaisseLoginForm(forms.Form):
             'placeholder': 'Password'
         })
     )
+
+
+class EmailCampaignForm(forms.ModelForm):
+    """Form for creating and editing email campaigns"""
+    
+    class Meta:
+        model = EmailCampaign
+        fields = [
+            'name', 'event', 'subject', 'from_email', 'from_name', 
+            'reply_to', 'track_opens', 'track_clicks'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., January Newsletter 2026'
+            }),
+            'event': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'subject': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., 🎉 Exciting Updates from MakePlus!'
+            }),
+            'from_email': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'noreply@makeplus.com'
+            }),
+            'from_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., MakePlus Team'
+            }),
+            'reply_to': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'support@makeplus.com (optional)'
+            }),
+            'track_opens': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            }),
+            'track_clicks': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            }),
+        }
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make event optional
+        self.fields['event'].required = False
+        self.fields['reply_to'].required = False
+        
+        # Set default from_email from settings if available
+        if not self.initial.get('from_email'):
+            from django.conf import settings
+            self.initial['from_email'] = getattr(settings, 'DEFAULT_FROM_EMAIL', '')
+

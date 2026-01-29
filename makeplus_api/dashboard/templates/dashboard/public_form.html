@@ -102,6 +102,17 @@
                         </a>
                     </div>
                 {% else %}
+                    <!-- Banner Image -->
+                    {% if form_config.banner_image %}
+                        <div class="mb-3">
+                            <img src="{{ form_config.banner_image.url }}" alt="Form banner" class="img-fluid rounded" style="width: 100%; height: auto; max-height: 300px; object-fit: cover;">
+                        </div>
+                    {% elif form_config.event and form_config.event.banner %}
+                        <div class="mb-3">
+                            <img src="{{ form_config.event.banner.url }}" alt="Event banner" class="img-fluid rounded" style="width: 100%; height: auto; max-height: 300px; object-fit: cover;">
+                        </div>
+                    {% endif %}
+                    
                     <!-- Form Header -->
                     <div class="form-header">
                         <h1>{{ form_config.name }}</h1>
@@ -113,7 +124,7 @@
                     <!-- Event Info (if linked) -->
                     {% if form_config.event %}
                         <div class="event-info">
-                            <h6 class="mb-1"><i class="bi bi-calendar-event me-2"></i>{{ form_config.event.event_name }}</h6>
+                            <h6 class="mb-1"><i class="bi bi-calendar-event me-2"></i>{{ form_config.event.name }}</h6>
                             <p class="mb-0 small text-muted">
                                 <i class="bi bi-geo-alt me-1"></i>{{ form_config.event.location }}
                                 <i class="bi bi-calendar3 ms-3 me-1"></i>{{ form_config.event.start_date|date:"M d, Y" }}

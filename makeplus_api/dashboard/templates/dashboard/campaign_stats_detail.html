@@ -1,0 +1,536 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}{{ campaign.name }} - Campaign Stats{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .stat-card.success {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    .stat-card.info {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    .stat-card.warning {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+    .hover-shadow:hover {
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+        transform: translateY(-2px);
+        transition: all 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-2">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:email_template_list' %}">Email Campaigns</a></li>
+                    <li class="breadcrumb-item active">{{ campaign.name }}</li>
+                </ol>
+            </nav>
+            <h2><i class="bi bi-graph-up-arrow"></i> {{ campaign.name }}</h2>
+            <p class="text-muted mb-0">{{ campaign.subject }}</p>
+        </div>
+        <div>
+            <span class="badge bg-{% if campaign.status == 'sent' %}success{% elif campaign.status == 'draft' %}secondary{% else %}warning{% endif %} fs-6">
+                {{ campaign.get_status_display }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Main Stats Cards (Mailerlite Style) -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="small">Total Recipients</div>
+                <h2 class="mb-0">{{ total_recipients }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card success">
+                <div class="small">Open Rate</div>
+                <h2 class="mb-0">{{ open_rate }}%</h2>
+                <small>{{ unique_opens }} opens</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card info">
+                <div class="small">Click Rate</div>
+                <h2 class="mb-0">{{ click_rate }}%</h2>
+                <small>{{ unique_clicks }} clicks</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card warning">
+                <div class="small">Click-to-Open Rate</div>
+                <h2 class="mb-0">{{ ctor }}%</h2>
+                <small>Of those who opened</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Secondary Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card hover-shadow">
+                <div class="card-body text-center">
+                    <i class="bi bi-check-circle text-success fs-1"></i>
+                    <h4 class="mt-2">{{ delivered }}</h4>
+                    <small class="text-muted">Delivered</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card hover-shadow">
+                <div class="card-body text-center">
+                    <i class="bi bi-x-circle text-danger fs-1"></i>
+                    <h4 class="mt-2">{{ bounced }}</h4>
+                    <small class="text-muted">Bounced</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card hover-shadow">
+                <div class="card-body text-center">
+                    <i class="bi bi-slash-circle text-warning fs-1"></i>
+                    <h4 class="mt-2">{{ unsubscribed }}</h4>
+                    <small class="text-muted">Unsubscribed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card hover-shadow">
+                <div class="card-body text-center">
+                    <i class="bi bi-devices text-primary fs-1"></i>
+                    <h4 class="mt-2">{{ device_stats.mobile|add:device_stats.tablet }}</h4>
+                    <small class="text-muted">Mobile Opens</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Timeline Chart -->
+        <div class="col-md-8 mb-4">
+            <div class="card hover-shadow">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-clock-history"></i> Opens & Clicks Over Time
+                </div>
+                <div class="card-body">
+                    <canvas id="timelineChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Device Breakdown -->
+        <div class="col-md-4 mb-4">
+            <div class="card hover-shadow">
+                <div class="card-header bg-info text-white">
+                    <i class="bi bi-phone"></i> Device Breakdown
+                </div>
+                <div class="card-body">
+                    <canvas id="deviceChart"></canvas>
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span><i class="bi bi-laptop"></i> Desktop</span>
+                            <strong>{{ device_stats.desktop }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span><i class="bi bi-phone"></i> Mobile</span>
+                            <strong>{{ device_stats.mobile }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span><i class="bi bi-tablet"></i> Tablet</span>
+                            <strong>{{ device_stats.tablet }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Links -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="card hover-shadow">
+                <div class="card-header bg-success text-white">
+                    <i class="bi bi-link-45deg"></i> Top Performing Links
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Link URL</th>
+                                    <th>Total Clicks</th>
+                                    <th>Unique Clicks</th>
+                                    <th>Click Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for link in top_links %}
+                                <tr>
+                                    <td>
+                                        <i class="bi bi-link"></i>
+                                        <a href="{{ link.original_url }}" target="_blank">{{ link.original_url|truncatechars:60 }}</a>
+                                    </td>
+                                    <td><span class="badge bg-primary">{{ link.total_clicks }}</span></td>
+                                    <td><span class="badge bg-info">{{ link.unique_clicks }}</span></td>
+                                    <td><strong>{{ link.get_click_rate }}%</strong></td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">No links tracked yet</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Recipient Lists with Tabs -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="card hover-shadow">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-people"></i> Detailed Recipient Engagement
+                </div>
+                <div class="card-body">
+                    <!-- Navigation Tabs -->
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#all-recipients" type="button">
+                                <i class="bi bi-list-ul"></i> All Recipients ({{ all_recipients_list|length }})
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="opened-tab" data-bs-toggle="tab" data-bs-target="#opened-recipients" type="button">
+                                <i class="bi bi-envelope-open"></i> Who Opened ({{ recipients_who_opened|length }})
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="clicked-tab" data-bs-toggle="tab" data-bs-target="#clicked-recipients" type="button">
+                                <i class="bi bi-cursor"></i> Who Clicked ({{ recipients_who_clicked|length }})
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="not-opened-tab" data-bs-toggle="tab" data-bs-target="#not-opened-recipients" type="button">
+                                <i class="bi bi-envelope"></i> Not Opened ({{ recipients_not_opened|length }})
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content">
+                        <!-- All Recipients -->
+                        <div class="tab-pane fade show active" id="all-recipients" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Recipient</th>
+                                            <th>Status</th>
+                                            <th>Opens</th>
+                                            <th>Clicks</th>
+                                            <th>First Opened</th>
+                                            <th>Last Opened</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for recipient in all_recipients_list %}
+                                        <tr>
+                                            <td>
+                                                <i class="bi bi-person-circle text-primary"></i>
+                                                <strong>{{ recipient.name|default:recipient.email }}</strong><br>
+                                                <small class="text-muted">{{ recipient.email }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{% if recipient.status == 'delivered' %}success{% elif recipient.status == 'bounced' %}danger{% elif recipient.status == 'unsubscribed' %}warning{% else %}secondary{% endif %}">
+                                                    {{ recipient.get_status_display }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {% if recipient.open_count > 0 %}
+                                                    <span class="badge bg-info">{{ recipient.open_count }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">0</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if recipient.click_count > 0 %}
+                                                    <span class="badge bg-success">{{ recipient.click_count }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">0</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if recipient.first_opened_at %}
+                                                    <small>{{ recipient.first_opened_at|date:"M d, Y H:i" }}</small>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if recipient.last_opened_at %}
+                                                    <small>{{ recipient.last_opened_at|date:"M d, Y H:i" }}</small>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <a href="{% url 'dashboard:campaign_recipient_detail' campaign.id recipient.id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-eye"></i> Details
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted py-4">No recipients found</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Recipients Who Opened -->
+                        <div class="tab-pane fade" id="opened-recipients" role="tabpanel">
+                            <div class="alert alert-info mb-3">
+                                <i class="bi bi-info-circle"></i> <strong>{{ recipients_who_opened|length }}</strong> recipients opened this email at least once.
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Recipient</th>
+                                            <th>Total Opens</th>
+                                            <th>Total Clicks</th>
+                                            <th>First Opened</th>
+                                            <th>Last Opened</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for recipient in recipients_who_opened %}
+                                        <tr>
+                                            <td>
+                                                <i class="bi bi-envelope-open text-success"></i>
+                                                <strong>{{ recipient.name|default:recipient.email }}</strong><br>
+                                                <small class="text-muted">{{ recipient.email }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info fs-6">{{ recipient.open_count }}</span>
+                                                <small class="text-muted">time{{ recipient.open_count|pluralize }}</small>
+                                            </td>
+                                            <td>
+                                                {% if recipient.click_count > 0 %}
+                                                    <span class="badge bg-success fs-6">{{ recipient.click_count }}</span>
+                                                    <small class="text-muted">click{{ recipient.click_count|pluralize }}</small>
+                                                {% else %}
+                                                    <span class="text-muted">No clicks</span>
+                                                {% endif %}
+                                            </td>
+                                            <td><small>{{ recipient.first_opened_at|date:"M d, Y H:i" }}</small></td>
+                                            <td><small>{{ recipient.last_opened_at|date:"M d, Y H:i" }}</small></td>
+                                            <td>
+                                                <a href="{% url 'dashboard:campaign_recipient_detail' campaign.id recipient.id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-eye"></i> View All Opens & Clicks
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted py-4">No opens recorded yet</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Recipients Who Clicked -->
+                        <div class="tab-pane fade" id="clicked-recipients" role="tabpanel">
+                            <div class="alert alert-success mb-3">
+                                <i class="bi bi-cursor-fill"></i> <strong>{{ recipients_who_clicked|length }}</strong> recipients clicked at least one link.
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Recipient</th>
+                                            <th>Total Clicks</th>
+                                            <th>Links Clicked</th>
+                                            <th>Opens</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for recipient in recipients_who_clicked %}
+                                        <tr>
+                                            <td>
+                                                <i class="bi bi-cursor text-success"></i>
+                                                <strong>{{ recipient.name|default:recipient.email }}</strong><br>
+                                                <small class="text-muted">{{ recipient.email }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-success fs-6">{{ recipient.click_count }}</span>
+                                                <small class="text-muted">total</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-primary">{{ recipient.unique_links_clicked }}</span>
+                                                <small class="text-muted">unique link{{ recipient.unique_links_clicked|pluralize }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info">{{ recipient.open_count }}</span>
+                                            </td>
+                                            <td>
+                                                <a href="{% url 'dashboard:campaign_recipient_detail' campaign.id recipient.id %}" class="btn btn-sm btn-outline-success">
+                                                    <i class="bi bi-list-check"></i> See Which Links
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-4">No clicks recorded yet</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Recipients Who Did Not Open -->
+                        <div class="tab-pane fade" id="not-opened-recipients" role="tabpanel">
+                            <div class="alert alert-warning mb-3">
+                                <i class="bi bi-exclamation-triangle"></i> <strong>{{ recipients_not_opened|length }}</strong> recipients have not opened this email yet.
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Recipient</th>
+                                            <th>Status</th>
+                                            <th>Sent Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for recipient in recipients_not_opened %}
+                                        <tr>
+                                            <td>
+                                                <i class="bi bi-envelope text-muted"></i>
+                                                <strong>{{ recipient.name|default:recipient.email }}</strong><br>
+                                                <small class="text-muted">{{ recipient.email }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{% if recipient.status == 'sent' %}secondary{% elif recipient.status == 'bounced' %}danger{% else %}info{% endif %}">
+                                                    {{ recipient.get_status_display }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {% if recipient.sent_at %}
+                                                    <small>{{ recipient.sent_at|date:"M d, Y H:i" }}</small>
+                                                {% else %}
+                                                    <span class="text-muted">Not sent</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted py-4">All recipients have opened the email!</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Timeline Chart
+const timelineCtx = document.getElementById('timelineChart').getContext('2d');
+const opensData = {{ opens_timeline|safe }};
+const clicksData = {{ clicks_timeline|safe }};
+
+new Chart(timelineCtx, {
+    type: 'line',
+    data: {
+        labels: opensData.map(d => d.hour),
+        datasets: [{
+            label: 'Opens',
+            data: opensData.map(d => d.count),
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.4
+        }, {
+            label: 'Clicks',
+            data: clicksData.map(d => d.count),
+            borderColor: 'rgb(255, 99, 132)',
+            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+            tension: 0.4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'top',
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Device Chart
+const deviceCtx = document.getElementById('deviceChart').getContext('2d');
+new Chart(deviceCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['Desktop', 'Mobile', 'Tablet', 'Unknown'],
+        datasets: [{
+            data: [{{ device_stats.desktop }}, {{ device_stats.mobile }}, {{ device_stats.tablet }}, {{ device_stats.unknown }}],
+            backgroundColor: [
+                'rgb(54, 162, 235)',
+                'rgb(255, 99, 132)',
+                'rgb(255, 205, 86)',
+                'rgb(201, 203, 207)'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+</script>
+
+{% endblock %}

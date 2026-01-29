@@ -5,6 +5,7 @@ URL Configuration for Dashboard
 from django.urls import path
 from . import views
 from . import views_email
+from . import views_stats
 
 app_name = 'dashboard'
 
@@ -77,12 +78,36 @@ urlpatterns = [
     path('email-templates/<int:template_id>/stats/', views_email.email_template_stats, name='email_template_stats'),
     path('email-templates/<int:template_id>/archive/', views_email.email_template_archive, name='email_template_archive'),
     
+    # Email Campaigns
+    path('campaigns/create/', views_email.campaign_create, name='campaign_create'),
+    path('campaigns/<uuid:campaign_id>/', views_email.campaign_detail, name='campaign_detail'),
+    path('campaigns/<uuid:campaign_id>/edit/', views_email.campaign_edit, name='campaign_edit'),
+    path('campaigns/<uuid:campaign_id>/delete/', views_email.campaign_delete, name='campaign_delete'),
+    path('campaigns/<uuid:campaign_id>/archive/', views_email.campaign_archive, name='campaign_archive'),
+    path('campaigns/<uuid:campaign_id>/unarchive/', views_email.campaign_unarchive, name='campaign_unarchive'),
+    path('campaigns/<uuid:campaign_id>/test/', views_email.campaign_send_test, name='campaign_send_test'),
+    path('campaigns/<uuid:campaign_id>/send/', views_email.campaign_send, name='campaign_send'),
+    path('campaigns/<uuid:campaign_id>/add-recipient/', views_email.campaign_add_recipient, name='campaign_add_recipient'),
+    path('campaigns/<uuid:campaign_id>/bulk-add-recipients/', views_email.campaign_bulk_add_recipients, name='campaign_bulk_add_recipients'),
+    path('campaigns/<uuid:campaign_id>/recipients/<uuid:recipient_id>/delete/', views_email.campaign_delete_recipient, name='campaign_delete_recipient'),
+
+    
+    # Email Campaign Stats
+    path('campaigns/', views_stats.campaign_list_with_stats, name='campaign_list_with_stats'),
+    path('campaigns/<uuid:campaign_id>/stats/', views_stats.campaign_stats_detail, name='campaign_stats_detail'),
+    path('campaigns/<uuid:campaign_id>/recipients/<uuid:recipient_id>/', views_stats.campaign_recipient_detail, name='campaign_recipient_detail'),
+
+    
     # Registration Form Builder
     path('registration-form-builder/', views_email.registration_form_builder, name='registration_form_builder'),
     path('registration-form-builder/create/', views_email.registration_form_create, name='registration_form_create'),
     path('registration-form-builder/<uuid:form_id>/edit/', views_email.registration_form_edit, name='registration_form_edit'),
     path('registration-form-builder/<uuid:form_id>/delete/', views_email.registration_form_delete, name='registration_form_delete'),
     path('registration-form-builder/<uuid:form_id>/submissions/', views_email.registration_form_submissions, name='registration_form_submissions'),
+    
+    # Form Analytics Stats
+    path('forms/', views_stats.form_list_with_stats, name='form_list_with_stats'),
+    path('forms/<uuid:form_id>/stats/', views_stats.form_stats_detail, name='form_stats_detail'),
     
     # API Endpoints
     path('api/events/', views.api_events_list, name='api_events_list'),

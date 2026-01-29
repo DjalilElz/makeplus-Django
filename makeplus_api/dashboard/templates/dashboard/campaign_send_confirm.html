@@ -1,0 +1,150 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Send Campaign - {{ campaign.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:email_template_list' %}">Campaigns</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:campaign_detail' campaign.id %}">{{ campaign.name }}</a></li>
+                    <li class="breadcrumb-item active">Send Campaign</li>
+                </ol>
+            </nav>
+
+            <!-- Warning Card -->
+            <div class="card border-warning shadow-lg mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Confirm Campaign Send</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning mb-4">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Important:</strong> Once you send this campaign, it cannot be undone. Make sure you have reviewed all details.
+                    </div>
+
+                    <!-- Campaign Details -->
+                    <div class="mb-4">
+                        <h5 class="mb-3"><i class="bi bi-megaphone"></i> Campaign Details</h5>
+                        <table class="table table-bordered">
+                            <tbody>
+                                <tr>
+                                    <th width="30%">Campaign Name</th>
+                                    <td>{{ campaign.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Subject Line</th>
+                                    <td>{{ campaign.subject }}</td>
+                                </tr>
+                                <tr>
+                                    <th>From Email</th>
+                                    <td>{{ campaign.from_email|default:"Default Email" }}</td>
+                                </tr>
+                                {% if campaign.event %}
+                                <tr>
+                                    <th>Associated Event</th>
+                                    <td>{{ campaign.event.name }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <th>Total Recipients</th>
+                                    <td><strong class="text-primary fs-5">{{ recipient_count }}</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Preview -->
+                    <div class="mb-4">
+                        <h5 class="mb-3"><i class="bi bi-eye"></i> Email Preview</h5>
+                        <div class="border rounded p-3 bg-light">
+                            <div class="mb-2">
+                                <strong>Subject:</strong> {{ campaign.subject }}
+                            </div>
+                            <hr>
+                            <div style="max-height: 300px; overflow-y: auto;">
+                                {{ campaign.body_html|safe }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Checklist -->
+                    <div class="mb-4">
+                        <h5 class="mb-3"><i class="bi bi-check2-square"></i> Pre-Send Checklist</h5>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="check1">
+                            <label class="form-check-label" for="check1">
+                                I have reviewed the campaign content and subject line
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="check2">
+                            <label class="form-check-label" for="check2">
+                                I have sent a test email and verified it looks correct
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="check3">
+                            <label class="form-check-label" for="check3">
+                                I have verified the recipient list is correct ({{ recipient_count }} recipients)
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="check4">
+                            <label class="form-check-label" for="check4">
+                                I understand this action cannot be undone
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-3 justify-content-end">
+                        <a href="{% url 'dashboard:campaign_detail' campaign.id %}" class="btn btn-secondary btn-lg">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        <form method="post" id="sendForm">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success btn-lg" id="sendButton" disabled>
+                                <i class="bi bi-send"></i> Send Campaign Now
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Enable send button only when all checkboxes are checked
+const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+const sendButton = document.getElementById('sendButton');
+const sendForm = document.getElementById('sendForm');
+
+function updateSendButton() {
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    sendButton.disabled = !allChecked;
+}
+
+checkboxes.forEach(cb => {
+    cb.addEventListener('change', updateSendButton);
+});
+
+// Final confirmation before sending
+sendForm.addEventListener('submit', function(e) {
+    if (!confirm('Are you absolutely sure you want to send this campaign to {{ recipient_count }} recipients? This action CANNOT be undone.')) {
+        e.preventDefault();
+    }
+});
+</script>
+
+<style>
+.table th {
+    background-color: #f8f9fa;
+}
+</style>
+
+{% endblock %}

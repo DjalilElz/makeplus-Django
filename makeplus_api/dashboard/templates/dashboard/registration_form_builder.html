@@ -12,7 +12,7 @@
         </div>
     </div>
 
-    <form method="post" id="formBuilderForm" onsubmit="return prepareFormSubmission();">
+    <form method="post" id="formBuilderForm" enctype="multipart/form-data" onsubmit="return prepareFormSubmission();">
         {% csrf_token %}
         
         <div class="row">
@@ -56,10 +56,29 @@
                                 <option value="">-- No event (Global form) --</option>
                                 {% for event in events %}
                                     <option value="{{ event.id }}" {% if form.event_id == event.id %}selected{% endif %}>
-                                        {{ event.event_name }}
+                                        {{ event.name }}
                                     </option>
                                 {% endfor %}
                             </select>
+                            <small class="text-muted">When linked to an event, the event banner will be shown if no custom banner is uploaded</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="bannerImage" class="form-label">Banner Image (Optional)</label>
+                            <input type="file" class="form-control" id="bannerImage" name="banner_image" 
+                                   accept="image/*" onchange="previewBanner()">
+                            <small class="text-muted">Upload an image to use as the form banner, or leave empty to use the event banner if available</small>
+                            {% if form.banner_image %}
+                                <div class="mt-2">
+                                    <img src="{{ form.banner_image.url }}" alt="Current banner" style="max-width: 100%; max-height: 150px; border-radius: 4px;">
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" id="clearBanner" name="clear_banner">
+                                        <label class="form-check-label" for="clearBanner">
+                                            Remove current banner
+                                        </label>
+                                    </div>
+                                </div>
+                            {% endif %}
                         </div>
 
                         <div class="mb-3">
@@ -210,21 +229,43 @@ let formFields = [];
 
 // Initialize form fields from existing data
 {% if form.fields_config %}
-    formFields = {{ form.fields_config|safe }};
-    fieldCounter = formFields.length;
+    try {
+        const fieldsData = {{ form.fields_config|safe }};
+        if (Array.isArray(fieldsData) && fieldsData.length > 0) {
+            formFields = fieldsData;
+            fieldCounter = formFields.length;
+            console.log('Loaded existing fields:', formFields.length, formFields);
+        } else {
+            formFields = [];
+            fieldCounter = 0;
+            console.log('No fields to load');
+        }
+    } catch(e) {
+        console.error('Error parsing fields_config:', e);
+        formFields = [];
+        fieldCounter = 0;
+    }
+{% else %}
+    console.log('No fields_config in context');
 {% endif %}
 
 // DOM Ready - Initialize everything
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing form builder...');
+    console.log('formFields at startup:', formFields, 'fieldCounter:', fieldCounter);
     
     // Render existing fields if any
-    {% if form.fields_config %}
+    if (formFields.length > 0) {
+        console.log('Rendering', formFields.length, 'existing fields...');
         formFields.forEach((field, index) => {
+            console.log('Rendering field', index, ':', field);
             renderField(field, index);
         });
         updatePreview();
-    {% endif %}
+        console.log('Preview updated after loading existing fields');
+    } else {
+        console.log('No fields to render');
+    }
     
     // Add Field button
     const addFieldBtn = document.getElementById('addFieldBtn');
@@ -257,6 +298,29 @@ function generateSlug() {
         .replace(/-+/g, '-')
         .trim();
     document.getElementById('formSlug').value = slug;
+}
+
+// Preview banner image
+function previewBanner() {
+    const fileInput = document.getElementById('bannerImage');
+    const file = fileInput.files[0];
+    
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            console.log('Banner image selected:', file.name);
+            // Update the preview container if it exists
+            const previewContainer = document.getElementById('previewContainer');
+            if (previewContainer) {
+                const bannerPreview = previewContainer.querySelector('.preview-banner') || 
+                                     (previewContainer.insertBefore(document.createElement('div'), previewContainer.firstChild) 
+                                      && previewContainer.firstChild);
+                bannerPreview.className = 'preview-banner';
+                bannerPreview.innerHTML = `<img src="${e.target.result}" alt="Form banner" style="width: 100%; height: auto; border-radius: 4px; margin-bottom: 1rem;">`;
+            }
+        };
+        reader.readAsDataURL(file);
+    }
 }
 
 // Add new field

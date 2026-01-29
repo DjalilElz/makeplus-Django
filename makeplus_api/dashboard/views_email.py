@@ -21,18 +21,56 @@ def replace_template_variables(text, context):
 
 @login_required
 def email_template_list(request):
-    """List all global email templates"""
-    templates = EmailTemplate.objects.all().select_related('created_by').order_by('-created_at')
+    """Unified campaign list - shows all campaigns (templates are now campaigns)"""
+    from .models_email import EmailCampaign
     
-    # Debug info for troubleshooting
-    if request.GET.get('debug'):
-        messages.info(request, f'Found {templates.count()} email templates')
+    # Get filter parameters
+    filter_status = request.GET.get('status', 'all')
+    filter_event = request.GET.get('event', 'all')
+    
+    # Base queryset
+    campaigns = EmailCampaign.objects.select_related('event', 'created_by')
+    
+    # Apply filters
+    if filter_status == 'draft':
+        campaigns = campaigns.filter(status='draft')
+    elif filter_status == 'archived':
+        campaigns = campaigns.filter(status='archived')
+    elif filter_status == 'sent':
+        campaigns = campaigns.filter(status='sent')
+    elif filter_status == 'active':
+        campaigns = campaigns.exclude(status='archived')
+    
+    if filter_event != 'all' and filter_event:
+        campaigns = campaigns.filter(event_id=filter_event)
+    
+    campaigns = campaigns.order_by('-created_at')
+    
+    # Get statistics for each campaign
+    from .models_email import EmailRecipient
+    campaign_stats = []
+    for campaign in campaigns:
+        recipients = EmailRecipient.objects.filter(campaign=campaign)
+        campaign_stats.append({
+            'campaign': campaign,
+            'total_recipients': recipients.count(),
+            'sent_count': recipients.filter(status='sent').count(),
+            'opened_count': recipients.filter(open_count__gt=0).count(),
+            'clicked_count': recipients.filter(click_count__gt=0).count(),
+        })
+    
+    # Get events for filter dropdown
+    events = Event.objects.all().order_by('-created_at')
     
     context = {
-        'templates': templates,
-        'template_count': templates.count(),
+        'campaign_stats': campaign_stats,
+        'campaigns': campaigns,
+        'campaign_count': campaigns.count(),
+        'events': events,
+        'filter_status': filter_status,
+        'filter_event': filter_event,
     }
-    return render(request, 'dashboard/email_template_list.html', context)
+    return render(request, 'dashboard/campaign_list_with_stats.html', context)
 
 
 @login_required
@@ -667,8 +705,8 @@ def email_template_stats(request, template_id):
     """Show statistics for an email template"""
     template = get_object_or_404(EmailTemplate, id=template_id)
     
-    # Get email logs for this template
-    logs = EmailLog.objects.filter(template=template).order_by('-sent_at')
+    # Get email logs for this template - EmailLog uses template_name field
+    logs = EmailLog.objects.filter(template_name=template.name).order_by('-sent_at')
     
     # Calculate statistics
     total_sent = logs.filter(status='sent').count()
@@ -774,6 +812,11 @@ def registration_form_create(request):
             created_by=request.user
         )
         
+        # Handle banner image if uploaded
+        if 'banner_image' in request.FILES:
+            form.banner_image = request.FILES['banner_image']
+            form.save()
+        
         messages.success(request, f'Form "{form.name}" created successfully!')
         messages.info(request, f'Public URL: {request.build_absolute_uri(form.get_public_url())}')
         return redirect('dashboard:registration_form_edit', form_id=form.id)
@@ -824,6 +867,13 @@ def registration_form_edit(request, form_id):
         form.success_message = request.POST.get('success_message', 'Thank you for your registration!')
         form.send_confirmation_email = request.POST.get('send_confirmation_email') == 'on'
         form.is_active = request.POST.get('is_active') == 'on'
+        
+        # Handle banner image
+        if request.POST.get('clear_banner') == 'on':
+            form.banner_image = None
+        elif 'banner_image' in request.FILES:
+            form.banner_image = request.FILES['banner_image']
+        
         form.save()
         
         messages.success(request, f'Form "{form.name}" updated successfully!')
@@ -896,3 +946,514 @@ def registration_form_submissions(request, form_id):
     }
     
     return render(request, 'dashboard/registration_form_submissions.html', context)
+
+
+@login_required
+def campaign_create(request):
+    """Create a new email campaign"""
+    from .forms import EmailCampaignForm
+    from .models_email import EmailCampaign
+    from django.conf import settings
+    
+    if request.method == 'POST':
+        form = EmailCampaignForm(request.POST)
+        
+        # Get additional fields
+        body_html = request.POST.get('body_html', '')
+        builder_config = request.POST.get('builder_config', '{}')
+        body_text = request.POST.get('body_text', '')
+        
+        if not body_html:
+            messages.error(request, 'Please design your email content using the editor.')
+            return redirect('dashboard:campaign_create')
+        
+        if form.is_valid():
+            campaign = form.save(commit=False)
+            campaign.body_html = body_html
+            campaign.body_text = body_text
+            campaign.created_by = request.user
+            campaign.status = 'draft'
+            campaign.save()
+            
+            messages.success(request, f'Campaign "{campaign.name}" created successfully!')
+            messages.info(request, 'Next step: Add recipients to your campaign.')
+            return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = EmailCampaignForm()
+    
+    # Get events for dropdown
+    events = Event.objects.all().order_by('-created_at')
+    
+    # Available template variables
+    template_variables = [
+        '{{name}}', '{{email}}', '{{event_name}}', '{{event_location}}',
+        '{{event_start_date}}', '{{event_end_date}}', '{{unsubscribe_url}}'
+    ]
+    
+    context = {
+        'form': form,
+        'events': events,
+        'template_variables': template_variables,
+        'default_from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', ''),
+    }
+    
+    return render(request, 'dashboard/campaign_form.html', context)
+
+
+@login_required
+def campaign_edit(request, campaign_id):
+    """Edit an existing email campaign"""
+    from .forms import EmailCampaignForm
+    from .models_email import EmailCampaign
+    from django.conf import settings
+    
+    campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+    
+    # Don't allow editing if campaign is sent
+    if campaign.status in ['sent', 'sending']:
+        messages.warning(request, 'Cannot edit a campaign that has been sent or is being sent.')
+        return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+    
+    if request.method == 'POST':
+        form = EmailCampaignForm(request.POST, instance=campaign)
+        
+        # Get additional fields
+        body_html = request.POST.get('body_html', '')
+        builder_config = request.POST.get('builder_config', '{}')
+        body_text = request.POST.get('body_text', '')
+        
+        if not body_html:
+            messages.error(request, 'Please design your email content using the editor.')
+            return redirect('dashboard:campaign_edit', campaign_id=campaign.id)
+        
+        if form.is_valid():
+            campaign = form.save(commit=False)
+            campaign.body_html = body_html
+            campaign.body_text = body_text
+            campaign.save()
+            
+            messages.success(request, f'Campaign "{campaign.name}" updated successfully!')
+            return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = EmailCampaignForm(instance=campaign)
+    
+    # Get events for dropdown
+    events = Event.objects.all().order_by('-created_at')
+    
+    # Available template variables
+    template_variables = [
+        '{{name}}', '{{email}}', '{{event_name}}', '{{event_location}}',
+        '{{event_start_date}}', '{{event_end_date}}', '{{unsubscribe_url}}'
+    ]
+    
+    context = {
+        'form': form,
+        'campaign': campaign,
+        'events': events,
+        'template_variables': template_variables,
+        'default_from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', ''),
+        'is_edit': True,
+    }
+    
+    return render(request, 'dashboard/campaign_form.html', context)
+
+
+@login_required
+def campaign_detail(request, campaign_id):
+    """View campaign details and manage recipients"""
+    from .models_email import EmailCampaign, EmailRecipient
+    
+    campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+    recipients = campaign.recipients.all().order_by('-created_at')
+    
+    # Calculate statistics
+    pending_count = recipients.filter(status='pending').count()
+    sent_count = recipients.filter(status='sent').count()
+    delivered_count = recipients.filter(status='delivered').count()
+    failed_count = recipients.filter(status='failed').count()
+    
+    context = {
+        'campaign': campaign,
+        'recipients': recipients,
+        'recipient_count': recipients.count(),
+        'pending_count': pending_count,
+        'sent_count': sent_count,
+        'delivered_count': delivered_count,
+        'failed_count': failed_count,
+    }
+    
+    return render(request, 'dashboard/campaign_detail.html', context)
+
+
+@login_required
+def campaign_delete(request, campaign_id):
+    """Delete a campaign"""
+    from .models_email import EmailCampaign
+    
+    if request.method == 'POST':
+        campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+        campaign_name = campaign.name
+        campaign.delete()
+        messages.success(request, f'Campaign "{campaign_name}" has been deleted.')
+    
+    return redirect('dashboard:email_template_list')
+
+
+@login_required
+def campaign_archive(request, campaign_id):
+    """Archive a campaign"""
+    from .models_email import EmailCampaign
+    
+    if request.method == 'POST':
+        campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+        campaign.status = 'archived'
+        campaign.save()
+        messages.success(request, f'Campaign "{campaign.name}" has been archived.')
+    
+    return redirect('dashboard:campaign_detail', campaign_id=campaign_id)
+
+
+@login_required
+def campaign_unarchive(request, campaign_id):
+    """Unarchive a campaign"""
+    from .models_email import EmailCampaign
+    
+    if request.method == 'POST':
+        campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+        campaign.status = 'draft'
+        campaign.save()
+        messages.success(request, f'Campaign "{campaign.name}" has been unarchived.')
+    
+    return redirect('dashboard:campaign_detail', campaign_id=campaign_id)
+
+
+@login_required
+def campaign_add_recipient(request, campaign_id):
+    """Add a single recipient to a campaign"""
+    from .models_email import EmailCampaign, EmailRecipient
+    import secrets
+    
+    campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+    
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        name = request.POST.get('name', '')
+        
+        if not email:
+            messages.error(request, 'Email is required.')
+            return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+        
+        # Check if recipient already exists
+        if EmailRecipient.objects.filter(campaign=campaign, email=email).exists():
+            messages.warning(request, f'Recipient {email} already exists in this campaign.')
+            return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+        
+        # Create recipient with tracking token
+        tracking_token = secrets.token_urlsafe(32)
+        recipient = EmailRecipient.objects.create(
+            campaign=campaign,
+            email=email,
+            name=name,
+            tracking_token=tracking_token
+        )
+        
+        # Update campaign recipient count
+        campaign.recipient_count = campaign.recipients.count()
+        campaign.save()
+        
+        messages.success(request, f'Recipient {email} added successfully!')
+    
+    return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+
+
+@login_required
+def campaign_bulk_add_recipients(request, campaign_id):
+    """Bulk add recipients to a campaign via CSV or text"""
+    from .models_email import EmailCampaign, EmailRecipient
+    import secrets
+    import csv
+    from io import StringIO
+    
+    campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+    
+    if request.method == 'POST':
+        added_count = 0
+        skipped_count = 0
+        
+        # Handle CSV file upload
+        if 'csv_file' in request.FILES:
+            csv_file = request.FILES['csv_file']
+            file_data = csv_file.read().decode('utf-8')
+            csv_reader = csv.reader(StringIO(file_data))
+            
+            for row in csv_reader:
+                if len(row) >= 1:
+                    email = row[0].strip()
+                    name = row[1].strip() if len(row) > 1 else ''
+                    
+                    if email and not EmailRecipient.objects.filter(campaign=campaign, email=email).exists():
+                        tracking_token = secrets.token_urlsafe(32)
+                        EmailRecipient.objects.create(
+                            campaign=campaign,
+                            email=email,
+                            name=name,
+                            tracking_token=tracking_token
+                        )
+                        added_count += 1
+                    else:
+                        skipped_count += 1
+        
+        # Handle text input
+        elif 'email_list' in request.POST:
+            email_list = request.POST.get('email_list', '')
+            lines = email_list.strip().split('\n')
+            
+            for line in lines:
+                parts = line.strip().split(',')
+                if len(parts) >= 1:
+                    email = parts[0].strip()
+                    name = parts[1].strip() if len(parts) > 1 else ''
+                    
+                    if email and not EmailRecipient.objects.filter(campaign=campaign, email=email).exists():
+                        tracking_token = secrets.token_urlsafe(32)
+                        EmailRecipient.objects.create(
+                            campaign=campaign,
+                            email=email,
+                            name=name,
+                            tracking_token=tracking_token
+                        )
+                        added_count += 1
+                    else:
+                        skipped_count += 1
+        
+        # Update campaign recipient count
+        campaign.recipient_count = campaign.recipients.count()
+        campaign.save()
+        
+        if added_count > 0:
+            messages.success(request, f'Added {added_count} recipient(s) successfully!')
+        if skipped_count > 0:
+            messages.info(request, f'Skipped {skipped_count} duplicate(s).')
+    
+    return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+
+
+@login_required
+def campaign_delete_recipient(request, campaign_id, recipient_id):
+    """Delete a recipient from a campaign"""
+    from .models_email import EmailCampaign, EmailRecipient
+    from django.http import JsonResponse
+    
+    campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+    
+    if request.method == 'POST':
+        try:
+            recipient = get_object_or_404(EmailRecipient, id=recipient_id, campaign=campaign)
+            recipient.delete()
+            
+            # Update campaign recipient count
+            campaign.recipient_count = campaign.recipients.count()
+            campaign.save()
+            
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
+@login_required
+def campaign_send_test(request, campaign_id):
+    """Send a test email for a campaign"""
+    from .models_email import EmailCampaign
+    from django.http import JsonResponse
+    import json
+    
+    campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            test_email = data.get('email')
+            
+            if not test_email:
+                return JsonResponse({'success': False, 'error': 'Email address is required'})
+            
+            # Build context with sample data
+            context = {
+                'name': 'Test User',
+                'email': test_email,
+                'event_name': campaign.event.name if campaign.event else 'Sample Event',
+                'event_location': campaign.event.location if campaign.event else 'Sample Location',
+                'event_start_date': campaign.event.start_date.strftime('%B %d, %Y') if campaign.event and campaign.event.start_date else 'TBD',
+                'event_end_date': campaign.event.end_date.strftime('%B %d, %Y') if campaign.event and campaign.event.end_date else 'TBD',
+                'unsubscribe_url': request.build_absolute_uri('/unsubscribe/'),
+            }
+            
+            # Replace template variables
+            subject = replace_template_variables(campaign.subject, context)
+            body_html = replace_template_variables(campaign.body_html or campaign.body_text, context)
+            
+            # Use custom from_email if provided, otherwise use default
+            from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
+            
+            # Send test email
+            send_mail(
+                subject=f"[TEST] {subject}",
+                message='',
+                from_email=from_address,
+                recipient_list=[test_email],
+                html_message=body_html,
+                fail_silently=False,
+            )
+            
+            return JsonResponse({'success': True, 'message': f'Test email sent to {test_email}'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
+@login_required
+def campaign_send(request, campaign_id):
+    """Send campaign to all recipients"""
+    from .models_email import EmailCampaign, EmailRecipient, EmailLink
+    from bs4 import BeautifulSoup
+    import secrets
+    import hashlib
+    
+    campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+    
+    # Check if campaign is in draft status
+    if campaign.status != 'draft':
+        messages.warning(request, 'This campaign has already been sent or is currently sending.')
+        return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+    
+    # Check if there are recipients
+    recipients = campaign.recipients.filter(status='pending')
+    if not recipients.exists():
+        messages.error(request, 'No recipients found for this campaign. Please add recipients first.')
+        return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+    
+    if request.method == 'POST':
+        # Update campaign status
+        campaign.status = 'sending'
+        campaign.save()
+        
+        # Pre-process: Create EmailLink objects for all links in the email
+        base_html = campaign.body_html or campaign.body_text
+        soup = BeautifulSoup(base_html, 'html.parser')
+        link_map = {}  # original_url -> EmailLink object
+        
+        for link in soup.find_all('a', href=True):
+            original_url = link['href']
+            # Skip mailto, tel, and anchor links
+            if original_url.startswith(('mailto:', 'tel:', '#', 'javascript:')):
+                continue
+            
+            # Get or create EmailLink for this URL
+            if original_url not in link_map:
+                email_link, created = EmailLink.objects.get_or_create(
+                    campaign=campaign,
+                    original_url=original_url,
+                    defaults={
+                        'tracking_token': hashlib.sha256(f"{campaign.id}{original_url}{timezone.now().isoformat()}".encode()).hexdigest()[:32]
+                    }
+                )
+                link_map[original_url] = email_link
+        
+        sent_count = 0
+        failed_count = 0
+        
+        for recipient in recipients:
+            try:
+                # Build context for template variables
+                context = {
+                    'name': recipient.name or recipient.email.split('@')[0],
+                    'email': recipient.email,
+                    'event_name': campaign.event.name if campaign.event else '',
+                    'event_location': campaign.event.location if campaign.event else '',
+                    'event_start_date': campaign.event.start_date.strftime('%B %d, %Y') if campaign.event and campaign.event.start_date else '',
+                    'event_end_date': campaign.event.end_date.strftime('%B %d, %Y') if campaign.event and campaign.event.end_date else '',
+                    'unsubscribe_url': request.build_absolute_uri(f'/track/email/unsubscribe/{recipient.tracking_token}/'),
+                }
+                
+                # Replace template variables
+                subject = replace_template_variables(campaign.subject, context)
+                body_html = replace_template_variables(campaign.body_html or campaign.body_text, context)
+                
+                # Add link tracking to all links
+                if campaign.track_clicks and link_map:
+                    soup = BeautifulSoup(body_html, 'html.parser')
+                    for link in soup.find_all('a', href=True):
+                        original_url = link['href']
+                        if original_url in link_map:
+                            email_link = link_map[original_url]
+                            tracking_url = request.build_absolute_uri(
+                                f'/track/email/click/{email_link.tracking_token}/{recipient.tracking_token}/'
+                            )
+                            link['href'] = tracking_url
+                    body_html = str(soup)
+                
+                # Add tracking pixel for opens
+                if campaign.track_opens:
+                    tracking_pixel = f'<img src="{request.build_absolute_uri(f"/track/email/open/{recipient.tracking_token}/")}" width="1" height="1" style="display:none;" />'
+                    body_html = body_html + tracking_pixel
+                
+                # Add unsubscribe footer
+                unsubscribe_footer = f'''
+                <div style="text-align:center; margin-top:30px; padding:20px; font-size:12px; color:#999; border-top:1px solid #eee;">
+                    <p>You received this email because you subscribed to our mailing list.</p>
+                    <p><a href="{context['unsubscribe_url']}" style="color:#999;">Unsubscribe</a> from this list.</p>
+                </div>
+                '''
+                body_html = body_html + unsubscribe_footer
+                
+                # Use custom from_email if provided, otherwise use default
+                from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
+                
+                # Send email
+                send_mail(
+                    subject=subject,
+                    message='',
+                    from_email=from_address,
+                    recipient_list=[recipient.email],
+                    html_message=body_html,
+                    fail_silently=False,
+                )
+                
+                # Update recipient status
+                recipient.status = 'sent'
+                recipient.sent_at = timezone.now()
+                recipient.save()
+                
+                sent_count += 1
+            except Exception as e:
+                recipient.status = 'failed'
+                recipient.error_message = str(e)
+                recipient.save()
+                failed_count += 1
+        
+        # Update campaign status
+        campaign.status = 'sent'
+        campaign.total_sent = sent_count
+        campaign.total_delivered = sent_count
+        campaign.save()
+        
+        if sent_count > 0:
+            messages.success(request, f'Campaign sent successfully to {sent_count} recipient(s)!')
+        if failed_count > 0:
+            messages.warning(request, f'Failed to send to {failed_count} recipient(s).')
+        
+        return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+    
+    # GET request - show confirmation page
+    context = {
+        'campaign': campaign,
+        'recipient_count': recipients.count(),
+    }
+    return render(request, 'dashboard/campaign_send_confirm.html', context)

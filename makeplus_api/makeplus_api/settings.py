@@ -1,4 +1,4 @@
-"""
+﻿"""
 Django settings for makeplus_api project - COMPLETE WORKING VERSION
 This version includes proper static files configuration
 """
@@ -313,3 +313,15 @@ LOGGING = {
 LOGIN_URL = '/dashboard/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/dashboard/login/'
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = config('EMAIL_HOST', default='localhost')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@makeplus.com')
+
+# Site URL for tracking links
+SITE_URL = config('SITE_URL', default='http://127.0.0.1:8000')
+
