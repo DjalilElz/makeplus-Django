@@ -1325,9 +1325,9 @@ def campaign_send_test(request, campaign_id):
 
 @login_required
 def campaign_send(request, campaign_id):
-    """Send campaign to all recipients - Single click via MailerLite API"""
-    from .models_email import EmailCampaign, EmailRecipient, EmailLink
-    from .email_sender import send_email
+    """Send campaign to all recipients - ONE CLICK via MailerLite API"""
+    from .models_email import EmailCampaign, EmailRecipient
+    from .email_sender import send_bulk_via_mailerlite, send_email
     
     campaign = get_object_or_404(EmailCampaign, id=campaign_id)
     
@@ -1347,77 +1347,127 @@ def campaign_send(request, campaign_id):
         campaign.status = 'sending'
         campaign.save()
         
-        sent_count = 0
-        failed_count = 0
-        errors = []
-        
-        # Use custom from_email if provided, otherwise use default
         from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
         
-        # Send to ALL recipients via MailerLite
-        # MailerLite handles: open tracking, click tracking, unsubscribes automatically
-        for recipient in recipients:
-            try:
-                # Build context for template variables
-                recipient_name = recipient.name or recipient.email.split('@')[0]
-                context = {
-                    'name': recipient_name,
-                    'email': recipient.email,
-                    'event_name': campaign.event.name if campaign.event else '',
-                    'event_location': campaign.event.location if campaign.event else '',
-                    'event_start_date': campaign.event.start_date.strftime('%B %d, %Y') if campaign.event and campaign.event.start_date else '',
-                    'event_end_date': campaign.event.end_date.strftime('%B %d, %Y') if campaign.event and campaign.event.end_date else '',
-                }
+        # Check if MailerLite is configured for bulk sending
+        mailerlite_token = getattr(settings, 'MAILERLITE_API_TOKEN', '')
+        
+        if mailerlite_token and len(recipients) > 1:
+            # Use MailerLite bulk send - ONE campaign for ALL recipients
+            # This is the efficient way - creates one campaign sent to all
+            
+            # Prepare recipient list for MailerLite
+            recipient_list = []
+            for r in recipients:
+                recipient_list.append({
+                    'email': r.email,
+                    'name': r.name or r.email.split('@')[0]
+                })
+            
+            # Prepare email content (use the first recipient's context for now)
+            # MailerLite will personalize using {$name} variables if present
+            sample_context = {
+                'name': '{$name}',  # MailerLite personalization variable
+                'email': '{$email}',
+                'event_name': campaign.event.name if campaign.event else '',
+                'event_location': campaign.event.location if campaign.event else '',
+                'event_start_date': campaign.event.start_date.strftime('%B %d, %Y') if campaign.event and campaign.event.start_date else '',
+                'event_end_date': campaign.event.end_date.strftime('%B %d, %Y') if campaign.event and campaign.event.end_date else '',
+            }
+            
+            subject = replace_template_variables(campaign.subject, sample_context)
+            body_html = replace_template_variables(campaign.body_html or campaign.body_text, sample_context)
+            
+            # Send via MailerLite - ONE API call for all recipients!
+            success, error, sent_count = send_bulk_via_mailerlite(
+                recipients=recipient_list,
+                subject_template=subject,
+                html_template=body_html,
+                from_email=from_address,
+                campaign_name=f'{campaign.name}_{campaign.id}'
+            )
+            
+            if success:
+                # Update all recipients as sent
+                for r in recipients:
+                    r.status = 'sent'
+                    r.sent_at = timezone.now()
+                    r.save()
                 
-                # Replace template variables
-                subject = replace_template_variables(campaign.subject, context)
-                body_html = replace_template_variables(campaign.body_html or campaign.body_text, context)
+                campaign.status = 'sent'
+                campaign.sent_at = timezone.now()
+                campaign.total_sent = sent_count
+                campaign.total_delivered = sent_count
+                campaign.save()
                 
-                # Send email via MailerLite API
-                # MailerLite automatically adds: tracking pixel, link tracking, unsubscribe link
-                success, error = send_email(
-                    to_email=recipient.email,
-                    subject=subject,
-                    html_content=body_html,
-                    from_email=from_address,
-                    to_name=recipient_name
-                )
-                
-                if success:
-                    recipient.status = 'sent'
-                    recipient.sent_at = timezone.now()
-                    recipient.save()
-                    sent_count += 1
-                else:
+                messages.success(request, f'Campaign sent to {sent_count} recipients via MailerLite!')
+            else:
+                campaign.status = 'draft'
+                campaign.save()
+                messages.error(request, f'Failed to send campaign: {error}')
+            
+            return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+        
+        else:
+            # Fallback: Send individually (for single recipient or no MailerLite)
+            sent_count = 0
+            failed_count = 0
+            errors = []
+            
+            for recipient in recipients:
+                try:
+                    recipient_name = recipient.name or recipient.email.split('@')[0]
+                    context = {
+                        'name': recipient_name,
+                        'email': recipient.email,
+                        'event_name': campaign.event.name if campaign.event else '',
+                        'event_location': campaign.event.location if campaign.event else '',
+                        'event_start_date': campaign.event.start_date.strftime('%B %d, %Y') if campaign.event and campaign.event.start_date else '',
+                        'event_end_date': campaign.event.end_date.strftime('%B %d, %Y') if campaign.event and campaign.event.end_date else '',
+                    }
+                    
+                    subject = replace_template_variables(campaign.subject, context)
+                    body_html = replace_template_variables(campaign.body_html or campaign.body_text, context)
+                    
+                    success, error = send_email(
+                        to_email=recipient.email,
+                        subject=subject,
+                        html_content=body_html,
+                        from_email=from_address,
+                        to_name=recipient_name
+                    )
+                    
+                    if success:
+                        recipient.status = 'sent'
+                        recipient.sent_at = timezone.now()
+                        recipient.save()
+                        sent_count += 1
+                    else:
+                        recipient.status = 'failed'
+                        recipient.error_message = error[:500] if error else 'Unknown error'
+                        recipient.save()
+                        failed_count += 1
+                        errors.append(f"{recipient.email}: {error}")
+                        
+                except Exception as e:
                     recipient.status = 'failed'
-                    recipient.error_message = error[:500] if error else 'Unknown error'
+                    recipient.error_message = str(e)[:500]
                     recipient.save()
                     failed_count += 1
-                    errors.append(f"{recipient.email}: {error}")
-                    
-            except Exception as e:
-                recipient.status = 'failed'
-                recipient.error_message = str(e)[:500]
-                recipient.save()
-                failed_count += 1
-                errors.append(f"{recipient.email}: {str(e)}")
-        
-        # Update campaign status
-        campaign.status = 'sent'
-        campaign.sent_at = timezone.now()
-        campaign.total_sent += sent_count
-        campaign.total_delivered += sent_count
-        campaign.save()
-        
-        # Show results
-        if failed_count > 0:
-            messages.warning(request, f'Campaign sent to {sent_count} recipients. {failed_count} failed.')
-            if errors:
-                messages.error(request, f'Errors: {"; ".join(errors[:3])}{"..." if len(errors) > 3 else ""}')
-        else:
-            messages.success(request, f'Campaign successfully sent to all {sent_count} recipients!')
-        
-        return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+                    errors.append(f"{recipient.email}: {str(e)}")
+            
+            campaign.status = 'sent'
+            campaign.sent_at = timezone.now()
+            campaign.total_sent += sent_count
+            campaign.total_delivered += sent_count
+            campaign.save()
+            
+            if failed_count > 0:
+                messages.warning(request, f'Campaign sent to {sent_count} recipients. {failed_count} failed.')
+            else:
+                messages.success(request, f'Campaign successfully sent to all {sent_count} recipients!')
+            
+            return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     
     # GET request - show confirmation page
     context = {
