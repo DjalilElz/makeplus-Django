@@ -1,5 +1,5 @@
 """
-ePoster Management Views - Central hub for all ePoster/Appel à Communication forms
+ePoster Management Views - Central hub for all Appel aux Communicants forms
 """
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -12,14 +12,14 @@ from .models_eposter import EPosterSubmission, EPosterCommitteeMember
 @login_required
 def eposter_management_home(request):
     """
-    Central ePoster Management page showing all events with their Appel à Communication status
+    Central Appel aux Communicants Management page showing all events with their form status
     """
     # Get all events with ePoster statistics
     events = Event.objects.annotate(
         total_submissions=Count('eposter_submissions'),
-        pending_submissions=Count('eposter_submissions', filter=Q(eposter_submissions__validation_status='pending')),
-        accepted_submissions=Count('eposter_submissions', filter=Q(eposter_submissions__validation_status='accepted')),
-        rejected_submissions=Count('eposter_submissions', filter=Q(eposter_submissions__validation_status='rejected')),
+        pending_submissions=Count('eposter_submissions', filter=Q(eposter_submissions__status='pending')),
+        accepted_submissions=Count('eposter_submissions', filter=Q(eposter_submissions__status='accepted')),
+        rejected_submissions=Count('eposter_submissions', filter=Q(eposter_submissions__status='rejected')),
         committee_members_count=Count('eposter_committee_members', filter=Q(eposter_committee_members__is_active=True))
     ).order_by('-start_date')
     
