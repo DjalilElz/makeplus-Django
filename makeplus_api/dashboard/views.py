@@ -1669,6 +1669,9 @@ def public_form_view(request, slug):
     from dashboard.models_form import FormConfiguration, FormSubmission
     from django.utils import timezone
     from django.conf import settings
+    from events.models import UserEventAssignment, Participant
+    from dashboard.models_user import UserProfile
+    import secrets
     
     form_config = get_object_or_404(FormConfiguration, slug=slug, is_active=True)
     
@@ -1676,6 +1679,8 @@ def public_form_view(request, slug):
         # Collect form data
         form_data = {}
         email = None
+        first_name = None
+        last_name = None
         errors = []
         
         for field in form_config.fields_config:
@@ -1695,9 +1700,29 @@ def public_form_view(request, slug):
             
             form_data[field_name] = value
             
-            # Extract email for confirmation
-            if field.get('type') == 'email':
+            # Extract user creation fields
+            if field_name == 'email' or field.get('type') == 'email':
                 email = value
+            elif field_name == 'first_name':
+                first_name = value
+            elif field_name == 'last_name':
+                last_name = value
+        
+        # Validate required fields for user creation
+        if not email:
+            errors.append('Email is required.')
+        if not first_name:
+            errors.append('First name is required.')
+        if not last_name:
+            errors.append('Last name is required.')
+        
+        # Check if user with this email already exists
+        if email and User.objects.filter(email=email).exists():
+            # Check if user is already registered for this event
+            existing_user = User.objects.get(email=email)
+            if form_config.event:
+                if UserEventAssignment.objects.filter(user=existing_user, event=form_config.event).exists():
+                    errors.append('You are already registered for this event.')
         
         # If there are errors, redisplay form with errors
         if errors:
@@ -1716,6 +1741,27 @@ def public_form_view(request, slug):
         else:
             ip_address = request.META.get('REMOTE_ADDR')
         
+        # Create or get user
+        user, user_created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                'username': email.split('@')[0],
+                'first_name': first_name,
+                'last_name': last_name,
+                'password': User.objects.make_random_password(length=12)
+            }
+        )
+        
+        # If user was created, set password and send email
+        if user_created:
+            # Generate random password
+            random_password = secrets.token_urlsafe(12)
+            user.set_password(random_password)
+            user.save()
+            
+            # Send password email (optional - can be done later)
+            # TODO: Send password email to user
+        
         # Create submission
         submission = FormSubmission.objects.create(
             form=form_config,
@@ -1723,8 +1769,33 @@ def public_form_view(request, slug):
             email=email or '',
             ip_address=ip_address,
             user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
-            status='pending'
+            status='approved'  # Auto-approve registration forms
         )
+        
+        # Assign user to event with participant role if form is linked to event
+        if form_config.event:
+            # Get or create QR code
+            qr_data = UserProfile.get_qr_for_user(user)
+            
+            # Create UserEventAssignment
+            assignment, created = UserEventAssignment.objects.get_or_create(
+                user=user,
+                event=form_config.event,
+                defaults={
+                    'role': 'participant',
+                    'is_active': True,
+                }
+            )
+            
+            # Create Participant profile
+            participant, created = Participant.objects.get_or_create(
+                user=user,
+                event=form_config.event,
+                defaults={
+                    'badge_id': qr_data['badge_id'],
+                    'qr_code_data': qr_data
+                }
+            )
         
         # Increment form submission count
         form_config.increment_submission_count()
@@ -1739,6 +1810,9 @@ def public_form_view(request, slug):
                 context = {
                     'form_name': form_config.name,
                     'submission_id': str(submission.id),
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'email': email,
                 }
                 context.update(form_data)
                 

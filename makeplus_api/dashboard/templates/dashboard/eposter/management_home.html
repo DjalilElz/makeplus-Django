@@ -19,21 +19,6 @@
         </div>
     </div>
 
-    <!-- Info Alert -->
-    <div class="alert alert-success border-success">
-        <h4><i class="bi bi-check-circle-fill"></i> Automatic Forms</h4>
-        <p class="mb-2">
-            <strong>Call for Communicants forms are automatically available for all events.</strong>
-            To get started:
-        </p>
-        <ol class="mb-0">
-            <li><strong>Create committee users</strong> in <a href="{% url 'dashboard:user_create' %}">User Management</a> with role "Committee"</li>
-            <li>Committee members are <strong>automatically added</strong> to the scientific committee</li>
-            <li><strong>Share the public URL</strong> with your communicants</li>
-            <li><strong>Track submissions</strong> and let committee members validate them</li>
-        </ol>
-    </div>
-
     {% if events %}
     <!-- Events Grid -->
     <div class="row">
@@ -207,49 +192,6 @@
         {% endif %}
     </div>
     {% endif %}
-
-    <!-- Help Section -->
-    <div class="row mt-4">
-        <div class="col-md-6">
-            <div class="card border-success">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="bi bi-gear-fill"></i> How It Works (Administrators)</h5>
-                </div>
-                <div class="card-body">
-                    <h6 class="text-success">🚀 Automatic Workflow:</h6>
-                    <ol class="mb-3">
-                        <li><strong>Create an event</strong> (forms are automatically available)</li>
-                        <li><strong>Create users with "Committee" role</strong> in <a href="{% url 'dashboard:user_create' %}">User Management</a></li>
-                        <li>Committee members are <strong>automatically added</strong> to the scientific committee</li>
-                        <li><strong>Copy the public URL</strong> and share with communicants</li>
-                        <li><strong>Committee reviews</strong> submissions and validates them</li>
-                    </ol>
-                    <div class="alert alert-info mb-0">
-                        <small>
-                            <strong>💡 Tip:</strong> When you create a user with role "Committee" for an event, 
-                            they are automatically added to the scientific committee!
-                        </small>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="bi bi-people"></i> For Scientific Committee</h5>
-                </div>
-                <div class="card-body">
-                    <ol class="mb-0">
-                        <li><strong>Log in</strong> with your user account</li>
-                        <li><strong>Click on this page</strong> (menu "Call for Communicants")</li>
-                        <li><strong>Find your events</strong> (yellow badge "Committee member")</li>
-                        <li><strong>Click "View Submissions"</strong> to access the works</li>
-                        <li><strong>Validate or invalidate</strong> each submission with comments</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Quick Stats Summary -->
     {% if events %}
