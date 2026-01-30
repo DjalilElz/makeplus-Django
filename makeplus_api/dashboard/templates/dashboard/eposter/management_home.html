@@ -1,13 +1,13 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}Appel aux Communicants{% endblock %}
+{% block page_title %}Call for Communicants{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="mb-1">📄 Appel aux Communicants</h2>
+            <h2 class="mb-1">📄 Call for Communicants</h2>
             <p class="text-muted mb-0">
                 Manage submission forms (ePoster/Call for Papers) for all your events
             </p>
@@ -21,7 +21,7 @@
 
     <!-- Info Alert -->
     <div class="alert alert-primary border-primary">
-        <h4><i class="bi bi-plus-circle-fill"></i> Create an "Appel aux Communicants" Form</h4>
+        <h4><i class="bi bi-plus-circle-fill"></i> Create a "Call for Communicants" Form</h4>
         <p class="mb-2">
             On this page, you can <strong>create and configure</strong> a submission form 
             for each of your events. Here's how:
@@ -207,7 +207,7 @@
             <div class="alert alert-warning text-center py-5">
                 <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
                 <h4 class="mt-3">No events found</h4>
-                <p class="text-muted">Create your first event to enable Appel aux Communicants</p>
+                <p class="text-muted">Create your first event to enable Call for Communicants</p>
                 <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> Create Event
                 </a>
@@ -249,7 +249,7 @@
                 <div class="card-body">
                     <ol class="mb-0">
                         <li><strong>Log in</strong> with your user account</li>
-                        <li><strong>Click on this page</strong> (menu "Appel aux Communicants")</li>
+                        <li><strong>Click on this page</strong> (menu "Call for Communicants")</li>
                         <li><strong>Find your events</strong> (yellow badge "Committee member")</li>
                         <li><strong>Click "View Submissions"</strong> to access the works</li>
                         <li><strong>Validate or invalidate</strong> each submission with comments</li>
@@ -275,9 +275,7 @@
                         <p class="text-muted mb-0">Active Forms</p>
                     </div>
                     <div class="col-md-3">
-                        <h3>
-                            {% widthratio events.aggregate|sum:total_submissions 1 1 %}
-                        </h3>
+                        <h3>-</h3>
                         <p class="text-muted mb-0">Total Submissions</p>
                     </div>
                     <div class="col-md-3">
