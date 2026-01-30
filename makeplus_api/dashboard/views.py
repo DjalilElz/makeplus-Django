@@ -1669,8 +1669,7 @@ def public_form_view(request, slug):
     from dashboard.models_form import FormConfiguration, FormSubmission
     from django.utils import timezone
     from django.conf import settings
-    from events.models import UserEventAssignment, Participant
-    from dashboard.models_user import UserProfile
+    from events.models import UserEventAssignment, Participant, UserProfile
     import secrets
     
     form_config = get_object_or_404(FormConfiguration, slug=slug, is_active=True)
@@ -1681,6 +1680,7 @@ def public_form_view(request, slug):
         email = None
         first_name = None
         last_name = None
+        password = None
         errors = []
         
         for field in form_config.fields_config:
@@ -1707,6 +1707,8 @@ def public_form_view(request, slug):
                 first_name = value
             elif field_name == 'last_name':
                 last_name = value
+            elif field_name == 'password' or field.get('type') == 'password':
+                password = value
         
         # Validate required fields for user creation
         if not email:
@@ -1716,13 +1718,27 @@ def public_form_view(request, slug):
         if not last_name:
             errors.append('Last name is required.')
         
-        # Check if user with this email already exists
-        if email and User.objects.filter(email=email).exists():
-            # Check if user is already registered for this event
-            existing_user = User.objects.get(email=email)
-            if form_config.event:
-                if UserEventAssignment.objects.filter(user=existing_user, event=form_config.event).exists():
-                    errors.append('You are already registered for this event.')
+        # Check if user already exists
+        existing_user = User.objects.filter(email=email).first()
+        
+        if existing_user:
+            # User exists - they're registering for another event
+            # Verify password if provided, otherwise just add them to the event
+            if password:
+                # Verify the password matches their existing password
+                if not existing_user.check_password(password):
+                    errors.append('Incorrect password. Please enter your existing password or leave it blank.')
+        else:
+            # New user - password is required
+            if not password:
+                errors.append('Password is required for new registrations.')
+            elif len(password) < 8:
+                errors.append('Password must be at least 8 characters long.')
+        
+        # Check if user is already registered for this event
+        if existing_user and form_config.event:
+            if UserEventAssignment.objects.filter(user=existing_user, event=form_config.event).exists():
+                errors.append('You are already registered for this event.')
         
         # If there are errors, redisplay form with errors
         if errors:
@@ -1748,19 +1764,85 @@ def public_form_view(request, slug):
                 'username': email.split('@')[0],
                 'first_name': first_name,
                 'last_name': last_name,
-                'password': User.objects.make_random_password(length=12)
             }
         )
         
-        # If user was created, set password and send email
+        # If user was created, set password
         if user_created:
-            # Generate random password
-            random_password = secrets.token_urlsafe(12)
-            user.set_password(random_password)
+            user.set_password(password)
             user.save()
             
-            # Send password email (optional - can be done later)
-            # TODO: Send password email to user
+            # Send welcome email with credentials
+            try:
+                from django.core.mail import send_mail
+                from django.template.loader import render_to_string
+                from django.utils.html import strip_tags
+                
+                subject = f'Welcome to {form_config.event.name if form_config.event else "MakePlus Events"}'
+                
+                html_message = f"""
+                <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <h2 style="color: #667eea;">Welcome, {first_name}!</h2>
+                        <p>Thank you for registering{' for ' + form_config.event.name if form_config.event else ''}.</p>
+                        
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                            <h3 style="margin-top: 0;">Your Login Credentials</h3>
+                            <p><strong>Email:</strong> {email}</p>
+                            <p><strong>Password:</strong> {password}</p>
+                        </div>
+                        
+                        <p><strong>Important:</strong> Please save these credentials securely. You will need them to access the mobile application.</p>
+                        
+                        {f'<p><strong>Event Details:</strong><br>{form_config.event.name}<br>{form_config.event.location}<br>{form_config.event.start_date.strftime("%B %d, %Y")}</p>' if form_config.event else ''}
+                        
+                        <p style="color: #6c757d; font-size: 0.9em; margin-top: 30px;">
+                            If you didn't register for this event, please contact us immediately.
+                        </p>
+                    </div>
+                </body>
+                </html>
+                """
+                
+                plain_message = f"""
+Welcome, {first_name}!
+
+Thank you for registering{' for ' + form_config.event.name if form_config.event else ''}.
+
+Your Login Credentials:
+Email: {email}
+Password: {password}
+
+Important: Please save these credentials securely. You will need them to access the mobile application.
+
+{f'Event Details:\n{form_config.event.name}\n{form_config.event.location}\n{form_config.event.start_date.strftime("%B %d, %Y")}' if form_config.event else ''}
+
+If you didn't register for this event, please contact us immediately.
+                """
+                
+                send_mail(
+                    subject=subject,
+                    message=plain_message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[email],
+                    html_message=html_message,
+                    fail_silently=True,
+                )
+            except Exception as e:
+                print(f"Error sending credentials email: {e}")
+                
+        # If user exists, update their info if needed (name might have changed)
+        else:
+            updated = False
+            if user.first_name != first_name:
+                user.first_name = first_name
+                updated = True
+            if user.last_name != last_name:
+                user.last_name = last_name
+                updated = True
+            if updated:
+                user.save()
         
         # Create submission
         submission = FormSubmission.objects.create(
@@ -1836,6 +1918,7 @@ def public_form_view(request, slug):
             'form_config': form_config,
             'success': True,
             'submitted_email': email,
+            'new_user_created': user_created,  # Pass this to show credentials email message
         }
         return render(request, 'dashboard/public_form.html', context)
     

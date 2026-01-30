@@ -79,6 +79,57 @@
             margin-bottom: 1.5rem;
             border-radius: 5px;
         }
+        .countdown-container {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .countdown-timer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .countdown-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            min-width: 80px;
+        }
+        .countdown-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+            line-height: 1;
+        }
+        .countdown-label {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
+            text-transform: uppercase;
+        }
+        .countdown-separator {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+        @media (max-width: 576px) {
+            .countdown-item {
+                min-width: 60px;
+                padding: 0.75rem 1rem;
+            }
+            .countdown-value {
+                font-size: 1.5rem;
+            }
+            .countdown-separator {
+                font-size: 1.5rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -91,9 +142,23 @@
                         <i class="bi bi-check-circle-fill success-icon"></i>
                         <h3 class="mt-3 mb-2">Thank You!</h3>
                         <p class="mb-0">{{ form_config.success_message }}</p>
-                        {% if form_config.send_confirmation_email %}
+                        
+                        {% if new_user_created %}
+                            <div class="alert alert-info mt-3">
+                                <i class="bi bi-envelope-check me-2"></i>
+                                <strong>Welcome!</strong> Your account has been created successfully.
+                                <br>A confirmation email with your login credentials has been sent to <strong>{{ submitted_email }}</strong>
+                                <br><small class="text-muted">Please check your inbox (and spam folder) for your password.</small>
+                            </div>
+                        {% elif form_config.send_confirmation_email %}
                             <p class="text-muted small mt-2">A confirmation email has been sent to {{ submitted_email }}</p>
                         {% endif %}
+                        
+                        <div class="alert alert-warning mt-3">
+                            <i class="bi bi-key me-2"></i>
+                            <strong>Forgot your password?</strong>
+                            <br><small>If you forget your password, please contact the event organizer for assistance.</small>
+                        </div>
                     </div>
                     
                     <div class="text-center">
@@ -120,6 +185,36 @@
                             <p>{{ form_config.description }}</p>
                         {% endif %}
                     </div>
+
+                    <!-- Countdown Timer -->
+                    {% if form_config.countdown_enabled and form_config.countdown_date %}
+                        <div class="countdown-container mb-4">
+                            <h5 class="text-center text-primary mb-3">
+                                <i class="bi bi-alarm me-2"></i>{{ form_config.countdown_title }}
+                            </h5>
+                            <div class="countdown-timer" id="countdown">
+                                <div class="countdown-item">
+                                    <span class="countdown-value" id="days">00</span>
+                                    <span class="countdown-label">Days</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-item">
+                                    <span class="countdown-value" id="hours">00</span>
+                                    <span class="countdown-label">Hours</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-item">
+                                    <span class="countdown-value" id="minutes">00</span>
+                                    <span class="countdown-label">Minutes</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-item">
+                                    <span class="countdown-value" id="seconds">00</span>
+                                    <span class="countdown-label">Seconds</span>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
 
                     <!-- Event Info (if linked) -->
                     {% if form_config.event %}
@@ -255,5 +350,36 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% if form_config.countdown_enabled and form_config.countdown_date %}
+    <script>
+        // Countdown Timer
+        const countdownDate = new Date("{{ form_config.countdown_date|date:'Y-m-d H:i:s' }}").getTime();
+        
+        function updateCountdown() {
+            const now = new Date().getTime();
+            const distance = countdownDate - now;
+            
+            if (distance < 0) {
+                document.getElementById('countdown').innerHTML = '<div class="alert alert-info mb-0">Event has started!</div>';
+                return;
+            }
+            
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+            
+            document.getElementById('days').textContent = String(days).padStart(2, '0');
+            document.getElementById('hours').textContent = String(hours).padStart(2, '0');
+            document.getElementById('minutes').textContent = String(minutes).padStart(2, '0');
+            document.getElementById('seconds').textContent = String(seconds).padStart(2, '0');
+        }
+        
+        // Update immediately and then every second
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    </script>
+    {% endif %}
 </body>
 </html>

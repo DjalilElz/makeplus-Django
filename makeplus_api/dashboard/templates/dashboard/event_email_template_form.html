@@ -356,6 +356,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         },
+        features: {
+            preview: true,
+            imageEditor: true,
+            textEditor: {
+                tables: true,
+                emojis: true
+            }
+        },
+        tools: {
+            // Enable countdown timer tool
+            timer: {
+                enabled: true,
+                properties: {
+                    countdown: {
+                        value: {
+                            endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // Default: 7 days from now
+                        }
+                    }
+                }
+            },
+            // Enable other useful tools
+            video: {
+                enabled: true
+            },
+            social: {
+                enabled: true
+            },
+            button: {
+                enabled: true
+            },
+            divider: {
+                enabled: true
+            },
+            html: {
+                enabled: true
+            },
+            image: {
+                enabled: true
+            },
+            text: {
+                enabled: true
+            },
+            heading: {
+                enabled: true
+            }
+        },
         mergeTags: [
             {% for var in template_variables %}
             {

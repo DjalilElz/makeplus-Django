@@ -81,6 +81,34 @@
                             {% endif %}
                         </div>
 
+                        <!-- Countdown Timer Settings -->
+                        <div class="mb-3">
+                            <h6 class="text-primary mb-3"><i class="bi bi-clock-history me-2"></i>Countdown Timer (Optional)</h6>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="countdownEnabled" name="countdown_enabled"
+                                       {% if form.countdown_enabled %}checked{% endif %} onchange="toggleCountdown()">
+                                <label class="form-check-label" for="countdownEnabled">
+                                    Enable countdown timer on form page
+                                </label>
+                            </div>
+                            
+                            <div id="countdownSettings" style="display: {% if form.countdown_enabled %}block{% else %}none{% endif %};">
+                                <div class="row">
+                                    <div class="col-md-6 mb-2">
+                                        <label for="countdownTitle" class="form-label small">Countdown Title</label>
+                                        <input type="text" class="form-control form-control-sm" id="countdownTitle" 
+                                               name="countdown_title" value="{{ form.countdown_title|default:'Event Starts In' }}"
+                                               placeholder="e.g., Event Starts In, Registration Closes In">
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <label for="countdownDate" class="form-label small">Target Date & Time</label>
+                                        <input type="datetime-local" class="form-control form-control-sm" id="countdownDate" 
+                                               name="countdown_date" value="{% if form.countdown_date %}{{ form.countdown_date|date:'Y-m-d\TH:i' }}{% endif %}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label for="successMessage" class="form-label">Success Message</label>
                             <textarea class="form-control" id="successMessage" name="success_message" 
@@ -127,20 +155,34 @@
 
                 <!-- Form Fields Builder Card -->
                 <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="bi bi-plus-square me-2"></i>Form Fields</h5>
-                        <button type="button" class="btn btn-sm btn-primary" id="addFieldBtn">
-                            <i class="bi bi-plus-circle me-1"></i>Add Field
-                        </button>
-                    </div>
                     <div class="card-body">
-                        <div id="fieldsContainer">
-                            <!-- Fields will be dynamically added here -->
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Required Fields:</strong> Email, First Name, and Last Name are required to create participant accounts. 
+                            <br><strong>Password:</strong> Required for new users. Existing users can enter their password to verify their identity or leave it blank.
+                            <br>These fields are always included in your form. Add custom fields below to collect additional information.
                         </div>
                         
-                        <div id="noFieldsMessage" class="text-center text-muted py-5">
-                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                            <p class="mt-3">No fields added yet. Click "Add Field" to start building your form.</p>
+                        <!-- Required Fields (Non-removable) -->
+                        <h6 class="text-primary mb-3"><i class="bi bi-lock-fill me-2"></i>Required Fields</h6>
+                        <div id="requiredFieldsContainer" class="mb-4">
+                            <!-- Required fields will be rendered here -->
+                        </div>
+                        
+                        <!-- Custom Fields Header -->
+                        <div class="d-flex justify-content-between align-items-center mb-3 sticky-header" style="background: white; padding: 1rem 0; top: 0; z-index: 10;">
+                            <h6 class="mb-0 text-secondary"><i class="bi bi-plus-square me-2"></i>Custom Fields</h6>
+                            <button type="button" class="btn btn-sm btn-primary" id="addFieldBtn">
+                                <i class="bi bi-plus-circle me-1"></i>Add Custom Field
+                            </button>
+                        </div>
+                        
+                        <div id="fieldsContainer">
+                            <!-- Custom fields will be dynamically added here -->
+                        </div>
+                        
+                        <div id="noFieldsMessage" class="text-center text-muted py-3">
+                            <p>No custom fields added yet. Click "Add Custom Field" to add additional fields to your form.</p>
                         </div>
                     </div>
                 </div>
@@ -221,20 +263,65 @@
 .preview-field {
     margin-bottom: 1rem;
 }
+
+.sticky-header {
+    position: sticky;
+    top: 80px;
+    background: white;
+    z-index: 10;
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: 1rem;
+}
 </style>
 
 <script>
 let fieldCounter = 0;
 let formFields = [];
+let requiredFields = [
+    {
+        name: 'email',
+        label: 'Email Address',
+        type: 'email',
+        required: true,
+        placeholder: 'Enter your email address',
+        isSystemField: true
+    },
+    {
+        name: 'first_name',
+        label: 'First Name',
+        type: 'text',
+        required: true,
+        placeholder: 'Enter your first name',
+        isSystemField: true
+    },
+    {
+        name: 'last_name',
+        label: 'Last Name',
+        type: 'text',
+        required: true,
+        placeholder: 'Enter your last name',
+        isSystemField: true
+    },
+    {
+        name: 'password',
+        label: 'Password',
+        type: 'password',
+        required: false,
+        placeholder: 'Create a password (min. 8 characters) or enter existing password',
+        isSystemField: true
+    }
+];
 
 // Initialize form fields from existing data
 {% if form.fields_config %}
     try {
         const fieldsData = {{ form.fields_config|safe }};
         if (Array.isArray(fieldsData) && fieldsData.length > 0) {
-            formFields = fieldsData;
+            // Separate system fields from custom fields
+            const customFields = fieldsData.filter(field => !field.isSystemField);
+            formFields = customFields;
             fieldCounter = formFields.length;
-            console.log('Loaded existing fields:', formFields.length, formFields);
+            console.log('Loaded existing custom fields:', formFields.length, formFields);
         } else {
             formFields = [];
             fieldCounter = 0;
@@ -254,18 +341,26 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing form builder...');
     console.log('formFields at startup:', formFields, 'fieldCounter:', fieldCounter);
     
-    // Render existing fields if any
+    // Render required fields (always shown)
+    requiredFields.forEach((field, index) => {
+        renderRequiredField(field, index);
+    });
+    
+    // Render existing custom fields if any
     if (formFields.length > 0) {
-        console.log('Rendering', formFields.length, 'existing fields...');
+        console.log('Rendering', formFields.length, 'existing custom fields...');
         formFields.forEach((field, index) => {
             console.log('Rendering field', index, ':', field);
             renderField(field, index);
         });
-        updatePreview();
         console.log('Preview updated after loading existing fields');
     } else {
-        console.log('No fields to render');
+        console.log('No custom fields to render');
     }
+    
+    // Update preview with all fields
+    updatePreview();
+    toggleNoFieldsMessage();
     
     // Add Field button
     const addFieldBtn = document.getElementById('addFieldBtn');
@@ -288,6 +383,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Toggle countdown settings
+function toggleCountdown() {
+    const countdownEnabled = document.getElementById('countdownEnabled').checked;
+    document.getElementById('countdownSettings').style.display = countdownEnabled ? 'block' : 'none';
+}
 
 // Generate slug from name
 function generateSlug() {
@@ -353,6 +454,61 @@ function addField() {
     }
 }
 
+// Render required field (non-removable, non-draggable)
+function renderRequiredField(field, index) {
+    const container = document.getElementById('requiredFieldsContainer');
+    if (!container) {
+        console.error('requiredFieldsContainer not found!');
+        return;
+    }
+    
+    const fieldHtml = `
+        <div class="field-item" style="border-color: #0d6efd; background: #e7f1ff;">
+            <div class="field-header">
+                <div>
+                    <i class="bi bi-lock-fill text-primary me-2"></i>
+                    <strong>${field.label}</strong>
+                    <span class="badge bg-primary field-type-badge ms-2">${field.type}</span>
+                    <span class="badge bg-danger ms-1">Required</span>
+                </div>
+            </div>
+            
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label small">Label</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.label}" 
+                           onchange="updateRequiredField(${index}, 'label', this.value)">
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label small">Field Name</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.name}" disabled readonly 
+                           title="System field - cannot be modified">
+                </div>
+                
+                <div class="col-12">
+                    <label class="form-label small">Placeholder</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.placeholder || ''}" 
+                           onchange="updateRequiredField(${index}, 'placeholder', this.value)">
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', fieldHtml);
+}
+
+// Update required field property
+function updateRequiredField(index, property, value) {
+    if (requiredFields[index]) {
+        requiredFields[index][property] = value;
+        updatePreview();
+    }
+}
+
 // Render field in builder
 function renderField(field, index) {
     console.log('renderField() called for index:', index, 'field:', field);
@@ -372,7 +528,7 @@ function renderField(field, index) {
                 <div>
                     <i class="bi bi-grip-vertical drag-handle me-2"></i>
                     <strong>${field.label}</strong>
-                    <span class="badge bg-info field-type-badge ms-2">${field.type}</span>
+                    <span class="badge bg-secondary field-type-badge ms-2">${field.type}</span>
                 </div>
                 <button type="button" class="btn btn-sm btn-danger" onclick="event.preventDefault(); event.stopPropagation(); removeField(${index});">
                     <i class="bi bi-trash"></i>
@@ -545,13 +701,17 @@ function dragEnd(e) {
 function updatePreview() {
     const previewContainer = document.getElementById('previewContainer');
     
-    if (formFields.length === 0) {
-        previewContainer.innerHTML = '<p class="text-muted text-center">Preview will appear here as you add fields</p>';
-        return;
-    }
+    let html = '<div class="preview-form-display">';
     
-    let html = '<form>';
+    // Add required fields first (without actual form elements to avoid validation)
+    requiredFields.forEach(field => {
+        html += `<div class="preview-field mb-3">`;
+        html += `<label class="form-label"><strong>${field.label} *</strong></label>`;
+        html += `<div class="form-control" style="background: #e9ecef; cursor: not-allowed;">${field.placeholder || ''}</div>`;
+        html += `</div>`;
+    });
     
+    // Add custom fields
     formFields.forEach(field => {
         html += `<div class="preview-field mb-3">`;
         html += `<label class="form-label">${field.label}${field.required ? ' *' : ''}</label>`;
@@ -591,14 +751,17 @@ function updatePreview() {
         html += `</div>`;
     });
     
-    html += '</form>';
+    html += '</div>';
     previewContainer.innerHTML = html;
 }
 
 // Prepare form submission
 function prepareFormSubmission() {
     const fieldsConfigInput = document.getElementById('fieldsConfigInput');
-    fieldsConfigInput.value = JSON.stringify(formFields);
+    // Combine required fields and custom fields
+    const allFields = [...requiredFields, ...formFields];
+    fieldsConfigInput.value = JSON.stringify(allFields);
+    console.log('Submitting fields:', allFields);
     return true;
 }
 </script>

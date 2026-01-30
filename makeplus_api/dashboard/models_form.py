@@ -18,6 +18,11 @@ class FormConfiguration(models.Model):
     # Banner image for the form (optional)
     banner_image = models.ImageField(upload_to='forms/banners/', blank=True, null=True, help_text="Optional banner image for the form. If not set, will use event banner if form is linked to an event.")
     
+    # Countdown settings
+    countdown_enabled = models.BooleanField(default=False, help_text="Enable countdown timer on form page")
+    countdown_date = models.DateTimeField(null=True, blank=True, help_text="Target date for countdown timer")
+    countdown_title = models.CharField(max_length=255, blank=True, default="Event Starts In", help_text="Title to display above countdown")
+    
     # JSON field to store form fields configuration
     # Structure: [{"name": "field_name", "label": "Field Label", "type": "text|email|tel|textarea|select", "required": true, "options": [...]}]
     fields_config = models.JSONField(default=list)

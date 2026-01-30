@@ -761,7 +761,7 @@ def registration_form_builder(request):
     """List all custom registration forms"""
     from .models_form import FormConfiguration
     
-    forms = FormConfiguration.objects.select_related('event', 'created_by').all()
+    forms = FormConfiguration.objects.select_related('event', 'created_by').all().order_by('-created_at')
     
     context = {
         'forms': forms,
@@ -783,6 +783,9 @@ def registration_form_create(request):
         slug = request.POST.get('slug') or slugify(name)
         fields_config = request.POST.get('fields_config', '[]')
         success_message = request.POST.get('success_message', 'Thank you for your registration!')
+        countdown_enabled = request.POST.get('countdown_enabled') == 'on'
+        countdown_date = request.POST.get('countdown_date') or None
+        countdown_title = request.POST.get('countdown_title', 'Event Starts In')
         
         # Validate
         if not name:
@@ -810,6 +813,9 @@ def registration_form_create(request):
             fields_config=fields_config,
             success_message=success_message,
             send_confirmation_email=request.POST.get('send_confirmation_email') == 'on',
+            countdown_enabled=countdown_enabled,
+            countdown_date=countdown_date,
+            countdown_title=countdown_title,
             is_active=True,
             created_by=request.user
         )
@@ -869,6 +875,9 @@ def registration_form_edit(request, form_id):
         form.success_message = request.POST.get('success_message', 'Thank you for your registration!')
         form.send_confirmation_email = request.POST.get('send_confirmation_email') == 'on'
         form.is_active = request.POST.get('is_active') == 'on'
+        form.countdown_enabled = request.POST.get('countdown_enabled') == 'on'
+        form.countdown_date = request.POST.get('countdown_date') or None
+        form.countdown_title = request.POST.get('countdown_title', 'Event Starts In')
         
         # Handle banner image
         if request.POST.get('clear_banner') == 'on':
