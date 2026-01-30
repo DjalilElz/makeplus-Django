@@ -12,6 +12,41 @@
                 <form method="post">
                     {% csrf_token %}
                     
+                    <!-- Step 1: Choose Role First -->
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-1-circle-fill"></i> <strong>Step 1:</strong> Choose the user role
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="{{ form.role.id_for_label }}" class="form-label">Role *</label>
+                        {{ form.role }}
+                        <small class="form-text text-muted">Select role first to see appropriate fields</small>
+                    </div>
+                    
+                    <!-- Step 2: Event and Room (conditional) -->
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-2-circle-fill"></i> <strong>Step 2:</strong> Assign to event
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.event.id_for_label }}" class="form-label">Assign to Event *</label>
+                        {{ form.event }}
+                    </div>
+                    
+                    <!-- Conditional: Room assignment for Gestionnaire de Salle and Controlleur -->
+                    <div class="mb-3" id="roomAssignmentField" style="display: none;">
+                        <label for="{{ form.assigned_room.id_for_label }}" class="form-label">
+                            <i class="bi bi-door-open"></i> Assigned Room *
+                        </label>
+                        {{ form.assigned_room }}
+                        <small class="form-text text-muted">Select the room this user will manage/control</small>
+                    </div>
+                    
+                    <!-- Step 3: User Information -->
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-3-circle-fill"></i> <strong>Step 3:</strong> User information
+                    </div>
+                    
                     <div class="mb-3">
                         <label for="{{ form.email.id_for_label }}" class="form-label">Email *</label>
                         {{ form.email }}
@@ -34,35 +69,7 @@
                         {{ form.password }}
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="{{ form.event.id_for_label }}" class="form-label">Assign to Event *</label>
-                        {{ form.event }}
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="{{ form.role.id_for_label }}" class="form-label">Role *</label>
-                        {{ form.role }}
-                    </div>
-                    
-                    <!-- Conditional: Room assignment for Gestionnaire des Salles and Controlleur -->
-                    <div class="mb-3" id="roomAssignmentField" style="display: none;">
-                        <label for="{{ form.assigned_room.id_for_label }}" class="form-label">
-                            <i class="bi bi-door-open"></i> Assigned Room
-                        </label>
-                        {{ form.assigned_room }}
-                        <small class="form-text text-muted">{{ form.assigned_room.help_text }}</small>
-                    </div>
-                    
-                    <!-- Conditional: Profile Picture for Participants -->
-                    <div class="mb-3" id="profilePictureField" style="display: none;">
-                        <label for="{{ form.profile_picture_url.id_for_label }}" class="form-label">
-                            <i class="bi bi-image"></i> Profile Picture URL (Optional)
-                        </label>
-                        {{ form.profile_picture_url }}
-                        <small class="form-text text-muted">{{ form.profile_picture_url.help_text }}</small>
-                    </div>
-                    
-                    <div class="alert alert-info">
+                    <div class="alert alert-secondary">
                         <i class="bi bi-qr-code"></i> <strong>Note:</strong> A unique QR code will be automatically generated.
                     </div>
                     
@@ -87,35 +94,28 @@ function toggleConditionalFields() {
     const selectedRole = roleSelect.value;
     
     const roomField = document.getElementById('roomAssignmentField');
-    const profileField = document.getElementById('profilePictureField');
     
-    // Show/hide room assignment for organisateur, gestionnaire_des_salles and controlleur_des_badges
-    if (selectedRole === 'organisateur' || selectedRole === 'gestionnaire_des_salles' || selectedRole === 'controlleur_des_badges') {
+    // Show room assignment only for gestionnaire_salle and controlleur
+    if (selectedRole === 'gestionnaire_salle' || selectedRole === 'controlleur') {
         roomField.style.display = 'block';
-        profileField.style.display = 'none';
-    } 
-    // Show/hide profile picture for participant
-    else if (selectedRole === 'participant') {
+    } else {
         roomField.style.display = 'none';
-        profileField.style.display = 'block';
-    } 
-    // Hide both for other roles
-    else {
-        roomField.style.display = 'none';
-        profileField.style.display = 'none';
     }
 }
 
-// Update room options when event changes (for future enhancement with dynamic loading)
+// Update room options when event changes
 function updateRoomOptions(eventId) {
-    // For now, just inform user to save and select room
-    // Future: Can add AJAX call to dynamically load rooms
     console.log('Event changed:', eventId);
+    // Could add AJAX to load rooms dynamically
 }
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     toggleConditionalFields();
+    
+    // Add event listener to role field
+    const roleSelect = document.querySelector('select[name="role"]');
+    roleSelect.addEventListener('change', toggleConditionalFields);
     
     // If event is already selected, load rooms
     const eventSelect = document.querySelector('select[name="event"]');

@@ -9,7 +9,8 @@ from .models_form import (
 )
 from .models_eposter import (
     EPosterSubmission, EPosterValidation, 
-    EPosterCommitteeMember, EPosterEmailTemplate
+    EPosterCommitteeMember, EPosterEmailTemplate,
+    EventFormConfiguration
 )
 
 
@@ -190,4 +191,12 @@ class EPosterEmailTemplateAdmin(admin.ModelAdmin):
     list_display = ['event', 'template_type', 'subject', 'is_active', 'created_at']
     list_filter = ['template_type', 'is_active', 'event', 'created_at']
     search_fields = ['subject', 'body_html']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(EventFormConfiguration)
+class EventFormConfigurationAdmin(admin.ModelAdmin):
+    list_display = ['event', 'form_type', 'title', 'is_active', 'submission_deadline', 'created_at']
+    list_filter = ['form_type', 'is_active', 'created_at']
+    search_fields = ['event__name', 'title', 'description']
     readonly_fields = ['created_at', 'updated_at']

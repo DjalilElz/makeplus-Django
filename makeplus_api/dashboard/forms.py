@@ -389,6 +389,35 @@ class UserCreationForm(forms.ModelForm):
 class QuickUserForm(forms.Form):
     """Quick user creation form for dashboard"""
     
+    # Step 1: Role selection first (only admin-creatable roles, not participant)
+    role = forms.ChoiceField(
+        choices=UserEventAssignment.ADMIN_CREATABLE_ROLES,
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'onchange': 'toggleConditionalFields()'
+        })
+    )
+    
+    # Step 2: Event selection
+    event = forms.ModelChoiceField(
+        queryset=Event.objects.all(),
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'onchange': 'updateRoomOptions(this.value)'
+        })
+    )
+    
+    # Conditional field for gestionnaire_salle and controlleur
+    assigned_room = forms.ModelChoiceField(
+        queryset=Room.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        help_text="Select room to assign (for Gestionnaire de Salle or Contrôleur)"
+    )
+    
+    # Step 3: User information
     email = forms.EmailField(
         widget=forms.EmailInput(attrs={
             'class': 'form-control',
@@ -412,40 +441,6 @@ class QuickUserForm(forms.Form):
             'class': 'form-control',
             'placeholder': 'Password'
         })
-    )
-    event = forms.ModelChoiceField(
-        queryset=Event.objects.all(),
-        widget=forms.Select(attrs={
-            'class': 'form-select',
-            'onchange': 'updateRoomOptions(this.value)'
-        })
-    )
-    role = forms.ChoiceField(
-        choices=UserEventAssignment.ROLE_CHOICES,
-        widget=forms.Select(attrs={
-            'class': 'form-select',
-            'onchange': 'toggleConditionalFields()'
-        })
-    )
-    
-    # Conditional field for gestionnaire_des_salles and controlleur_des_badges
-    assigned_room = forms.ModelChoiceField(
-        queryset=Room.objects.all(),
-        required=False,
-        widget=forms.Select(attrs={
-            'class': 'form-select'
-        }),
-        help_text="Select room to assign (for gestionnaire des salles or controlleur des badges)"
-    )
-    
-    # Conditional field for participants
-    profile_picture_url = forms.URLField(
-        required=False,
-        widget=forms.URLInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'https://example.com/profile.jpg'
-        }),
-        help_text="Optional profile picture URL for participants"
     )
     
     def __init__(self, *args, **kwargs):

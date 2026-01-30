@@ -103,11 +103,19 @@ class Event(models.Model):
 class UserEventAssignment(models.Model):
     """User-Event Role Assignment"""
     ROLE_CHOICES = [
-        ('organisateur', 'Organisateur'),
-        ('gestionnaire_des_salles', 'Gestionnaire des Salles'),
-        ('controlleur_des_badges', 'Contrôleur des Badges'),
-        ('participant', 'Participant'),
+        ('gestionnaire_salle', 'Gestionnaire de Salle'),
+        ('controlleur', 'Contrôleur'),
         ('exposant', 'Exposant'),
+        ('committee', 'Committee'),
+        ('participant', 'Participant'),  # Auto-created via registration form, not by admin
+    ]
+    
+    # Roles that admin can create manually
+    ADMIN_CREATABLE_ROLES = [
+        ('gestionnaire_salle', 'Gestionnaire de Salle'),
+        ('controlleur', 'Contrôleur'),
+        ('exposant', 'Exposant'),
+        ('committee', 'Committee'),
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='event_assignments')

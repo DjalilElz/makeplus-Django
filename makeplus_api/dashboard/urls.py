@@ -127,6 +127,7 @@ urlpatterns = [
     
     # ePoster Management - Central Hub
     path('eposter/', views_eposter_management.eposter_management_home, name='eposter_management_home'),
+    path('eposter/create/<uuid:event_id>/', views_eposter_management.create_form_for_event, name='create_form_for_event'),
     path('eposter/<uuid:event_id>/enable/', views_eposter_management.eposter_enable_for_event, name='eposter_enable_for_event'),
     path('eposter/copy/<uuid:source_event_id>/<uuid:target_event_id>/', views_eposter_management.eposter_copy_settings, name='eposter_copy_settings'),
     

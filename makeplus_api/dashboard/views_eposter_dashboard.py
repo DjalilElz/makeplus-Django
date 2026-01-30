@@ -339,9 +339,18 @@ def eposter_committee_list(request, event_id):
         validations_count=Count('user__eposter_validations', filter=Q(user__eposter_validations__submission__event=event))
     ).order_by('-assigned_at')
     
-    # Get available users (not already in committee)
+    # Get available users - only users with 'committee' role assigned to this event
     existing_member_ids = committee.values_list('user_id', flat=True)
-    available_users = User.objects.exclude(
+    from events.models import UserEventAssignment
+    committee_user_ids = UserEventAssignment.objects.filter(
+        event=event,
+        role='committee',
+        is_active=True
+    ).values_list('user_id', flat=True)
+    
+    available_users = User.objects.filter(
+        id__in=committee_user_ids
+    ).exclude(
         id__in=existing_member_ids
     ).order_by('first_name', 'last_name')
     

@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}Comité scientifique - {{ event.name }}{% endblock %}
+{% block title %}Scientific Committee - {{ event.name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -10,10 +10,10 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_dashboard' event.id %}">ePoster</a></li>
-                    <li class="breadcrumb-item active">Comité scientifique</li>
+                    <li class="breadcrumb-item active">Scientific Committee</li>
                 </ol>
             </nav>
-            <h1 class="h3 mb-0">Comité scientifique</h1>
+            <h1 class="h3 mb-0">Scientific Committee</h1>
             <p class="text-muted mb-0">{{ event.name }}</p>
         </div>
     </div>
@@ -25,27 +25,29 @@
                 <div class="card-header bg-white">
                     <h5 class="mb-0">
                         <i class="bi bi-person-plus me-2"></i>
-                        Ajouter un membre
+                        Add Member
                     </h5>
                 </div>
                 <div class="card-body">
+                    {% if available_users %}
                     <form method="post" action="{% url 'dashboard:eposter_committee_add' event.id %}">
                         {% csrf_token %}
                         
                         <div class="mb-3">
-                            <label class="form-label">Utilisateur</label>
+                            <label class="form-label">User</label>
                             <select name="user_id" class="form-select" required>
-                                <option value="">Sélectionner...</option>
+                                <option value="">Select...</option>
                                 {% for user in available_users %}
                                 <option value="{{ user.id }}">
                                     {{ user.get_full_name|default:user.username }} ({{ user.email }})
                                 </option>
                                 {% endfor %}
                             </select>
+                            <small class="text-muted">Only users with "Committee" role for this event</small>
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Rôle</label>
+                            <label class="form-label">Committee Role</label>
                             <select name="role" class="form-select">
                                 {% for value, label in role_choices %}
                                 <option value="{{ value }}">{{ label }}</option>
@@ -54,14 +56,24 @@
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Spécialité</label>
-                            <input type="text" name="specialty" class="form-control" placeholder="Ex: Cardiologie">
+                            <label class="form-label">Specialty</label>
+                            <input type="text" name="specialty" class="form-control" placeholder="e.g., Cardiology">
                         </div>
                         
                         <button type="submit" class="btn btn-primary w-100">
-                            <i class="bi bi-plus-circle me-1"></i> Ajouter
+                            <i class="bi bi-plus-circle me-1"></i> Add
                         </button>
                     </form>
+                    {% else %}
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>No committee users available</strong>
+                        <p class="mb-2 mt-2">To add members, first create users with the "Committee" role for this event:</p>
+                        <a href="{% url 'dashboard:user_create' %}" class="btn btn-success btn-sm">
+                            <i class="bi bi-person-plus"></i> Create Committee User
+                        </a>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -72,7 +84,7 @@
                 <div class="card-header bg-white">
                     <h5 class="mb-0">
                         <i class="bi bi-people me-2"></i>
-                        Membres du comité ({{ committee|length }})
+                        Committee Members ({{ committee|length }})
                     </h5>
                 </div>
                 <div class="card-body p-0">
@@ -80,12 +92,12 @@
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Nom</th>
+                                    <th>Name</th>
                                     <th>Email</th>
-                                    <th>Rôle</th>
-                                    <th>Spécialité</th>
+                                    <th>Role</th>
+                                    <th>Specialty</th>
                                     <th>Validations</th>
-                                    <th>Statut</th>
+                                    <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -111,15 +123,15 @@
                                     </td>
                                     <td>
                                         {% if member.is_active %}
-                                            <span class="badge bg-success">Actif</span>
+                                            <span class="badge bg-success">Active</span>
                                         {% else %}
-                                            <span class="badge bg-danger">Inactif</span>
+                                            <span class="badge bg-danger">Inactive</span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         <a href="{% url 'dashboard:eposter_committee_remove' event.id member.id %}" 
                                            class="btn btn-sm btn-outline-danger"
-                                           onclick="return confirm('Êtes-vous sûr de vouloir retirer ce membre?')">
+                                           onclick="return confirm('Are you sure you want to remove this member?')">
                                             <i class="bi bi-trash"></i>
                                         </a>
                                     </td>
@@ -128,7 +140,7 @@
                                 <tr>
                                     <td colspan="7" class="text-center py-4">
                                         <i class="bi bi-people fs-1 text-muted d-block mb-2"></i>
-                                        Aucun membre dans le comité
+                                        No members in the committee
                                     </td>
                                 </tr>
                                 {% endfor %}

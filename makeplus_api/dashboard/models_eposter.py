@@ -336,6 +336,49 @@ class EPosterEmailTemplate(models.Model):
         return f"{self.event.name} - {self.get_template_type_display()}"
 
 
+class EventFormConfiguration(models.Model):
+    """
+    Tracks which type of form is enabled for each event.
+    An event can have both participant and communicant forms.
+    """
+    FORM_TYPE_CHOICES = [
+        ('participant', 'Participant Registration Form'),
+        ('communicant', 'Call for Communicants Form'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(
+        Event, 
+        on_delete=models.CASCADE, 
+        related_name='form_configurations'
+    )
+    form_type = models.CharField(max_length=20, choices=FORM_TYPE_CHOICES)
+    
+    is_active = models.BooleanField(default=True)
+    
+    # Form settings
+    title = models.CharField(max_length=300, blank=True, help_text="Custom form title (optional)")
+    description = models.TextField(blank=True, help_text="Form description/instructions")
+    
+    # Deadline settings
+    submission_deadline = models.DateTimeField(null=True, blank=True)
+    allow_late_submissions = models.BooleanField(default=False)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        unique_together = ('event', 'form_type')
+        ordering = ['-created_at']
+        verbose_name = 'Event Form Configuration'
+        verbose_name_plural = 'Event Form Configurations'
+    
+    def __str__(self):
+        return f"{self.event.name} - {self.get_form_type_display()}"
+
+
 # Signals for automatic actions
 from django.db.models.signals import post_save
 from django.dispatch import receiver
