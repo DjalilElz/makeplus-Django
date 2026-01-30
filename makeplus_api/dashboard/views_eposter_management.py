@@ -4,7 +4,7 @@ ePoster Management Views - Central hub for Call for Communicants forms
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Count, Q, Exists, OuterRef
+from django.db.models import Count, Q
 from events.models import Event
 from .models_eposter import EPosterSubmission, EPosterCommitteeMember, EventFormConfiguration
 
@@ -12,33 +12,17 @@ from .models_eposter import EPosterSubmission, EPosterCommitteeMember, EventForm
 @login_required
 def eposter_management_home(request):
     """
-    Central Call for Communicants Management page - shows only events with communicant forms
+    Central Call for Communicants Management page - shows ALL events
+    Forms are automatically available for all events (no manual creation needed)
     """
-    # Get events that have communicant form configured
-    events_with_communicant_form = EventFormConfiguration.objects.filter(
-        event=OuterRef('pk'),
-        form_type='communicant',
-        is_active=True
-    )
-    
-    # Get all events with ePoster statistics, filtered to those with communicant forms
+    # Get all events with ePoster statistics
     events = Event.objects.annotate(
-        has_communicant_form=Exists(events_with_communicant_form),
         total_submissions=Count('eposter_submissions'),
         pending_submissions=Count('eposter_submissions', filter=Q(eposter_submissions__status='pending')),
         accepted_submissions=Count('eposter_submissions', filter=Q(eposter_submissions__status='accepted')),
         rejected_submissions=Count('eposter_submissions', filter=Q(eposter_submissions__status='rejected')),
         committee_members_count=Count('eposter_committee_members', filter=Q(eposter_committee_members__is_active=True))
-    ).filter(has_communicant_form=True).order_by('-start_date')
-    
-    # Get all events for the "create form" modal
-    all_events = Event.objects.all().order_by('-start_date')
-    
-    # Get events that already have communicant form
-    events_with_form = EventFormConfiguration.objects.filter(
-        form_type='communicant',
-        is_active=True
-    ).values_list('event_id', flat=True)
+    ).order_by('-start_date')
     
     # Check if user is committee member for any events
     user_committee_events = EPosterCommitteeMember.objects.filter(
@@ -48,8 +32,6 @@ def eposter_management_home(request):
     
     context = {
         'events': events,
-        'all_events': all_events,
-        'events_with_form': list(events_with_form),
         'user_committee_events': list(user_committee_events),
         'is_admin': request.user.is_staff or request.user.is_superuser,
     }

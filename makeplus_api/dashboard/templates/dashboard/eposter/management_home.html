@@ -13,11 +13,6 @@
             </p>
         </div>
         <div>
-            {% if is_admin %}
-            <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#createFormModal">
-                <i class="bi bi-plus-circle"></i> Create New Form
-            </button>
-            {% endif %}
             <a href="{% url 'dashboard:home' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Back
             </a>
@@ -25,17 +20,17 @@
     </div>
 
     <!-- Info Alert -->
-    <div class="alert alert-primary border-primary">
-        <h4><i class="bi bi-info-circle-fill"></i> Call for Communicants Forms</h4>
+    <div class="alert alert-success border-success">
+        <h4><i class="bi bi-check-circle-fill"></i> Automatic Forms</h4>
         <p class="mb-2">
-            This page shows <strong>only events with Call for Communicants forms</strong>. 
-            To create a new form:
+            <strong>Call for Communicants forms are automatically available for all events.</strong>
+            To get started:
         </p>
         <ol class="mb-0">
-            <li><strong>Click "Create New Form"</strong> and select an event</li>
-            <li><strong>Choose "Call for Communicants"</strong> as the form type</li>
-            <li><strong>Configure the scientific committee</strong> to start accepting submissions</li>
+            <li><strong>Create committee users</strong> in <a href="{% url 'dashboard:user_create' %}">User Management</a> with role "Committee"</li>
+            <li>Committee members are <strong>automatically added</strong> to the scientific committee</li>
             <li><strong>Share the public URL</strong> with your communicants</li>
+            <li><strong>Track submissions</strong> and let committee members validate them</li>
         </ol>
     </div>
 
@@ -53,11 +48,11 @@
                         </h5>
                         {% if event.committee_members_count > 0 %}
                             <span class="badge bg-light text-success">
-                                <i class="bi bi-check-circle-fill"></i> Form Configured
+                                <i class="bi bi-people-fill"></i> {{ event.committee_members_count }} Committee
                             </span>
                         {% else %}
                             <span class="badge bg-warning text-dark">
-                                <i class="bi bi-exclamation-triangle-fill"></i> To Configure
+                                <i class="bi bi-exclamation-triangle-fill"></i> No Committee
                             </span>
                         {% endif %}
                     </div>
@@ -149,27 +144,19 @@
                 <!-- Actions -->
                 <div class="card-footer bg-white">
                     {% if event.committee_members_count == 0 %}
-                        <!-- Form not yet configured -->
+                        <!-- No committee yet -->
                         <div class="alert alert-warning mb-2 p-2">
-                            <small><i class="bi bi-info-circle"></i> Form not configured - Add a committee to activate</small>
+                            <small><i class="bi bi-info-circle"></i> No committee members - <a href="{% url 'dashboard:user_create' %}">Create committee users</a></small>
                         </div>
                     {% endif %}
                     
                     <div class="d-grid gap-2">
                         {% if is_admin %}
-                            {% if event.committee_members_count == 0 %}
-                                <!-- Main button: Configure the form -->
-                                <a href="{% url 'dashboard:eposter_committee_list' event.id %}" 
-                                   class="btn btn-success btn-sm">
-                                    <i class="bi bi-plus-circle-fill"></i> Configure Form
-                                </a>
-                            {% else %}
-                                <!-- Form configured: Dashboard -->
-                                <a href="{% url 'dashboard:eposter_dashboard' event.id %}" 
-                                   class="btn btn-primary btn-sm">
-                                    <i class="bi bi-speedometer2"></i> Manage Form
-                                </a>
-                            {% endif %}
+                            <!-- Always show dashboard link -->
+                            <a href="{% url 'dashboard:eposter_dashboard' event.id %}" 
+                               class="btn btn-primary btn-sm">
+                                <i class="bi bi-speedometer2"></i> Manage Submissions
+                            </a>
                         {% endif %}
                         
                         {% if is_admin or event.id in user_committee_events %}
@@ -206,18 +193,17 @@
         {% endfor %}
     </div>
     {% else %}
-    <!-- Empty State - No forms created yet -->
+    <!-- Empty State - No events yet -->
     <div class="text-center py-5">
-        <i class="bi bi-file-earmark-plus" style="font-size: 4rem; color: #6c757d;"></i>
-        <h3 class="mt-4">No Call for Communicants Forms Yet</h3>
+        <i class="bi bi-calendar-x" style="font-size: 4rem; color: #6c757d;"></i>
+        <h3 class="mt-4">No Events Found</h3>
         <p class="text-muted mb-4">
-            You haven't created any Call for Communicants forms. 
-            Click the button below to create your first form.
+            Create an event first, then add committee users to manage submissions.
         </p>
         {% if is_admin %}
-        <button type="button" class="btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#createFormModal">
-            <i class="bi bi-plus-circle"></i> Create Your First Form
-        </button>
+        <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-plus-circle"></i> Create Event
+        </a>
         {% endif %}
     </div>
     {% endif %}
@@ -227,21 +213,21 @@
         <div class="col-md-6">
             <div class="card border-success">
                 <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="bi bi-plus-circle-fill"></i> Create a Form (Administrators)</h5>
+                    <h5 class="mb-0"><i class="bi bi-gear-fill"></i> How It Works (Administrators)</h5>
                 </div>
                 <div class="card-body">
-                    <h6 class="text-success">🚀 Steps to Create Your Form:</h6>
+                    <h6 class="text-success">🚀 Automatic Workflow:</h6>
                     <ol class="mb-3">
-                        <li><strong>Click "Configure Form"</strong> on an event</li>
-                        <li><strong>Add 3-5 members to the Scientific Committee</strong></li>
-                        <li><strong>Configure automatic emails</strong> (optional)</li>
-                        <li><strong>Copy the public URL</strong> with the "Copy" button</li>
-                        <li><strong>Share the URL</strong> with your participants</li>
+                        <li><strong>Create an event</strong> (forms are automatically available)</li>
+                        <li><strong>Create users with "Committee" role</strong> in <a href="{% url 'dashboard:user_create' %}">User Management</a></li>
+                        <li>Committee members are <strong>automatically added</strong> to the scientific committee</li>
+                        <li><strong>Copy the public URL</strong> and share with communicants</li>
+                        <li><strong>Committee reviews</strong> submissions and validates them</li>
                     </ol>
                     <div class="alert alert-info mb-0">
                         <small>
-                            <strong>💡 Tip:</strong> The form is created automatically for each event. 
-                            You just need to add a committee to activate it!
+                            <strong>💡 Tip:</strong> When you create a user with role "Committee" for an event, 
+                            they are automatically added to the scientific committee!
                         </small>
                     </div>
                 </div>
@@ -293,61 +279,6 @@
         </div>
     </div>
     {% endif %}
-</div>
-
-<!-- Create Form Modal -->
-<div class="modal fade" id="createFormModal" tabindex="-1" aria-labelledby="createFormModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title" id="createFormModalLabel">
-                    <i class="bi bi-plus-circle"></i> Create New Form
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted">Select an event to create a Call for Communicants form:</p>
-                
-                {% if all_events %}
-                <div class="list-group">
-                    {% for event in all_events %}
-                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-1">{{ event.name }}</h6>
-                            <small class="text-muted">
-                                {{ event.start_date|date:"d/m/Y" }} - {{ event.end_date|date:"d/m/Y" }}
-                            </small>
-                        </div>
-                        <div>
-                            {% if event.id in events_with_form %}
-                                <span class="badge bg-success">
-                                    <i class="bi bi-check-circle"></i> Form Created
-                                </span>
-                            {% else %}
-                                <a href="{% url 'dashboard:create_form_for_event' event.id %}" 
-                                   class="btn btn-success btn-sm">
-                                    <i class="bi bi-plus-circle"></i> Create Form
-                                </a>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i> No events found. 
-                    <a href="{% url 'dashboard:event_create_step1' %}">Create an event first</a>.
-                </div>
-                {% endif %}
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-primary">
-                    <i class="bi bi-calendar-plus"></i> Create New Event
-                </a>
-            </div>
-        </div>
-    </div>
 </div>
 
 <script>

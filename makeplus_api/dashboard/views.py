@@ -654,6 +654,7 @@ def user_list(request):
 @user_passes_test(is_staff_user)
 def user_create(request):
     """Quick user creation"""
+    from .models_eposter import EPosterCommitteeMember
     
     if request.method == 'POST':
         form = QuickUserForm(request.POST)
@@ -701,6 +702,20 @@ def user_create(request):
                 assignment.metadata = {'assigned_room_id': str(assigned_room.id)}
                 assignment.save()
                 messages.success(request, f'User "{user.get_full_name()}" created successfully and assigned to room: {assigned_room.name}!')
+            
+            # Auto-add committee members to EPosterCommitteeMember
+            elif role == 'committee':
+                EPosterCommitteeMember.objects.get_or_create(
+                    event=event,
+                    user=user,
+                    defaults={
+                        'role': 'member',
+                        'is_active': True,
+                        'assigned_by': request.user
+                    }
+                )
+                messages.success(request, f'Committee member "{user.get_full_name()}" created and added to scientific committee for {event.name}!')
+            
             else:
                 messages.success(request, f'User "{user.get_full_name()}" created successfully!')
             
