@@ -252,6 +252,11 @@
                 </a>
             </li>
             <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:home' %}" class="sidebar-nav-link" onclick="scrollToEPosterSection(event)">
+                    <i class="bi bi-file-earmark-text"></i> ePoster Management
+                </a>
+            </li>
+            <li class="sidebar-nav-item">
                 <a href="{% url 'dashboard:email_template_list' %}" class="sidebar-nav-link {% if 'email' in request.resolver_match.url_name %}active{% endif %}">
                     <i class="bi bi-envelope"></i> Email Templates
                 </a>
@@ -384,6 +389,27 @@
                 });
             });
         });
+    </script>
+    
+    <script>
+        // Scroll to ePoster section on home page
+        function scrollToEPosterSection(event) {
+            // Only prevent default if we're on the home page
+            if (window.location.pathname === '{% url "dashboard:home" %}' || window.location.pathname.endsWith('/dashboard/')) {
+                event.preventDefault();
+                const eposterSection = document.querySelector('.events-list-section');
+                if (eposterSection) {
+                    eposterSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Highlight the section briefly
+                    eposterSection.style.transition = 'background-color 0.3s';
+                    eposterSection.style.backgroundColor = '#e8f5e9';
+                    setTimeout(() => {
+                        eposterSection.style.backgroundColor = '';
+                    }, 2000);
+                }
+            }
+            // If not on home page, let the link navigate to home page normally
+        }
     </script>
     
     {% block extra_js %}{% endblock %}
