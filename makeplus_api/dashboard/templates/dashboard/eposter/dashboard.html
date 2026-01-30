@@ -1,0 +1,238 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}ePoster Dashboard - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">ePoster Dashboard</h1>
+            <p class="text-muted mb-0">{{ event.name }}</p>
+        </div>
+        <div>
+            <a href="{% url 'dashboard:eposter_submissions_list' event.id %}" class="btn btn-primary">
+                <i class="bi bi-list-ul me-1"></i> Voir toutes les soumissions
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Total Soumissions</h6>
+                        <h2 class="mb-0">{{ stats.total }}</h2>
+                    </div>
+                    <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                        <i class="bi bi-file-earmark-text fs-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">En attente</h6>
+                        <h2 class="mb-0 text-warning">{{ stats.pending }}</h2>
+                    </div>
+                    <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+                        <i class="bi bi-clock fs-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Acceptées</h6>
+                        <h2 class="mb-0 text-success">{{ stats.accepted }}</h2>
+                    </div>
+                    <div class="stat-icon bg-success bg-opacity-10 text-success">
+                        <i class="bi bi-check-circle fs-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Rejetées</h6>
+                        <h2 class="mb-0 text-danger">{{ stats.rejected }}</h2>
+                    </div>
+                    <div class="stat-icon bg-danger bg-opacity-10 text-danger">
+                        <i class="bi bi-x-circle fs-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Submissions -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Soumissions récentes
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Titre</th>
+                                    <th>Auteur</th>
+                                    <th>Type</th>
+                                    <th>Statut</th>
+                                    <th>Date</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for submission in recent_submissions %}
+                                <tr>
+                                    <td>
+                                        <span class="fw-medium">{{ submission.titre_travail|truncatechars:40 }}</span>
+                                    </td>
+                                    <td>{{ submission.prenom }} {{ submission.nom }}</td>
+                                    <td>
+                                        <span class="badge bg-info">{{ submission.get_type_participation_display }}</span>
+                                    </td>
+                                    <td>
+                                        {% if submission.status == 'pending' %}
+                                            <span class="badge bg-warning">En attente</span>
+                                        {% elif submission.status == 'accepted' %}
+                                            <span class="badge bg-success">Accepté</span>
+                                        {% elif submission.status == 'rejected' %}
+                                            <span class="badge bg-danger">Rejeté</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ submission.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ submission.submitted_at|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        <a href="{% url 'dashboard:eposter_submission_detail' event.id submission.id %}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <i class="bi bi-inbox fs-1 text-muted d-block mb-2"></i>
+                                        Aucune soumission pour le moment
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Side Panel -->
+        <div class="col-lg-4">
+            <!-- Committee Members -->
+            <div class="card mb-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-people me-2"></i>
+                        Comité scientifique
+                    </h5>
+                    <a href="{% url 'dashboard:eposter_committee_list' event.id %}" class="btn btn-sm btn-outline-primary">
+                        Gérer
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if committee %}
+                        <ul class="list-group list-group-flush">
+                            {% for member in committee %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <div>
+                                    <span class="fw-medium">{{ member.user.get_full_name|default:member.user.username }}</span>
+                                    {% if member.role == 'president' %}
+                                        <span class="badge bg-primary ms-1">Président</span>
+                                    {% endif %}
+                                </div>
+                                <span class="badge bg-secondary">{{ member.get_validations_count }} votes</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted text-center mb-0">
+                            Aucun membre dans le comité.<br>
+                            <a href="{% url 'dashboard:eposter_committee_list' event.id %}">Ajouter des membres</a>
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Stats by Type -->
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bar-chart me-2"></i>
+                        Par type
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% for item in by_type %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>{{ item.type_participation|title }}</span>
+                        <span class="badge bg-info">{{ item.count }}</span>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted text-center mb-0">Aucune donnée</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Quick Links -->
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-link-45deg me-2"></i>
+                        Liens rapides
+                    </h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="{% url 'dashboard:eposter_submissions_list' event.id %}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-list-ul me-2"></i> Toutes les soumissions
+                    </a>
+                    <a href="{% url 'dashboard:eposter_committee_list' event.id %}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-people me-2"></i> Gérer le comité
+                    </a>
+                    <a href="{% url 'dashboard:eposter_email_templates' event.id %}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-envelope me-2"></i> Templates d'emails
+                    </a>
+                    <a href="{% url 'dashboard:eposter_export_csv' event.id %}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-download me-2"></i> Exporter CSV
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>
+{% endblock %}

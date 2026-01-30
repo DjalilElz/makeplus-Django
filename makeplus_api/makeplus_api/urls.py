@@ -12,6 +12,7 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 from dashboard.views import public_form_view
+from dashboard.views_eposter_public import public_eposter_form_view
 
 # Swagger/OpenAPI Schema
 schema_view = get_schema_view(
@@ -55,6 +56,12 @@ urlpatterns = [
     
     # Public Forms
     path('forms/<slug:slug>/', public_form_view, name='public_form'),
+    
+    # Public ePoster Submission Form
+    path('eposter/<uuid:event_id>/', public_eposter_form_view, name='public_eposter_form'),
+    
+    # ePoster API
+    path('api/eposter/', include('dashboard.urls_eposter')),
     
     # Caisse (Cash Register)
     path('caisse/', include('caisse.urls')),

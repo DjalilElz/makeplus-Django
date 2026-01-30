@@ -1,0 +1,476 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}{{ submission.titre_travail|truncatechars:50 }} - ePoster{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_dashboard' event.id %}">ePoster</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_submissions_list' event.id %}">Soumissions</a></li>
+                    <li class="breadcrumb-item active">Détail</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0">Détail de la soumission</h1>
+        </div>
+        <div>
+            {% if submission.status == 'pending' and user_membership.role == 'president' or request.user.is_staff %}
+            <div class="dropdown d-inline-block">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-gear me-1"></i> Actions
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <form method="post" action="{% url 'dashboard:eposter_set_status' event.id submission.id %}" class="px-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="status" value="accepted">
+                            <button type="submit" class="dropdown-item text-success">
+                                <i class="bi bi-check-circle me-2"></i> Accepter manuellement
+                            </button>
+                        </form>
+                    </li>
+                    <li>
+                        <a href="#" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                            <i class="bi bi-x-circle me-2"></i> Rejeter manuellement
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Status Card -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-1">Statut de la soumission</h5>
+                            {% if submission.status == 'pending' %}
+                                <span class="badge bg-warning text-dark fs-6">En attente de validation</span>
+                            {% elif submission.status == 'accepted' %}
+                                <span class="badge bg-success fs-6">Accepté</span>
+                            {% elif submission.status == 'rejected' %}
+                                <span class="badge bg-danger fs-6">Rejeté</span>
+                            {% elif submission.status == 'revision_requested' %}
+                                <span class="badge bg-info fs-6">Révision demandée</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-end">
+                            <div class="fs-5">
+                                <span class="text-success fw-bold" id="validations-count">{{ submission.get_validations_count }}</span> ✓
+                                / 
+                                <span class="text-danger fw-bold" id="rejections-count">{{ submission.get_rejections_count }}</span> ✗
+                            </div>
+                            <small class="text-muted">{{ submission.validations_required }} validation(s) requise(s)</small>
+                        </div>
+                    </div>
+                    
+                    {% if submission.status == 'rejected' and submission.rejection_reason %}
+                    <div class="alert alert-danger mt-3 mb-0">
+                        <strong>Motif du rejet:</strong> {{ submission.rejection_reason }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Submission Details -->
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-file-earmark-text me-2"></i>
+                        Détails de la soumission
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h4>{{ submission.titre_travail }}</h4>
+                        <span class="badge bg-info me-2">{{ submission.get_type_participation_display }}</span>
+                        <span class="badge bg-secondary">{{ submission.theme }}</span>
+                    </div>
+
+                    <h6 class="text-muted mb-3">AUTEURS</h6>
+                    <div class="mb-4">
+                        <strong>Auteur principal:</strong> {{ submission.prenom }} {{ submission.nom }}
+                        <br>
+                        <small class="text-muted">
+                            {{ submission.get_grade_display }}{% if submission.grade_autre %} - {{ submission.grade_autre }}{% endif %}
+                            | {{ submission.service }} | {{ submission.etablissement }}
+                        </small>
+                        
+                        {% if submission.auteurs %}
+                        <div class="mt-2">
+                            <strong>Co-auteurs:</strong>
+                            <ul class="mb-0">
+                                {% for auteur in submission.auteurs %}
+                                <li>{{ auteur.prenom }} {{ auteur.nom }}{% if auteur.affiliation %} ({{ auteur.affiliation }}){% endif %}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <h6 class="text-muted mb-3">RÉSUMÉ</h6>
+                    
+                    <div class="mb-3">
+                        <strong>Introduction</strong>
+                        <p>{{ submission.introduction|linebreaks }}</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>Matériels et méthodes</strong>
+                        <p>{{ submission.materiels_methodes|linebreaks }}</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>Résultats</strong>
+                        <p>{{ submission.resultats|linebreaks }}</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>Conclusion</strong>
+                        <p>{{ submission.conclusion|linebreaks }}</p>
+                    </div>
+
+                    {% if submission.fichier_resume or submission.fichier_poster %}
+                    <h6 class="text-muted mb-3">FICHIERS JOINTS</h6>
+                    <div class="d-flex gap-2">
+                        {% if submission.fichier_resume %}
+                        <a href="{{ submission.fichier_resume.url }}" class="btn btn-outline-primary" target="_blank">
+                            <i class="bi bi-file-pdf me-1"></i> Résumé
+                        </a>
+                        {% endif %}
+                        {% if submission.fichier_poster %}
+                        <a href="{{ submission.fichier_poster.url }}" class="btn btn-outline-primary" target="_blank">
+                            <i class="bi bi-file-image me-1"></i> Poster
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Validation Form (for committee members) -->
+            {% if can_validate %}
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-check2-square me-2"></i>
+                        Votre validation
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="validation-form">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Votre décision</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="is_approved" id="approve" value="true"
+                                       {% if user_validation and user_validation.is_approved %}checked{% endif %}>
+                                <label class="btn btn-outline-success" for="approve">
+                                    <i class="bi bi-check-circle me-1"></i> Approuver
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="is_approved" id="reject" value="false"
+                                       {% if user_validation and not user_validation.is_approved %}checked{% endif %}>
+                                <label class="btn btn-outline-danger" for="reject">
+                                    <i class="bi bi-x-circle me-1"></i> Rejeter
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Note (optionnel)</label>
+                            <div class="rating-stars">
+                                {% for i in "12345" %}
+                                <input type="radio" name="rating" value="{{ i }}" id="star{{ i }}"
+                                       {% if user_validation and user_validation.rating == forloop.counter %}checked{% endif %}>
+                                <label for="star{{ i }}"><i class="bi bi-star-fill"></i></label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Commentaires</label>
+                            <textarea class="form-control" name="comments" rows="3" placeholder="Vos remarques...">{{ user_validation.comments|default:"" }}</textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send me-1"></i>
+                            {% if user_validation %}Modifier mon vote{% else %}Soumettre mon vote{% endif %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% elif user_validation %}
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-check2-square me-2"></i>
+                        Votre validation
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert {% if user_validation.is_approved %}alert-success{% else %}alert-danger{% endif %} mb-0">
+                        <strong>Votre vote:</strong> 
+                        {% if user_validation.is_approved %}Approuvé{% else %}Rejeté{% endif %}
+                        {% if user_validation.rating %}
+                        <br><strong>Note:</strong> {{ user_validation.rating }}/5
+                        {% endif %}
+                        {% if user_validation.comments %}
+                        <br><strong>Commentaires:</strong> {{ user_validation.comments }}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Author Info -->
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person me-2"></i>
+                        Informations auteur
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-1"><strong>{{ submission.prenom }} {{ submission.nom }}</strong></p>
+                    <p class="mb-1 text-muted">{{ submission.get_genre_display }}</p>
+                    <p class="mb-1">
+                        <i class="bi bi-envelope me-1"></i>
+                        <a href="mailto:{{ submission.email }}">{{ submission.email }}</a>
+                    </p>
+                    <p class="mb-1">
+                        <i class="bi bi-telephone me-1"></i>
+                        {{ submission.telephone }}
+                    </p>
+                    <hr>
+                    <p class="mb-1"><strong>{{ submission.get_grade_display }}</strong></p>
+                    <p class="mb-1">{{ submission.service }}</p>
+                    <p class="mb-1">{{ submission.etablissement }}</p>
+                    <p class="mb-0">{{ submission.wilaya }}</p>
+                </div>
+            </div>
+
+            <!-- Committee Validations (Real-time) -->
+            <div class="card mb-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-people me-2"></i>
+                        Votes du comité
+                    </h5>
+                    <span class="badge bg-secondary" id="refresh-indicator" style="display: none;">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush" id="committee-votes">
+                        {% for item in committee_status %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center"
+                            data-member-id="{{ item.member.user.id }}">
+                            <div>
+                                <span class="fw-medium">{{ item.member.user.get_full_name|default:item.member.user.username }}</span>
+                                {% if item.member.role == 'president' %}
+                                <span class="badge bg-primary ms-1">P</span>
+                                {% endif %}
+                            </div>
+                            <div class="vote-status">
+                                {% if item.validation %}
+                                    {% if item.validation.is_approved %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check"></i> Approuvé
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-x"></i> Rejeté
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="bi bi-clock"></i> En attente
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Metadata -->
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Métadonnées
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-1">
+                        <strong>Soumis le:</strong><br>
+                        {{ submission.submitted_at|date:"d/m/Y à H:i" }}
+                    </p>
+                    <p class="mb-1">
+                        <strong>ID:</strong><br>
+                        <code>{{ submission.id }}</code>
+                    </p>
+                    {% if submission.final_decision_date %}
+                    <p class="mb-0">
+                        <strong>Décision finale:</strong><br>
+                        {{ submission.final_decision_date|date:"d/m/Y à H:i" }}
+                        {% if submission.final_decision_by %}
+                        <br>par {{ submission.final_decision_by.get_full_name|default:submission.final_decision_by.username }}
+                        {% endif %}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'dashboard:eposter_set_status' event.id submission.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="rejected">
+                
+                <div class="modal-header">
+                    <h5 class="modal-title">Rejeter la soumission</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Motif du rejet</label>
+                        <textarea class="form-control" name="rejection_reason" rows="3" required
+                                  placeholder="Veuillez indiquer la raison du rejet..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-danger">Rejeter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.rating-stars {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+}
+.rating-stars input {
+    display: none;
+}
+.rating-stars label {
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: #ddd;
+    padding: 0 2px;
+}
+.rating-stars label:hover,
+.rating-stars label:hover ~ label,
+.rating-stars input:checked ~ label {
+    color: #ffc107;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Validation form submission
+    const form = document.getElementById('validation-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            
+            fetch('{% url "dashboard:eposter_validate_submission" event.id submission.id %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update counts
+                    document.getElementById('validations-count').textContent = data.validations_count;
+                    document.getElementById('rejections-count').textContent = data.rejections_count;
+                    
+                    // Show success message
+                    alert('Votre vote a été enregistré!');
+                    
+                    if (data.status_changed) {
+                        location.reload();
+                    } else {
+                        // Refresh committee votes
+                        refreshVotes();
+                    }
+                } else {
+                    alert(data.error || 'Erreur lors de l\'enregistrement');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Erreur de connexion');
+            });
+        });
+    }
+    
+    // Real-time vote polling
+    function refreshVotes() {
+        const indicator = document.getElementById('refresh-indicator');
+        indicator.style.display = 'inline-block';
+        
+        fetch('{% url "dashboard:eposter_realtime_status" event.id submission.id %}')
+        .then(response => response.json())
+        .then(data => {
+            // Update counts
+            document.getElementById('validations-count').textContent = data.validations_count;
+            document.getElementById('rejections-count').textContent = data.rejections_count;
+            
+            // Update committee list
+            data.committee_status.forEach(member => {
+                const listItem = document.querySelector(`[data-member-id="${member.member_id}"] .vote-status`);
+                if (listItem) {
+                    if (member.has_voted) {
+                        if (member.vote.is_approved) {
+                            listItem.innerHTML = '<span class="badge bg-success"><i class="bi bi-check"></i> Approuvé</span>';
+                        } else {
+                            listItem.innerHTML = '<span class="badge bg-danger"><i class="bi bi-x"></i> Rejeté</span>';
+                        }
+                    }
+                }
+            });
+            
+            indicator.style.display = 'none';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            indicator.style.display = 'none';
+        });
+    }
+    
+    // Poll every 10 seconds for real-time updates
+    {% if submission.status == 'pending' %}
+    setInterval(refreshVotes, 10000);
+    {% endif %}
+});
+</script>
+{% endblock %}

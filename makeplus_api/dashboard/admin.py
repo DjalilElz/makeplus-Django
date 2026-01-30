@@ -7,6 +7,10 @@ from .models_form import (
     FormConfiguration, FormSubmission,
     FormAnalytics, FormView, FormFieldInteraction
 )
+from .models_eposter import (
+    EPosterSubmission, EPosterValidation, 
+    EPosterCommitteeMember, EPosterEmailTemplate
+)
 
 
 @admin.register(EmailTemplate)
@@ -126,3 +130,64 @@ class FormFieldInteractionAdmin(admin.ModelAdmin):
     list_filter = ['completed', 'field_name', 'created_at']
     search_fields = ['field_name', 'form_view__form__name']
     readonly_fields = ['created_at']
+
+
+# ePoster Admin
+@admin.register(EPosterSubmission)
+class EPosterSubmissionAdmin(admin.ModelAdmin):
+    list_display = ['titre_travail', 'nom', 'prenom', 'email', 'type_participation', 'status', 'event', 'submitted_at']
+    list_filter = ['status', 'type_participation', 'event', 'submitted_at']
+    search_fields = ['titre_travail', 'nom', 'prenom', 'email', 'theme', 'etablissement']
+    readonly_fields = ['submitted_at', 'updated_at', 'ip_address', 'user_agent']
+    fieldsets = (
+        ('Personal Information', {
+            'fields': ('nom', 'prenom', 'email', 'telephone', 'genre')
+        }),
+        ('Professional Information', {
+            'fields': ('grade', 'grade_autre', 'service', 'etablissement', 'wilaya')
+        }),
+        ('Submission Details', {
+            'fields': ('event', 'type_participation', 'theme', 'titre_travail', 'auteurs')
+        }),
+        ('Abstract', {
+            'fields': ('introduction', 'materiels_methodes', 'resultats', 'conclusion')
+        }),
+        ('Files', {
+            'fields': ('fichier_resume', 'fichier_poster')
+        }),
+        ('Validation', {
+            'fields': ('status', 'validations_required', 'rejection_reason', 
+                      'final_decision_by', 'final_decision_date')
+        }),
+        ('Email Status', {
+            'fields': ('acceptance_email_sent', 'rejection_email_sent')
+        }),
+        ('Metadata', {
+            'fields': ('ip_address', 'user_agent', 'submitted_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(EPosterValidation)
+class EPosterValidationAdmin(admin.ModelAdmin):
+    list_display = ['submission', 'committee_member', 'is_approved', 'rating', 'validated_at']
+    list_filter = ['is_approved', 'rating', 'validated_at', 'submission__event']
+    search_fields = ['submission__titre_travail', 'committee_member__username', 'comments']
+    readonly_fields = ['validated_at', 'updated_at']
+
+
+@admin.register(EPosterCommitteeMember)
+class EPosterCommitteeMemberAdmin(admin.ModelAdmin):
+    list_display = ['user', 'event', 'role', 'specialty', 'is_active', 'assigned_at']
+    list_filter = ['role', 'is_active', 'event', 'assigned_at']
+    search_fields = ['user__username', 'user__email', 'specialty']
+    readonly_fields = ['assigned_at']
+
+
+@admin.register(EPosterEmailTemplate)
+class EPosterEmailTemplateAdmin(admin.ModelAdmin):
+    list_display = ['event', 'template_type', 'subject', 'is_active', 'created_at']
+    list_filter = ['template_type', 'is_active', 'event', 'created_at']
+    search_fields = ['subject', 'body_html']
+    readonly_fields = ['created_at', 'updated_at']

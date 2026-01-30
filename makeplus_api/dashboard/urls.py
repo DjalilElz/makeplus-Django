@@ -6,6 +6,7 @@ from django.urls import path
 from . import views
 from . import views_email
 from . import views_stats
+from . import views_eposter_dashboard
 
 app_name = 'dashboard'
 
@@ -122,4 +123,20 @@ urlpatterns = [
     path('events/<uuid:event_id>/email-templates/<int:template_id>/send/', views_email.send_event_email, name='send_event_email'),
     path('events/<uuid:event_id>/email-templates/<int:template_id>/send-to-registrants/', views_email.send_email_to_registrants, name='send_email_to_registrants'),
     path('events/<uuid:event_id>/email-logs/', views_email.event_email_logs, name='event_email_logs'),
+    
+    # ePoster Management
+    path('events/<uuid:event_id>/eposter/', views_eposter_dashboard.eposter_dashboard, name='eposter_dashboard'),
+    path('events/<uuid:event_id>/eposter/submissions/', views_eposter_dashboard.eposter_submissions_list, name='eposter_submissions_list'),
+    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/', views_eposter_dashboard.eposter_submission_detail, name='eposter_submission_detail'),
+    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/validate/', views_eposter_dashboard.eposter_validate_submission, name='eposter_validate_submission'),
+    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/set-status/', views_eposter_dashboard.eposter_set_status, name='eposter_set_status'),
+    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/realtime/', views_eposter_dashboard.eposter_realtime_status, name='eposter_realtime_status'),
+    path('events/<uuid:event_id>/eposter/committee/', views_eposter_dashboard.eposter_committee_list, name='eposter_committee_list'),
+    path('events/<uuid:event_id>/eposter/committee/add/', views_eposter_dashboard.eposter_committee_add, name='eposter_committee_add'),
+    path('events/<uuid:event_id>/eposter/committee/<uuid:member_id>/remove/', views_eposter_dashboard.eposter_committee_remove, name='eposter_committee_remove'),
+    path('events/<uuid:event_id>/eposter/email-templates/', views_eposter_dashboard.eposter_email_templates, name='eposter_email_templates'),
+    path('events/<uuid:event_id>/eposter/email-templates/create/', views_eposter_dashboard.eposter_email_template_create, name='eposter_email_template_create'),
+    path('events/<uuid:event_id>/eposter/email-templates/<uuid:template_id>/edit/', views_eposter_dashboard.eposter_email_template_edit, name='eposter_email_template_edit'),
+    path('events/<uuid:event_id>/eposter/email-templates/<uuid:template_id>/delete/', views_eposter_dashboard.eposter_email_template_delete, name='eposter_email_template_delete'),
+    path('events/<uuid:event_id>/eposter/export/', views_eposter_dashboard.eposter_export_csv, name='eposter_export_csv'),
 ]

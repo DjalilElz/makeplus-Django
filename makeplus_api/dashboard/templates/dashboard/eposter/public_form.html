@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soumission ePoster - {{ event.name }}</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 0;
+        }
+        
+        .form-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .form-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .form-header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+        
+        .form-body {
+            padding: 30px;
+        }
+        
+        .section-title {
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .section-title i {
+            margin-right: 10px;
+        }
+        
+        .required-field::after {
+            content: " *";
+            color: red;
+        }
+        
+        .author-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 12px 30px;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .progress-steps {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            color: #6c757d;
+        }
+        
+        .step.active {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+        
+        .step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+        }
+        
+        .step.active .step-number {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .step-divider {
+            width: 50px;
+            height: 2px;
+            background: #e9ecef;
+            margin: 0 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="form-container">
+                    <!-- Header -->
+                    <div class="form-header">
+                        {% if event.logo %}
+                        <img src="{{ event.logo.url }}" alt="{{ event.name }}" style="max-height: 80px; margin-bottom: 15px;">
+                        {% endif %}
+                        <h1>Soumission ePoster</h1>
+                        <p class="mb-0">{{ event.name }}</p>
+                    </div>
+                    
+                    <!-- Form Body -->
+                    <div class="form-body">
+                        <!-- Progress Steps -->
+                        <div class="progress-steps">
+                            <div class="step active" data-step="1">
+                                <span class="step-number">1</span>
+                                <span>Informations</span>
+                            </div>
+                            <div class="step-divider"></div>
+                            <div class="step" data-step="2">
+                                <span class="step-number">2</span>
+                                <span>Soumission</span>
+                            </div>
+                            <div class="step-divider"></div>
+                            <div class="step" data-step="3">
+                                <span class="step-number">3</span>
+                                <span>Résumé</span>
+                            </div>
+                        </div>
+                        
+                        <form id="eposter-form" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="hidden" name="event" value="{{ event.id }}">
+                            
+                            <!-- Step 1: Personal Information -->
+                            <div class="form-step" id="step-1">
+                                <h4 class="section-title">
+                                    <i class="bi bi-person"></i>
+                                    Informations personnelles
+                                </h4>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Nom</label>
+                                        <input type="text" name="nom" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Prénom</label>
+                                        <input type="text" name="prenom" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Email</label>
+                                        <input type="email" name="email" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Téléphone</label>
+                                        <input type="tel" name="telephone" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Genre</label>
+                                        <select name="genre" class="form-select" required>
+                                            <option value="">Sélectionner...</option>
+                                            <option value="homme">Homme</option>
+                                            <option value="femme">Femme</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <h4 class="section-title mt-4">
+                                    <i class="bi bi-briefcase"></i>
+                                    Informations professionnelles
+                                </h4>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Grade</label>
+                                        <select name="grade" class="form-select" required id="grade-select">
+                                            <option value="">Sélectionner...</option>
+                                            <option value="professeur">Professeur</option>
+                                            <option value="maitre_de_conference">Maître de conférence</option>
+                                            <option value="maitre_assistant">Maître assistant</option>
+                                            <option value="specialiste">Spécialiste</option>
+                                            <option value="resident">Résident</option>
+                                            <option value="doctorant">Doctorant</option>
+                                            <option value="autre">Autre</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6" id="grade-autre-container" style="display: none;">
+                                        <label class="form-label">Précisez le grade</label>
+                                        <input type="text" name="grade_autre" class="form-control">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Service</label>
+                                        <input type="text" name="service" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Établissement</label>
+                                        <input type="text" name="etablissement" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Wilaya</label>
+                                        <input type="text" name="wilaya" class="form-control" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-end mt-4">
+                                    <button type="button" class="btn btn-primary next-step">
+                                        Suivant <i class="bi bi-arrow-right ms-1"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Step 2: Submission Details -->
+                            <div class="form-step d-none" id="step-2">
+                                <h4 class="section-title">
+                                    <i class="bi bi-file-earmark-text"></i>
+                                    Détails de la soumission
+                                </h4>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Type de participation</label>
+                                        <select name="type_participation" class="form-select" required>
+                                            <option value="">Sélectionner...</option>
+                                            <option value="communication_orale">Communication Orale</option>
+                                            <option value="poster">Poster</option>
+                                            <option value="e_poster">E-Poster</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Thème</label>
+                                        <input type="text" name="theme" class="form-control" required
+                                               placeholder="Ex: Cardiologie, Oncologie...">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label required-field">Titre du travail</label>
+                                        <input type="text" name="titre_travail" class="form-control" required
+                                               placeholder="Titre complet de votre travail">
+                                    </div>
+                                </div>
+                                
+                                <h4 class="section-title mt-4">
+                                    <i class="bi bi-people"></i>
+                                    Auteurs
+                                </h4>
+                                
+                                <p class="text-muted">
+                                    L'auteur principal est déjà enregistré. Ajoutez les co-auteurs ci-dessous.
+                                </p>
+                                
+                                <div id="authors-container">
+                                    <!-- Co-authors will be added here -->
+                                </div>
+                                
+                                <button type="button" class="btn btn-outline-primary mb-3" id="add-author">
+                                    <i class="bi bi-plus-circle me-1"></i> Ajouter un co-auteur
+                                </button>
+                                
+                                <div class="d-flex justify-content-between mt-4">
+                                    <button type="button" class="btn btn-outline-secondary prev-step">
+                                        <i class="bi bi-arrow-left me-1"></i> Précédent
+                                    </button>
+                                    <button type="button" class="btn btn-primary next-step">
+                                        Suivant <i class="bi bi-arrow-right ms-1"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Step 3: Abstract -->
+                            <div class="form-step d-none" id="step-3">
+                                <h4 class="section-title">
+                                    <i class="bi bi-file-text"></i>
+                                    Résumé structuré
+                                </h4>
+                                
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label class="form-label required-field">Introduction</label>
+                                        <textarea name="introduction" class="form-control" rows="4" required
+                                                  placeholder="Contexte et objectifs de l'étude..."></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label required-field">Matériels et méthodes</label>
+                                        <textarea name="materiels_methodes" class="form-control" rows="4" required
+                                                  placeholder="Description de la méthodologie utilisée..."></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label required-field">Résultats</label>
+                                        <textarea name="resultats" class="form-control" rows="4" required
+                                                  placeholder="Principaux résultats obtenus..."></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label required-field">Conclusion</label>
+                                        <textarea name="conclusion" class="form-control" rows="4" required
+                                                  placeholder="Conclusions et perspectives..."></textarea>
+                                    </div>
+                                </div>
+                                
+                                <h4 class="section-title mt-4">
+                                    <i class="bi bi-paperclip"></i>
+                                    Fichiers joints (optionnel)
+                                </h4>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Fichier résumé (PDF)</label>
+                                        <input type="file" name="fichier_resume" class="form-control" accept=".pdf">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Fichier poster (PDF/Image)</label>
+                                        <input type="file" name="fichier_poster" class="form-control" 
+                                               accept=".pdf,.jpg,.jpeg,.png">
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between mt-4">
+                                    <button type="button" class="btn btn-outline-secondary prev-step">
+                                        <i class="bi bi-arrow-left me-1"></i> Précédent
+                                    </button>
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="bi bi-send me-1"></i> Soumettre
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                        
+                        <!-- Success Message (hidden initially) -->
+                        <div id="success-message" class="d-none text-center py-5">
+                            <i class="bi bi-check-circle text-success" style="font-size: 5rem;"></i>
+                            <h2 class="mt-3">Soumission réussie!</h2>
+                            <p class="text-muted">
+                                Votre soumission a été enregistrée avec succès.<br>
+                                Vous recevrez un email de confirmation sous peu.
+                            </p>
+                            <a href="" class="btn btn-primary mt-3">
+                                <i class="bi bi-plus-circle me-1"></i> Nouvelle soumission
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let currentStep = 1;
+            const totalSteps = 3;
+            const form = document.getElementById('eposter-form');
+            
+            // Update step display
+            function updateStepDisplay() {
+                // Hide all steps
+                document.querySelectorAll('.form-step').forEach(step => {
+                    step.classList.add('d-none');
+                });
+                
+                // Show current step
+                document.getElementById(`step-${currentStep}`).classList.remove('d-none');
+                
+                // Update progress
+                document.querySelectorAll('.step').forEach((step, index) => {
+                    if (index + 1 <= currentStep) {
+                        step.classList.add('active');
+                    } else {
+                        step.classList.remove('active');
+                    }
+                });
+            }
+            
+            // Next step
+            document.querySelectorAll('.next-step').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // Validate current step
+                    const currentStepEl = document.getElementById(`step-${currentStep}`);
+                    const inputs = currentStepEl.querySelectorAll('input[required], select[required], textarea[required]');
+                    let valid = true;
+                    
+                    inputs.forEach(input => {
+                        if (!input.value) {
+                            valid = false;
+                            input.classList.add('is-invalid');
+                        } else {
+                            input.classList.remove('is-invalid');
+                        }
+                    });
+                    
+                    if (valid && currentStep < totalSteps) {
+                        currentStep++;
+                        updateStepDisplay();
+                        window.scrollTo(0, 0);
+                    }
+                });
+            });
+            
+            // Previous step
+            document.querySelectorAll('.prev-step').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (currentStep > 1) {
+                        currentStep--;
+                        updateStepDisplay();
+                        window.scrollTo(0, 0);
+                    }
+                });
+            });
+            
+            // Grade "autre" field
+            document.getElementById('grade-select').addEventListener('change', function() {
+                const container = document.getElementById('grade-autre-container');
+                if (this.value === 'autre') {
+                    container.style.display = 'block';
+                } else {
+                    container.style.display = 'none';
+                }
+            });
+            
+            // Add co-author
+            let authorCount = 0;
+            document.getElementById('add-author').addEventListener('click', function() {
+                authorCount++;
+                const container = document.getElementById('authors-container');
+                const authorDiv = document.createElement('div');
+                authorDiv.className = 'author-card';
+                authorDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>Co-auteur ${authorCount}</strong>
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-author">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control author-nom" placeholder="Nom">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control author-prenom" placeholder="Prénom">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control author-affiliation" placeholder="Affiliation">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(authorDiv);
+                
+                // Remove author handler
+                authorDiv.querySelector('.remove-author').addEventListener('click', function() {
+                    authorDiv.remove();
+                });
+            });
+            
+            // Form submission
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Collect authors
+                const authors = [];
+                document.querySelectorAll('.author-card').forEach(card => {
+                    const nom = card.querySelector('.author-nom').value;
+                    const prenom = card.querySelector('.author-prenom').value;
+                    const affiliation = card.querySelector('.author-affiliation').value;
+                    if (nom && prenom) {
+                        authors.push({ nom, prenom, affiliation });
+                    }
+                });
+                
+                // Create FormData
+                const formData = new FormData(form);
+                formData.set('auteurs', JSON.stringify(authors));
+                
+                // Submit
+                const submitBtn = form.querySelector('button[type="submit"]');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Envoi...';
+                
+                fetch('/api/eposter/{{ event.id }}/submit/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        form.classList.add('d-none');
+                        document.querySelector('.progress-steps').classList.add('d-none');
+                        document.getElementById('success-message').classList.remove('d-none');
+                    } else {
+                        alert(data.error || 'Une erreur est survenue');
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="bi bi-send me-1"></i> Soumettre';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Erreur de connexion');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-send me-1"></i> Soumettre';
+                });
+            });
+        });
+    </script>
+</body>
+</html>
