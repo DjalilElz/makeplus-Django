@@ -252,8 +252,8 @@
                 </a>
             </li>
             <li class="sidebar-nav-item">
-                <a href="{% url 'dashboard:home' %}" class="sidebar-nav-link" onclick="scrollToEPosterSection(event)">
-                    <i class="bi bi-file-earmark-text"></i> ePoster Management
+                <a href="{% url 'dashboard:eposter_management_home' %}" class="sidebar-nav-link {% if 'eposter' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-file-earmark-text"></i> Appel à Communication
                 </a>
             </li>
             <li class="sidebar-nav-item">

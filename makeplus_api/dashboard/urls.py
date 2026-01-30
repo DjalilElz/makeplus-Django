@@ -7,6 +7,7 @@ from . import views
 from . import views_email
 from . import views_stats
 from . import views_eposter_dashboard
+from . import views_eposter_management
 
 app_name = 'dashboard'
 
@@ -124,7 +125,12 @@ urlpatterns = [
     path('events/<uuid:event_id>/email-templates/<int:template_id>/send-to-registrants/', views_email.send_email_to_registrants, name='send_email_to_registrants'),
     path('events/<uuid:event_id>/email-logs/', views_email.event_email_logs, name='event_email_logs'),
     
-    # ePoster Management
+    # ePoster Management - Central Hub
+    path('eposter/', views_eposter_management.eposter_management_home, name='eposter_management_home'),
+    path('eposter/<uuid:event_id>/enable/', views_eposter_management.eposter_enable_for_event, name='eposter_enable_for_event'),
+    path('eposter/copy/<uuid:source_event_id>/<uuid:target_event_id>/', views_eposter_management.eposter_copy_settings, name='eposter_copy_settings'),
+    
+    # ePoster Management - Event Specific
     path('events/<uuid:event_id>/eposter/', views_eposter_dashboard.eposter_dashboard, name='eposter_dashboard'),
     path('events/<uuid:event_id>/eposter/submissions/', views_eposter_dashboard.eposter_submissions_list, name='eposter_submissions_list'),
     path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/', views_eposter_dashboard.eposter_submission_detail, name='eposter_submission_detail'),

@@ -1,0 +1,318 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Gestion Appel à Communication{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">📄 Gestion des Appels à Communication</h2>
+            <p class="text-muted mb-0">
+                Gérez les formulaires de soumission (ePoster/Appel à Communication) pour tous vos événements
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'dashboard:home' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Retour
+            </a>
+        </div>
+    </div>
+
+    <!-- Info Alert -->
+    <div class="alert alert-primary border-primary">
+        <h4><i class="bi bi-plus-circle-fill"></i> Créer un Formulaire "Appel aux Communicants"</h4>
+        <p class="mb-2">
+            Sur cette page, vous pouvez <strong>créer et configurer</strong> un formulaire de soumission 
+            pour chacun de vos événements. Voici comment procéder:
+        </p>
+        <ol class="mb-0">
+            <li><strong>Sélectionnez un événement</strong> ci-dessous (ou créez-en un nouveau)</li>
+            <li><strong>Configurez le comité scientifique</strong> en cliquant sur "Gérer Comité"</li>
+            <li><strong>Personnalisez les emails automatiques</strong> (optionnel)</li>
+            <li><strong>Copiez l'URL du formulaire</strong> et partagez-la avec vos participants</li>
+            <li><strong>Les soumissions arrivent automatiquement</strong> et le comité peut les valider</li>
+        </ol>
+        <div class="alert alert-success mt-3 mb-0">
+            <strong>✅ Le formulaire est déjà créé pour chaque événement!</strong> 
+            Il vous suffit de le configurer et de partager l'URL.
+        </div>
+    </div>
+
+    <!-- Events Grid -->
+    <div class="row">
+        {% for event in events %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 {% if event.id in user_committee_events %}border-success{% endif %}">
+                <!-- Event Header -->
+                <div class="card-header {% if event.status == 'active' %}bg-success text-white{% elif event.status == 'upcoming' %}bg-primary text-white{% else %}bg-secondary text-white{% endif %}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h5 class="mb-0">
+                            <i class="bi bi-calendar-event"></i> {{ event.name }}
+                        </h5>
+                        {% if event.committee_members_count > 0 %}
+                            <span class="badge bg-light text-success">
+                                <i class="bi bi-check-circle-fill"></i> Formulaire Configuré
+                            </span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-exclamation-triangle-fill"></i> À Configurer
+                            </span>
+                        {% endif %}
+                    </div>
+                    <small>
+                        {% if event.status == 'active' %}
+                            <span class="badge bg-light text-success">Actif</span>
+                        {% elif event.status == 'upcoming' %}
+                            <span class="badge bg-light text-primary">À venir</span>
+                        {% elif event.status == 'completed' %}
+                            <span class="badge bg-light text-secondary">Terminé</span>
+                        {% else %}
+                            <span class="badge bg-light text-danger">Annulé</span>
+                        {% endif %}
+                        
+                        {% if event.id in user_committee_events %}
+                            <span class="badge bg-warning text-dark ms-2">
+                                <i class="bi bi-person-check"></i> Vous êtes membre du comité
+                            </span>
+                        {% endif %}
+                    </small>
+                </div>
+
+                <!-- Statistics -->
+                <div class="card-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="stat-card bg-light text-center p-2">
+                                <h4 class="mb-0">{{ event.total_submissions }}</h4>
+                                <small class="text-muted">Total Soumissions</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-card bg-light text-center p-2">
+                                <h4 class="mb-0">{{ event.committee_members_count }}</h4>
+                                <small class="text-muted">Comité Scientifique</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-card text-center p-2" style="background: #e8f5e9;">
+                                <h5 class="mb-0 text-success">{{ event.accepted_submissions }}</h5>
+                                <small class="text-muted">Acceptées</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-card text-center p-2" style="background: #fff3e0;">
+                                <h5 class="mb-0 text-warning">{{ event.pending_submissions }}</h5>
+                                <small class="text-muted">En attente</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-card text-center p-2" style="background: #ffebee;">
+                                <h5 class="mb-0 text-danger">{{ event.rejected_submissions }}</h5>
+                                <small class="text-muted">Rejetées</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Public URL -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-link-45deg"></i> URL Publique (Participants):
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" 
+                                   class="form-control" 
+                                   value="{{ request.scheme }}://{{ request.get_host }}/eposter/{{ event.id }}/" 
+                                   id="url-{{ event.id }}"
+                                   readonly>
+                            <button class="btn btn-outline-secondary" 
+                                    type="button"
+                                    onclick="copyToClipboard('url-{{ event.id }}')">
+                                <i class="bi bi-clipboard"></i> Copier
+                            </button>
+                        </div>
+                        <small class="text-muted">
+                            Partagez ce lien avec les personnes qui veulent soumettre un travail
+                        </small>
+                    </div>
+
+                    <!-- Date Info -->
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            <i class="bi bi-calendar"></i> 
+                            {{ event.start_date|date:"d/m/Y" }} - {{ event.end_date|date:"d/m/Y" }}
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="card-footer bg-white">
+                    {% if event.committee_members_count == 0 %}
+                        <!-- Formulaire pas encore configuré -->
+                        <div class="alert alert-warning mb-2 p-2">
+                            <small><i class="bi bi-info-circle"></i> Formulaire non configuré - Ajoutez un comité pour activer</small>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="d-grid gap-2">
+                        {% if is_admin %}
+                            {% if event.committee_members_count == 0 %}
+                                <!-- Bouton principal: Configurer le formulaire -->
+                                <a href="{% url 'dashboard:eposter_committee_list' event.id %}" 
+                                   class="btn btn-success btn-sm">
+                                    <i class="bi bi-plus-circle-fill"></i> Configurer le Formulaire
+                                </a>
+                            {% else %}
+                                <!-- Formulaire configuré: Dashboard -->
+                                <a href="{% url 'dashboard:eposter_dashboard' event.id %}" 
+                                   class="btn btn-primary btn-sm">
+                                    <i class="bi bi-speedometer2"></i> Gérer le Formulaire
+                                </a>
+                            {% endif %}
+                        {% endif %}
+                        
+                        {% if is_admin or event.id in user_committee_events %}
+                            {% if event.total_submissions > 0 %}
+                                <a href="{% url 'dashboard:eposter_submissions_list' event.id %}" 
+                                   class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-list-check"></i> 
+                                    Voir Soumissions ({{ event.total_submissions }})
+                                </a>
+                            {% endif %}
+                        {% endif %}
+                        
+                        {% if is_admin %}
+                        <div class="btn-group" role="group">
+                            <a href="{% url 'dashboard:eposter_committee_list' event.id %}" 
+                               class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-people"></i> Comité 
+                                {% if event.committee_members_count > 0 %}
+                                    ({{ event.committee_members_count }})
+                                {% else %}
+                                    <span class="badge bg-warning text-dark ms-1">0</span>
+                                {% endif %}
+                            </a>
+                            <a href="{% url 'dashboard:eposter_email_templates' event.id %}" 
+                               class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-envelope"></i> Emails
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-warning text-center py-5">
+                <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
+                <h4 class="mt-3">Aucun événement trouvé</h4>
+                <p class="text-muted">Créez votre premier événement pour activer les appels à communication</p>
+                <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Créer un Événement
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Help Section -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-plus-circle-fill"></i> Créer un Formulaire (Administrateurs)</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="text-success">🚀 Étapes pour Créer votre Formulaire:</h6>
+                    <ol class="mb-3">
+                        <li><strong>Cliquez "Configurer le Formulaire"</strong> sur un événement</li>
+                        <li><strong>Ajoutez 3-5 membres au Comité Scientifique</strong></li>
+                        <li><strong>Configurez les emails</strong> automatiques (optionnel)</li>
+                        <li><strong>Copiez l'URL publique</strong> avec le bouton "Copier"</li>
+                        <li><strong>Partagez l'URL</strong> avec vos participants</li>
+                    </ol>
+                    <div class="alert alert-info mb-0">
+                        <small>
+                            <strong>💡 Astuce:</strong> Le formulaire est créé automatiquement pour chaque événement. 
+                            Il suffit d'ajouter un comité pour l'activer!
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Pour le Comité Scientifique</h5>
+                </div>
+                <div class="card-body">
+                    <ol class="mb-0">
+                        <li><strong>Connectez-vous</strong> avec votre compte utilisateur</li>
+                        <li><strong>Cliquez sur cette page</strong> (menu "ePoster Management")</li>
+                        <li><strong>Trouvez vos événements</strong> (badge jaune "Membre du comité")</li>
+                        <li><strong>Cliquez "Voir Soumissions"</strong> pour accéder aux travaux</li>
+                        <li><strong>Validez ou invalidez</strong> chaque soumission avec commentaires</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats Summary -->
+    {% if events %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="stat-card">
+                <h5 class="mb-3"><i class="bi bi-bar-chart"></i> Statistiques Globales</h5>
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h3>{{ events.count }}</h3>
+                        <p class="text-muted mb-0">Événements Total</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h3>{{ events|length|add:0 }}</h3>
+                        <p class="text-muted mb-0">Appels à Communication Actifs</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h3>
+                            {% widthratio events.aggregate|sum:total_submissions 1 1 %}
+                        </h3>
+                        <p class="text-muted mb-0">Total Soumissions</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h3>{{ user_committee_events|length }}</h3>
+                        <p class="text-muted mb-0">Événements dont vous êtes membre</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function copyToClipboard(elementId) {
+    const input = document.getElementById(elementId);
+    input.select();
+    input.setSelectionRange(0, 99999); // For mobile devices
+    
+    navigator.clipboard.writeText(input.value).then(function() {
+        // Show success feedback
+        const button = input.nextElementSibling;
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="bi bi-check"></i> Copié!';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+        
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 2000);
+    }).catch(function(err) {
+        alert('Erreur lors de la copie: ' + err);
+    });
+}
+</script>
+{% endblock %}
