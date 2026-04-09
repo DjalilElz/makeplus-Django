@@ -3,6 +3,27 @@
 from django.db import migrations, models
 
 
+def add_max_participants_if_not_exists(apps, schema_editor):
+    """Add max_participants column only if it doesn't exist"""
+    from django.db import connection
+    
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_name = 'events_session' 
+                AND column_name = 'max_participants'
+            );
+        """)
+        column_exists = cursor.fetchone()[0]
+        
+        if not column_exists:
+            cursor.execute("""
+                ALTER TABLE events_session 
+                ADD COLUMN max_participants INTEGER NULL;
+            """)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,9 +31,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='session',
-            name='max_participants',
-            field=models.IntegerField(blank=True, help_text='Maximum number of participants (leave empty for unlimited)', null=True),
-        ),
+        migrations.RunPython(add_max_participants_if_not_exists, migrations.RunPython.noop),
     ]

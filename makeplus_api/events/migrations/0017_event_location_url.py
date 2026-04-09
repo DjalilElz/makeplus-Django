@@ -3,6 +3,27 @@
 from django.db import migrations, models
 
 
+def add_location_url_if_not_exists(apps, schema_editor):
+    """Add location_url column only if it doesn't exist"""
+    from django.db import connection
+    
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_name = 'events_event' 
+                AND column_name = 'location_url'
+            );
+        """)
+        column_exists = cursor.fetchone()[0]
+        
+        if not column_exists:
+            cursor.execute("""
+                ALTER TABLE events_event 
+                ADD COLUMN location_url VARCHAR(200) NULL;
+            """)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,9 +31,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='event',
-            name='location_url',
-            field=models.URLField(blank=True, help_text='Google Maps URL for event location', null=True),
-        ),
+        migrations.RunPython(add_location_url_if_not_exists, migrations.RunPython.noop),
     ]
