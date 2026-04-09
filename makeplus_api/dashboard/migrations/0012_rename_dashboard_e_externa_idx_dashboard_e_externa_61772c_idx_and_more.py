@@ -3,6 +3,72 @@
 from django.db import migrations, models
 
 
+def rename_index_if_exists(apps, schema_editor):
+    """Safely rename index only if it exists"""
+    from django.db import connection
+    
+    with connection.cursor() as cursor:
+        # Check if old index exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_indexes 
+                WHERE indexname = 'dashboard_e_externa_idx'
+            );
+        """)
+        if cursor.fetchone()[0]:
+            cursor.execute("""
+                ALTER INDEX dashboard_e_externa_idx 
+                RENAME TO dashboard_e_externa_61772c_idx;
+            """)
+
+
+def remove_design_json_if_exists(apps, schema_editor):
+    """Remove design_json column if it exists"""
+    from django.db import connection
+    
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_name = 'dashboard_eposteremailtemplate' 
+                AND column_name = 'design_json'
+            );
+        """)
+        if cursor.fetchone()[0]:
+            cursor.execute("""
+                ALTER TABLE dashboard_eposteremailtemplate 
+                DROP COLUMN design_json;
+            """)
+
+
+def fix_builder_config_data(apps, schema_editor):
+    """Fix invalid JSON data in builder_config before altering field"""
+    from django.db import connection
+    
+    with connection.cursor() as cursor:
+        # First, drop the NOT NULL constraint if it exists
+        cursor.execute("""
+            ALTER TABLE dashboard_emailcampaign 
+            ALTER COLUMN builder_config DROP NOT NULL;
+        """)
+        
+        # Then set empty strings to NULL
+        cursor.execute("""
+            UPDATE dashboard_emailcampaign 
+            SET builder_config = NULL 
+            WHERE builder_config = '';
+        """)
+        
+        # Also handle any invalid JSON
+        cursor.execute("""
+            UPDATE dashboard_emailcampaign 
+            SET builder_config = NULL 
+            WHERE builder_config IS NOT NULL 
+            AND builder_config::text NOT LIKE '{%' 
+            AND builder_config::text NOT LIKE '[%';
+        """)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,15 +76,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='emailrecipient',
-            new_name='dashboard_e_externa_61772c_idx',
-            old_name='dashboard_e_externa_idx',
-        ),
-        migrations.RemoveField(
-            model_name='eposteremailtemplate',
-            name='design_json',
-        ),
+        migrations.RunPython(rename_index_if_exists, migrations.RunPython.noop),
+        migrations.RunPython(remove_design_json_if_exists, migrations.RunPython.noop),
+        migrations.RunPython(fix_builder_config_data, migrations.RunPython.noop),
         migrations.AlterField(
             model_name='emailcampaign',
             name='builder_config',
