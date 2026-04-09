@@ -1,0 +1,345 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}{{ campaign.name }} - Campaign Stats{% endblock %}
+
+{% block extra_head %}
+<style>
+    .stat-card {
+        background: white;
+        border-radius: 10px;
+        padding: 30px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    .stat-card h1 {
+        font-size: 3rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    .stat-card.open-rate h1 {
+        color: #28a745;
+    }
+    .stat-card.click-rate h1 {
+        color: #007bff;
+    }
+    .stat-label {
+        font-size: 1.1rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .stat-sublabel {
+        font-size: 0.9rem;
+        color: #adb5bd;
+        margin-top: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-2">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:campaign_list_with_stats' %}">Campaigns</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:campaign_detail' campaign.id %}">{{ campaign.name }}</a></li>
+                    <li class="breadcrumb-item active">Statistics</li>
+                </ol>
+            </nav>
+            <h2><i class="bi bi-graph-up-arrow"></i> Campaign Statistics</h2>
+            <p class="text-muted mb-0">{{ campaign.subject }}</p>
+        </div>
+        <div>
+            {% if campaign.status == 'sent' %}
+            <button type="button" class="btn btn-primary" onclick="syncStats()" id="syncStatsBtn">
+                <i class="bi bi-arrow-clockwise"></i> Sync from Brevo
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Main Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="stat-card open-rate">
+                <div class="stat-label">Open Rate</div>
+                <h1>{{ open_rate }}%</h1>
+                <div class="stat-sublabel">{{ unique_opens }} of {{ total_recipients }} recipients opened</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="stat-card click-rate">
+                <div class="stat-label">Click Rate</div>
+                <h1>{{ click_rate }}%</h1>
+                <div class="stat-sublabel">{{ unique_clicks }} of {{ total_recipients }} recipients clicked</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Links Performance Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-link-45deg"></i> Links Performance</h5>
+                </div>
+                <div class="card-body">
+                    {% if top_links %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 5%;">#</th>
+                                    <th>Link URL</th>
+                                    <th class="text-center" style="width: 15%;">Total Clicks</th>
+                                    <th class="text-center" style="width: 15%;">Unique Clicks</th>
+                                    <th class="text-center" style="width: 12%;">Click Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for link in top_links %}
+                                <tr>
+                                    <td class="text-muted">{{ forloop.counter }}</td>
+                                    <td>
+                                        <i class="bi bi-link text-primary"></i>
+                                        <a href="{{ link.original_url }}" target="_blank" class="text-decoration-none">
+                                            {{ link.original_url|truncatechars:100 }}
+                                        </a>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary fs-6">{{ link.total_clicks }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-info fs-6">{{ link.unique_clicks }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <strong class="text-success">{{ link.get_click_rate }}%</strong>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-link-45deg fs-1 d-block mb-2"></i>
+                        <p class="mb-0">No links tracked in this campaign</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Recipient Engagement -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: white; color: #212529 !important; border-bottom: 2px solid #dee2e6;">
+                    <h5 class="mb-0" style="color: #212529;"><i class="bi bi-people"></i> Recipient Engagement Details</h5>
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="recipientFilter" id="filterAll" value="all" checked>
+                        <label class="btn btn-sm" for="filterAll" style="background-color: #6c757d; color: white; border: 1px solid #6c757d;">All ({{ all_recipients_list|length }})</label>
+                        
+                        <input type="radio" class="btn-check" name="recipientFilter" id="filterOpened" value="opened">
+                        <label class="btn btn-outline-secondary btn-sm" for="filterOpened">Opened ({{ recipients_who_opened|length }})</label>
+                        
+                        <input type="radio" class="btn-check" name="recipientFilter" id="filterClicked" value="clicked">
+                        <label class="btn btn-outline-secondary btn-sm" for="filterClicked">Clicked ({{ recipients_who_clicked|length }})</label>
+                        
+                        <input type="radio" class="btn-check" name="recipientFilter" id="filterNotOpened" value="not-opened">
+                        <label class="btn btn-outline-secondary btn-sm" for="filterNotOpened">Not Opened ({{ recipients_not_opened|length }})</label>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="recipientsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Recipient</th>
+                                    <th class="text-center">Opens</th>
+                                    <th class="text-center">Clicks</th>
+                                    <th>First Opened</th>
+                                    <th>Last Activity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for recipient in all_recipients_list %}
+                                <tr class="recipient-row" 
+                                    data-opened="{{ recipient.open_count|yesno:'true,false' }}" 
+                                    data-clicked="{{ recipient.click_count|yesno:'true,false' }}">
+                                    <td>
+                                        <div>
+                                            {% if recipient.open_count > 0 %}
+                                                <i class="bi bi-envelope-open text-success"></i>
+                                            {% else %}
+                                                <i class="bi bi-envelope text-muted"></i>
+                                            {% endif %}
+                                            <strong>{{ recipient.name|default:recipient.email }}</strong>
+                                        </div>
+                                        <small class="text-muted">{{ recipient.email }}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if recipient.open_count > 0 %}
+                                            <span class="badge bg-success fs-6">{{ recipient.open_count }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if recipient.click_count > 0 %}
+                                            <span class="badge bg-primary fs-6">{{ recipient.click_count }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if recipient.first_opened_at %}
+                                            <small>{{ recipient.first_opened_at|date:"M d, Y H:i" }}</small>
+                                        {% else %}
+                                            <span class="text-muted">Not opened</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if recipient.last_opened_at %}
+                                            <small>{{ recipient.last_opened_at|date:"M d, Y H:i" }}</small>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                        No recipients found
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Filter recipients and update button styles
+document.querySelectorAll('input[name="recipientFilter"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const filter = this.value;
+        const rows = document.querySelectorAll('.recipient-row');
+        
+        // Update button styles
+        document.querySelectorAll('label[for^="filter"]').forEach(label => {
+            label.style.backgroundColor = '';
+            label.style.color = '';
+            label.style.border = '';
+            label.classList.remove('btn-secondary');
+            label.classList.add('btn-outline-secondary');
+        });
+        
+        // Highlight selected button
+        const selectedLabel = document.querySelector(`label[for="${this.id}"]`);
+        selectedLabel.style.backgroundColor = '#6c757d';
+        selectedLabel.style.color = 'white';
+        selectedLabel.style.border = '1px solid #6c757d';
+        selectedLabel.classList.remove('btn-outline-secondary');
+        
+        // Filter rows
+        rows.forEach(row => {
+            const opened = row.dataset.opened === 'true';
+            const clicked = row.dataset.clicked === 'true';
+            
+            let show = false;
+            
+            switch(filter) {
+                case 'all':
+                    show = true;
+                    break;
+                case 'opened':
+                    show = opened;
+                    break;
+                case 'clicked':
+                    show = clicked;
+                    break;
+                case 'not-opened':
+                    show = !opened;
+                    break;
+            }
+            
+            row.style.display = show ? '' : 'none';
+        });
+    });
+});
+
+// Get CSRF token from cookie
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Sync stats from Brevo
+function syncStats() {
+    const btn = document.getElementById('syncStatsBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Syncing...';
+    
+    const csrftoken = getCookie('csrftoken');
+    
+    fetch('{% url "dashboard:campaign_sync_stats" campaign.id %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken,
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Show success message briefly, then reload
+            btn.innerHTML = '<i class="bi bi-check-circle"></i> Synced!';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-success');
+            
+            // Reload page after 1 second to show updated stats
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            alert('Error syncing stats: ' + (data.error || 'Unknown error'));
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Sync from Brevo';
+        }
+    })
+    .catch(error => {
+        console.error('Sync error:', error);
+        alert('Error syncing stats: ' + error.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Sync from Brevo';
+    });
+}
+</script>
+
+{% endblock %}

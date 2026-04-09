@@ -1,0 +1,160 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}Send Email to Registrants - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>
+                <i class="bi bi-envelope-paper me-2"></i>
+                Send Email to Registrants
+            </h1>
+            <p class="text-muted">Send {{ template.name }} to event registrants</p>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-card-checklist me-2"></i>
+                        Select Recipients
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Who should receive this email?</label>
+                            
+                            <div class="list-group">
+                                <label class="list-group-item list-group-item-action">
+                                    <input class="form-check-input me-2" type="radio" name="target_type" value="all_registrants" checked>
+                                    <strong>All Registrants</strong>
+                                    <span class="badge bg-primary float-end">{{ all_count }}</span>
+                                    <br>
+                                    <small class="text-muted ms-4">All non-spam event registrations</small>
+                                </label>
+                                
+                                <label class="list-group-item list-group-item-action">
+                                    <input class="form-check-input me-2" type="radio" name="target_type" value="confirmed">
+                                    <strong>Confirmed Registrants</strong>
+                                    <span class="badge bg-success float-end">{{ confirmed_count }}</span>
+                                    <br>
+                                    <small class="text-muted ms-4">Registrants who confirmed their email</small>
+                                </label>
+                                
+                                <label class="list-group-item list-group-item-action">
+                                    <input class="form-check-input me-2" type="radio" name="target_type" value="not_confirmed">
+                                    <strong>Not Confirmed</strong>
+                                    <span class="badge bg-warning float-end">{{ not_confirmed_count }}</span>
+                                    <br>
+                                    <small class="text-muted ms-4">Registrants who haven't confirmed yet</small>
+                                </label>
+                                
+                                <label class="list-group-item list-group-item-action">
+                                    <input class="form-check-input me-2" type="radio" name="target_type" value="no_user_account">
+                                    <strong>No User Account Yet</strong>
+                                    <span class="badge bg-info float-end">{{ no_account_count }}</span>
+                                    <br>
+                                    <small class="text-muted ms-4">Registrants without created user accounts</small>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Template Variables Available:</strong>
+                            <div class="mt-2">
+                                <code>{{event_name}}</code>, 
+                                <code>{{event_location}}</code>, 
+                                <code>{{event_start_date}}</code>, 
+                                <code>{{first_name}}</code>, 
+                                <code>{{last_name}}</code>, 
+                                <code>{{participant_name}}</code>, 
+                                <code>{{email}}</code>, 
+                                <code>{{telephone}}</code>, 
+                                <code>{{etablissement}}</code>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'dashboard:event_email_templates' event.id %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>
+                                Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-send me-2"></i>
+                                Send Email
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Email Preview -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-eye me-2"></i>
+                        Email Preview
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="text-muted">Template:</h6>
+                    <p class="fw-bold">{{ template.name }}</p>
+                    
+                    <h6 class="text-muted mt-3">Subject:</h6>
+                    <p class="fw-bold">{{ template.subject }}</p>
+                    
+                    <h6 class="text-muted mt-3">Body Preview:</h6>
+                    <div class="border p-3 bg-light" style="max-height: 400px; overflow-y: auto;">
+                        {% if template.body_html %}
+                            {{ template.body_html|safe }}
+                        {% else %}
+                            {{ template.body|linebreaks }}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Event Info -->
+            <div class="card shadow-sm mt-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-calendar-event me-2"></i>
+                        Event Info
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Event:</strong> {{ event.name }}</p>
+                    <p><strong>Date:</strong> {{ event.start_date|date:"d M Y" }}</p>
+                    <p><strong>Location:</strong> {{ event.location }}</p>
+                    <p><strong>Total Registrations:</strong> {{ all_count }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .list-group-item {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .list-group-item input[type="radio"]:checked ~ * {
+        font-weight: 600;
+    }
+</style>
+{% endblock %}

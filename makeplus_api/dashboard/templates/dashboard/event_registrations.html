@@ -1,0 +1,243 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}Event Registrations - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1>
+                <i class="bi bi-person-lines-fill me-2"></i>
+                Event Registrations
+            </h1>
+            <p class="text-muted">{{ event.name }}</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-2"></i>
+                Back to Event
+            </a>
+        </div>
+    </div>
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="mb-0">{{ stats.total }}</h3>
+                    <small class="text-muted">Total</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center border-success">
+                <div class="card-body">
+                    <h3 class="mb-0 text-success">{{ stats.confirmed }}</h3>
+                    <small class="text-muted">Confirmed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center border-warning">
+                <div class="card-body">
+                    <h3 class="mb-0 text-warning">{{ stats.not_confirmed }}</h3>
+                    <small class="text-muted">Not Confirmed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center border-info">
+                <div class="card-body">
+                    <h3 class="mb-0 text-info">{{ stats.with_account }}</h3>
+                    <small class="text-muted">With Account</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center border-secondary">
+                <div class="card-body">
+                    <h3 class="mb-0">{{ stats.no_account }}</h3>
+                    <small class="text-muted">No Account</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center border-danger">
+                <div class="card-body">
+                    <h3 class="mb-0 text-danger">{{ stats.spam }}</h3>
+                    <small class="text-muted">Spam</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filters and Search -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="btn-group" role="group">
+                <a href="?filter=all" class="btn btn-outline-primary {% if filter_type == 'all' %}active{% endif %}">
+                    All ({{ stats.total }})
+                </a>
+                <a href="?filter=confirmed" class="btn btn-outline-success {% if filter_type == 'confirmed' %}active{% endif %}">
+                    Confirmed ({{ stats.confirmed }})
+                </a>
+                <a href="?filter=not_confirmed" class="btn btn-outline-warning {% if filter_type == 'not_confirmed' %}active{% endif %}">
+                    Not Confirmed ({{ stats.not_confirmed }})
+                </a>
+                <a href="?filter=no_account" class="btn btn-outline-secondary {% if filter_type == 'no_account' %}active{% endif %}">
+                    No Account ({{ stats.no_account }})
+                </a>
+                <a href="?filter=spam" class="btn btn-outline-danger {% if filter_type == 'spam' %}active{% endif %}">
+                    Spam ({{ stats.spam }})
+                </a>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <form method="GET" class="input-group">
+                <input type="text" class="form-control" name="search" placeholder="Search..." value="{{ search_query }}">
+                <input type="hidden" name="filter" value="{{ filter_type }}">
+                <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-search"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Registrations Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Établissement</th>
+                            <th>Secteur</th>
+                            <th>Status</th>
+                            <th>Registered</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for registration in registrations %}
+                        <tr {% if registration.is_spam %}class="table-danger"{% endif %}>
+                            <td>
+                                <strong>{{ registration.get_full_name }}</strong>
+                                {% if registration.user %}
+                                <br><small class="text-success">
+                                    <i class="bi bi-person-check me-1"></i>
+                                    User Account Created
+                                </small>
+                                {% endif %}
+                            </td>
+                            <td>{{ registration.email }}</td>
+                            <td>{{ registration.telephone }}</td>
+                            <td>{{ registration.etablissement }}</td>
+                            <td>
+                                <span class="badge {% if registration.secteur == 'prive' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                    {{ registration.get_secteur_display }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if registration.is_spam %}
+                                <span class="badge bg-danger">Spam</span>
+                                {% elif registration.is_confirmed %}
+                                <span class="badge bg-success">Confirmed</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ registration.created_at|date:"d M Y H:i" }}</small>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    {% if not registration.user and not registration.is_spam %}
+                                    <form method="POST" action="{% url 'dashboard:approve_registration' registration.id %}" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-success" title="Create User Account" 
+                                                onclick="return confirm('Create user account for {{ registration.get_full_name }}?')">
+                                            <i class="bi bi-person-plus"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    
+                                    <button type="button" class="btn btn-info" title="View Details" 
+                                            data-bs-toggle="modal" data-bs-target="#detailModal{{ registration.id }}">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    
+                                    <form method="POST" action="{% url 'dashboard:delete_registration' registration.id %}" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-danger" title="Delete" 
+                                                onclick="return confirm('Delete registration for {{ registration.get_full_name }}?')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        
+                        <!-- Detail Modal -->
+                        <div class="modal fade" id="detailModal{{ registration.id }}" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Registration Details</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <p><strong>Full Name:</strong> {{ registration.get_full_name }}</p>
+                                                <p><strong>Email:</strong> {{ registration.email }}</p>
+                                                <p><strong>Phone:</strong> {{ registration.telephone }}</p>
+                                                <p><strong>Country:</strong> {{ registration.pays }}</p>
+                                                <p><strong>Wilaya:</strong> {{ registration.wilaya|default:"N/A" }}</p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <p><strong>Sector:</strong> {{ registration.get_secteur_display }}</p>
+                                                <p><strong>Institution:</strong> {{ registration.etablissement }}</p>
+                                                <p><strong>Specialty:</strong> {{ registration.specialite|default:"N/A" }}</p>
+                                                <p><strong>Registered:</strong> {{ registration.created_at|date:"d M Y H:i" }}</p>
+                                                <p><strong>IP Address:</strong> {{ registration.ip_address }}</p>
+                                            </div>
+                                        </div>
+                                        
+                                        {% if registration.ateliers_selected %}
+                                        <hr>
+                                        <h6>Selected Workshops:</h6>
+                                        <pre>{{ registration.ateliers_selected }}</pre>
+                                        {% endif %}
+                                        
+                                        {% if registration.user %}
+                                        <hr>
+                                        <div class="alert alert-success">
+                                            <i class="bi bi-check-circle me-2"></i>
+                                            User account created: <strong>{{ registration.user.username }}</strong>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                No registrations found
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

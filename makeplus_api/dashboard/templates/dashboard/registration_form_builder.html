@@ -1,0 +1,632 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}{% if form %}Edit {{ form.name }}{% else %}Create Registration Form{% endif %} - Form Builder{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="bi bi-ui-checks me-2"></i>{% if form %}Edit {{ form.name }}{% else %}Create New Registration Form{% endif %}</h2>
+            <p class="text-muted">Build a custom registration form with drag-and-drop fields</p>
+        </div>
+    </div>
+
+    <form method="post" id="formBuilderForm" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <div class="row">
+            <!-- Left Panel: Form Builder -->
+            <div class="col-lg-8">
+                <!-- Form Information Card -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Form Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="formName" class="form-label">Form Name *</label>
+                            <input type="text" class="form-control" id="formName" name="name" 
+                                   value="{% if form %}{{ form.name }}{% endif %}" required 
+                                   placeholder="e.g., Conference 2026 Registration">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="formSlug" class="form-label">Slug (URL) *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">/forms/</span>
+                                <input type="text" class="form-control" id="formSlug" name="slug" 
+                                       value="{% if form %}{{ form.slug }}{% endif %}" required 
+                                       pattern="[a-z0-9-]+"
+                                       placeholder="conference-2026-registration">
+                            </div>
+                            <small class="text-muted">Only lowercase letters, numbers, and hyphens</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="formDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="formDescription" name="description" 
+                                      rows="2" placeholder="Describe this form...">{% if form %}{{ form.description }}{% endif %}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="formEvent" class="form-label">Link to Event *</label>
+                            <select class="form-select" id="formEvent" name="event_id" required>
+                                <option value="">-- Select Event --</option>
+                                {% for event in events %}
+                                    <option value="{{ event.id }}" {% if form and form.event_id == event.id %}selected{% endif %}>
+                                        {{ event.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="successMessage" class="form-label">Success Message</label>
+                            <textarea class="form-control" id="successMessage" name="success_message" 
+                                      rows="2" placeholder="Thank you for submitting!">{% if form and form.success_message %}{{ form.success_message }}{% else %}Thank you for your submission!{% endif %}</textarea>
+                        </div>
+
+                        <!-- Countdown Settings -->
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-clock-history me-2"></i>Countdown Timer</h6>
+                                <p class="text-muted small">Display a countdown timer on the registration form</p>
+                                
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="countdownEnabled" name="countdown_enabled" 
+                                           {% if form and form.countdown_enabled %}checked{% endif %}
+                                           onchange="toggleCountdownFields()">
+                                    <label class="form-check-label" for="countdownEnabled">
+                                        Enable countdown timer
+                                    </label>
+                                </div>
+                                
+                                <div id="countdownFields" style="display: {% if form and form.countdown_enabled %}block{% else %}none{% endif %};">
+                                    <div class="mb-3">
+                                        <label for="countdownTitle" class="form-label">Countdown Title</label>
+                                        <input type="text" class="form-control" id="countdownTitle" name="countdown_title" 
+                                               value="{% if form and form.countdown_title %}{{ form.countdown_title }}{% else %}Event Starts In{% endif %}"
+                                               placeholder="e.g., Event Starts In">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="countdownDate" class="form-label">Target Date & Time</label>
+                                        <input type="datetime-local" class="form-control" id="countdownDate" name="countdown_date" 
+                                               value="{% if form and form.countdown_date %}{{ form.countdown_date|date:'Y-m-d\TH:i' }}{% endif %}">
+                                        <small class="text-muted">The countdown will count down to this date and time</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="isActive" name="is_active" 
+                                   {% if not form or form.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="isActive">
+                                Form is active (users can submit)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fields Builder Card -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Form Fields</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Required Fields:</strong> Email, First Name, and Last Name are required to create participant accounts. 
+                            <br>These fields are always included in your form. Add custom fields below to collect additional information.
+                            <br><strong>Note:</strong> Users will receive a 6-digit login code via email after registration (passwordless authentication).
+                        </div>
+                        
+                        <!-- Required Fields (Non-removable) -->
+                        <h6 class="text-primary mb-3"><i class="bi bi-lock-fill me-2"></i>Required Fields</h6>
+                        <div id="requiredFieldsContainer" class="mb-4">
+                            <!-- Required fields will be rendered here by JavaScript -->
+                        </div>
+                        
+                        <!-- Custom Fields Header -->
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0 text-secondary"><i class="bi bi-plus-square me-2"></i>Custom Fields</h6>
+                            <button type="button" class="btn btn-sm btn-primary" id="addFieldBtn">
+                                <i class="bi bi-plus-circle me-1"></i>Add Custom Field
+                            </button>
+                        </div>
+                        
+                        <div id="fieldsContainer">
+                            <!-- Custom fields will be dynamically added here -->
+                        </div>
+                        
+                        <div id="noFieldsMessage" class="text-center text-muted py-3">
+                            <p>No custom fields added yet. Click "Add Custom Field" to add additional fields to your form.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hidden input to store fields JSON -->
+                <input type="hidden" id="fieldsConfigInput" name="fields_config" value="">
+
+                <!-- Action Buttons -->
+                <div class="mb-4">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-check-circle me-2"></i>Save Form
+                    </button>
+                    <a href="{% url 'dashboard:registration_form_builder' %}" class="btn btn-secondary btn-lg">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
+                    </a>
+                </div>
+            </div>
+
+            <!-- Right Panel: Live Preview -->
+            <div class="col-lg-4">
+                <div class="card sticky-top" style="top: 80px;">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-eye me-2"></i>Live Preview</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="previewContainer">
+                            <p class="text-muted text-center">Preview will appear here as you add fields</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+.field-item {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    cursor: move;
+    transition: all 0.2s;
+}
+
+.field-item:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 2px 8px rgba(13,110,253,0.2);
+}
+
+.field-item.dragging {
+    opacity: 0.5;
+}
+
+.field-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.field-type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.drag-handle {
+    cursor: move;
+    color: #6c757d;
+    font-size: 1.2rem;
+}
+
+#previewContainer {
+    min-height: 300px;
+}
+
+.preview-field {
+    margin-bottom: 1rem;
+}
+</style>
+
+<!-- Store fields config as JSON in a script tag -->
+{% if form and form.fields_config %}
+{{ form.fields_config|json_script:"fields-config-data" }}
+{% endif %}
+
+<script>
+console.log('Form Builder Script Loading...');
+
+// Toggle countdown fields
+function toggleCountdownFields() {
+    const checkbox = document.getElementById('countdownEnabled');
+    const fields = document.getElementById('countdownFields');
+    if (checkbox && fields) {
+        fields.style.display = checkbox.checked ? 'block' : 'none';
+    }
+}
+
+let fieldCounter = 0;
+let formFields = [];
+let requiredFields = [
+    {
+        name: 'email',
+        label: 'Email Address',
+        type: 'email',
+        required: true,
+        placeholder: 'Enter your email address',
+        isSystemField: true
+    },
+    {
+        name: 'first_name',
+        label: 'First Name',
+        type: 'text',
+        required: true,
+        placeholder: 'Enter your first name',
+        isSystemField: true
+    },
+    {
+        name: 'last_name',
+        label: 'Last Name',
+        type: 'text',
+        required: true,
+        placeholder: 'Enter your last name',
+        isSystemField: true
+    }
+];
+
+// Initialize form fields from existing data
+{% if form and form.fields_config %}
+    try {
+        // Get the JSON data from the script tag
+        const fieldsConfigElement = document.getElementById('fields-config-data');
+        if (fieldsConfigElement) {
+            const fieldsData = JSON.parse(fieldsConfigElement.textContent);
+            console.log('Loading fields data:', fieldsData);
+            
+            if (Array.isArray(fieldsData) && fieldsData.length > 0) {
+                // Load ALL custom fields (non-system fields)
+                const customFields = fieldsData.filter(field => !field.isSystemField);
+                console.log('Custom fields found:', customFields);
+                
+                formFields = customFields;
+                fieldCounter = formFields.length;
+                
+                // Wait for DOM to be ready before rendering
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', function() {
+                        console.log('DOM ready, rendering fields...');
+                        formFields.forEach((field, index) => {
+                            renderField(field, index);
+                        });
+                        updatePreview();
+                    });
+                } else {
+                    // DOM already loaded
+                    console.log('DOM already ready, rendering fields immediately...');
+                    formFields.forEach((field, index) => {
+                        renderField(field, index);
+                    });
+                    updatePreview();
+                }
+            }
+        }
+    } catch(e) {
+        console.error('Error parsing fields_config', e);
+        formFields = [];
+        fieldCounter = 0;
+    }
+{% else %}
+    formFields = [];
+    fieldCounter = 0;
+{% endif %}
+
+// DOM Ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Ready - Initializing form builder');
+    
+    // Render required fields
+    requiredFields.forEach((field, index) => {
+        renderRequiredField(field, index);
+    });
+    
+    // Render existing custom fields
+    if (formFields.length > 0) {
+        formFields.forEach((field, index) => {
+            renderField(field, index);
+        });
+    }
+    
+    updatePreview();
+    toggleNoFieldsMessage();
+    
+    // Add Field button
+    const addFieldBtn = document.getElementById('addFieldBtn');
+    if (addFieldBtn) {
+        addFieldBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            addField();
+        });
+    }
+    
+    // Form submission
+    document.getElementById('formBuilderForm').addEventListener('submit', function() {
+        prepareFormSubmission();
+    });
+});
+
+// Render required field
+function renderRequiredField(field, index) {
+    const container = document.getElementById('requiredFieldsContainer');
+    if (!container) return;
+    
+    const fieldHtml = `
+        <div class="field-item" style="border-color: #0d6efd; background: #e7f1ff;">
+            <div class="field-header">
+                <div>
+                    <i class="bi bi-lock-fill text-primary me-2"></i>
+                    <strong>${field.label}</strong>
+                    <span class="badge bg-primary field-type-badge ms-2">${field.type}</span>
+                    <span class="badge bg-danger ms-1">Required</span>
+                </div>
+            </div>
+            
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label small">Label</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.label}" 
+                           onchange="updateRequiredField(${index}, 'label', this.value)">
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label small">Field Name</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.name}" disabled readonly>
+                </div>
+                
+                <div class="col-12">
+                    <label class="form-label small">Placeholder</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.placeholder || ''}" 
+                           onchange="updateRequiredField(${index}, 'placeholder', this.value)">
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', fieldHtml);
+}
+
+// Update required field
+function updateRequiredField(index, property, value) {
+    if (requiredFields[index]) {
+        requiredFields[index][property] = value;
+        updatePreview();
+    }
+}
+
+// Add new field
+function addField() {
+    const field = {
+        name: `field_${fieldCounter}`,
+        label: `Field ${fieldCounter + 1}`,
+        type: 'text',
+        required: false,
+        placeholder: '',
+        options: []
+    };
+    
+    formFields.push(field);
+    renderField(field, fieldCounter);
+    fieldCounter++;
+    
+    toggleNoFieldsMessage();
+    updatePreview();
+}
+
+// Render field
+function renderField(field, index) {
+    const container = document.getElementById('fieldsContainer');
+    if (!container) return;
+    
+    const fieldHtml = `
+        <div class="field-item" data-index="${index}">
+            <div class="field-header">
+                <div>
+                    <i class="bi bi-grip-vertical drag-handle me-2"></i>
+                    <strong>${field.label}</strong>
+                    <span class="badge bg-secondary field-type-badge ms-2">${field.type}</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeField(${index})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+            
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label small">Label</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.label}" 
+                           onchange="updateField(${index}, 'label', this.value)">
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label small">Field Name</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.name}" 
+                           onchange="updateField(${index}, 'name', this.value)">
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label small">Type</label>
+                    <select class="form-select form-select-sm" 
+                            onchange="updateFieldType(${index}, this.value)">
+                        <optgroup label="Text Inputs">
+                            <option value="text" ${field.type === 'text' ? 'selected' : ''}>Text</option>
+                            <option value="email" ${field.type === 'email' ? 'selected' : ''}>Email</option>
+                            <option value="tel" ${field.type === 'tel' ? 'selected' : ''}>Phone</option>
+                            <option value="url" ${field.type === 'url' ? 'selected' : ''}>URL</option>
+                            <option value="textarea" ${field.type === 'textarea' ? 'selected' : ''}>Textarea</option>
+                        </optgroup>
+                        <optgroup label="Numbers">
+                            <option value="number" ${field.type === 'number' ? 'selected' : ''}>Number</option>
+                        </optgroup>
+                        <optgroup label="Date & Time">
+                            <option value="date" ${field.type === 'date' ? 'selected' : ''}>Date</option>
+                        </optgroup>
+                        <optgroup label="Selection">
+                            <option value="select" ${field.type === 'select' ? 'selected' : ''}>Dropdown</option>
+                            <option value="checkbox" ${field.type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
+                            <option value="radio" ${field.type === 'radio' ? 'selected' : ''}>Radio</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                            <option value="file" ${field.type === 'file' ? 'selected' : ''}>File Upload</option>
+                        </optgroup>
+                    </select>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label small">
+                        <input type="checkbox" ${field.required ? 'checked' : ''} 
+                               onchange="updateField(${index}, 'required', this.checked)">
+                        Required
+                    </label>
+                </div>
+                
+                <div class="col-12">
+                    <label class="form-label small">Placeholder</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           value="${field.placeholder || ''}" 
+                           onchange="updateField(${index}, 'placeholder', this.value)">
+                </div>
+                
+                ${['select', 'radio', 'checkbox'].includes(field.type) ? `
+                <div class="col-12">
+                    <label class="form-label small">Options (one per line)</label>
+                    <textarea class="form-control form-control-sm" rows="3" 
+                              onchange="updateFieldOptions(${index}, this.value)">${(field.options || []).join('\n')}</textarea>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', fieldHtml);
+    toggleNoFieldsMessage();
+}
+
+// Update field
+function updateField(index, property, value) {
+    if (formFields[index]) {
+        formFields[index][property] = value;
+        updatePreview();
+    }
+}
+
+// Update field type
+function updateFieldType(index, type) {
+    if (formFields[index]) {
+        formFields[index].type = type;
+        // Re-render all fields
+        const container = document.getElementById('fieldsContainer');
+        container.innerHTML = '';
+        formFields.forEach((field, idx) => {
+            renderField(field, idx);
+        });
+        updatePreview();
+    }
+}
+
+// Update field options
+function updateFieldOptions(index, value) {
+    if (formFields[index]) {
+        formFields[index].options = value.split('\n').filter(opt => opt.trim() !== '');
+        updatePreview();
+    }
+}
+
+// Remove field
+function removeField(index) {
+    if (confirm('Remove this field?')) {
+        formFields.splice(index, 1);
+        
+        // Re-render all fields
+        const container = document.getElementById('fieldsContainer');
+        container.innerHTML = '';
+        formFields.forEach((field, idx) => {
+            renderField(field, idx);
+        });
+        
+        toggleNoFieldsMessage();
+        updatePreview();
+    }
+}
+
+// Toggle no fields message
+function toggleNoFieldsMessage() {
+    const noFieldsMsg = document.getElementById('noFieldsMessage');
+    const fieldsContainer = document.getElementById('fieldsContainer');
+    noFieldsMsg.style.display = fieldsContainer.children.length === 0 ? 'block' : 'none';
+}
+
+// Update preview
+function updatePreview() {
+    const previewContainer = document.getElementById('previewContainer');
+    
+    let html = '<div class="preview-form-display">';
+    
+    // Required fields
+    requiredFields.forEach(field => {
+        html += `<div class="preview-field mb-3">`;
+        html += `<label class="form-label"><strong>${field.label} *</strong></label>`;
+        html += `<div class="form-control" style="background: #e9ecef;">${field.placeholder || ''}</div>`;
+        html += `</div>`;
+    });
+    
+    // Custom fields
+    formFields.forEach(field => {
+        html += `<div class="preview-field mb-3">`;
+        html += `<label class="form-label">${field.label}${field.required ? ' *' : ''}</label>`;
+        
+        if (field.type === 'textarea') {
+            html += `<textarea class="form-control" placeholder="${field.placeholder || ''}"></textarea>`;
+        } else if (field.type === 'select') {
+            html += `<select class="form-select">`;
+            html += `<option value="">-- Select --</option>`;
+            (field.options || []).forEach(opt => {
+                html += `<option value="${opt}">${opt}</option>`;
+            });
+            html += `</select>`;
+        } else if (field.type === 'radio') {
+            (field.options || []).forEach(opt => {
+                html += `<div class="form-check">`;
+                html += `<input class="form-check-input" type="radio" name="${field.name}">`;
+                html += `<label class="form-check-label">${opt}</label>`;
+                html += `</div>`;
+            });
+        } else if (field.type === 'checkbox') {
+            (field.options || []).forEach(opt => {
+                html += `<div class="form-check">`;
+                html += `<input class="form-check-input" type="checkbox">`;
+                html += `<label class="form-check-label">${opt}</label>`;
+                html += `</div>`;
+            });
+        } else {
+            html += `<input type="${field.type}" class="form-control" placeholder="${field.placeholder || ''}">`;
+        }
+        
+        html += `</div>`;
+    });
+    
+    html += '</div>';
+    previewContainer.innerHTML = html;
+}
+
+// Prepare form submission
+function prepareFormSubmission() {
+    const fieldsConfigInput = document.getElementById('fieldsConfigInput');
+    const allFields = [...requiredFields, ...formFields];
+    fieldsConfigInput.value = JSON.stringify(allFields);
+    return true;
+}
+
+console.log('Form Builder Script Loaded Successfully!');
+</script>
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Payable Items - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="bi bi-cart-check"></i> Payable Items</h2>
+        <p class="text-muted">Event: {{ event.name }}</p>
+    </div>
+    <div>
+        <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Event
+        </a>
+        <a href="{% url 'dashboard:payable_item_create' event.id %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Payable Item
+        </a>
+    </div>
+</div>
+
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+{% if items %}
+<div class="row">
+    {% for item in items %}
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h5 class="card-title mb-0">{{ item.name }}</h5>
+                    <span class="badge bg-{{ item.item_type|yesno:'primary,success,secondary' }}">
+                        {{ item.get_item_type_display }}
+                    </span>
+                </div>
+                
+                {% if item.description %}
+                <p class="card-text text-muted">{{ item.description }}</p>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <strong class="text-success" style="font-size: 1.5rem;">{{ item.price }} DZD</strong>
+                </div>
+                
+                {% if item.session %}
+                <p class="mb-2">
+                    <i class="bi bi-calendar-event text-muted"></i>
+                    <small>Linked to session: {{ item.session.name }}</small>
+                </p>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <small class="text-muted">
+                        <i class="bi bi-clock"></i> Created: {{ item.created_at|date:"M d, Y H:i" }}
+                    </small>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" disabled {% if item.is_active %}checked{% endif %}>
+                    <label class="form-check-label">
+                        {% if item.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </label>
+                </div>
+                
+                <div class="btn-group w-100">
+                    <a href="{% url 'dashboard:payable_item_edit' item.id %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <button type="button" class="btn btn-outline-danger" 
+                            onclick="confirmDelete('{{ item.id }}', '{{ item.name }}')">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> No payable items found for this event.
+    <a href="{% url 'dashboard:payable_item_create' event.id %}" class="alert-link">Create one now</a>
+</div>
+{% endif %}
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete the payable item "<span id="itemName"></span>"?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function confirmDelete(itemId, itemName) {
+        document.getElementById('itemName').textContent = itemName;
+        document.getElementById('deleteForm').action = `/dashboard/payable-items/${itemId}/delete/`;
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+</script>
+{% endblock %}

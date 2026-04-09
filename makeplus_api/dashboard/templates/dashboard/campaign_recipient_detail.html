@@ -1,0 +1,187 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}{{ recipient.email }} - Engagement Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'dashboard:campaign_list_with_stats' %}">Campaigns</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'dashboard:campaign_stats_detail' campaign.id %}">{{ campaign.name }}</a></li>
+            <li class="breadcrumb-item active">{{ recipient.email }}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-person-circle"></i> {{ recipient.name|default:recipient.email }}</h2>
+            <p class="text-muted">{{ recipient.email }}</p>
+        </div>
+        <span class="badge bg-{% if recipient.status == 'delivered' %}success{% elif recipient.status == 'bounced' %}danger{% else %}secondary{% endif %} fs-6">
+            {{ recipient.get_status_display }}
+        </span>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="bi bi-envelope-open text-info fs-1"></i>
+                    <h3 class="mt-2">{{ recipient.open_count }}</h3>
+                    <small class="text-muted">Total Opens</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="bi bi-cursor-fill text-success fs-1"></i>
+                    <h3 class="mt-2">{{ recipient.click_count }}</h3>
+                    <small class="text-muted">Total Clicks</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="bi bi-clock text-primary fs-1"></i>
+                    <h5 class="mt-2">{{ recipient.first_opened_at|date:"M d, H:i"|default:"N/A" }}</h5>
+                    <small class="text-muted">First Opened</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="bi bi-clock-history text-warning fs-1"></i>
+                    <h5 class="mt-2">{{ recipient.last_opened_at|date:"M d, H:i"|default:"N/A" }}</h5>
+                    <small class="text-muted">Last Opened</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Links Clicked Summary -->
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-link-45deg"></i> Links Clicked by This Recipient
+                </div>
+                <div class="card-body">
+                    {% if links_clicked_summary %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> This recipient clicked <strong>{{ links_clicked_summary|length }}</strong> unique link{{ links_clicked_summary|length|pluralize }} for a total of <strong>{{ recipient.click_count }}</strong> click{{ recipient.click_count|pluralize }}.
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Link URL</th>
+                                    <th>Times Clicked</th>
+                                    <th>First Click</th>
+                                    <th>Last Click</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for link_data in links_clicked_summary %}
+                                <tr>
+                                    <td>
+                                        <i class="bi bi-link text-primary"></i>
+                                        <a href="{{ link_data.url }}" target="_blank" class="text-break">
+                                            {{ link_data.url }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success fs-6">{{ link_data.click_count }}</span>
+                                        <small class="text-muted">time{{ link_data.click_count|pluralize }}</small>
+                                    </td>
+                                    <td><small>{{ link_data.first_click|date:"M d, Y H:i" }}</small></td>
+                                    <td><small>{{ link_data.last_click|date:"M d, Y H:i" }}</small></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-3">This recipient has not clicked any links yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Opens Timeline -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <i class="bi bi-envelope-open"></i> Email Opens ({{ opens|length }})
+                </div>
+                <div class="card-body">
+                    {% if opens %}
+                    <div class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
+                        {% for open in opens %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <i class="bi bi-envelope-open text-info"></i>
+                                    <strong>Opened</strong>
+                                </div>
+                                <small class="text-muted">{{ open.opened_at|date:"M d, Y H:i" }}</small>
+                            </div>
+                            <small class="text-muted d-block mt-1">
+                                <i class="bi bi-geo-alt"></i> {{ open.ip_address }}
+                                {% if open.user_agent %}
+                                <br><i class="bi bi-browser-chrome"></i> {{ open.user_agent|truncatewords:10 }}
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center">No opens recorded yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Clicks Timeline -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <i class="bi bi-cursor-fill"></i> Link Clicks ({{ clicks|length }})
+                </div>
+                <div class="card-body">
+                    {% if clicks %}
+                    <div class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
+                        {% for click in clicks %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <i class="bi bi-cursor-fill text-success"></i>
+                                    <strong>Clicked</strong>
+                                    <br>
+                                    <a href="{{ click.link.original_url }}" target="_blank" class="small text-break">
+                                        {{ click.link.original_url|truncatechars:50 }}
+                                    </a>
+                                </div>
+                                <small class="text-muted text-end ms-2">{{ click.clicked_at|date:"M d, Y H:i" }}</small>
+                            </div>
+                            <small class="text-muted d-block mt-1">
+                                <i class="bi bi-geo-alt"></i> {{ click.ip_address }}
+                            </small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center">No clicks recorded yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,354 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}{{ form.name }} - Form Analytics{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .stat-card.success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+    .stat-card.info {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    .stat-card.warning {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+    .hover-shadow:hover {
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+        transform: translateY(-2px);
+        transition: all 0.3s ease;
+    }
+    .progress-thin {
+        height: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-2">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:form_list_with_stats' %}">Forms</a></li>
+                    <li class="breadcrumb-item active">{{ form.name }}</li>
+                </ol>
+            </nav>
+            <h2><i class="bi bi-clipboard-data"></i> {{ form.name }}</h2>
+            <p class="text-muted mb-0">{{ form.description|default:"" }}</p>
+        </div>
+        <div>
+            <a href="{% url 'dashboard:registration_form_edit' form.id %}" class="btn btn-primary">
+                <i class="bi bi-pencil"></i> Edit Form
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Stats Cards (Mailerlite Style) -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="small">Total Views</div>
+                <h2 class="mb-0">{{ total_views }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card success">
+                <div class="small">Submissions</div>
+                <h2 class="mb-0">{{ total_submissions }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card info">
+                <div class="small">Conversion Rate</div>
+                <h2 class="mb-0">{{ conversion_rate|floatformat:2 }}%</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card warning">
+                <div class="small">Started Rate</div>
+                <h2 class="mb-0">{{ started_rate }}%</h2>
+                <small>Visitors who interacted</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Device Breakdown -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card hover-shadow">
+                <div class="card-body text-center">
+                    <i class="bi bi-laptop text-primary fs-1"></i>
+                    <h4 class="mt-2">{{ desktop_views }}</h4>
+                    <small class="text-muted">Desktop Views</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card hover-shadow">
+                <div class="card-body text-center">
+                    <i class="bi bi-phone text-success fs-1"></i>
+                    <h4 class="mt-2">{{ mobile_views }}</h4>
+                    <small class="text-muted">Mobile Views</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card hover-shadow">
+                <div class="card-body text-center">
+                    <i class="bi bi-tablet text-info fs-1"></i>
+                    <h4 class="mt-2">{{ tablet_views }}</h4>
+                    <small class="text-muted">Tablet Views</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Views Timeline -->
+        <div class="col-md-8 mb-4">
+            <div class="card hover-shadow">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-graph-up"></i> Views Over Time
+                </div>
+                <div class="card-body">
+                    <canvas id="viewsChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Traffic Sources -->
+        <div class="col-md-4 mb-4">
+            <div class="card hover-shadow">
+                <div class="card-header bg-success text-white">
+                    <i class="bi bi-signpost"></i> Top Traffic Sources
+                </div>
+                <div class="card-body">
+                    {% if top_sources %}
+                        {% for source, count in top_sources %}
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="small">{{ source }}</span>
+                                <strong>{{ count }}</strong>
+                            </div>
+                            <div class="progress progress-thin">
+                                <div class="progress-bar bg-success" style="width: {% widthratio count total_views 100 %}%"></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted text-center">No traffic data yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Field-Level Analytics -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="card hover-shadow">
+                <div class="card-header bg-info text-white">
+                    <i class="bi bi-ui-checks"></i> Field-Level Analytics
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Field Name</th>
+                                    <th>Interactions</th>
+                                    <th>Avg Time (seconds)</th>
+                                    <th>Avg Changes</th>
+                                    <th>Completion Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for field in field_stats %}
+                                <tr>
+                                    <td><strong>{{ field.field_name }}</strong></td>
+                                    <td><span class="badge bg-primary">{{ field.total_interactions }}</span></td>
+                                    <td>{{ field.avg_time_spent|floatformat:1 }}s</td>
+                                    <td>{{ field.avg_changes|floatformat:1 }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-grow-1 me-2" style="height: 20px;">
+                                                <div class="progress-bar bg-{% if field.completion_rate > 80 %}success{% elif field.completion_rate > 50 %}warning{% else %}danger{% endif %}" 
+                                                     style="width: {{ field.completion_rate|floatformat:0 }}%">
+                                                    {{ field.completion_rate|floatformat:0 }}%
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">No field interaction data yet</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dropout Fields -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card hover-shadow border-danger">
+                <div class="card-header bg-danger text-white">
+                    <i class="bi bi-exclamation-triangle"></i> High Dropout Fields
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">Fields where users frequently abandon the form</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Dropout Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for field in dropout_fields %}
+                                <tr>
+                                    <td>{{ field.field_name }}</td>
+                                    <td>
+                                        <span class="badge bg-danger">{{ field.dropout_rate|floatformat:1 }}%</span>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="2" class="text-center text-muted">No dropout data</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- UTM Campaigns -->
+        <div class="col-md-6 mb-4">
+            <div class="card hover-shadow border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <i class="bi bi-megaphone"></i> Top UTM Campaigns
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">Marketing campaigns driving the most traffic</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Campaign</th>
+                                    <th>Views</th>
+                                    <th>Conversions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for campaign in utm_campaigns %}
+                                <tr>
+                                    <td>{{ campaign.utm_campaign }}</td>
+                                    <td><span class="badge bg-info">{{ campaign.views }}</span></td>
+                                    <td><span class="badge bg-success">{{ campaign.conversions }}</span></td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted">No UTM data</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Browser Stats -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="card hover-shadow">
+                <div class="card-header bg-secondary text-white">
+                    <i class="bi bi-browser-chrome"></i> Browser Statistics
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for browser in browser_stats %}
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center">
+                                <h4>{{ browser.count }}</h4>
+                                <small class="text-muted">{{ browser.browser }}</small>
+                                <div class="progress progress-thin mt-2">
+                                    <div class="progress-bar bg-secondary" style="width: {% widthratio browser.count total_views 100 %}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Stats -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="card hover-shadow">
+                <div class="card-body text-center">
+                    <i class="bi bi-clock text-primary fs-1"></i>
+                    <h3 class="mt-2">{{ avg_time|floatformat:1 }} seconds</h3>
+                    <p class="text-muted">Average Time on Form</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Views Timeline Chart
+const viewsCtx = document.getElementById('viewsChart').getContext('2d');
+const viewsData = {{ views_timeline|safe }};
+
+new Chart(viewsCtx, {
+    type: 'line',
+    data: {
+        labels: viewsData.map(d => d.date),
+        datasets: [{
+            label: 'Form Views',
+            data: viewsData.map(d => d.count),
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+
+{% endblock %}

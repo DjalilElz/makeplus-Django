@@ -1,0 +1,161 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Create Form - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">📝 Create Form for {{ event.name }}</h2>
+            <p class="text-muted mb-0">Choose the type of form you want to create</p>
+        </div>
+        <div>
+            <a href="{% url 'dashboard:eposter_management_home' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Existing Configurations -->
+    {% if existing_configs %}
+    <div class="alert alert-info mb-4">
+        <h5><i class="bi bi-info-circle"></i> Existing Forms for this Event</h5>
+        <ul class="mb-0">
+            {% for config in existing_configs %}
+            <li>
+                <strong>{{ config.get_form_type_display }}</strong>
+                {% if config.is_active %}
+                    <span class="badge bg-success">Active</span>
+                {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Form Type Selection -->
+    <div class="row">
+        <!-- Participant Form -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-person-plus"></i> Participant Registration Form</h4>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        Create a registration form for event participants. This form collects basic information 
+                        from people who want to attend your event.
+                    </p>
+                    <h6>Features:</h6>
+                    <ul>
+                        <li>Collect participant personal information</li>
+                        <li>Track registrations and attendance</li>
+                        <li>Generate badges and certificates</li>
+                        <li>Send confirmation emails</li>
+                    </ul>
+                    
+                    <form method="post" action="{% url 'dashboard:create_form_for_event' event.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="participant">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Form Title (optional)</label>
+                            <input type="text" name="title" class="form-control" 
+                                   placeholder="e.g., Registration for {{ event.name }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Description (optional)</label>
+                            <textarea name="description" class="form-control" rows="2"
+                                      placeholder="Instructions for participants..."></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            <i class="bi bi-plus-circle"></i> Create Participant Form
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Communicant Form -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 border-success">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0"><i class="bi bi-file-earmark-text"></i> Call for Communicants Form</h4>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        Create a submission form for scientific papers, posters, or presentations. 
+                        This form includes scientific committee validation workflow.
+                    </p>
+                    <h6>Features:</h6>
+                    <ul>
+                        <li>Collect detailed submission information</li>
+                        <li>Abstract sections (Introduction, Methods, Results, Conclusion)</li>
+                        <li>Scientific committee validation workflow</li>
+                        <li>Automatic notification emails</li>
+                        <li>Real-time validation statistics</li>
+                    </ul>
+                    
+                    <form method="post" action="{% url 'dashboard:create_form_for_event' event.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="communicant">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Form Title (optional)</label>
+                            <input type="text" name="title" class="form-control" 
+                                   placeholder="e.g., Call for Papers - {{ event.name }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Description (optional)</label>
+                            <textarea name="description" class="form-control" rows="2"
+                                      placeholder="Submission guidelines..."></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-success btn-lg w-100">
+                            <i class="bi bi-plus-circle"></i> Create Communicant Form
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Section -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-question-circle"></i> Which form should I choose?</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-primary"><i class="bi bi-person-plus"></i> Participant Form</h6>
+                    <p>Choose this if you want to:</p>
+                    <ul>
+                        <li>Register attendees for your event</li>
+                        <li>Collect basic contact information</li>
+                        <li>Track who's coming to your event</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-success"><i class="bi bi-file-earmark-text"></i> Call for Communicants</h6>
+                    <p>Choose this if you want to:</p>
+                    <ul>
+                        <li>Accept paper/poster submissions</li>
+                        <li>Have a scientific committee review submissions</li>
+                        <li>Manage an abstract submission process</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="alert alert-info mb-0 mt-3">
+                <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> You can create both types of forms for the same event!
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

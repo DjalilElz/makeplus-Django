@@ -1,0 +1,200 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}{% if from_event_page %}Add Users to Event{% else %}Create User{% endif %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    {% if from_event_page %}
+    <!-- Event Info (only when accessed from event page) -->
+    <div class="alert alert-success mb-4">
+        <h5><i class="bi bi-calendar-event"></i> Adding Users to Event</h5>
+        <p class="mb-0"><strong>{{ event.name }}</strong></p>
+    </div>
+    {% endif %}
+    
+    <div class="row">
+        {% if from_event_page %}
+        <!-- Existing Users (only when accessed from event page) -->
+        <div class="col-md-4 mb-4">
+            <div class="stat-card">
+                <h5 class="mb-3"><i class="bi bi-people"></i> Event Users</h5>
+                
+                {% if existing_users %}
+                    <div class="list-group">
+                        {% for assignment in existing_users %}
+                        <div class="list-group-item">
+                            <div>
+                                <strong>{{ assignment.user.get_full_name|default:assignment.user.username }}</strong>
+                                <br>
+                                <small class="text-muted">{{ assignment.user.email }}</small>
+                                <br>
+                                <span class="badge bg-primary mt-1">{{ assignment.get_role_display }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-3">
+                        <p class="text-muted mb-0"><small>{{ existing_users.count }} user(s) added</small></p>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-person-x" style="font-size: 2rem; color: #ccc;"></i>
+                        <p class="text-muted small mt-2">No users yet</p>
+                    </div>
+                {% endif %}
+                
+                <div class="d-grid gap-2 mt-3">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="done">
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-check-circle"></i> Done
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Add User Form -->
+        <div class="{% if from_event_page %}col-md-8{% else %}col-lg-8 mx-auto{% endif %} mb-4">
+            <div class="stat-card">
+                <h5 class="mb-4">
+                    <i class="bi bi-person-plus"></i> {% if from_event_page %}Add User & Assign Role{% else %}Create New User{% endif %}
+                </h5>
+                
+                {% if form.errors %}
+                    <div class="alert alert-danger">
+                        <strong>Please correct the following errors:</strong>
+                        <ul class="mb-0">
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    <li>{{ field }}: {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_user">
+                    
+                    <div class="row">
+                        {% if not from_event_page %}
+                        <!-- Event field (only when NOT from event page) -->
+                        <div class="col-md-12 mb-3">
+                            <label for="{{ form.event.id_for_label }}" class="form-label">Assign to Event *</label>
+                            {{ form.event }}
+                            <div class="form-text">Select the event to assign this user to</div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="col-md-12 mb-3">
+                            <label for="{{ form.email.id_for_label }}" class="form-label">Email *</label>
+                            {{ form.email }}
+                            <div class="form-text">Username will be auto-generated from email</div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.first_name.id_for_label }}" class="form-label">First Name *</label>
+                            {{ form.first_name }}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.last_name.id_for_label }}" class="form-label">Last Name *</label>
+                            {{ form.last_name }}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.password.id_for_label }}" class="form-label">Password *</label>
+                            {{ form.password }}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.password_confirm.id_for_label }}" class="form-label">Confirm Password *</label>
+                            {{ form.password_confirm }}
+                        </div>
+                        
+                        <div class="col-md-12 mb-3">
+                            <label for="{{ form.role.id_for_label }}" class="form-label">Role for this Event *</label>
+                            {{ form.role }}
+                            <div class="form-text">
+                                <ul class="small mb-0 mt-2">
+                                    <li><strong>Gestionnaire de Salle:</strong> Manage sessions and rooms</li>
+                                    <li><strong>Contrôleur:</strong> Verify QR codes and badges</li>
+                                    <li><strong>Committee:</strong> Review and validate ePoster submissions</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-12 mb-3" id="roomFieldContainer" style="display: none;">
+                            <label for="{{ form.assigned_room.id_for_label }}" class="form-label">Assign to Room</label>
+                            {{ form.assigned_room }}
+                            {% if form.assigned_room.field.queryset.count == 0 %}
+                                <div class="alert alert-warning mt-2">
+                                    <i class="bi bi-exclamation-triangle"></i> No rooms available for this event.
+                                </div>
+                            {% endif %}
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i> Select a room for this Gestionnaire de Salle to manage
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-qr-code"></i> <strong>Note:</strong> A unique QR code will be automatically generated for this user.
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% if from_event_page %}{% url 'dashboard:event_detail' event.id %}{% else %}{% url 'dashboard:user_list' %}{% endif %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-person-plus"></i> Create User
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleRoomField() {
+    const roleSelect = document.querySelector('select[name="role"]');
+    const roomContainer = document.getElementById('roomFieldContainer');
+    const roomSelect = document.querySelector('select[name="assigned_room"]');
+    
+    if (roleSelect && roomContainer) {
+        const selectedRole = roleSelect.value;
+        
+        // Only show room field for Gestionnaire de Salle
+        if (selectedRole === 'gestionnaire_des_salles') {
+            roomContainer.style.display = 'block';
+            if (roomSelect) {
+                roomSelect.required = false; // Optional
+            }
+        } else {
+            roomContainer.style.display = 'none';
+            if (roomSelect) {
+                roomSelect.required = false;
+                roomSelect.value = ''; // Clear selection
+            }
+        }
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const roleSelect = document.querySelector('select[name="role"]');
+    
+    if (roleSelect) {
+        // Bind change event
+        roleSelect.addEventListener('change', toggleRoomField);
+        // Initialize visibility
+        toggleRoomField();
+    }
+});
+</script>
+{% endblock %}

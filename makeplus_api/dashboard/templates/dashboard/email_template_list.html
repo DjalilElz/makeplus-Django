@@ -1,0 +1,311 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Email Templates & Campaigns{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-envelope"></i> Email Templates & Campaigns</h2>
+        <div>
+            <a href="{% url 'dashboard:form_list_with_stats' %}" class="btn btn-outline-info me-2">
+                <i class="bi bi-ui-checks"></i> Form Analytics
+            </a>
+            <a href="{% url 'dashboard:registration_form_builder' %}" class="btn btn-info me-2">
+                <i class="bi bi-plus-circle"></i> Build Form
+            </a>
+            <a href="{% url 'dashboard:campaign_create' %}" class="btn btn-success me-2">
+                <i class="bi bi-megaphone"></i> Create Campaign
+            </a>
+            <a href="{% url 'dashboard:email_template_create' %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Create Template
+            </a>
+        </div>
+    </div>
+    
+    <!-- Email Campaigns Section (Mailerlite Style) -->
+    {% if campaigns and campaign_count > 0 %}
+    <div class="mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4><i class="bi bi-graph-up text-success"></i> Email Campaigns ({{ campaign_count }})</h4>
+            <a href="{% url 'dashboard:campaign_list_with_stats' %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-list-ul"></i> View All Campaigns
+            </a>
+        </div>
+        
+        <div class="row">
+            {% for campaign in campaigns|slice:":6" %}
+            <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
+                <div class="card shadow-sm hover-shadow h-100 border-start border-4 {% if campaign.status == 'sent' %}border-success{% elif campaign.status == 'draft' %}border-secondary{% elif campaign.status == 'sending' %}border-warning{% else %}border-danger{% endif %}">
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title mb-0 small">
+                                <i class="bi bi-megaphone text-primary"></i> {{ campaign.name|truncatewords:5 }}
+                            </h6>
+                            <span class="badge bg-{% if campaign.status == 'sent' %}success{% elif campaign.status == 'draft' %}secondary{% elif campaign.status == 'sending' %}warning{% else %}danger{% endif %}" style="font-size: 0.65rem;">
+                                {{ campaign.get_status_display }}
+                            </span>
+                        </div>
+                        
+                        <p class="text-muted mb-2" style="font-size: 0.7rem;">
+                            <i class="bi bi-envelope"></i> {{ campaign.subject|truncatewords:6 }}
+                        </p>
+                        
+                        <!-- Compact Stats Cards -->
+                        <div class="d-flex gap-1 mb-2">
+                            <div class="bg-light rounded text-center flex-fill" style="padding: 2px 4px;">
+                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Rcpt</div>
+                                <div class="fw-bold" style="font-size: 11px; line-height: 1.1;">{{ campaign.total_sent|default:0 }}</div>
+                            </div>
+                            <div class="bg-light rounded text-center flex-fill" style="padding: 2px 4px;">
+                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Sent</div>
+                                <div class="fw-bold text-success" style="font-size: 11px; line-height: 1.1;">{{ campaign.total_delivered|default:0 }}</div>
+                            </div>
+                            <div class="bg-info bg-opacity-10 rounded text-center flex-fill" style="padding: 2px 4px;">
+                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Open</div>
+                                <div class="fw-bold text-info" style="font-size: 11px; line-height: 1.1;">{{ campaign.get_open_rate }}%</div>
+                            </div>
+                            <div class="bg-success bg-opacity-10 rounded text-center flex-fill" style="padding: 2px 4px;">
+                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Click</div>
+                                <div class="fw-bold text-success" style="font-size: 11px; line-height: 1.1;">{{ campaign.get_click_rate }}%</div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <a href="{% url 'dashboard:campaign_stats_detail' campaign.id %}" class="btn btn-primary btn-sm py-1" style="font-size: 0.7rem;">
+                                <i class="bi bi-graph-up"></i> Stats
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white border-top-0 py-1 px-2">
+                        <small class="text-muted" style="font-size: 0.65rem;">
+                            <i class="bi bi-calendar"></i> {{ campaign.created_at|date:"M d" }}
+                            {% if campaign.event %} | {{ campaign.event.name|truncatewords:2 }}{% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Email Templates Section -->
+    <div class="mb-3">
+        <h4><i class="bi bi-envelope-fill text-primary"></i> Email Templates ({{ template_count }})</h4>
+        <p class="text-muted small">
+            <i class="bi bi-info-circle"></i> Reusable templates that can be customized for each event. 
+            Use template variables like <code>{{event_name}}</code>, <code>{{participant_name}}</code>, etc.
+        </p>
+    </div>
+    
+    {% if templates and template_count > 0 %}
+        <div class="row">
+            {% for template in templates %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-envelope-fill text-primary"></i> {{ template.name }}
+                        </h5>
+                        {% if template.description %}
+                        <p class="text-muted small">{{ template.description }}</p>
+                        {% endif %}
+                        <hr>
+                        <p class="mb-2"><strong>Subject:</strong></p>
+                        <p class="text-muted small">{{ template.subject }}</p>
+                        <p class="mb-2 mt-3"><strong>Body Preview:</strong></p>
+                        <p class="text-muted small" style="max-height: 100px; overflow: hidden;">
+                            {{ template.body|truncatewords:30 }}
+                        </p>
+                    </div>
+                    <div class="card-footer bg-light">
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                {% if template.created_by %}<i class="bi bi-person"></i> {{ template.created_by.username }} |{% endif %} 
+                                <i class="bi bi-calendar"></i> {{ template.created_at|date:"M d, Y" }}
+                            </small>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-sm btn-outline-info" 
+                                        onclick="openTestEmailModal({{ template.id }}, '{{ template.name|escapejs }}')" 
+                                        title="Test Email">
+                                    <i class="bi bi-envelope-check"></i> Test
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-success" 
+                                        onclick="openSendEmailModal({{ template.id }}, '{{ template.name|escapejs }}')" 
+                                        title="Send to Registered Users">
+                                    <i class="bi bi-send"></i> Send
+                                </button>
+                                <a href="{% url 'dashboard:email_template_stats' template.id %}" 
+                                   class="btn btn-sm btn-outline-warning" title="Statistics">
+                                    <i class="bi bi-bar-chart"></i> Stats
+                                </a>
+                            </div>
+                            <div class="btn-group" role="group">
+                                <a href="{% url 'dashboard:email_template_edit' template.id %}" 
+                                   class="btn btn-sm btn-outline-primary" title="Edit">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                        onclick="archiveTemplate({{ template.id }}, '{{ template.name|escapejs }}')" 
+                                        title="Archive">
+                                    <i class="bi bi-archive"></i> Archive
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                        onclick="deleteTemplate({{ template.id }}, '{{ template.name|escapejs }}')" 
+                                        title="Delete">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                        <form id="delete-template-{{ template.id }}" method="post" 
+                              action="{% url 'dashboard:email_template_delete' template.id %}" style="display:none;">
+                            {% csrf_token %}
+                        </form>
+                        <form id="archive-template-{{ template.id }}" method="post" 
+                              action="{% url 'dashboard:email_template_archive' template.id %}" style="display:none;">
+                            {% csrf_token %}
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-circle"></i> No email templates created yet. 
+            <a href="{% url 'dashboard:email_template_create' %}" class="alert-link">Create your first template</a>.
+        </div>
+    {% endif %}
+</div>
+
+<!-- Test Email Modal -->
+<div class="modal fade" id="testEmailModal" tabindex="-1" aria-labelledby="testEmailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="testEmailModalLabel">
+                    <i class="bi bi-envelope-check"></i> Test Email: <span id="testEmailTemplateName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="testEmailForm" method="post" action="">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Send a test email to verify your template design and content.
+                    </div>
+                    <div class="mb-3">
+                        <label for="testEmailAddress" class="form-label">Test Email Address *</label>
+                        <input type="email" class="form-control" id="testEmailAddress" name="test_email" 
+                               placeholder="yourname@example.com" required>
+                        <div class="form-text">Enter the email address where you want to send the test.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info">
+                        <i class="bi bi-send"></i> Send Test Email
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Send Email Modal -->
+<div class="modal fade" id="sendEmailModal" tabindex="-1" aria-labelledby="sendEmailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sendEmailModalLabel">
+                    <i class="bi bi-send"></i> Send Email: <span id="sendEmailTemplateName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="sendEmailForm" method="post" action="">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Warning:</strong> This will send the email to all registered users for the selected event.
+                    </div>
+                    <div class="mb-3">
+                        <label for="sendEventSelect" class="form-label">Select Event *</label>
+                        <select class="form-select" id="sendEventSelect" name="event_id" required>
+                            <option value="">-- Choose an event --</option>
+                            <!-- Events will be loaded via JavaScript or backend -->
+                        </select>
+                        <div class="form-text">Choose the event whose registered users will receive this email.</div>
+                    </div>
+                    <div id="recipientCount" class="alert alert-info" style="display:none;">
+                        <i class="bi bi-people"></i> This email will be sent to <strong><span id="recipientNumber">0</span></strong> registered users.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-send-check"></i> Send to All Registered Users
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openTestEmailModal(templateId, templateName) {
+    document.getElementById('testEmailTemplateName').textContent = templateName;
+    document.getElementById('testEmailForm').action = `/dashboard/email-templates/${templateId}/test/`;
+    var testEmailModal = new bootstrap.Modal(document.getElementById('testEmailModal'));
+    testEmailModal.show();
+}
+
+function openSendEmailModal(templateId, templateName) {
+    document.getElementById('sendEmailTemplateName').textContent = templateName;
+    document.getElementById('sendEmailForm').action = `/dashboard/email-templates/${templateId}/send/`;
+    
+    // Load events (you may want to fetch this via AJAX)
+    fetch('/dashboard/api/events/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('sendEventSelect');
+            select.innerHTML = '<option value="">-- Choose an event --</option>';
+            data.events.forEach(event => {
+                const option = document.createElement('option');
+                option.value = event.id;
+                option.textContent = event.name;
+                option.setAttribute('data-registrations', event.registration_count || 0);
+                select.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading events:', error);
+        });
+    
+    var sendEmailModal = new bootstrap.Modal(document.getElementById('sendEmailModal'));
+    sendEmailModal.show();
+}
+
+// Update recipient count when event is selected
+document.getElementById('sendEventSelect')?.addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const count = selectedOption.getAttribute('data-registrations') || 0;
+    document.getElementById('recipientNumber').textContent = count;
+    document.getElementById('recipientCount').style.display = count > 0 ? 'block' : 'none';
+});
+
+function archiveTemplate(templateId, templateName) {
+    if (confirm(`Archive the template "${templateName}"?\n\nArchived templates won\'t be deleted but will be hidden from the main list.`)) {
+        document.getElementById(`archive-template-${templateId}`).submit();
+    }
+}
+
+function deleteTemplate(templateId, templateName) {
+    if (confirm(`Are you sure you want to DELETE "${templateName}"?\n\nThis action cannot be undone!`)) {
+        document.getElementById(`delete-template-${templateId}`).submit();
+    }
+}
+</script>
+
+{% endblock %}

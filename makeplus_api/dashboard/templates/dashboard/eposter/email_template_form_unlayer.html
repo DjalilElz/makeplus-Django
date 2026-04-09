@@ -1,0 +1,431 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}{% if template %}Modifier{% else %}Créer{% endif %} Template Email - {{ event.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    #email-editor-container {
+        height: 700px;
+        width: 100%;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .form-section {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .section-title {
+        font-size: 1.1em;
+        font-weight: 600;
+        margin-bottom: 15px;
+        color: #333;
+        border-bottom: 2px solid #28a745;
+        padding-bottom: 8px;
+    }
+    
+    .editor-loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 700px;
+        background: rgba(255, 255, 255, 0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <form method="post" id="templateForm">
+        {% csrf_token %}
+        <input type="hidden" name="body_html" id="body_html">
+        <input type="hidden" name="design_json" id="design_json">
+        <input type="hidden" name="body_text" id="body_text">
+        
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <nav aria-label="breadcrumb" class="mb-2">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_dashboard' event.id %}">ePoster</a></li>
+                        <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_email_templates' event.id %}">Templates</a></li>
+                        <li class="breadcrumb-item active">{% if template %}Modifier{% else %}Créer{% endif %}</li>
+                    </ol>
+                </nav>
+                <h3 class="mb-0">
+                    <i class="bi bi-envelope"></i> 
+                    {% if template %}Modifier le template{% else %}Créer un template{% endif %}
+                </h3>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-primary" id="previewBtn">
+                    <i class="bi bi-eye"></i> Aperçu
+                </button>
+                <button type="submit" class="btn btn-success" id="saveBtn">
+                    <i class="bi bi-check-circle"></i> {% if template %}Enregistrer{% else %}Créer{% endif %}
+                </button>
+            </div>
+        </div>
+        
+        <!-- Layout: Configuration (3 cols) + Editor (9 cols) -->
+        <div class="row">
+            <!-- Left Column: Configuration + Variables (3 cols) -->
+            <div class="col-lg-3">
+                <div class="form-section sticky-top" style="top: 20px;">
+                    <div class="section-title">
+                        <i class="bi bi-gear"></i> Configuration
+                    </div>
+                    
+                    {% if not template %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Type <span class="text-danger">*</span></label>
+                        <select name="template_type" id="template_type" class="form-select" required>
+                            {% for value, label in type_choices %}
+                            <option value="{{ value }}" {% if template_type == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% else %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Type</label>
+                        <input type="text" class="form-control" value="{{ template.get_template_type_display }}" disabled>
+                    </div>
+                    {% endif %}
+                    
+                    {% if template %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
+                                   {% if template.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">Template actif</label>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Variables Section -->
+                    <div class="section-title mt-4">
+                        <i class="bi bi-code-square"></i> Variables
+                    </div>
+                    <p class="small text-muted mb-2">Cliquez pour copier</p>
+                    
+                    <h6 class="small fw-bold text-primary mb-2">Auteur</h6>
+                    <div class="mb-3">
+                        {% verbatim %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{prenom}}">{{prenom}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{nom}}">{{nom}}</button>
+                        {% endverbatim %}
+                    </div>
+                    
+                    <h6 class="small fw-bold text-info mb-2">Soumission</h6>
+                    <div class="mb-3">
+                        {% verbatim %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{titre}}">{{titre}}</button>
+                        {% endverbatim %}
+                    </div>
+                    
+                    <h6 class="small fw-bold text-success mb-2">Événement</h6>
+                    <div class="mb-3">
+                        {% verbatim %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{event_name}}">{{event_name}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{event_location}}">{{event_location}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{event_start_date}}">{{event_start_date}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{event_end_date}}">{{event_end_date}}</button>
+                        {% endverbatim %}
+                    </div>
+                    
+                </div>
+            </div>
+            
+            <!-- Right Column: Email Editor (9 cols) -->
+            <div class="col-lg-9">
+                <!-- Subject Field at Top -->
+                <div class="form-section mb-3">
+                    <div class="mb-0">
+                        <label class="form-label fw-bold">Sujet de l'email <span class="text-danger">*</span></label>
+                        <input type="text" name="subject" id="subject" class="form-control form-control-lg" required
+                               value="{{ template.subject|default:defaults.subject }}"
+                               placeholder="Ex: Félicitations ! Votre soumission a été acceptée">
+                        <small class="text-muted">Vous pouvez utiliser les variables comme {% verbatim %}{{event_name}}{% endverbatim %} dans le sujet</small>
+                    </div>
+                </div>
+                
+                <!-- Email Editor -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <i class="bi bi-brush"></i> Conception de l'email
+                    </div>
+                    <div style="position: relative;">
+                        <div id="email-editor-container"></div>
+                        <!-- Loading Overlay inside editor wrapper -->
+                        <div class="editor-loading-overlay" id="editorLoadingOverlay">
+                            <div class="text-center">
+                                <div class="spinner-border text-success" style="width: 3rem; height: 3rem;" role="status"></div>
+                                <p class="mt-3 fw-bold">Chargement de l'éditeur...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye"></i> Aperçu de l'email</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 p-3 bg-light border-bottom">
+                    <strong>Sujet:</strong> <span id="previewSubject"></span>
+                </div>
+                <iframe id="previewFrame" style="width: 100%; height: 600px; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Unlayer Email Editor Script -->
+<script src="https://editor.unlayer.com/embed.js"></script>
+
+<script>
+let emailEditor;
+let previewModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Loading overlay is already visible in the editor container
+    
+    // Initialize preview modal
+    previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+    
+    // Initialize Unlayer Email Editor
+    emailEditor = unlayer.createEditor({
+        id: 'email-editor-container',
+        projectId: 1234,
+        displayMode: 'email',
+        appearance: {
+            theme: 'light',
+            panels: {
+                tools: {
+                    dock: 'left'
+                }
+            }
+        },
+        features: {
+            preview: true,
+            imageEditor: true,
+            textEditor: {
+                tables: true,
+                emojis: true
+            }
+        },
+        tools: {
+            form: {
+                enabled: false
+            }
+        },
+        mergeTags: {
+            prenom: {
+                name: "Prénom",
+                value: "{{prenom}}",
+                sample: "Jean"
+            },
+            nom: {
+                name: "Nom de famille",
+                value: "{{nom}}",
+                sample: "Dupont"
+            },
+            titre: {
+                name: "Titre du travail",
+                value: "{{titre}}",
+                sample: "Étude sur les nouvelles approches thérapeutiques"
+            },
+            event_name: {
+                name: "Nom de l'événement",
+                value: "{{event_name}}",
+                sample: "{{ event.name }}"
+            },
+            event_location: {
+                name: "Lieu de l'événement",
+                value: "{{event_location}}",
+                sample: "Centre International de Conférences, Alger"
+            },
+            event_start_date: {
+                name: "Date de début",
+                value: "{{event_start_date}}",
+                sample: "15/06/2027"
+            },
+            event_end_date: {
+                name: "Date de fin",
+                value: "{{event_end_date}}",
+                sample: "17/06/2027"
+            }
+        }
+    });
+
+    // Editor ready event
+    emailEditor.addEventListener('editor:ready', function() {
+        console.log('Unlayer Editor is ready');
+        // Hide loading overlay in editor
+        const loadingOverlay = document.getElementById('editorLoadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+        
+        {% if template and template.design_json %}
+        // Load existing design if editing
+        try {
+            const design = {{ template.design_json|safe }};
+            emailEditor.loadDesign(design);
+        } catch (e) {
+            console.error('Error loading design:', e);
+        }
+        {% endif %}
+    });
+    
+    // Preview button
+    document.getElementById('previewBtn').addEventListener('click', function() {
+        emailEditor.exportHtml(function(data) {
+            const html = data.html;
+            const previewFrame = document.getElementById('previewFrame');
+            const previewSubject = document.getElementById('previewSubject');
+            
+            // Get subject from form
+            const subject = document.getElementById('subject').value || 'Pas de sujet';
+            previewSubject.textContent = subject;
+            
+            // Replace variables with sample data
+            let previewHtml = html;
+            previewHtml = previewHtml.replace(/\{\{prenom\}\}/g, 'Jean');
+            previewHtml = previewHtml.replace(/\{\{nom\}\}/g, 'Dupont');
+            previewHtml = previewHtml.replace(/\{\{titre\}\}/g, 'Étude sur les nouvelles approches thérapeutiques en cardiologie');
+            previewHtml = previewHtml.replace(/\{\{event_name\}\}/g, '{{ event.name }}');
+            previewHtml = previewHtml.replace(/\{\{event_location\}\}/g, 'Centre International de Conférences, Alger');
+            previewHtml = previewHtml.replace(/\{\{event_start_date\}\}/g, '15/06/2027');
+            previewHtml = previewHtml.replace(/\{\{event_end_date\}\}/g, '17/06/2027');
+            
+            // Load HTML into iframe
+            previewFrame.srcdoc = previewHtml;
+            
+            // Show modal
+            previewModal.show();
+        });
+    });
+    
+    // Form submission
+    document.getElementById('templateForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Validate required fields
+        const subject = document.getElementById('subject').value;
+        {% if not template %}
+        const templateType = document.getElementById('template_type').value;
+        if (!templateType || !subject) {
+            alert('Veuillez remplir tous les champs obligatoires');
+            return;
+        }
+        {% else %}
+        if (!subject) {
+            alert('Veuillez remplir le sujet');
+            return;
+        }
+        {% endif %}
+        
+        // Show loading on submit button
+        const saveBtn = document.getElementById('saveBtn');
+        const originalText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enregistrement...';
+        
+        // Export HTML from Unlayer
+        emailEditor.exportHtml(function(data) {
+            const { design, html } = data;
+            
+            // Validate we have content
+            if (!html || html.trim().length === 0) {
+                alert('Le contenu de l\'email ne peut pas être vide');
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
+                return;
+            }
+            
+            // Set hidden fields
+            document.getElementById('body_html').value = html;
+            
+            // Safely stringify design JSON
+            try {
+                document.getElementById('design_json').value = JSON.stringify(design);
+            } catch (err) {
+                console.error('Error stringifying design:', err);
+                document.getElementById('design_json').value = '{}';
+            }
+            
+            // Extract text content for plain text version
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            document.getElementById('body_text').value = tempDiv.textContent || tempDiv.innerText || '';
+            
+            // Debug log before submit
+            console.log('Submitting form with:');
+            console.log('- Subject:', subject);
+            {% if not template %}
+            console.log('- Template Type:', templateType);
+            {% endif %}
+            console.log('- Body HTML length:', html.length);
+            console.log('- Design JSON length:', document.getElementById('design_json').value.length);
+            
+            // Submit the form
+            e.target.submit();
+        });
+    });
+    
+    // Variable buttons - copy to clipboard with green effect
+    function setupVariableButtons() {
+        document.querySelectorAll('.variable-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const varText = this.dataset.var;
+                
+                navigator.clipboard.writeText(varText).then(() => {
+                    // Change to green
+                    this.classList.remove('btn-outline-secondary');
+                    this.classList.add('btn-success');
+                    const originalText = this.textContent;
+                    this.textContent = '✓ Copié!';
+                    
+                    // Reset after 2 seconds
+                    setTimeout(() => {
+                        this.classList.remove('btn-success');
+                        this.classList.add('btn-outline-secondary');
+                        this.textContent = originalText;
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Could not copy text: ', err);
+                    alert('Copié: ' + varText);
+                });
+            });
+        });
+    }
+    
+    // Initial setup
+    setupVariableButtons();
+});
+</script>
+{% endblock %}

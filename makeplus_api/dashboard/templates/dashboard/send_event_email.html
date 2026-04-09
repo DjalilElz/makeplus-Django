@@ -1,0 +1,161 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Send Email - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="mb-4">
+        <a href="{% url 'dashboard:event_email_templates' event.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Templates
+        </a>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4><i class="bi bi-send"></i> Send Email to Participants</h4>
+                    <p class="mb-0 small">{{ event.name }}</p>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> <strong>Template:</strong> {{ template.name }}
+                    </div>
+                    
+                    <form method="post" id="sendEmailForm">
+                        {% csrf_token %}
+                        
+                        <div class="mb-4">
+                            <h5>Select Recipients:</h5>
+                            
+                            <div class="list-group">
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-2" type="radio" name="target_type" 
+                                           value="all_participants" required>
+                                    <div class="d-flex justify-content-between align-items-center w-100">
+                                        <div>
+                                            <strong>All Event Participants</strong>
+                                            <p class="mb-0 small text-muted">Send to everyone registered for this event</p>
+                                        </div>
+                                        <span class="badge bg-primary">{{ all_count }} recipients</span>
+                                    </div>
+                                </label>
+                                
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-2" type="radio" name="target_type" 
+                                           value="attended" required>
+                                    <div class="d-flex justify-content-between align-items-center w-100">
+                                        <div>
+                                            <strong>Participants Who Attended</strong>
+                                            <p class="mb-0 small text-muted">Checked in at the event</p>
+                                        </div>
+                                        <span class="badge bg-success">{{ attended_count }} recipients</span>
+                                    </div>
+                                </label>
+                                
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-2" type="radio" name="target_type" 
+                                           value="not_attended" required>
+                                    <div class="d-flex justify-content-between align-items-center w-100">
+                                        <div>
+                                            <strong>Participants Who Did Not Attend</strong>
+                                            <p class="mb-0 small text-muted">Registered but did not check in</p>
+                                        </div>
+                                        <span class="badge bg-warning text-dark">{{ not_attended_count }} recipients</span>
+                                    </div>
+                                </label>
+                                
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-2" type="radio" name="target_type" 
+                                           value="paid" required>
+                                    <div class="d-flex justify-content-between align-items-center w-100">
+                                        <div>
+                                            <strong>Participants Who Paid</strong>
+                                            <p class="mb-0 small text-muted">Made at least one payment transaction</p>
+                                        </div>
+                                        <span class="badge bg-info">{{ paid_count }} recipients</span>
+                                    </div>
+                                </label>
+                                
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-2" type="radio" name="target_type" 
+                                           value="not_paid" required>
+                                    <div class="d-flex justify-content-between align-items-center w-100">
+                                        <div>
+                                            <strong>Participants Who Did Not Pay</strong>
+                                            <p class="mb-0 small text-muted">No payment transactions recorded</p>
+                                        </div>
+                                        <span class="badge bg-secondary">{{ not_paid_count }} recipients</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> <strong>Warning:</strong> 
+                            This will send real emails to the selected participants. Make sure you have reviewed the template content.
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="bi bi-send-fill"></i> Send Emails
+                            </button>
+                            <a href="{% url 'dashboard:event_email_templates' event.id %}" class="btn btn-secondary btn-lg">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-eye"></i> Email Preview</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>Subject:</strong></p>
+                    <p class="text-muted">{{ template.subject }}</p>
+                    
+                    <hr>
+                    
+                    <p class="mb-2"><strong>Body Preview:</strong></p>
+                    <div class="border rounded p-3" style="max-height: 400px; overflow-y: auto; background-color: #f8f9fa;">
+                        <small>{{ template.body|safe|truncatewords_html:100 }}</small>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3 small">
+                        <i class="bi bi-info-circle"></i> Template variables will be replaced with actual participant data when sent.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('sendEmailForm');
+    form.addEventListener('submit', function(e) {
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const targetType = form.querySelector('input[name="target_type"]:checked');
+        
+        if (!targetType) {
+            e.preventDefault();
+            alert('Please select a recipient group');
+            return;
+        }
+        
+        const confirmMessage = 'Are you sure you want to send this email? This action cannot be undone.';
+        if (!confirm(confirmMessage)) {
+            e.preventDefault();
+            return;
+        }
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
+    });
+});
+</script>
+{% endblock %}

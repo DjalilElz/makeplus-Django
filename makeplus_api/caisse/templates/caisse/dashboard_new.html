@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caisse - {{ event.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        /* Top Header */
+        .top-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        
+        .logout-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+            color: white;
+        }
+        
+        /* Statistics Cards */
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        /* Participant List */
+        .participant-list {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-height: calc(100vh - 300px);
+            overflow-y: auto;
+        }
+        
+        .search-box {
+            position: sticky;
+            top: 0;
+            background: white;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 15px;
+            z-index: 10;
+        }
+        
+        .participant-item {
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .participant-item:hover {
+            background-color: #f3f4f6;
+            border-color: var(--primary-color);
+            transform: translateX(5px);
+        }
+        
+        .participant-item.checked-in {
+            background-color: #d1fae5;
+            border-color: #10b981;
+        }
+        
+        .participant-info {
+            flex: 1;
+        }
+        
+        .participant-name {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 2px;
+        }
+        
+        .participant-email {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+        
+        .participant-badge {
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+        
+        /* Transaction Panel */
+        .transaction-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 20px;
+        }
+        
+        .item-checkbox {
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .item-checkbox:hover {
+            border-color: var(--primary-color);
+            background-color: #f3f4f6;
+        }
+        
+        .item-checkbox input:checked ~ * {
+            color: var(--primary-color);
+        }
+        
+        .no-participant-selected {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Header -->
+    <div class="top-header">
+        <div class="container-fluid">
+            <h3 class="mb-1">
+                <i class="bi bi-cash-register"></i> {{ caisse.name }}
+            </h3>
+            <p class="mb-0 opacity-75">
+                <i class="bi bi-calendar-event"></i> {{ event.name }}
+            </p>
+        </div>
+        <a href="{% url 'caisse:logout' %}" class="logout-btn">
+            <i class="bi bi-box-arrow-right"></i> Logout
+        </a>
+    </div>
+
+    <div class="container-fluid mt-4">
+        <!-- Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-cash-coin" style="font-size: 2.5rem; color: #10b981;"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="text-muted mb-1">Total Amount</h6>
+                            <h3 class="mb-0" style="color: #10b981;">{{ total_amount|floatformat:2 }} DZD</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-people-fill" style="font-size: 2.5rem; color: #667eea;"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="text-muted mb-1">Participants</h6>
+                            <h3 class="mb-0" style="color: #667eea;">{{ total_participants }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-receipt" style="font-size: 2.5rem; color: #f59e0b;"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="text-muted mb-1">Transactions</h6>
+                            <h3 class="mb-0" style="color: #f59e0b;">{{ transaction_count }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Participant List -->
+            <div class="col-md-7">
+                <div class="participant-list">
+                    <div class="search-box">
+                        <h5 class="mb-3">
+                            <i class="bi bi-people"></i> All Participants
+                            <span class="badge bg-primary ms-2" id="participantCount">{{ all_participants.count }}</span>
+                        </h5>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" class="form-control" id="searchInput" 
+                                   placeholder="Filter by name, email, or QR code..." 
+                                   autocomplete="off">
+                        </div>
+                    </div>
+                    
+                    <div id="participantsList">
+                        {% for participant in all_participants %}
+                        <div class="participant-item {% if participant.caisse_transactions.exists %}checked-in{% endif %}" 
+                             data-id="{{ participant.id }}"
+                             data-name="{{ participant.user.get_full_name|default:participant.user.username }}"
+                             data-email="{{ participant.user.email }}"
+                             data-qr="{{ participant.qr_code }}"
+                             data-searchtext="{{ participant.user.get_full_name|default:participant.user.username|lower }} {{ participant.user.email|lower }} {{ participant.qr_code|lower }}"
+                             onclick="selectParticipant(this)">
+                            <div class="participant-info">
+                                <div class="participant-name">
+                                    <i class="bi bi-person-circle me-2"></i>
+                                    {{ participant.user.get_full_name|default:participant.user.username }}
+                                </div>
+                                <div class="participant-email">
+                                    <i class="bi bi-envelope me-1"></i> {{ participant.user.email }}
+                                    <span class="ms-2">
+                                        <i class="bi bi-qr-code me-1"></i> {{ participant.qr_code }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div>
+                                {% if participant.caisse_transactions.exists %}
+                                    <span class="participant-badge bg-success text-white">
+                                        <i class="bi bi-check-circle"></i> Checked In
+                                    </span>
+                                {% else %}
+                                    <span class="participant-badge bg-secondary text-white">
+                                        <i class="bi bi-clock"></i> Pending
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="text-center text-muted py-5">
+                            <i class="bi bi-inbox" style="font-size: 3rem; display: block; margin-bottom: 10px;"></i>
+                            No participants found for this event
+                        </p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Transaction Panel -->
+            <div class="col-md-5">
+                <div class="transaction-panel">
+                    <div id="participantDetails" style="display: none;">
+                        <h5 class="mb-3">
+                            <i class="bi bi-receipt"></i> Process Transaction
+                        </h5>
+                        <div class="alert alert-info mb-3">
+                            <div class="mb-2">
+                                <strong><i class="bi bi-person"></i> Name:</strong> <span id="participantName"></span>
+                            </div>
+                            <div class="mb-2">
+                                <strong><i class="bi bi-envelope"></i> Email:</strong> <span id="participantEmail"></span>
+                            </div>
+                            <div>
+                                <strong><i class="bi bi-qr-code"></i> QR Code:</strong> <span id="participantQR"></span>
+                            </div>
+                        </div>
+
+                        <h6 class="mb-3">
+                            <i class="bi bi-cart-check"></i> Select Items:
+                        </h6>
+                        <div id="payableItems" style="max-height: 300px; overflow-y: auto;">
+                            {% for item in payable_items %}
+                            <div class="item-checkbox">
+                                <div class="d-flex align-items-center">
+                                    <input type="checkbox" class="form-check-input me-2" 
+                                           id="item_{{ item.id }}" 
+                                           value="{{ item.id }}" 
+                                           data-price="{{ item.price }}"
+                                           onchange="calculateTotal()">
+                                    <label class="form-check-label flex-grow-1" for="item_{{ item.id }}" style="cursor: pointer;">
+                                        <strong>{{ item.name }}</strong>
+                                        {% if item.session %}
+                                            <br><small class="text-muted"><i class="bi bi-calendar3"></i> {{ item.session.name }}</small>
+                                        {% endif %}
+                                    </label>
+                                    <span class="badge bg-success">{{ item.price }} DZD</span>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <p class="text-muted text-center py-3">No payable items available</p>
+                            {% endfor %}
+                        </div>
+
+                        <div class="bg-light p-3 rounded mb-3 mt-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <strong>Total Amount:</strong> 
+                                <span id="totalAmount" class="fs-4" style="color: #10b981; font-weight: 700;">0.00 DZD</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">
+                                <i class="bi bi-pencil-square"></i> Notes (Optional)
+                            </label>
+                            <textarea class="form-control" id="notes" rows="2" placeholder="Add any notes about this transaction..."></textarea>
+                        </div>
+                        
+                        <button type="button" class="btn btn-success w-100 py-2" onclick="processTransaction()">
+                            <i class="bi bi-check-circle"></i> Process Transaction & Print Badge
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary w-100 mt-2" onclick="clearForm()">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </button>
+                    </div>
+                    
+                    <div id="noParticipantSelected" class="no-participant-selected">
+                        <i class="bi bi-hand-index" style="font-size: 3rem; display: block; margin-bottom: 15px; color: #d1d5db;"></i>
+                        <h6 class="text-muted">Select a participant from the list</h6>
+                        <p class="small text-muted">Click on any participant to process their transaction</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Transactions -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="stat-card">
+                    <h5 class="mb-3">
+                        <i class="bi bi-clock-history"></i> Recent Transactions
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th><i class="bi bi-person"></i> Participant</th>
+                                    <th><i class="bi bi-cart"></i> Items</th>
+                                    <th><i class="bi bi-cash"></i> Amount</th>
+                                    <th><i class="bi bi-clock"></i> Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in recent_transactions %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ transaction.participant.user.get_full_name|default:transaction.participant.user.username }}</strong><br>
+                                        <small class="text-muted">{{ transaction.participant.user.email }}</small>
+                                    </td>
+                                    <td>
+                                        <small>
+                                            {% for item in transaction.items.all %}
+                                                <span class="badge bg-secondary">{{ item.name }}</span>
+                                            {% endfor %}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{{ transaction.total_amount }} DZD</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ transaction.created_at|date:"M d, Y H:i" }}</small>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
+                                        No transactions yet
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedParticipantId = null;
+        
+        // Real-time search filtering
+        document.getElementById('searchInput').addEventListener('input', function() {
+            const searchText = this.value.toLowerCase().trim();
+            const participants = document.querySelectorAll('.participant-item');
+            let visibleCount = 0;
+            
+            participants.forEach(function(participant) {
+                const participantText = participant.getAttribute('data-searchtext');
+                if (searchText === '' || participantText.includes(searchText)) {
+                    participant.style.display = '';
+                    visibleCount++;
+                } else {
+                    participant.style.display = 'none';
+                }
+            });
+            
+            // Update participant count
+            document.getElementById('participantCount').textContent = visibleCount;
+        });
+        
+        // Select participant for transaction
+        function selectParticipant(element) {
+            const id = element.getAttribute('data-id');
+            const name = element.getAttribute('data-name');
+            const email = element.getAttribute('data-email');
+            const qr = element.getAttribute('data-qr');
+            
+            // Highlight selected participant
+            document.querySelectorAll('.participant-item').forEach(function(item) {
+                item.style.borderColor = '#e5e7eb';
+                item.style.background = item.classList.contains('checked-in') ? '#d1fae5' : 'white';
+            });
+            element.style.borderColor = '#667eea';
+            element.style.background = '#ede9fe';
+            
+            selectedParticipantId = id;
+            document.getElementById('participantName').textContent = name;
+            document.getElementById('participantEmail').textContent = email;
+            document.getElementById('participantQR').textContent = qr;
+            document.getElementById('participantDetails').style.display = 'block';
+            document.getElementById('noParticipantSelected').style.display = 'none';
+            
+            // Reset form
+            document.querySelectorAll('#payableItems input[type="checkbox"]').forEach(cb => cb.checked = false);
+            document.getElementById('notes').value = '';
+            calculateTotal();
+        }
+        
+        // Calculate total amount
+        function calculateTotal() {
+            let total = 0;
+            document.querySelectorAll('#payableItems input[type="checkbox"]:checked').forEach(checkbox => {
+                total += parseFloat(checkbox.getAttribute('data-price'));
+            });
+            document.getElementById('totalAmount').textContent = total.toFixed(2) + ' DZD';
+        }
+        
+        // Process transaction
+        function processTransaction() {
+            if (!selectedParticipantId) {
+                alert('Please select a participant');
+                return;
+            }
+            
+            const selectedItems = Array.from(document.querySelectorAll('#payableItems input[type="checkbox"]:checked'))
+                .map(cb => cb.value);
+            
+            if (selectedItems.length === 0) {
+                alert('Please select at least one item');
+                return;
+            }
+            
+            const notes = document.getElementById('notes').value;
+            
+            fetch('{% url "caisse:process_transaction" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    participant_id: selectedParticipantId,
+                    items: selectedItems,
+                    notes: notes
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Transaction processed successfully!');
+                    // Open badge print window
+                    window.open(`{% url 'caisse:print_badge' 0 %}`.replace('0', data.transaction_id), '_blank');
+                    // Reload page to update stats
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to process transaction');
+            });
+        }
+        
+        // Clear form
+        function clearForm() {
+            selectedParticipantId = null;
+            document.getElementById('participantDetails').style.display = 'none';
+            document.getElementById('noParticipantSelected').style.display = 'block';
+            document.querySelectorAll('#payableItems input[type="checkbox"]').forEach(cb => cb.checked = false);
+            document.getElementById('notes').value = '';
+            calculateTotal();
+            
+            // Remove highlighting from all participants
+            document.querySelectorAll('.participant-item').forEach(function(item) {
+                item.style.borderColor = '#e5e7eb';
+                item.style.background = item.classList.contains('checked-in') ? '#d1fae5' : 'white';
+            });
+        }
+    </script>
+</body>
+</html>

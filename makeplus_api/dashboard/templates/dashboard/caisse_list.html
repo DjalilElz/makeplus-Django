@@ -1,0 +1,101 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Caisses Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">Caisses Management</h2>
+            <p class="text-muted mb-0">Manage cash registers for events</p>
+        </div>
+        <a href="{% url 'dashboard:caisse_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Create Caisse
+        </a>
+    </div>
+
+    <!-- Filter -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-6">
+                    <label for="event" class="form-label">Filter by Event</label>
+                    <select name="event" id="event" class="form-select" onchange="this.form.submit()">
+                        <option value="">All Events</option>
+                        {% for event in events %}
+                            <option value="{{ event.id }}" {% if selected_event == event.id|stringformat:"s" %}selected{% endif %}>
+                                {{ event.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Caisses List -->
+    {% if caisse_stats %}
+        <div class="row">
+            {% for stat in caisse_stats %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="stat-card h-100">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h5 class="mb-1">{{ stat.caisse.name }}</h5>
+                            <p class="text-muted small mb-0">{{ stat.caisse.event.name }}</p>
+                        </div>
+                        {% if stat.caisse.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <p class="text-muted small mb-1">Email</p>
+                        <p class="mb-0">{{ stat.caisse.email }}</p>
+                    </div>
+
+                    <hr>
+
+                    <div class="row text-center mb-3">
+                        <div class="col-4">
+                            <p class="text-muted small mb-1">Total Amount</p>
+                            <h4 class="text-success mb-0">{{ stat.total_amount|floatformat:2 }}</h4>
+                        </div>
+                        <div class="col-4">
+                            <p class="text-muted small mb-1">Participants</p>
+                            <h4 class="text-primary mb-0">{{ stat.total_participants }}</h4>
+                        </div>
+                        <div class="col-4">
+                            <p class="text-muted small mb-1">Transactions</p>
+                            <h4 class="text-info mb-0">{{ stat.transaction_count }}</h4>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'dashboard:caisse_detail' stat.caisse.id %}" class="btn btn-sm btn-outline-primary flex-fill">
+                            <i class="bi bi-eye"></i> Details
+                        </a>
+                        <a href="{% url 'dashboard:caisse_edit' stat.caisse.id %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                onclick="if(confirm('Delete {{ stat.caisse.name }}?')) { document.getElementById('delete-{{ stat.caisse.id }}').submit(); }">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        <form id="delete-{{ stat.caisse.id }}" method="post" action="{% url 'dashboard:caisse_delete' stat.caisse.id %}" style="display:none;">
+                            {% csrf_token %}
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> No caisses found. Create your first caisse to get started.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

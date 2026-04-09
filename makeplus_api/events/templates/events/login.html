@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - MakePlus Events</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 0;
+        }
+        .login-container {
+            max-width: 450px;
+            width: 100%;
+        }
+        .login-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 2.5rem;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .login-header h1 {
+            color: #667eea;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .login-header p {
+            color: #6c757d;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #333;
+        }
+        .btn-login {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: transform 0.2s;
+        }
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-request-code {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .btn-request-code:hover {
+            text-decoration: underline;
+        }
+        .code-input {
+            font-size: 1.5rem;
+            text-align: center;
+            letter-spacing: 0.5rem;
+            font-weight: 600;
+        }
+        .alert {
+            border-radius: 10px;
+        }
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 1.5rem 0;
+        }
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .divider span {
+            padding: 0 1rem;
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <h1><i class="bi bi-key-fill me-2"></i>Login</h1>
+                    <p>Enter your email and 6-digit code</p>
+                </div>
+
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <form method="post" id="loginForm">
+                    {% csrf_token %}
+                    
+                    <!-- Event Selection -->
+                    <div class="mb-3">
+                        <label for="event" class="form-label">
+                            <i class="bi bi-calendar-event me-1"></i>Event
+                        </label>
+                        <select class="form-select" id="event" name="event" required>
+                            <option value="">-- Select Event --</option>
+                            {% for event in events %}
+                                <option value="{{ event.id }}" {% if request.POST.event == event.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ event.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="mb-3">
+                        <label for="email" class="form-label">
+                            <i class="bi bi-envelope me-1"></i>Email Address
+                        </label>
+                        <input 
+                            type="email" 
+                            class="form-control" 
+                            id="email" 
+                            name="email" 
+                            placeholder="your@email.com"
+                            value="{{ request.POST.email|default:'' }}"
+                            required
+                        >
+                    </div>
+
+                    <!-- Login Code -->
+                    <div class="mb-3">
+                        <label for="code" class="form-label">
+                            <i class="bi bi-shield-lock me-1"></i>6-Digit Code
+                        </label>
+                        <input 
+                            type="text" 
+                            class="form-control code-input" 
+                            id="code" 
+                            name="code" 
+                            placeholder="000000"
+                            maxlength="6"
+                            pattern="[0-9]{6}"
+                            required
+                        >
+                        <small class="text-muted">Enter the code from your email</small>
+                    </div>
+
+                    <div class="d-grid gap-2 mb-3">
+                        <button type="submit" class="btn btn-primary btn-login">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                        </button>
+                    </div>
+
+                    <div class="text-center">
+                        <a href="{% url 'request_login_code' %}" class="btn-request-code">
+                            <i class="bi bi-envelope-plus me-1"></i>Request New Code
+                        </a>
+                    </div>
+
+                    <div class="divider">
+                        <span>OR</span>
+                    </div>
+
+                    <!-- Legacy Password Login (Optional) -->
+                    <div class="mb-3">
+                        <label for="password" class="form-label">
+                            <i class="bi bi-lock me-1"></i>Password <small class="text-muted">(Legacy users only)</small>
+                        </label>
+                        <input 
+                            type="password" 
+                            class="form-control" 
+                            id="password" 
+                            name="password" 
+                            placeholder="Enter password if you have one"
+                        >
+                        <small class="text-muted">Leave blank if you're using a login code</small>
+                    </div>
+                </form>
+
+                <div class="alert alert-info mt-4">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>New User?</strong>
+                    <br><small>Register through your event's registration form to receive a login code.</small>
+                </div>
+            </div>
+
+            <div class="text-center mt-4">
+                <p class="text-white small mb-0">
+                    Powered by MakePlus Events Management
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto-format code input
+        document.getElementById('code').addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+
+        // Toggle password field visibility based on code input
+        const codeInput = document.getElementById('code');
+        const passwordInput = document.getElementById('password');
+        
+        codeInput.addEventListener('input', function() {
+            if (this.value.length > 0) {
+                passwordInput.disabled = true;
+                passwordInput.value = '';
+            } else {
+                passwordInput.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

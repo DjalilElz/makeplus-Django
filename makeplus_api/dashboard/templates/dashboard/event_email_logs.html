@@ -1,0 +1,109 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Email History - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="mb-4">
+        <a href="{% url 'dashboard:event_email_templates' event.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Templates
+        </a>
+    </div>
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-clock-history"></i> Email Sending History</h2>
+            <p class="text-muted mb-0">{{ event.name }}</p>
+        </div>
+    </div>
+    
+    {% if logs %}
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Template</th>
+                    <th>Subject</th>
+                    <th>Target</th>
+                    <th>Recipients</th>
+                    <th>Sent</th>
+                    <th>Failed</th>
+                    <th>Status</th>
+                    <th>Sent By</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>
+                        <small>{{ log.created_at|date:"M d, Y H:i" }}</small>
+                    </td>
+                    <td>
+                        {% if log.template %}
+                            <span class="badge bg-info">{{ log.template.name }}</span>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.subject|truncatewords:8 }}</td>
+                    <td>
+                        {% if log.target_type == 'all_participants' %}
+                            <span class="badge bg-primary">All Participants</span>
+                        {% elif log.target_type == 'attended' %}
+                            <span class="badge bg-success">Attended</span>
+                        {% elif log.target_type == 'not_attended' %}
+                            <span class="badge bg-warning text-dark">Not Attended</span>
+                        {% elif log.target_type == 'paid' %}
+                            <span class="badge bg-info">Paid</span>
+                        {% elif log.target_type == 'not_paid' %}
+                            <span class="badge bg-secondary">Not Paid</span>
+                        {% else %}
+                            <span class="badge bg-dark">{{ log.target_type }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">{{ log.recipient_count }}</td>
+                    <td class="text-center text-success">{{ log.sent_count }}</td>
+                    <td class="text-center {% if log.failed_count > 0 %}text-danger{% else %}text-muted{% endif %}">
+                        {{ log.failed_count }}
+                    </td>
+                    <td>
+                        {% if log.status == 'sent' %}
+                            <span class="badge bg-success">Sent</span>
+                        {% elif log.status == 'sending' %}
+                            <span class="badge bg-info">Sending...</span>
+                        {% elif log.status == 'failed' %}
+                            <span class="badge bg-danger">Failed</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ log.status|title }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.sent_by %}
+                            <small>{{ log.sent_by.username }}</small>
+                        {% else %}
+                            <small class="text-muted">-</small>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if log.error_message %}
+                <tr>
+                    <td colspan="9" class="bg-light">
+                        <small class="text-danger">
+                            <i class="bi bi-exclamation-triangle"></i> <strong>Errors:</strong>
+                            <pre class="mb-0 mt-1" style="white-space: pre-wrap;">{{ log.error_message }}</pre>
+                        </small>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No emails have been sent for this event yet.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

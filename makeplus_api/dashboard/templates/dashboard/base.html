@@ -1,0 +1,580 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>{% block title %}MakePlus Dashboard{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons - Primary CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <!-- Bootstrap Icons - Fallback CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" integrity="sha512-dPXYcDub/aeb08c63jRq/k6GaKccl256JQy/AnOq7CAnEZ9FzSL9wSbcZkMp4R26vBsMLFYH4kQ67/bbV8XaCQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Custom CSS -->
+    <style>
+        :root {
+            --primary-color: #872c7a;
+            --secondary-color: #a855f7;
+            --accent-color: #c084fc;
+            --sidebar-width: 260px;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: var(--sidebar-width);
+            background: linear-gradient(135deg, #94a3b8 0%, #872c7a 100%);
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        
+        .sidebar-brand {
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 30px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .sidebar-brand img {
+            max-width: 100%;
+            height: auto;
+            max-height: 60px;
+            object-fit: contain;
+        }
+        
+        .sidebar-nav {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .sidebar-nav-item {
+            margin-bottom: 5px;
+        }
+        
+        .sidebar-nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            padding: 12px 15px;
+            display: flex;
+            align-items: center;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .sidebar-nav-link:hover,
+        .sidebar-nav-link.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .sidebar-nav-link i {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+        
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 30px;
+            min-height: 100vh;
+        }
+        
+        /* Navbar */
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            border-radius: 10px;
+        }
+        
+        /* Cards */
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .stat-icon.primary {
+            background: linear-gradient(135deg, #94a3b8 0%, #872c7a 100%);
+            color: white;
+        }
+        
+        .stat-icon.success {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .stat-icon.warning {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        
+        .stat-icon.info {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+        }
+        
+        /* Tables */
+        .table {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        /* Buttons */
+        .btn-primary {
+            background: linear-gradient(135deg, #94a3b8 0%, #872c7a 100%);
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #872c7a 0%, #94a3b8 100%);
+        }
+        
+        /* Progress Steps */
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        
+        .progress-step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+        
+        .progress-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            width: 100%;
+            height: 2px;
+            background: #e0e0e0;
+            z-index: -1;
+        }
+        
+        .progress-step.active:not(:last-child)::after {
+            background: var(--primary-color);
+        }
+        
+        .progress-step-circle {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            margin: 0 auto 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .progress-step.active .progress-step-circle {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .progress-step.completed .progress-step-circle {
+            background: #28a745;
+            color: white;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% if request.user.is_authenticated %}
+    <!-- Sidebar -->
+    <div class="sidebar">
+        {% if request.user.is_staff or request.user.is_superuser %}
+        <!-- Admin/Staff Sidebar -->
+        <a href="{% url 'dashboard:home' %}" class="sidebar-brand">
+            <img src="{% static 'dashboard/images/Makeplus Full logo.svg' %}" alt="MakePlus Logo">
+        </a>
+        
+        <ul class="sidebar-nav">
+            <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:home' %}" class="sidebar-nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+                    <i class="bi bi-house-door"></i> Dashboard
+                </a>
+            </li>
+            <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:event_create_step1' %}" class="sidebar-nav-link {% if 'event_create' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-plus-circle"></i> Create Event
+                </a>
+            </li>
+            <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:user_list' %}" class="sidebar-nav-link {% if 'user' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-people"></i> Users
+                </a>
+            </li>
+            <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:user_create' %}" class="sidebar-nav-link">
+                    <i class="bi bi-person-plus"></i> Create User
+                </a>
+            </li>
+            <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:caisse_list' %}" class="sidebar-nav-link {% if 'caisse' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-cash-coin"></i> Caisses
+                </a>
+            </li>
+            <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:eposter_management_home' %}" class="sidebar-nav-link {% if 'eposter' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-file-earmark-text"></i> Call for Communicants
+                </a>
+            </li>
+            
+            <!-- Email Marketing Section -->
+            <li class="sidebar-nav-item">
+                <div class="sidebar-section-title">
+                    <small class="text-white-50 text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.5px;">Email Marketing</small>
+                </div>
+            </li>
+            <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:campaign_list_with_stats' %}" class="sidebar-nav-link {% if 'campaign' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-megaphone"></i> Campaigns
+                </a>
+            </li>
+            
+            <li class="sidebar-nav-item">
+                <div class="sidebar-section-title mt-3">
+                    <small class="text-white-50 text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.5px;">Forms</small>
+                </div>
+            </li>
+            <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:registration_form_builder' %}" class="sidebar-nav-link {% if 'registration_form' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-ui-checks"></i> Registration Forms
+                </a>
+            </li>
+            <li class="sidebar-nav-item mt-auto" style="margin-top: auto !important; position: absolute; bottom: 20px; width: calc(100% - 20px);">
+                <a href="{% url 'dashboard:logout' %}" class="sidebar-nav-link">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </a>
+            </li>
+        </ul>
+        {% else %}
+        <!-- Committee Member Sidebar (Limited Access) -->
+        <a href="{% url 'dashboard:eposter_management_home' %}" class="sidebar-brand">
+            <img src="{% static 'dashboard/images/Makeplus Full logo.svg' %}" alt="MakePlus Logo">
+        </a>
+        
+        <!-- User Info Badge -->
+        <div class="px-3 py-2 mb-2">
+            <div class="d-flex align-items-center text-white">
+                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 36px; height: 36px;">
+                    <i class="bi bi-person-fill"></i>
+                </div>
+                <div class="small">
+                    <div class="fw-bold">{{ request.user.get_full_name|default:request.user.username }}</div>
+                    <div class="text-white-50" style="font-size: 0.75rem;">
+                        <i class="bi bi-person-badge me-1"></i>Committee Member
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <ul class="sidebar-nav">
+            <li class="sidebar-nav-item">
+                <a href="{% url 'dashboard:eposter_management_home' %}" class="sidebar-nav-link {% if 'eposter_management' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-house-door"></i> My Events
+                </a>
+            </li>
+            <li class="sidebar-nav-item mt-auto" style="margin-top: auto !important; position: absolute; bottom: 20px; width: calc(100% - 20px);">
+                <a href="{% url 'dashboard:logout' %}" class="sidebar-nav-link">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        {% if request.user.is_authenticated %}
+        <!-- Navbar -->
+        <nav class="navbar navbar-expand-lg">
+            <div class="container-fluid">
+                <span class="navbar-brand mb-0 h1">{% block page_title %}Dashboard{% endblock %}</span>
+                <div class="d-flex align-items-center">
+                    <span class="me-3">
+                        <i class="bi bi-person-circle"></i> {{ request.user.get_full_name|default:request.user.username }}
+                    </span>
+                </div>
+            </div>
+        </nav>
+        {% endif %}
+        
+        <!-- Messages -->
+        {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {% if message.tags == 'error' %}
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                {% elif message.tags == 'success' %}
+                    <i class="bi bi-check-circle-fill"></i>
+                {% elif message.tags == 'warning' %}
+                    <i class="bi bi-exclamation-circle-fill"></i>
+                {% else %}
+                    <i class="bi bi-info-circle-fill"></i>
+                {% endif %}
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+        
+        <!-- Content -->
+        {% block content %}{% endblock %}
+    </div>
+    
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Global Form Submission Prevention Script -->
+    <script>
+        // Global button state management utility
+        window.ButtonStateManager = {
+            // Store original button states
+            buttonStates: new Map(),
+            
+            // Set button to processing state
+            setProcessing: function(button, customText) {
+                if (!button) return false;
+                if (this.buttonStates.has(button)) return false;
+                if (button.disabled) return false;
+                
+                // Store original state
+                this.buttonStates.set(button, {
+                    content: button.innerHTML,
+                    disabled: button.disabled
+                });
+                
+                button.disabled = true;
+                
+                if (button.tagName === 'BUTTON') {
+                    const text = customText || 'Processing...';
+                    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + text;
+                }
+                
+                // Auto-reset after timeout (safety net for stuck buttons)
+                const timeoutId = setTimeout(() => {
+                    this.resetButton(button);
+                }, 30000); // 30 seconds timeout
+                
+                button.setAttribute('data-timeout-id', timeoutId);
+                return true;
+            },
+
+            // Run async operation with automatic loading start/stop
+            runAsync: function(button, asyncFactory, customText) {
+                if (!button || typeof asyncFactory !== 'function') return Promise.resolve();
+                this.setProcessing(button, customText);
+                let promise;
+                try {
+                    promise = asyncFactory();
+                } catch (error) {
+                    this.resetButton(button);
+                    throw error;
+                }
+
+                return Promise.resolve(promise).finally(() => {
+                    this.resetButton(button);
+                });
+            },
+            
+            // Reset button to original state
+            resetButton: function(button) {
+                if (!button) return;
+                
+                // Clear timeout if exists
+                const timeoutId = button.getAttribute('data-timeout-id');
+                if (timeoutId) {
+                    clearTimeout(parseInt(timeoutId));
+                    button.removeAttribute('data-timeout-id');
+                }
+                
+                const originalState = this.buttonStates.get(button);
+                if (originalState) {
+                    button.innerHTML = originalState.content;
+                    button.disabled = originalState.disabled;
+                    this.buttonStates.delete(button);
+                } else {
+                    // Fallback: just re-enable
+                    button.disabled = false;
+                }
+            },
+            
+            // Set button to success state temporarily
+            setSuccess: function(button, text, duration) {
+                if (!button) return;
+                
+                const originalContent = button.innerHTML;
+                const originalClasses = button.className;
+                
+                button.innerHTML = '<i class="bi bi-check"></i> ' + (text || 'Done!');
+                button.classList.remove('btn-outline-secondary', 'btn-outline-primary', 'btn-primary');
+                button.classList.add('btn-success');
+                button.disabled = false;
+                
+                setTimeout(() => {
+                    button.innerHTML = originalContent;
+                    button.className = originalClasses;
+                }, duration || 2000);
+            },
+            
+            // Set button to error state temporarily
+            setError: function(button, text, duration) {
+                if (!button) return;
+                
+                this.resetButton(button);
+                const originalContent = button.innerHTML;
+                const originalClasses = button.className;
+                
+                button.innerHTML = '<i class="bi bi-x-circle"></i> ' + (text || 'Error');
+                button.classList.add('btn-danger');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalContent;
+                    button.className = originalClasses;
+                }, duration || 3000);
+            }
+        };
+        
+        // Prevent double form submissions across all forms
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle all form submissions
+            document.querySelectorAll('form').forEach(function(form) {
+                form.addEventListener('submit', function(e) {
+                    const submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
+
+                    if (!submitButton) {
+                        return;
+                    }
+
+                    // Prevent accidental double-submit clicks.
+                    if (submitButton.disabled) {
+                        e.preventDefault();
+                        return false;
+                    }
+
+                    // Delay processing state so page-specific handlers can call preventDefault first.
+                    setTimeout(function() {
+                        if (e.defaultPrevented) {
+                            return;
+                        }
+                        if (form.hasAttribute('data-no-auto-loading')) {
+                            return;
+                        }
+                        window.ButtonStateManager.setProcessing(submitButton);
+                    }, 0);
+                });
+            });
+
+            // Optional auto-loading for non-form action buttons.
+            // Use data-auto-loading-text="Processing..." on a button to opt in.
+            document.querySelectorAll('button[data-auto-loading-text]').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    if (button.disabled) {
+                        return;
+                    }
+                    const text = button.getAttribute('data-auto-loading-text') || 'Processing...';
+                    window.ButtonStateManager.setProcessing(button, text);
+                });
+            });
+
+            // Reset transient processing states when page is restored from browser cache.
+            window.addEventListener('pageshow', function() {
+                document.querySelectorAll('button[disabled][data-timeout-id]').forEach(function(button) {
+                    window.ButtonStateManager.resetButton(button);
+                });
+            });
+            
+            // Global error handler to reset stuck buttons on page errors
+            window.addEventListener('error', function() {
+                document.querySelectorAll('button[disabled]').forEach(function(button) {
+                    if (button.getAttribute('data-timeout-id')) {
+                        window.ButtonStateManager.resetButton(button);
+                    }
+                });
+            });
+        });
+    </script>
+    
+    <script>
+        // Scroll to ePoster section on home page
+        function scrollToEPosterSection(event) {
+            // Only prevent default if we're on the home page
+            if (window.location.pathname === '{% url "dashboard:home" %}' || window.location.pathname.endsWith('/dashboard/')) {
+                event.preventDefault();
+                const eposterSection = document.querySelector('.events-list-section');
+                if (eposterSection) {
+                    eposterSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Highlight the section briefly
+                    eposterSection.style.transition = 'background-color 0.3s';
+                    eposterSection.style.backgroundColor = '#e8f5e9';
+                    setTimeout(() => {
+                        eposterSection.style.backgroundColor = '';
+                    }, 2000);
+                }
+            }
+            // If not on home page, let the link navigate to home page normally
+        }
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

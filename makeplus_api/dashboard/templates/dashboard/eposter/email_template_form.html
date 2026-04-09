@@ -1,0 +1,160 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}{% if template %}Modifier{% else %}Créer{% endif %} Template Email - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_dashboard' event.id %}">ePoster</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_email_templates' event.id %}">Templates</a></li>
+                <li class="breadcrumb-item active">{% if template %}Modifier{% else %}Créer{% endif %}</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-0">{% if template %}Modifier le template{% else %}Créer un template{% endif %}</h1>
+    </div>
+
+    <!-- Info -->
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Variables disponibles:</strong>
+        <code>{% verbatim %}{{nom}}, {{prenom}}, {{titre}}, {{event_name}}, {{rejection_reason}}{% endverbatim %}</code>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if not template %}
+                        <div class="mb-3">
+                            <label class="form-label">Type de template</label>
+                            <select name="template_type" class="form-select" required>
+                                {% for value, label in type_choices %}
+                                <option value="{{ value }}" {% if template_type == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% else %}
+                        <div class="mb-3">
+                            <label class="form-label">Type</label>
+                            <input type="text" class="form-control" value="{{ template.get_template_type_display }}" disabled>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Sujet de l'email</label>
+                            <input type="text" name="subject" class="form-control" required
+                                   value="{{ template.subject|default:defaults.subject }}"
+                                   placeholder="Ex: Félicitations ! Votre soumission a été acceptée">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Contenu HTML</label>
+                            <textarea name="body_html" class="form-control" rows="15" required
+                                      placeholder="Contenu HTML de l'email...">{{ template.body_html|default:defaults.body_html }}</textarea>
+                            <small class="text-muted">Utilisez du HTML pour formater l'email</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Contenu texte brut (optionnel)</label>
+                            <textarea name="body_text" class="form-control" rows="5"
+                                      placeholder="Version texte de l'email...">{{ template.body_text|default:"" }}</textarea>
+                            <small class="text-muted">Version alternative pour les clients email qui n'affichent pas le HTML</small>
+                        </div>
+                        
+                        {% if template %}
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
+                                       {% if template.is_active %}checked{% endif %}>
+                                <label class="form-check-label" for="is_active">Template actif</label>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save me-1"></i>
+                                {% if template %}Enregistrer{% else %}Créer{% endif %}
+                            </button>
+                            <a href="{% url 'dashboard:eposter_email_templates' event.id %}" class="btn btn-outline-secondary">
+                                Annuler
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-eye me-2"></i>
+                        Aperçu
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="preview-container" class="border p-3 bg-white" style="min-height: 200px;">
+                        <p class="text-muted text-center">
+                            L'aperçu apparaîtra ici
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-code me-2"></i>
+                        Exemples de code
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-light p-2 rounded" style="font-size: 0.8rem;"><code>&lt;p&gt;Bonjour {% verbatim %}{{prenom}} {{nom}}{% endverbatim %},&lt;/p&gt;
+
+&lt;p&gt;Votre soumission "&lt;strong&gt;{% verbatim %}{{titre}}{% endverbatim %}&lt;/strong&gt;" 
+a été reçue pour {% verbatim %}{{event_name}}{% endverbatim %}.&lt;/p&gt;
+
+{% verbatim %}{% if rejection_reason %}{% endverbatim %}
+&lt;p&gt;&lt;strong&gt;Motif:&lt;/strong&gt; {% verbatim %}{{rejection_reason}}{% endverbatim %}&lt;/p&gt;
+{% verbatim %}{% endif %}{% endverbatim %}
+
+&lt;p&gt;Cordialement,&lt;br&gt;
+L'équipe organisatrice&lt;/p&gt;</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const bodyInput = document.querySelector('textarea[name="body_html"]');
+    const preview = document.getElementById('preview-container');
+    
+    function updatePreview() {
+        let html = bodyInput.value;
+        // Replace template variables with sample data
+        html = html.replace(/\{\{nom\}\}/g, 'Dupont');
+        html = html.replace(/\{\{prenom\}\}/g, 'Jean');
+        html = html.replace(/\{\{titre\}\}/g, 'Étude sur les nouvelles approches thérapeutiques');
+        html = html.replace(/\{\{event_name\}\}/g, '{{ event.name }}');
+        html = html.replace(/\{\{rejection_reason\}\}/g, 'Le résumé nécessite plus de détails.');
+        
+        preview.innerHTML = html || '<p class="text-muted text-center">L\'aperçu apparaîtra ici</p>';
+    }
+    
+    bodyInput.addEventListener('input', updatePreview);
+    updatePreview();
+});
+</script>
+{% endblock %}

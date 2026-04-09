@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ form_config.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+        .form-container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .form-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 2.5rem;
+        }
+        .form-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .form-header h1 {
+            color: #667eea;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .form-header p {
+            color: #6c757d;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+        .required-indicator {
+            color: #dc3545;
+        }
+        .btn-submit {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: transform 0.2s;
+        }
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .success-message {
+            background: #d1e7dd;
+            border: 1px solid #badbcc;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .success-icon {
+            color: #0f5132;
+            font-size: 3rem;
+        }
+        .error-message {
+            background: #f8d7da;
+            border: 1px solid #f5c2c7;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .event-info {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 5px;
+        }
+        .countdown-container {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .countdown-timer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .countdown-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            min-width: 80px;
+        }
+        .countdown-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+            line-height: 1;
+        }
+        .countdown-label {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
+            text-transform: uppercase;
+        }
+        .countdown-separator {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+        @media (max-width: 576px) {
+            .countdown-item {
+                min-width: 60px;
+                padding: 0.75rem 1rem;
+            }
+            .countdown-value {
+                font-size: 1.5rem;
+            }
+            .countdown-separator {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-container">
+            <div class="form-card">
+                {% if success %}
+                    <!-- Success Message -->
+                    <div class="success-message text-center">
+                        <i class="bi bi-check-circle-fill success-icon"></i>
+                        <h3 class="mt-3 mb-2">{% if is_re_registration %}Registration Updated!{% else %}Thank You!{% endif %}</h3>
+                        <p class="mb-0">{{ form_config.success_message }}</p>
+                        
+                        {% if login_code_sent %}
+                            <div class="alert alert-info mt-3">
+                                <i class="bi bi-envelope-check me-2"></i>
+                                <strong>{% if is_re_registration %}Updated!{% else %}Welcome!{% endif %}</strong> 
+                                {% if is_re_registration %}
+                                    Your registration has been updated successfully.
+                                {% else %}
+                                    Your account has been created successfully.
+                                {% endif %}
+                                <br>A confirmation email with your <strong>6-digit login code</strong> has been sent to <strong>{{ submitted_email }}</strong>
+                                <br><small class="text-muted">Please check your inbox (and spam folder) for your login code.</small>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="alert alert-primary mt-3">
+                            <i class="bi bi-key me-2"></i>
+                            <strong>Login Instructions</strong>
+                            <br><small>Use your email and the 6-digit code from the email to log in to the mobile application.</small>
+                            <br><small class="text-muted">The login code is specific to this event.</small>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <a href="{% url 'public_form' form_config.slug %}" class="btn btn-outline-primary">
+                            Submit Another Response
+                        </a>
+                    </div>
+                {% elif form_closed %}
+                    <!-- Form Closed Message -->
+                    <div class="text-center py-5">
+                        <i class="bi bi-lock-fill" style="font-size: 4rem; color: #dc3545;"></i>
+                        <h2 class="mt-4 mb-3 text-danger">Form Closed</h2>
+                        <p class="lead text-muted mb-4">
+                            This registration form is currently not accepting submissions.
+                        </p>
+                    </div>
+                {% else %}
+                    <!-- Banner Image -->
+                    {% if form_config.banner_image %}
+                        <div class="mb-3">
+                            <img src="{{ form_config.banner_image.url }}" alt="Form banner" class="img-fluid rounded" style="width: 100%; height: auto; max-height: 300px; object-fit: cover;">
+                        </div>
+                    {% elif form_config.event and form_config.event.banner %}
+                        <div class="mb-3">
+                            <img src="{{ form_config.event.banner.url }}" alt="Event banner" class="img-fluid rounded" style="width: 100%; height: auto; max-height: 300px; object-fit: cover;">
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Form Header -->
+                    <div class="form-header">
+                        <h1>{{ form_config.name }}</h1>
+                        {% if form_config.description %}
+                            <p>{{ form_config.description }}</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Countdown Timer -->
+                    {% if form_config.countdown_enabled and form_config.countdown_date %}
+                        <div class="countdown-container mb-4">
+                            <h5 class="text-center text-primary mb-3">
+                                <i class="bi bi-alarm me-2"></i>{{ form_config.countdown_title }}
+                            </h5>
+                            <div class="countdown-timer" id="countdown">
+                                <div class="countdown-item">
+                                    <span class="countdown-value" id="days">00</span>
+                                    <span class="countdown-label">Days</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-item">
+                                    <span class="countdown-value" id="hours">00</span>
+                                    <span class="countdown-label">Hours</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-item">
+                                    <span class="countdown-value" id="minutes">00</span>
+                                    <span class="countdown-label">Minutes</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-item">
+                                    <span class="countdown-value" id="seconds">00</span>
+                                    <span class="countdown-label">Seconds</span>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <!-- Event Info (if linked) -->
+                    {% if form_config.event %}
+                        <div class="event-info">
+                            <h6 class="mb-1"><i class="bi bi-calendar-event me-2"></i>{{ form_config.event.name }}</h6>
+                            <p class="mb-0 small text-muted">
+                                <i class="bi bi-geo-alt me-1"></i>{{ form_config.event.location }}
+                                <i class="bi bi-calendar3 ms-3 me-1"></i>{{ form_config.event.start_date|date:"M d, Y" }}
+                            </p>
+                        </div>
+                    {% endif %}
+
+                    <!-- Error Messages -->
+                    {% if errors %}
+                        <div class="error-message">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Please correct the following errors:</strong>
+                            <ul class="mb-0 mt-2">
+                                {% for error in errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    <!-- Form -->
+                    <form method="post" id="registrationForm">
+                        {% csrf_token %}
+                        
+                        {% for field in fields %}
+                            <div class="mb-4">
+                                <label for="{{ field.name }}" class="form-label">
+                                    {{ field.label }}
+                                    {% if field.required %}
+                                        <span class="required-indicator">*</span>
+                                    {% endif %}
+                                </label>
+                                
+                                {% if field.type == 'textarea' %}
+                                    <textarea 
+                                        class="form-control" 
+                                        id="{{ field.name }}" 
+                                        name="{{ field.name }}"
+                                        rows="4"
+                                        {% if field.required %}required{% endif %}
+                                        {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+                                    >{{ field.value|default:'' }}</textarea>
+                                
+                                {% elif field.type == 'select' %}
+                                    <select 
+                                        class="form-select" 
+                                        id="{{ field.name }}" 
+                                        name="{{ field.name }}"
+                                        {% if field.required %}required{% endif %}
+                                    >
+                                        <option value="">-- Select an option --</option>
+                                        {% for option in field.options %}
+                                            <option value="{{ option }}" {% if field.value == option %}selected{% endif %}>
+                                                {{ option }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                
+                                {% elif field.type == 'radio' %}
+                                    {% for option in field.options %}
+                                        <div class="form-check">
+                                            <input 
+                                                class="form-check-input" 
+                                                type="radio" 
+                                                id="{{ field.name }}_{{ forloop.counter }}" 
+                                                name="{{ field.name }}"
+                                                value="{{ option }}"
+                                                {% if field.required %}required{% endif %}
+                                                {% if field.value == option %}checked{% endif %}
+                                            >
+                                            <label class="form-check-label" for="{{ field.name }}_{{ forloop.counter }}">
+                                                {{ option }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                
+                                {% elif field.type == 'checkbox' %}
+                                    {% for option in field.options %}
+                                        <div class="form-check">
+                                            <input 
+                                                class="form-check-input" 
+                                                type="checkbox" 
+                                                id="{{ field.name }}_{{ forloop.counter }}" 
+                                                name="{{ field.name }}"
+                                                value="{{ option }}"
+                                                {% if option in field.value %}checked{% endif %}
+                                            >
+                                            <label class="form-check-label" for="{{ field.name }}_{{ forloop.counter }}">
+                                                {{ option }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                
+                                {% else %}
+                                    <input 
+                                        type="{{ field.type }}" 
+                                        class="form-control" 
+                                        id="{{ field.name }}" 
+                                        name="{{ field.name }}"
+                                        value="{{ field.value|default:'' }}"
+                                        {% if field.required %}required{% endif %}
+                                        {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+                                    >
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-submit">
+                                <i class="bi bi-send-fill me-2"></i>Submit Form
+                            </button>
+                        </div>
+
+                        <p class="text-center text-muted small mt-3 mb-0">
+                            <i class="bi bi-shield-check me-1"></i>Your information is secure and will not be shared.
+                        </p>
+                    </form>
+                {% endif %}
+            </div>
+
+            <!-- Powered by footer -->
+            <div class="text-center mt-4">
+                <p class="text-white small mb-0">
+                    Powered by MakePlus Events Management
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% if form_config.countdown_enabled and form_config.countdown_date %}
+    <script>
+        // Countdown Timer
+        const countdownDate = new Date("{{ form_config.countdown_date|date:'Y-m-d H:i:s' }}").getTime();
+        
+        function updateCountdown() {
+            const now = new Date().getTime();
+            const distance = countdownDate - now;
+            
+            if (distance < 0) {
+                document.getElementById('countdown').innerHTML = '<div class="alert alert-info mb-0">Event has started!</div>';
+                return;
+            }
+            
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+            
+            document.getElementById('days').textContent = String(days).padStart(2, '0');
+            document.getElementById('hours').textContent = String(hours).padStart(2, '0');
+            document.getElementById('minutes').textContent = String(minutes).padStart(2, '0');
+            document.getElementById('seconds').textContent = String(seconds).padStart(2, '0');
+        }
+        
+        // Update immediately and then every second
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    </script>
+    {% endif %}
+    
+    {% if show_submission_blocked_alert %}
+    <script>
+        // Show alert when form was deactivated while user had it open
+        window.addEventListener('DOMContentLoaded', function() {
+            alert('⚠️ Form Submission Blocked\n\nThis form has been closed and is no longer accepting submissions.\n\nYour submission was NOT sent.');
+        });
+    </script>
+    {% endif %}
+</body>
+</html>

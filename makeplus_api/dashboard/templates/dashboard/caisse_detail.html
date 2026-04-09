@@ -1,0 +1,217 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}{{ caisse.name }} - Details & Reports{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">{{ caisse.name }}</h2>
+            <p class="text-muted mb-0">
+                <i class="bi bi-calendar-event"></i> {{ caisse.event.name }}
+                {% if caisse.is_active %}
+                    <span class="badge bg-success ms-2">Active</span>
+                {% else %}
+                    <span class="badge bg-secondary ms-2">Inactive</span>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'dashboard:caisse_edit' caisse.id %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil"></i> Edit
+            </a>
+            <a href="{% url 'dashboard:caisse_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Total Amount Collected</p>
+                        <h3 class="mb-0 text-success">{{ total_amount|floatformat:2 }} DZD</h3>
+                    </div>
+                    <div class="stat-icon success">
+                        <i class="bi bi-currency-dollar"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Participants Processed</p>
+                        <h3 class="mb-0 text-primary">{{ total_participants }}</h3>
+                    </div>
+                    <div class="stat-icon primary">
+                        <i class="bi bi-people"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Completed Transactions</p>
+                        <h3 class="mb-0 text-info">{{ transaction_count }}</h3>
+                    </div>
+                    <div class="stat-icon info">
+                        <i class="bi bi-receipt"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Cancelled</p>
+                        <h3 class="mb-0 text-danger">{{ cancelled_count }}</h3>
+                        <small class="text-muted">{{ cancelled_amount|floatformat:2 }} DZD</small>
+                    </div>
+                    <div class="stat-icon warning">
+                        <i class="bi bi-x-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revenue Breakdown -->
+    {% if revenue_by_type %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="stat-card">
+                <h5 class="mb-3"><i class="bi bi-pie-chart"></i> Revenue Breakdown by Item Type</h5>
+                <div class="row">
+                    {% for item_type, data in revenue_by_type.items %}
+                    <div class="col-md-4 mb-3">
+                        <div class="border rounded p-3">
+                            <h6 class="text-muted mb-2">{{ item_type }}</h6>
+                            <h4 class="mb-1 text-success">{{ data.amount|floatformat:2 }} DZD</h4>
+                            <small class="text-muted">{{ data.count }} transaction{{ data.count|pluralize }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Filters -->
+    <div class="stat-card mb-4">
+        <h5 class="mb-3"><i class="bi bi-funnel"></i> Filter Transactions</h5>
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label for="status" class="form-label">Status</label>
+                <select name="status" id="status" class="form-select">
+                    <option value="">All Statuses</option>
+                    <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                    <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="date_from" class="form-label">From Date</label>
+                <input type="date" name="date_from" id="date_from" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-md-3">
+                <label for="date_to" class="form-label">To Date</label>
+                <input type="date" name="date_to" id="date_to" class="form-control" value="{{ date_to }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-fill">
+                        <i class="bi bi-search"></i> Filter
+                    </button>
+                    <a href="{% url 'dashboard:caisse_detail' caisse.id %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x"></i> Clear
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- All Transactions -->
+    <div class="stat-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="bi bi-receipt"></i> All Transactions</h5>
+            <a href="{% url 'dashboard:event_detail' caisse.event.id %}#payable-items" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-gear"></i> Manage Payable Items
+            </a>
+        </div>
+
+        {% if transactions %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date/Time</th>
+                            <th>Participant</th>
+                            <th>Items</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in transactions %}
+                        <tr>
+                            <td>
+                                <small>{{ transaction.created_at|date:"M d, Y H:i" }}</small>
+                            </td>
+                            <td>
+                                <strong>{{ transaction.participant.user.get_full_name|default:transaction.participant.user.username }}</strong>
+                                <br><small class="text-muted">{{ transaction.participant.user.email }}</small>
+                            </td>
+                            <td>
+                                <small>
+                                    {% for item in transaction.items.all %}
+                                        <span class="badge bg-secondary">{{ item.name }}</span>
+                                    {% endfor %}
+                                </small>
+                            </td>
+                            <td>
+                                <strong {% if transaction.status == 'cancelled' %}class="text-danger"{% else %}class="text-success"{% endif %}>
+                                    {{ transaction.total_amount|floatformat:2 }} DZD
+                                </strong>
+                            </td>
+                            <td>
+                                {% if transaction.status == 'completed' %}
+                                    <span class="badge bg-success">Completed</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Cancelled</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if transaction.notes %}
+                                    <small class="text-muted" title="{{ transaction.notes }}">
+                                        {{ transaction.notes|truncatewords:10 }}
+                                    </small>
+                                {% else %}
+                                    <small class="text-muted">-</small>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i> No transactions found with the selected filters.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

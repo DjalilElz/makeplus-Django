@@ -1,0 +1,159 @@
+"""
+URL Configuration for Dashboard
+"""
+
+from django.urls import path
+from . import views
+from . import views_email
+from . import views_stats
+from . import views_eposter_dashboard
+from . import views_eposter_management
+
+app_name = 'dashboard'
+
+urlpatterns = [
+    # Authentication
+    path('login/', views.login_view, name='login'),
+    path('logout/', views.logout_view, name='logout'),
+    
+    # Dashboard Home
+    path('', views.dashboard_home, name='home'),
+    
+    # Event Management
+    path('events/<uuid:event_id>/', views.event_detail, name='event_detail'),
+    path('events/<uuid:event_id>/edit/', views.event_edit, name='event_edit'),
+    path('events/<uuid:event_id>/delete/', views.event_delete, name='event_delete'),
+    
+    # Multi-Step Event Creation
+    path('events/create/step1/', views.event_create_step1, name='event_create_step1'),
+    path('events/create/step2/', views.event_create_step2, name='event_create_step2'),
+    path('events/create/step3/', views.event_create_step3, name='event_create_step3'),
+    path('events/create/step4/', views.event_create_step4, name='event_create_step4'),
+    
+    # User Management
+    path('users/', views.user_list, name='user_list'),
+    path('users/create/', views.user_create, name='user_create'),
+    path('users/<int:user_id>/', views.user_detail, name='user_detail'),
+    path('users/<int:user_id>/delete/', views.user_delete, name='user_delete'),
+    path('users/<int:user_id>/qr-code/download/', views.download_qr_code, name='download_qr_code'),
+    path('assignments/<int:assignment_id>/change-role/', views.user_change_role, name='user_change_role'),
+    
+    # Event-specific User Management
+    path('events/<uuid:event_id>/users/', views.event_users, name='event_users'),
+    path('events/<uuid:event_id>/users/<int:user_id>/delete/', views.event_user_delete, name='event_user_delete'),
+    
+    # Event Registrations
+    path('events/<uuid:event_id>/registrations/', views.event_registrations, name='event_registrations'),
+    path('registrations/<uuid:registration_id>/approve/', views.approve_registration, name='approve_registration'),
+    path('registrations/<uuid:registration_id>/delete/', views.delete_registration, name='delete_registration'),
+    
+    # Caisse Management
+    path('caisses/', views.caisse_list, name='caisse_list'),
+    path('caisses/create/', views.caisse_create, name='caisse_create'),
+    path('caisses/<int:caisse_id>/', views.caisse_detail, name='caisse_detail'),
+    path('caisses/<int:caisse_id>/edit/', views.caisse_edit, name='caisse_edit'),
+    path('caisses/<int:caisse_id>/delete/', views.caisse_delete, name='caisse_delete'),
+    
+    # Payable Items Management
+    path('events/<uuid:event_id>/payable-items/', views.payable_items_list, name='payable_items_list'),
+    path('events/<uuid:event_id>/payable-items/create/', views.payable_item_create, name='payable_item_create'),
+    path('events/<uuid:event_id>/payable-items/sync/', views.sync_paid_sessions_ajax, name='sync_paid_sessions_ajax'),
+    path('payable-items/<int:item_id>/edit/', views.payable_item_edit, name='payable_item_edit'),
+    path('payable-items/<int:item_id>/delete/', views.payable_item_delete, name='payable_item_delete'),
+    
+    # Room Management
+    path('events/<uuid:event_id>/rooms/create/', views.room_create, name='room_create'),
+    path('rooms/<uuid:room_id>/edit/', views.room_edit, name='room_edit'),
+    path('rooms/<uuid:room_id>/delete/', views.room_delete, name='room_delete'),
+    
+    # Session Management
+    path('events/<uuid:event_id>/sessions/create/', views.session_create, name='session_create'),
+    path('sessions/<uuid:session_id>/edit/', views.session_edit, name='session_edit'),
+    path('sessions/<uuid:session_id>/delete/', views.session_delete, name='session_delete'),
+    
+    # Email Templates (Global) - REMOVED: Redundant with Campaigns functionality
+    # path('email-templates/', views_email.email_template_list, name='email_template_list'),
+    # path('email-templates/create/', views_email.email_template_create, name='email_template_create'),
+    # path('email-templates/<int:template_id>/edit/', views_email.email_template_edit, name='email_template_edit'),
+    # path('email-templates/<int:template_id>/delete/', views_email.email_template_delete, name='email_template_delete'),
+    # path('email-templates/<int:template_id>/test/', views_email.email_template_test, name='email_template_test'),
+    # path('email-templates/<int:template_id>/send/', views_email.email_template_send, name='email_template_send'),
+    # path('email-templates/<int:template_id>/stats/', views_email.email_template_stats, name='email_template_stats'),
+    # path('email-templates/<int:template_id>/archive/', views_email.email_template_archive, name='email_template_archive'),
+    
+    # Email Campaigns
+    path('campaigns/create/', views_email.campaign_create, name='campaign_create'),
+    path('campaigns/<uuid:campaign_id>/', views_email.campaign_detail, name='campaign_detail'),
+    path('campaigns/<uuid:campaign_id>/edit/', views_email.campaign_edit, name='campaign_edit'),
+    path('campaigns/<uuid:campaign_id>/delete/', views_email.campaign_delete, name='campaign_delete'),
+    path('campaigns/<uuid:campaign_id>/archive/', views_email.campaign_archive, name='campaign_archive'),
+    path('campaigns/<uuid:campaign_id>/unarchive/', views_email.campaign_unarchive, name='campaign_unarchive'),
+    path('campaigns/<uuid:campaign_id>/test/', views_email.campaign_send_test, name='campaign_send_test'),
+    path('campaigns/<uuid:campaign_id>/send/', views_email.campaign_send, name='campaign_send'),
+    path('campaigns/<uuid:campaign_id>/sync-stats/', views_email.campaign_sync_stats, name='campaign_sync_stats'),
+    path('campaigns/<uuid:campaign_id>/add-recipient/', views_email.campaign_add_recipient, name='campaign_add_recipient'),
+    path('campaigns/<uuid:campaign_id>/bulk-add-recipients/', views_email.campaign_bulk_add_recipients, name='campaign_bulk_add_recipients'),
+    path('campaigns/<uuid:campaign_id>/import-form-submissions/', views_email.campaign_import_form_submissions, name='campaign_import_form_submissions'),
+    path('campaigns/<uuid:campaign_id>/recipients/<uuid:recipient_id>/delete/', views_email.campaign_delete_recipient, name='campaign_delete_recipient'),
+
+    
+    # Email Campaign Stats
+    path('campaigns/', views_stats.campaign_list_with_stats, name='campaign_list_with_stats'),
+    path('campaigns/<uuid:campaign_id>/stats/', views_stats.campaign_stats_detail, name='campaign_stats_detail'),
+    path('campaigns/<uuid:campaign_id>/recipients/<uuid:recipient_id>/', views_stats.campaign_recipient_detail, name='campaign_recipient_detail'),
+
+    
+    # Registration Form Builder
+    path('registration-form-builder/', views_email.registration_form_builder, name='registration_form_builder'),
+    path('registration-form-builder/create/', views_email.registration_form_create, name='registration_form_create'),
+    path('registration-form-builder/<uuid:form_id>/edit/', views_email.registration_form_edit, name='registration_form_edit'),
+    path('registration-form-builder/<uuid:form_id>/delete/', views_email.registration_form_delete, name='registration_form_delete'),
+    path('registration-form-builder/<uuid:form_id>/toggle/', views_email.registration_form_toggle, name='registration_form_toggle'),
+    path('registration-form-builder/<uuid:form_id>/submissions/', views_email.registration_form_submissions, name='registration_form_submissions'),
+    
+    # Form Analytics Stats
+    path('forms/', views_stats.form_list_with_stats, name='form_list_with_stats'),
+    path('forms/<uuid:form_id>/stats/', views_stats.form_stats_detail, name='form_stats_detail'),
+    
+    # API Endpoints
+    path('api/events/', views.api_events_list, name='api_events_list'),
+    path('events/<uuid:event_id>/registration-fields/', views_email.event_registration_fields_api, name='event_registration_fields_api'),
+    
+    # Event Email Templates
+    path('events/<uuid:event_id>/email-templates/', views_email.event_email_templates, name='event_email_templates'),
+    path('events/<uuid:event_id>/email-templates/create/', views_email.event_email_template_create, name='event_email_template_create'),
+    path('events/<uuid:event_id>/email-templates/<int:template_id>/edit/', views_email.event_email_template_edit, name='event_email_template_edit'),
+    path('events/<uuid:event_id>/email-templates/<int:template_id>/delete/', views_email.event_email_template_delete, name='event_email_template_delete'),
+    
+    # Send Emails
+    path('events/<uuid:event_id>/email-templates/<int:template_id>/send/', views_email.send_event_email, name='send_event_email'),
+    path('events/<uuid:event_id>/email-templates/<int:template_id>/send-to-registrants/', views_email.send_email_to_registrants, name='send_email_to_registrants'),
+    path('events/<uuid:event_id>/email-logs/', views_email.event_email_logs, name='event_email_logs'),
+    
+    # API: Get event registration fields for campaign variables
+    path('api/events/<uuid:event_id>/registration-fields/', views_email.get_event_registration_fields, name='api_event_registration_fields'),
+    
+    # ePoster Management - Central Hub
+    path('eposter/', views_eposter_management.eposter_management_home, name='eposter_management_home'),
+    path('eposter/create/<uuid:event_id>/', views_eposter_management.create_form_for_event, name='create_form_for_event'),
+    path('eposter/<uuid:event_id>/enable/', views_eposter_management.eposter_enable_for_event, name='eposter_enable_for_event'),
+    path('eposter/<uuid:event_id>/toggle/', views_eposter_management.eposter_form_toggle, name='eposter_form_toggle'),
+    path('eposter/copy/<uuid:source_event_id>/<uuid:target_event_id>/', views_eposter_management.eposter_copy_settings, name='eposter_copy_settings'),
+    
+    # ePoster Management - Event Specific
+    path('events/<uuid:event_id>/eposter/', views_eposter_dashboard.eposter_dashboard, name='eposter_dashboard'),
+    path('events/<uuid:event_id>/eposter/submissions/', views_eposter_dashboard.eposter_submissions_list, name='eposter_submissions_list'),
+    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/', views_eposter_dashboard.eposter_submission_detail, name='eposter_submission_detail'),
+    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/validate/', views_eposter_dashboard.eposter_validate_submission, name='eposter_validate_submission'),
+    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/set-status/', views_eposter_dashboard.eposter_set_status, name='eposter_set_status'),
+    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/realtime/', views_eposter_dashboard.eposter_realtime_status, name='eposter_realtime_status'),
+    # Committee management removed - all committee members created in step 4 have equal access
+    # path('events/<uuid:event_id>/eposter/committee/', views_eposter_dashboard.eposter_committee_list, name='eposter_committee_list'),
+    # path('events/<uuid:event_id>/eposter/committee/add/', views_eposter_dashboard.eposter_committee_add, name='eposter_committee_add'),
+    # path('events/<uuid:event_id>/eposter/committee/<uuid:member_id>/remove/', views_eposter_dashboard.eposter_committee_remove, name='eposter_committee_remove'),
+    path('events/<uuid:event_id>/eposter/email-templates/', views_eposter_dashboard.eposter_email_templates, name='eposter_email_templates'),
+    path('events/<uuid:event_id>/eposter/email-templates/create/', views_eposter_dashboard.eposter_email_template_create, name='eposter_email_template_create'),
+    path('events/<uuid:event_id>/eposter/email-templates/<uuid:template_id>/edit/', views_eposter_dashboard.eposter_email_template_edit, name='eposter_email_template_edit'),
+    path('events/<uuid:event_id>/eposter/email-templates/<uuid:template_id>/delete/', views_eposter_dashboard.eposter_email_template_delete, name='eposter_email_template_delete'),
+    path('events/<uuid:event_id>/eposter/export/', views_eposter_dashboard.eposter_export_csv, name='eposter_export_csv'),
+]
