@@ -6,6 +6,23 @@ import django.db.models.deletion
 import uuid
 
 
+def create_emaillogincode_if_not_exists(apps, schema_editor):
+    """Create EmailLoginCode table only if it doesn't exist"""
+    from django.db import connection
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'events_emaillogincode'
+            );
+        """)
+        table_exists = cursor.fetchone()[0]
+        
+        if not table_exists:
+            # Table doesn't exist, create it
+            schema_editor.create_model(apps.get_model('events', 'EmailLoginCode'))
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -35,10 +52,20 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name='emaillogincode',
-            index=models.Index(fields=['user', 'event', 'is_used'], name='events_emai_user_id_idx'),
+            index=models.Index(fields=['user', 'event', 'is_used'], name='events_emai_user_id_b75a1f_idx'),
         ),
         migrations.AddIndex(
             model_name='emaillogincode',
             index=models.Index(fields=['code_hash'], name='events_emai_code_ha_idx'),
         ),
     ]
+    
+    # Override to handle existing table
+    def apply(self, project_state, schema_editor, collect_sql=False):
+        try:
+            return super().apply(project_state, schema_editor, collect_sql)
+        except Exception as e:
+            if 'already exists' in str(e):
+                # Table already exists, skip this migration
+                return project_state
+            raise

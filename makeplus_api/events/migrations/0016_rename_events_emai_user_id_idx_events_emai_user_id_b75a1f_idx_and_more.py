@@ -3,6 +3,38 @@
 from django.db import migrations
 
 
+def rename_indexes_if_exist(apps, schema_editor):
+    """Safely rename indexes only if they exist"""
+    from django.db import connection
+    
+    with connection.cursor() as cursor:
+        # Check and rename first index
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_indexes 
+                WHERE indexname = 'events_emai_user_id_idx'
+            );
+        """)
+        if cursor.fetchone()[0]:
+            cursor.execute("""
+                ALTER INDEX events_emai_user_id_idx 
+                RENAME TO events_emai_user_id_b75a1f_idx;
+            """)
+        
+        # Check and rename second index
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_indexes 
+                WHERE indexname = 'events_emai_code_ha_idx'
+            );
+        """)
+        if cursor.fetchone()[0]:
+            cursor.execute("""
+                ALTER INDEX events_emai_code_ha_idx 
+                RENAME TO events_emai_code_ha_60562a_idx;
+            """)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,14 +42,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='emaillogincode',
-            new_name='events_emai_user_id_b75a1f_idx',
-            old_name='events_emai_user_id_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='emaillogincode',
-            new_name='events_emai_code_ha_60562a_idx',
-            old_name='events_emai_code_ha_idx',
-        ),
+        migrations.RunPython(rename_indexes_if_exist, migrations.RunPython.noop),
     ]
