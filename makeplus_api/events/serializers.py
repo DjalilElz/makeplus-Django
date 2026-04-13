@@ -214,10 +214,29 @@ class QRVerificationSerializer(serializers.Serializer):
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
-    Custom token serializer that includes user data and role
+    Custom token serializer that accepts email instead of username
+    and includes user data and role
     """
+    username_field = 'email'  # Use email field instead of username
     
     def validate(self, attrs):
+        # Get email from attrs and find the user
+        email = attrs.get('email')
+        password = attrs.get('password')
+        
+        if email and password:
+            # Find user by email
+            try:
+                user = User.objects.get(email=email)
+                # Replace email with username for parent validation
+                attrs['username'] = user.username
+                # Remove email from attrs as parent expects username
+                attrs.pop('email', None)
+            except User.DoesNotExist:
+                raise serializers.ValidationError({
+                    'email': 'No active account found with the given credentials'
+                })
+        
         data = super().validate(attrs)
         
         # Add custom claims
@@ -227,7 +246,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'email': self.user.email,
             'first_name': self.user.first_name,
             'last_name': self.user.last_name,
-            'is_staff': self.user.is_staff,
         }
         
         # Get user role from active assignments
@@ -436,3 +454,13 @@ class ExposantScanSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'scanned_at']
 
+
+
+# Custom view for email-based token authentication
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    """
+    Custom token view that uses email instead of username
+    """
+    serializer_class = CustomTokenObtainPairSerializer

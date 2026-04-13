@@ -10,7 +10,7 @@ https://your-domain.com/api/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/auth/register/` | Register new user |
-| POST | `/api/auth/token/` | Login (get JWT tokens) |
+| POST | `/api/auth/token/` | Login (get JWT tokens) - **Uses email field** |
 | POST | `/api/auth/token/refresh/` | Refresh access token |
 | POST | `/api/auth/token/verify/` | Verify token validity |
 | GET | `/api/auth/me/` | Get current user profile |
@@ -20,6 +20,40 @@ https://your-domain.com/api/
 | GET | `/api/auth/my-events/` | Get user's assigned events |
 | POST | `/api/auth/select-event/` | Select active event |
 | POST | `/api/auth/switch-event/` | Switch to different event |
+
+### Login Example (JWT Token)
+
+**Endpoint:** `POST /api/auth/token/`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "your_password"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "user": {
+    "id": 1,
+    "username": "user123",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe"
+  },
+  "role": "controller",
+  "event": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Tech Conference 2026"
+  }
+}
+```
+
+**Important:** The login endpoint now accepts `email` field instead of `username`.
 
 ## Event Endpoints
 

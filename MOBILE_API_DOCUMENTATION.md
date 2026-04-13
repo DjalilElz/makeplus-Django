@@ -44,12 +44,12 @@ Authorization: Bearer <your_jwt_token>
 ### 2. Login (JWT Token)
 **Endpoint:** `POST /api/auth/token/`
 
-**Description:** Obtain JWT access and refresh tokens
+**Description:** Obtain JWT access and refresh tokens using email and password
 
 **Request Body:**
 ```json
 {
-  "username": "john@example.com",
+  "email": "john@example.com",
   "password": "SecurePass123!"
 }
 ```
@@ -64,8 +64,7 @@ Authorization: Bearer <your_jwt_token>
     "username": "johndoe",
     "email": "john@example.com",
     "first_name": "John",
-    "last_name": "Doe",
-    "is_staff": false
+    "last_name": "Doe"
   },
   "role": "participant",
   "event": {
@@ -74,6 +73,8 @@ Authorization: Bearer <your_jwt_token>
   }
 }
 ```
+
+**Note:** The endpoint now accepts `email` field instead of `username` for authentication.
 
 ### 3. Refresh Token
 **Endpoint:** `POST /api/auth/token/refresh/`
