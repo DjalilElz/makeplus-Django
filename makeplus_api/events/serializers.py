@@ -228,15 +228,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             # Find user by email
             try:
                 user = User.objects.get(email=email)
-                # Replace email with username for parent validation
+                # Keep email in attrs but also add username for authentication
                 attrs['username'] = user.username
-                # Remove email from attrs as parent expects username
-                attrs.pop('email', None)
             except User.DoesNotExist:
                 raise serializers.ValidationError({
                     'email': 'No active account found with the given credentials'
                 })
         
+        # Call parent validate with modified attrs
         data = super().validate(attrs)
         
         # Add custom claims
@@ -263,6 +262,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         else:
             data['role'] = 'participant'  # Default role
             data['event'] = None
+        
+        return data
         
         return data
 
