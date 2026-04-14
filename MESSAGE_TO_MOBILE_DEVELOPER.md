@@ -8,6 +8,11 @@ Here's the complete and accurate API specification for the mobile app. Please no
 
 ## ⚠️ CRITICAL CHANGES
 
+### 0. IMPORTANT: Correct Login Endpoint
+- **Mobile App Must Use:** `POST /api/auth/token/` (JWT endpoint)
+- **DO NOT Use:** `/api/auth/login/` (this is a web page, not an API)
+- The mobile app should NEVER access `/api/auth/login/`
+
 ### 1. Login Endpoint Updated
 - **Endpoint:** `POST /api/auth/token/`
 - **Change:** Now uses `email` field instead of `username`

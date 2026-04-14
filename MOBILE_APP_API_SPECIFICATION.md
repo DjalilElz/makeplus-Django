@@ -35,6 +35,11 @@ Local: http://localhost:8000
 
 ## Authentication
 
+### ⚠️ IMPORTANT: Use JWT Token Endpoint, NOT Login Page
+
+**For Mobile App:** Use `POST /api/auth/token/` (JWT endpoint)  
+**NOT:** `/api/auth/login/` (this is a web page for browsers, not an API)
+
 ### 1. Login (Get JWT Token)
 **Endpoint:** `POST /api/auth/token/`
 
