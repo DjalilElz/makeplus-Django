@@ -11,10 +11,10 @@ from .models import (
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """User serializer"""
+    """User serializer - username is internal only"""
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        fields = ['id', 'email', 'first_name', 'last_name']
         read_only_fields = ['id']
 
 
@@ -217,39 +217,56 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     Custom token serializer that accepts email instead of username
     and includes user data and role
     """
-    username_field = 'email'  # Use email field instead of username
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(required=True, write_only=True)
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Remove username field requirement
+        self.fields.pop('username', None)
     
     def validate(self, attrs):
-        # Get email from attrs and find the user
+        # Get email and password from attrs
         email = attrs.get('email')
         password = attrs.get('password')
         
-        if email and password:
-            # Find user by email
-            try:
-                user = User.objects.get(email=email)
-                # Keep email in attrs but also add username for authentication
-                attrs['username'] = user.username
-            except User.DoesNotExist:
-                raise serializers.ValidationError({
-                    'email': 'No active account found with the given credentials'
-                })
+        if not email or not password:
+            raise serializers.ValidationError('Email and password are required')
         
-        # Call parent validate with modified attrs
-        data = super().validate(attrs)
+        # Find user by email
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError('No active account found with the given credentials')
+        
+        # Check if user is active
+        if not user.is_active:
+            raise serializers.ValidationError('User account is disabled')
+        
+        # Verify password
+        if not user.check_password(password):
+            raise serializers.ValidationError('Invalid credentials')
+        
+        # Generate tokens manually
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user)
+        
+        data = {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
         
         # Add custom claims
         data['user'] = {
-            'id': self.user.id,
-            'username': self.user.username,
-            'email': self.user.email,
-            'first_name': self.user.first_name,
-            'last_name': self.user.last_name,
+            'id': user.id,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
         }
         
         # Get user role from active assignments
         assignment = UserEventAssignment.objects.filter(
-            user=self.user,
+            user=user,
             is_active=True
         ).first()
         
@@ -264,13 +281,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             data['event'] = None
         
         return data
-        
-        return data
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     """
     User registration serializer with password confirmation
+    Username is auto-generated from email
     """
     password = serializers.CharField(
         write_only=True,
@@ -289,7 +305,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('username', 'email', 'first_name', 'last_name', 'password', 'password2')
+        fields = ('email', 'first_name', 'last_name', 'password', 'password2')
     
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
@@ -303,18 +319,24 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                 "email": "A user with this email already exists."
             })
         
-        # Check if username already exists
-        if User.objects.filter(username=attrs['username']).exists():
-            raise serializers.ValidationError({
-                "username": "A user with this username already exists."
-            })
-        
         return attrs
     
     def create(self, validated_data):
         validated_data.pop('password2')
+        
+        # Auto-generate username from email
+        email = validated_data['email']
+        username = email  # Use email as username
+        
+        # If username exists, append a number
+        counter = 1
+        original_username = username
+        while User.objects.filter(username=username).exists():
+            username = f"{original_username}{counter}"
+            counter += 1
+        
         user = User.objects.create_user(
-            username=validated_data['username'],
+            username=username,
             email=validated_data['email'],
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
@@ -331,11 +353,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'full_name')
-        read_only_fields = ('id', 'username')
+        fields = ('id', 'email', 'first_name', 'last_name', 'full_name')
+        read_only_fields = ('id',)
     
     def get_full_name(self, obj):
-        return obj.get_full_name() or obj.username
+        return obj.get_full_name() or obj.email
 
 
 class ChangePasswordSerializer(serializers.Serializer):

@@ -16,12 +16,11 @@ Authorization: Bearer <your_jwt_token>
 ### 1. Register User
 **Endpoint:** `POST /api/auth/register/`
 
-**Description:** Register a new user account
+**Description:** Register a new user account (username is auto-generated from email)
 
 **Request Body:**
 ```json
 {
-  "username": "johndoe",
   "email": "john@example.com",
   "first_name": "John",
   "last_name": "Doe",
@@ -34,7 +33,6 @@ Authorization: Bearer <your_jwt_token>
 ```json
 {
   "id": 1,
-  "username": "johndoe",
   "email": "john@example.com",
   "first_name": "John",
   "last_name": "Doe"
@@ -61,7 +59,6 @@ Authorization: Bearer <your_jwt_token>
   "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc...",
   "user": {
     "id": 1,
-    "username": "johndoe",
     "email": "john@example.com",
     "first_name": "John",
     "last_name": "Doe"
@@ -120,7 +117,6 @@ Authorization: Bearer <your_jwt_token>
 ```json
 {
   "id": 1,
-  "username": "johndoe",
   "email": "john@example.com",
   "first_name": "John",
   "last_name": "Doe",

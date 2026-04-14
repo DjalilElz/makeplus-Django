@@ -101,14 +101,25 @@ def login_view(request):
         return redirect('dashboard:home')
     
     if request.method == 'POST':
-        username = request.POST.get('username')
+        email = request.POST.get('email')
         password = request.POST.get('password')
         
         # DEBUG: Print what we received
         print(f"DEBUG Login attempt:")
-        print(f"  Username received: '{username}' (length: {len(username) if username else 0})")
+        print(f"  Email received: '{email}' (length: {len(email) if email else 0})")
         print(f"  Password received: '{password}' (length: {len(password) if password else 0})")
         
+        # Find user by email
+        try:
+            user_obj = User.objects.get(email=email)
+            username = user_obj.username
+            print(f"  Found user: {username}")
+        except User.DoesNotExist:
+            print(f"  User with email {email} not found")
+            messages.error(request, 'Invalid email or password.')
+            return render(request, 'dashboard/login.html')
+        
+        # Authenticate with username
         user = authenticate(request, username=username, password=password)
         
         print(f"  authenticate() returned: {user}")
@@ -119,7 +130,7 @@ def login_view(request):
             is_committee = EPosterCommitteeMember.objects.filter(user=user, is_active=True).exists()
             if user.is_staff or user.is_superuser or is_committee:
                 login(request, user)
-                welcome_msg = f'Welcome back, {user.get_full_name() or user.username}!'
+                welcome_msg = f'Welcome back, {user.get_full_name() or user.email}!'
                 if is_committee and not user.is_staff:
                     welcome_msg += ' (Committee Member)'
                 messages.success(request, welcome_msg)
@@ -132,7 +143,7 @@ def login_view(request):
                 messages.error(request, 'You do not have permission to access the dashboard.')
         else:
             print(f"  Authentication FAILED")
-            messages.error(request, 'Invalid username or password.')
+            messages.error(request, 'Invalid email or password.')
     
     return render(request, 'dashboard/login.html')
 
@@ -610,6 +621,18 @@ def event_create_step4(request):
                     assigned_by=request.user
                 )
                 
+                # If role is committee, create EPosterCommitteeMember record
+                if role == 'committee':
+                    from .models_eposter import EPosterCommitteeMember
+                    EPosterCommitteeMember.objects.create(
+                        event=event,
+                        user=user,
+                        role='member',  # Default to 'member', can be changed later
+                        is_active=True,
+                        assigned_by=request.user
+                    )
+                    messages.success(request, f'Committee member "{user.get_full_name()}" created successfully!')
+                
                 # Assign room if role is gestionnaire_des_salles
                 assigned_room = form.cleaned_data.get('assigned_room')
                 if role == 'gestionnaire_des_salles' and assigned_room:
@@ -798,6 +821,17 @@ def user_create(request):
                     is_active=True,
                     assigned_by=request.user
                 )
+                
+                # If role is committee, create EPosterCommitteeMember record
+                if role == 'committee':
+                    EPosterCommitteeMember.objects.create(
+                        event=event,
+                        user=user,
+                        role='member',  # Default to 'member', can be changed later
+                        is_active=True,
+                        assigned_by=request.user
+                    )
+                    messages.success(request, f'Committee member "{user.get_full_name()}" created successfully!')
                 
                 # Assign room if role is gestionnaire_des_salles
                 assigned_room = form.cleaned_data.get('assigned_room')
