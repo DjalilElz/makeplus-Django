@@ -76,10 +76,11 @@ Here's the complete and accurate API specification for the mobile app. Please no
 1. ✅ Events - List, view events
 2. ✅ Rooms - List, view rooms
 3. ✅ Sessions - List, view, start/end sessions
-4. ✅ QR Code - Verify and generate QR codes
-5. ✅ Room Access - Check-in participants
-6. ✅ Participants - List, view participants
-7. ✅ Exposant Scans - Record booth visits
+4. ✅ **Paid Sessions** - Check access, view payment status
+5. ✅ QR Code - Verify and generate QR codes
+6. ✅ Room Access - Check-in participants
+7. ✅ Participants - List, view participants
+8. ✅ Exposant Scans - Record booth visits
 
 ---
 
@@ -132,6 +133,68 @@ Text(user.username)  // ❌ Remove
 Text(user.email)  // ✅ Option 1
 Text('${user.firstName} ${user.lastName}')  // ✅ Option 2
 ```
+
+---
+
+## � PAID SESSIONS
+
+### What You Need to Know
+
+Some sessions (workshops/ateliers) require payment. The mobile app needs to:
+
+1. **Display paid sessions** with price indicator
+2. **Check user access** before allowing entry
+3. **Show payment status** (pending, paid, free)
+
+### Session Object Includes:
+```json
+{
+  "id": "session-uuid",
+  "title": "Advanced Workshop",
+  "is_paid": true,
+  "price": 50.00,
+  "max_participants": 30
+}
+```
+
+### Check User Access:
+```
+GET /api/session-access/?participant={participant_id}&session={session_id}
+```
+
+**Response:**
+```json
+{
+  "count": 1,
+  "results": [{
+    "has_access": true,
+    "payment_status": "paid",
+    "amount_paid": 50.00
+  }]
+}
+```
+
+### Payment Status:
+- `pending` - Not paid yet
+- `paid` - Paid and has access
+- `free` - Free session
+
+### Implementation:
+```dart
+// Check if user can access session
+bool canAccessSession(Session session, List<SessionAccess> userAccess) {
+  if (!session.isPaid) return true; // Free sessions
+  
+  final access = userAccess.firstWhere(
+    (a) => a.sessionId == session.id && a.hasAccess && a.paymentStatus == 'paid',
+    orElse: () => null,
+  );
+  
+  return access != null;
+}
+```
+
+**Note:** Payment processing is done outside the mobile app (admin dashboard). The app only checks access status.
 
 ---
 

@@ -362,6 +362,7 @@ Authorization: Bearer <access_token>
       "status": "scheduled",
       "is_paid": false,
       "price": null,
+      "max_participants": null,
       "youtube_live_url": "https://youtube.com/live/xyz",
       "cover_image_url": "https://domain.com/media/sessions/cover.jpg",
       "is_live": false,
@@ -566,6 +567,110 @@ Authorization: Bearer <access_token>
 
 ---
 
+## Session Access (Paid Sessions)
+
+### 20. List My Session Access
+**Endpoint:** `GET /api/session-access/`
+
+**Description:** Get list of sessions the current user has access to (including paid sessions)
+
+**Authentication:** Required
+
+**Query Parameters:**
+- `participant` (optional): Filter by participant ID
+- `session` (optional): Filter by session ID
+- `payment_status` (optional): Filter by payment status (pending, paid, free)
+- `has_access` (optional): Filter by access status (true/false)
+
+**Success Response:** `200 OK`
+```json
+{
+  "count": 10,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": "access-uuid",
+      "participant": "participant-uuid",
+      "participant_name": "John Doe",
+      "session": "session-uuid",
+      "session_title": "Advanced Workshop",
+      "session_type": "atelier",
+      "has_access": true,
+      "payment_status": "paid",
+      "paid_at": "2026-06-10T10:00:00Z",
+      "amount_paid": 50.00,
+      "created_at": "2026-06-10T10:00:00Z"
+    },
+    {
+      "id": "access-uuid-2",
+      "participant": "participant-uuid",
+      "participant_name": "John Doe",
+      "session": "session-uuid-2",
+      "session_title": "Free Conference",
+      "session_type": "conference",
+      "has_access": true,
+      "payment_status": "free",
+      "paid_at": null,
+      "amount_paid": 0.00,
+      "created_at": "2026-06-10T10:00:00Z"
+    }
+  ]
+}
+```
+
+**Payment Status Values:**
+- `pending` - Payment not yet completed
+- `paid` - Payment completed, access granted
+- `free` - Free session, no payment required
+
+---
+
+### 21. Get Session Access Details
+**Endpoint:** `GET /api/session-access/{access_id}/`
+
+**Description:** Get detailed information about a specific session access
+
+**Authentication:** Required
+
+**Success Response:** `200 OK` (same structure as list item)
+
+---
+
+### 22. Check Session Access
+**Endpoint:** `GET /api/session-access/?participant={participant_id}&session={session_id}`
+
+**Description:** Check if a participant has access to a specific session
+
+**Authentication:** Required
+
+**Success Response:** `200 OK`
+```json
+{
+  "count": 1,
+  "results": [
+    {
+      "id": "access-uuid",
+      "participant": "participant-uuid",
+      "session": "session-uuid",
+      "has_access": true,
+      "payment_status": "paid",
+      "amount_paid": 50.00
+    }
+  ]
+}
+```
+
+**No Access Response:** `200 OK`
+```json
+{
+  "count": 0,
+  "results": []
+}
+```
+
+---
+
 ## Participants
 
 ### 17. List Participants
@@ -608,11 +713,24 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Note:** To get participant's session access (paid sessions), use `/api/session-access/?participant={participant_id}`
+
+---
+
+### 18. Get Participant Details
+**Endpoint:** `GET /api/participants/{participant_id}/`
+
+**Description:** Get detailed information about a specific participant
+
+**Authentication:** Required
+
+**Success Response:** `200 OK` (same structure as list item)
+
 ---
 
 ## Exposant Scans (Booth Visits)
 
-### 18. List Exposant Scans
+### 23. List Exposant Scans
 **Endpoint:** `GET /api/exposant-scans/`
 
 **Description:** Get list of participant scans by exposants
@@ -647,7 +765,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 19. Create Exposant Scan
+### 24. Create Exposant Scan
 **Endpoint:** `POST /api/exposant-scans/`
 
 **Description:** Record a participant scan at exposant booth
@@ -673,6 +791,112 @@ Authorization: Bearer <access_token>
   "scanned_at": "2026-06-15T11:30:00Z"
 }
 ```
+
+---
+
+## Paid Sessions - How It Works
+
+### Overview
+Some sessions (ateliers/workshops) require payment. The mobile app needs to:
+1. Show which sessions are paid (`is_paid: true`)
+2. Display the price
+3. Check if user has access before allowing entry
+4. Show payment status
+
+### Session Fields for Paid Sessions
+```json
+{
+  "id": "session-uuid",
+  "title": "Advanced Workshop",
+  "session_type": "atelier",
+  "is_paid": true,
+  "price": 50.00,
+  "max_participants": 30,
+  "status": "scheduled"
+}
+```
+
+### Checking User Access to Paid Session
+
+**Step 1: Get user's participant ID**
+```
+GET /api/participants/?event={event_id}&user={user_id}
+```
+
+**Step 2: Check session access**
+```
+GET /api/session-access/?participant={participant_id}&session={session_id}
+```
+
+**Step 3: Verify access**
+```json
+// Has access
+{
+  "count": 1,
+  "results": [{
+    "has_access": true,
+    "payment_status": "paid"
+  }]
+}
+
+// No access
+{
+  "count": 0,
+  "results": []
+}
+```
+
+### Display Logic in Mobile App
+
+```dart
+// Example Flutter code
+bool canAccessSession(Session session, List<SessionAccess> userAccess) {
+  // Free sessions - everyone can access
+  if (!session.isPaid) {
+    return true;
+  }
+  
+  // Paid sessions - check if user has paid
+  final access = userAccess.firstWhere(
+    (a) => a.sessionId == session.id,
+    orElse: () => null,
+  );
+  
+  return access != null && access.hasAccess && access.paymentStatus == 'paid';
+}
+
+// Display session with payment indicator
+Widget buildSessionCard(Session session) {
+  return Card(
+    child: Column(
+      children: [
+        Text(session.title),
+        if (session.isPaid) ...[
+          Chip(
+            label: Text('Paid - ${session.price}€'),
+            backgroundColor: Colors.orange,
+          ),
+          if (!userHasAccess(session)) 
+            Text('Payment required', style: TextStyle(color: Colors.red)),
+        ],
+      ],
+    ),
+  );
+}
+```
+
+### Payment Status Values
+
+- **`pending`**: User registered but hasn't paid yet
+- **`paid`**: User has paid and has access
+- **`free`**: Free session, no payment required
+
+### Important Notes
+
+1. **Payment Processing**: Payment is handled outside the mobile app (admin dashboard or external payment system)
+2. **Access Control**: Controllers should verify `has_access` before allowing entry
+3. **Max Participants**: Some paid sessions have limited capacity (`max_participants`)
+4. **Session Types**: Usually `atelier` or `workshop` sessions are paid, `conference` sessions are free
 
 ---
 
