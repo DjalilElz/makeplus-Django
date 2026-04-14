@@ -733,9 +733,146 @@ Authorization: Bearer <access_token>
 
 ---
 
+## Statistics & Dashboard
+
+### 25. Get Dashboard Statistics
+**Endpoint:** `GET /api/dashboard/stats/`
+
+**Description:** Get dashboard statistics for current user based on their role
+
+**Authentication:** Required
+
+**Success Response:** `200 OK`
+```json
+{
+  "role": "controller",
+  "event": {
+    "id": "event-uuid",
+    "name": "Tech Conference 2026",
+    "status": "active"
+  },
+  "check_ins_today": 45,
+  "total_participants": 250,
+  "total_rooms": 5
+}
+```
+
+**Role-Specific Fields:**
+- **Controller:** `check_ins_today`
+- **Gestionnaire:** `assigned_rooms`
+- **Exposant:** `total_scans`
+
+---
+
+### 26. Get My Room Statistics
+**Endpoint:** `GET /api/my-room/statistics/`
+
+**Description:** Get statistics for rooms assigned to current user (controller/gestionnaire only)
+
+**Authentication:** Required (Controller or Gestionnaire role)
+
+**Success Response:** `200 OK`
+```json
+{
+  "assigned_rooms": 2,
+  "total_sessions_today": 6,
+  "current_participants": 78,
+  "total_check_ins_today": 145,
+  "rooms": [
+    {
+      "id": "room-uuid",
+      "name": "Main Hall A",
+      "capacity": 200,
+      "sessions_today": 3,
+      "check_ins_today": 75
+    },
+    {
+      "id": "room-uuid-2",
+      "name": "Workshop Room B",
+      "capacity": 50,
+      "sessions_today": 3,
+      "check_ins_today": 70
+    }
+  ],
+  "role": "controller",
+  "event": {
+    "id": "event-uuid",
+    "name": "Tech Conference 2026"
+  }
+}
+```
+
+**Error Response:** `404 Not Found`
+```json
+{
+  "error": "No active event assignment found"
+}
+```
+
+---
+
+### 27. Get My Events
+**Endpoint:** `GET /api/my-events/`
+
+**Description:** Get list of events assigned to current user
+
+**Authentication:** Required
+
+**Success Response:** `200 OK`
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "assignment_id": "assignment-uuid",
+      "role": "controller",
+      "event": {
+        "id": "event-uuid",
+        "name": "Tech Conference 2026",
+        "start_date": "2026-06-15T09:00:00Z",
+        "end_date": "2026-06-17T18:00:00Z",
+        "status": "active"
+      },
+      "assigned_at": "2026-01-15T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### 28. Get My Ateliers
+**Endpoint:** `GET /api/my-ateliers/`
+
+**Description:** Get list of workshops/ateliers user has access to
+
+**Authentication:** Required
+
+**Success Response:** `200 OK`
+```json
+{
+  "count": 3,
+  "results": [
+    {
+      "id": "session-uuid",
+      "title": "Advanced Workshop",
+      "session_type": "atelier",
+      "is_paid": true,
+      "price": 50.00,
+      "payment_status": "paid",
+      "amount_paid": 50.00,
+      "start_time": "2026-06-15T14:00:00Z",
+      "end_time": "2026-06-15T16:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
 ## Exposant Scans (Booth Visits)
 
-### 23. List Exposant Scans
+### 29. List Exposant Scans
 **Endpoint:** `GET /api/exposant-scans/`
 
 **Description:** Get list of participant scans by exposants
@@ -770,7 +907,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 24. Create Exposant Scan
+### 30. Create Exposant Scan
 **Endpoint:** `POST /api/exposant-scans/`
 
 **Description:** Record a participant scan at exposant booth

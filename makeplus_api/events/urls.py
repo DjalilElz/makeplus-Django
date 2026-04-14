@@ -7,6 +7,7 @@ from rest_framework.routers import DefaultRouter
 from . import views
 from . import views_registration
 from . import auth_views
+from . import api_views  # REST API views for mobile app
 
 # Create router and register viewsets
 router = DefaultRouter()
@@ -46,12 +47,13 @@ urlpatterns = [
     path('qr/verify/', views.QRVerificationView.as_view(), name='qr-verify'),
     path('qr/generate/', views.QRGenerateView.as_view(), name='qr-generate'),
     
-    # Statistics endpoints
-    path('dashboard/stats/', views.DashboardStatsView.as_view(), name='dashboard-stats'),
-    path('my-room/statistics/', views.MyRoomStatisticsView.as_view(), name='my-room-statistics'),
+    # Statistics endpoints (REST API for mobile)
+    path('dashboard/stats/', api_views.DashboardStatsAPIView.as_view(), name='dashboard-stats'),
+    path('my-room/statistics/', api_views.MyRoomStatisticsAPIView.as_view(), name='my-room-statistics'),
     
-    # Participant endpoints
-    path('my-ateliers/', views.MyAteliersView.as_view(), name='my-ateliers'),
+    # User endpoints (REST API for mobile)
+    path('my-events/', api_views.MyEventsAPIView.as_view(), name='my-events'),
+    path('my-ateliers/', api_views.MyAteliersAPIView.as_view(), name='my-ateliers'),
     
     # Notification endpoints
     path('notifications/', views.NotificationListView.as_view(), name='notification-list'),
