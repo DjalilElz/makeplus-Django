@@ -80,15 +80,75 @@ class UserProfile(models.Model):
         return f"Profile: {self.user.username}"
     
     def get_or_create_qr_code(self):
-        """Generate or return existing user-level QR code"""
-        if not self.qr_code_data:
-            # Generate unique badge ID for user
-            badge_id = f"USER-{self.user.id}-{uuid.uuid4().hex[:8].upper()}"
-            self.qr_code_data = {
-                "user_id": self.user.id,
-                "badge_id": badge_id
+        """Generate or return existing user-level QR code with full participant info"""
+        # Always regenerate to get latest data
+        user = self.user
+        badge_id = f"USER-{user.id}-{uuid.uuid4().hex[:8].upper()}"
+        
+        # Get user's active event assignment
+        from .models import UserEventAssignment, Participant, SessionAccess
+        assignment = UserEventAssignment.objects.filter(
+            user=user,
+            is_active=True
+        ).select_related('event').first()
+        
+        qr_data = {
+            "user_id": user.id,
+            "badge_id": badge_id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "full_name": user.get_full_name() or user.email,
+        }
+        
+        # Add event and role info if user has assignment
+        if assignment:
+            qr_data["role"] = assignment.role
+            qr_data["event"] = {
+                "id": str(assignment.event.id),
+                "name": assignment.event.name,
+                "start_date": assignment.event.start_date.isoformat() if assignment.event.start_date else None,
+                "end_date": assignment.event.end_date.isoformat() if assignment.event.end_date else None,
             }
-            self.save()
+            
+            # Get participant info if exists
+            participant = Participant.objects.filter(
+                user=user,
+                event=assignment.event
+            ).first()
+            
+            if participant:
+                qr_data["participant_id"] = str(participant.id)
+                qr_data["is_checked_in"] = participant.is_checked_in
+                qr_data["checked_in_at"] = participant.checked_in_at.isoformat() if participant.checked_in_at else None
+                
+                # Get paid sessions access
+                session_accesses = SessionAccess.objects.filter(
+                    participant=participant,
+                    has_access=True
+                ).select_related('session').values(
+                    'session__id',
+                    'session__title',
+                    'session__is_paid',
+                    'payment_status',
+                    'amount_paid'
+                )
+                
+                paid_sessions = []
+                for access in session_accesses:
+                    paid_sessions.append({
+                        "session_id": str(access['session__id']),
+                        "session_title": access['session__title'],
+                        "is_paid": access['session__is_paid'],
+                        "payment_status": access['payment_status'],
+                        "amount_paid": float(access['amount_paid']) if access['amount_paid'] else 0
+                    })
+                
+                qr_data["paid_sessions"] = paid_sessions
+                qr_data["total_paid_sessions"] = len([s for s in paid_sessions if s['is_paid']])
+        
+        self.qr_code_data = qr_data
+        self.save()
         return self.qr_code_data
     
     @staticmethod
