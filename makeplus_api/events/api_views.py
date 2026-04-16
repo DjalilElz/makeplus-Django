@@ -7,10 +7,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
+from rest_framework.renderers import JSONRenderer
 from django.db.models import Count, Q
 from django.utils import timezone
 from .models import (
-    UserEventAssignment, RoomAssignment, Session, RoomAccess,
+    UserEventAssignment, Session, RoomAccess, Room,
     Participant, Event
 )
 from .serializers import EventSerializer
@@ -18,15 +19,17 @@ from .serializers import EventSerializer
 
 class MyRoomStatisticsAPIView(APIView):
     """
-    REST API: Get statistics for rooms assigned to current user (controller/gestionnaire)
+    REST API: Get statistics for check-ins performed by current controller
+    Each controller sees only their own scans/check-ins
     """
     permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]  # Force JSON only
     
     def get(self, request):
         user = request.user
         
-        # Get user's role and event
-        assignment = UserEventAssignment.objects.filter(
+        # Get user's assignment with event in one query
+        assignment = UserEventAssignment.objects.select_related('event').filter(
             user=user,
             is_active=True
         ).first()
@@ -36,63 +39,55 @@ class MyRoomStatisticsAPIView(APIView):
                 'error': 'No active event assignment found'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Get rooms assigned to this user
-        room_assignments = RoomAssignment.objects.filter(
-            user=user,
+        # Get all active rooms in the event
+        rooms = Room.objects.filter(
             event=assignment.event,
             is_active=True
-        ).select_related('room')
+        )
         
-        if not room_assignments.exists():
+        if not rooms.exists():
             return Response({
-                'assigned_rooms': 0,
+                'total_rooms': 0,
                 'total_sessions_today': 0,
-                'current_participants': 0,
-                'total_check_ins_today': 0,
+                'my_check_ins_today': 0,
                 'rooms': []
             })
-        
-        # Get assigned rooms
-        assigned_rooms = [ra.room for ra in room_assignments]
-        room_ids = [room.id for room in assigned_rooms]
         
         # Get today's date range
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = today_start.replace(hour=23, minute=59, second=59)
         
-        # Count sessions today in assigned rooms
+        # Get room IDs for queries
+        room_ids = [room.id for room in rooms]
+        
+        # Count sessions today in all rooms
         sessions_today = Session.objects.filter(
             room_id__in=room_ids,
             start_time__gte=today_start,
             start_time__lte=today_end
         ).count()
         
-        # Count check-ins today in assigned rooms
-        check_ins_today = RoomAccess.objects.filter(
-            room_id__in=room_ids,
+        # Count check-ins performed by THIS controller today
+        my_check_ins_today = RoomAccess.objects.filter(
+            verified_by=user,  # Only this controller's scans
             accessed_at__gte=today_start,
             accessed_at__lte=today_end,
             status='granted'
         ).count()
         
-        # Count current participants (checked in today)
-        current_participants = RoomAccess.objects.filter(
-            room_id__in=room_ids,
-            accessed_at__gte=today_start,
-            status='granted'
-        ).values('participant').distinct().count()
-        
-        # Room details
+        # Build room details with this controller's check-ins per room
         rooms_data = []
-        for room in assigned_rooms:
+        for room in rooms:
             room_sessions = Session.objects.filter(
                 room=room,
                 start_time__gte=today_start,
                 start_time__lte=today_end
             ).count()
             
-            room_check_ins = RoomAccess.objects.filter(
+            # Check-ins by THIS controller in this room
+            my_room_check_ins = RoomAccess.objects.filter(
                 room=room,
+                verified_by=user,  # Only this controller's scans
                 accessed_at__gte=today_start,
                 status='granted'
             ).count()
@@ -102,14 +97,14 @@ class MyRoomStatisticsAPIView(APIView):
                 'name': room.name,
                 'capacity': room.capacity,
                 'sessions_today': room_sessions,
-                'check_ins_today': room_check_ins
+                'my_check_ins_today': my_room_check_ins
             })
         
+        # Build response
         return Response({
-            'assigned_rooms': len(assigned_rooms),
+            'total_rooms': len(rooms),
             'total_sessions_today': sessions_today,
-            'current_participants': current_participants,
-            'total_check_ins_today': check_ins_today,
+            'my_check_ins_today': my_check_ins_today,
             'rooms': rooms_data,
             'role': assignment.role,
             'event': {
@@ -124,6 +119,7 @@ class DashboardStatsAPIView(APIView):
     REST API: Get dashboard statistics for current user
     """
     permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]  # Force JSON only
     
     def get(self, request):
         user = request.user
@@ -203,6 +199,7 @@ class MyEventsAPIView(APIView):
     REST API: Get list of events assigned to current user
     """
     permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]  # Force JSON only
     
     def get(self, request):
         user = request.user
@@ -234,6 +231,7 @@ class MyAteliersAPIView(APIView):
     REST API: Get list of workshops/ateliers for current user
     """
     permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]  # Force JSON only
     
     def get(self, request):
         user = request.user
@@ -268,3 +266,43 @@ class MyAteliersAPIView(APIView):
             'count': len(sessions_data),
             'results': sessions_data
         })
+
+
+class UserProfileAPIView(APIView):
+    """
+    REST API: Get current user profile
+    Returns JSON only (no HTML)
+    """
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]  # Force JSON only, no HTML
+    
+    def get(self, request):
+        user = request.user
+        
+        # Get user's active assignment
+        assignment = UserEventAssignment.objects.filter(
+            user=user,
+            is_active=True
+        ).first()
+        
+        profile_data = {
+            'id': user.id,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'full_name': user.get_full_name() or user.email
+        }
+        
+        # Add role and event if user has assignment
+        if assignment:
+            profile_data['role'] = assignment.role
+            profile_data['event'] = {
+                'id': str(assignment.event.id),
+                'name': assignment.event.name,
+                'status': assignment.event.status
+            }
+        else:
+            profile_data['role'] = None
+            profile_data['event'] = None
+        
+        return Response(profile_data)
