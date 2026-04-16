@@ -86,7 +86,7 @@ class UserProfile(models.Model):
         badge_id = f"USER-{user.id}-{uuid.uuid4().hex[:8].upper()}"
         
         # Get user's active event assignment
-        from .models import UserEventAssignment, Participant, SessionAccess
+        from .models import UserEventAssignment, Participant, SessionAccess, RoomAccess
         assignment = UserEventAssignment.objects.filter(
             user=user,
             is_active=True
@@ -122,30 +122,53 @@ class UserProfile(models.Model):
                 qr_data["is_checked_in"] = participant.is_checked_in
                 qr_data["checked_in_at"] = participant.checked_in_at.isoformat() if participant.checked_in_at else None
                 
-                # Get paid sessions access
+                # Get ALL paid items (sessions, rooms, etc.)
+                paid_items = []
+                
+                # 1. Paid Sessions
                 session_accesses = SessionAccess.objects.filter(
                     participant=participant,
                     has_access=True
-                ).select_related('session').values(
-                    'session__id',
-                    'session__title',
-                    'session__is_paid',
-                    'payment_status',
-                    'amount_paid'
-                )
+                ).select_related('session')
                 
-                paid_sessions = []
                 for access in session_accesses:
-                    paid_sessions.append({
-                        "session_id": str(access['session__id']),
-                        "session_title": access['session__title'],
-                        "is_paid": access['session__is_paid'],
-                        "payment_status": access['payment_status'],
-                        "amount_paid": float(access['amount_paid']) if access['amount_paid'] else 0
+                    if access.session.is_paid or access.payment_status == 'paid':
+                        paid_items.append({
+                            "type": "session",
+                            "id": str(access.session.id),
+                            "title": access.session.title,
+                            "is_paid": access.session.is_paid,
+                            "payment_status": access.payment_status,
+                            "amount_paid": float(access.amount_paid) if access.amount_paid else 0,
+                            "has_access": access.has_access
+                        })
+                
+                # 2. Paid Room Access (if any rooms require payment)
+                from .models import Room
+                allowed_rooms = participant.allowed_rooms.all()
+                for room in allowed_rooms:
+                    # Check if this room requires payment (you can add a field to Room model)
+                    # For now, we'll include all allowed rooms
+                    paid_items.append({
+                        "type": "room",
+                        "id": str(room.id),
+                        "title": room.name,
+                        "is_paid": False,  # Set to True if room requires payment
+                        "payment_status": "free",
+                        "amount_paid": 0,
+                        "has_access": True
                     })
                 
-                qr_data["paid_sessions"] = paid_sessions
-                qr_data["total_paid_sessions"] = len([s for s in paid_sessions if s['is_paid']])
+                qr_data["paid_items"] = paid_items
+                qr_data["total_paid_items"] = len([item for item in paid_items if item['is_paid']])
+                
+                # Summary for quick check
+                qr_data["access_summary"] = {
+                    "total_sessions": len([item for item in paid_items if item['type'] == 'session']),
+                    "paid_sessions": len([item for item in paid_items if item['type'] == 'session' and item['is_paid']]),
+                    "total_rooms": len([item for item in paid_items if item['type'] == 'room']),
+                    "has_any_paid_access": any(item['is_paid'] for item in paid_items)
+                }
         
         self.qr_code_data = qr_data
         self.save()
