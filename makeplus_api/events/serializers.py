@@ -275,6 +275,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             data['event'] = {
                 'id': str(assignment.event.id),
                 'name': assignment.event.name,
+                'start_date': assignment.event.start_date.isoformat() if assignment.event.start_date else None,
+                'end_date': assignment.event.end_date.isoformat() if assignment.event.end_date else None,
+                'location': assignment.event.location,
+                'status': assignment.event.status,
             }
         else:
             data['role'] = 'participant'  # Default role
