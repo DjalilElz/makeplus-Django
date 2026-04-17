@@ -4,7 +4,7 @@ Sign Up Service - Handle user registration with email verification
 
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .models_verification import SignUpVerification
+from .models import SignUpVerification
 from dashboard.email_sender import send_email
 
 

@@ -4,8 +4,7 @@ Form Registration Validation Service
 
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .models_verification import FormRegistrationVerification
-from .models import UserEventAssignment, Participant, UserProfile
+from .models import FormRegistrationVerification, UserEventAssignment, Participant, UserProfile
 from dashboard.models_form import FormConfiguration, FormSubmission
 from dashboard.email_sender import send_email
 
