@@ -2242,6 +2242,7 @@ def public_form_view(request, slug):
                 form_config.increment_submission_count()
             
             # Send registration confirmation email with login code
+            email_sent = False
             try:
                 success, error, message_id = send_registration_confirmation_email(
                     user=user,
@@ -2249,10 +2250,15 @@ def public_form_view(request, slug):
                     login_code=login_code
                 )
                 
-                if not success:
-                    print(f"Error sending registration email: {error}")
+                if success:
+                    email_sent = True
+                    print(f"✅ Registration email sent successfully to {email}")
+                else:
+                    print(f"⚠️ Error sending registration email: {error}")
             except Exception as e:
-                print(f"Exception sending registration email: {e}")
+                print(f"❌ Exception sending registration email: {e}")
+                import traceback
+                print(traceback.format_exc())
             
             # Show success page
             context = {
@@ -2260,7 +2266,7 @@ def public_form_view(request, slug):
                 'success': True,
                 'submitted_email': email,
                 'is_re_registration': is_re_registration,
-                'login_code_sent': True,
+                'login_code_sent': email_sent,
             }
             return render(request, 'dashboard/public_form.html', context)
         
@@ -2268,14 +2274,20 @@ def public_form_view(request, slug):
             # Log the full error for debugging
             import traceback
             error_details = traceback.format_exc()
-            print(f"ERROR in form submission: {str(e)}")
+            print(f"=" * 80)
+            print(f"ERROR in form submission for form: {form_config.name}")
+            print(f"Error type: {type(e).__name__}")
+            print(f"Error message: {str(e)}")
+            print(f"Form data received: {request.POST.dict()}")
+            print(f"Event: {form_config.event.name if form_config.event else 'None'}")
             print(f"Full traceback:\n{error_details}")
+            print(f"=" * 80)
             
             # Show user-friendly error page
             context = {
                 'form_config': form_config,
                 'fields': form_config.fields_config,
-                'errors': [f'An error occurred while processing your submission. Please try again or contact support.'],
+                'errors': [f'An error occurred while processing your submission. Please try again or contact support. Error: {str(e)}'],
                 'form_data': request.POST.dict(),
             }
             return render(request, 'dashboard/public_form.html', context)
