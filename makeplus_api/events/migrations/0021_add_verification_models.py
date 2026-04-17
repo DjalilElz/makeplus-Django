@@ -1,7 +1,6 @@
-# Generated migration for verification models
+# Generated migration for verification models - Safe version
 
-from django.db import migrations, models
-import django.db.models.deletion
+from django.db import migrations
 
 
 class Migration(migrations.Migration):
@@ -12,68 +11,77 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='SignUpVerification',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('email', models.EmailField(db_index=True, max_length=254)),
-                ('code_hash', models.CharField(db_index=True, max_length=64)),
-                ('created_at', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('expires_at', models.DateTimeField(db_index=True)),
-                ('is_used', models.BooleanField(db_index=True, default=False)),
-                ('used_at', models.DateTimeField(blank=True, null=True)),
-                ('ip_address', models.GenericIPAddressField(blank=True, null=True)),
-                ('user_agent', models.TextField(blank=True)),
-            ],
-            options={
-                'verbose_name': 'Sign Up Verification',
-                'verbose_name_plural': 'Sign Up Verifications',
-                'ordering': ['-created_at'],
-            },
+        # Create SignUpVerification table if not exists
+        migrations.RunSQL(
+            sql="""
+            CREATE TABLE IF NOT EXISTS events_signupverification (
+                id BIGSERIAL PRIMARY KEY,
+                email VARCHAR(254) NOT NULL,
+                code_hash VARCHAR(64) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                is_used BOOLEAN NOT NULL DEFAULT FALSE,
+                used_at TIMESTAMP WITH TIME ZONE NULL,
+                ip_address INET NULL,
+                user_agent TEXT NOT NULL DEFAULT ''
+            );
+            
+            CREATE INDEX IF NOT EXISTS events_sign_email_is_used_idx 
+                ON events_signupverification (email, is_used, created_at DESC);
+            CREATE INDEX IF NOT EXISTS events_sign_code_hash_idx 
+                ON events_signupverification (code_hash, is_used);
+            CREATE INDEX IF NOT EXISTS events_sign_expires_idx 
+                ON events_signupverification (expires_at, is_used);
+            CREATE INDEX IF NOT EXISTS events_signupverification_email_idx 
+                ON events_signupverification (email);
+            CREATE INDEX IF NOT EXISTS events_signupverification_code_hash_idx 
+                ON events_signupverification (code_hash);
+            CREATE INDEX IF NOT EXISTS events_signupverification_created_at_idx 
+                ON events_signupverification (created_at);
+            CREATE INDEX IF NOT EXISTS events_signupverification_expires_at_idx 
+                ON events_signupverification (expires_at);
+            CREATE INDEX IF NOT EXISTS events_signupverification_is_used_idx 
+                ON events_signupverification (is_used);
+            """,
+            reverse_sql="DROP TABLE IF EXISTS events_signupverification CASCADE;"
         ),
-        migrations.CreateModel(
-            name='FormRegistrationVerification',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('email', models.EmailField(db_index=True, max_length=254)),
-                ('code_hash', models.CharField(db_index=True, max_length=64)),
-                ('form_data', models.JSONField(default=dict)),
-                ('created_at', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('expires_at', models.DateTimeField(db_index=True)),
-                ('is_used', models.BooleanField(db_index=True, default=False)),
-                ('used_at', models.DateTimeField(blank=True, null=True)),
-                ('ip_address', models.GenericIPAddressField(blank=True, null=True)),
-                ('user_agent', models.TextField(blank=True)),
-                ('form', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='verifications', to='dashboard.formconfiguration')),
-            ],
-            options={
-                'verbose_name': 'Form Registration Verification',
-                'verbose_name_plural': 'Form Registration Verifications',
-                'ordering': ['-created_at'],
-            },
-        ),
-        migrations.AddIndex(
-            model_name='signupverification',
-            index=models.Index(fields=['email', 'is_used', '-created_at'], name='events_sign_email_is_used_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='signupverification',
-            index=models.Index(fields=['code_hash', 'is_used'], name='events_sign_code_hash_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='signupverification',
-            index=models.Index(fields=['expires_at', 'is_used'], name='events_sign_expires_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='formregistrationverification',
-            index=models.Index(fields=['email', 'form', 'is_used', '-created_at'], name='events_form_email_form_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='formregistrationverification',
-            index=models.Index(fields=['code_hash', 'is_used'], name='events_form_code_hash_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='formregistrationverification',
-            index=models.Index(fields=['expires_at', 'is_used'], name='events_form_expires_idx'),
+        
+        # Create FormRegistrationVerification table if not exists
+        migrations.RunSQL(
+            sql="""
+            CREATE TABLE IF NOT EXISTS events_formregistrationverification (
+                id BIGSERIAL PRIMARY KEY,
+                email VARCHAR(254) NOT NULL,
+                code_hash VARCHAR(64) NOT NULL,
+                form_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                is_used BOOLEAN NOT NULL DEFAULT FALSE,
+                used_at TIMESTAMP WITH TIME ZONE NULL,
+                ip_address INET NULL,
+                user_agent TEXT NOT NULL DEFAULT '',
+                form_id BIGINT NOT NULL REFERENCES dashboard_formconfiguration(id) ON DELETE CASCADE
+            );
+            
+            CREATE INDEX IF NOT EXISTS events_form_email_form_idx 
+                ON events_formregistrationverification (email, form_id, is_used, created_at DESC);
+            CREATE INDEX IF NOT EXISTS events_form_code_hash_idx 
+                ON events_formregistrationverification (code_hash, is_used);
+            CREATE INDEX IF NOT EXISTS events_form_expires_idx 
+                ON events_formregistrationverification (expires_at, is_used);
+            CREATE INDEX IF NOT EXISTS events_formregistrationverification_email_idx 
+                ON events_formregistrationverification (email);
+            CREATE INDEX IF NOT EXISTS events_formregistrationverification_code_hash_idx 
+                ON events_formregistrationverification (code_hash);
+            CREATE INDEX IF NOT EXISTS events_formregistrationverification_created_at_idx 
+                ON events_formregistrationverification (created_at);
+            CREATE INDEX IF NOT EXISTS events_formregistrationverification_expires_at_idx 
+                ON events_formregistrationverification (expires_at);
+            CREATE INDEX IF NOT EXISTS events_formregistrationverification_is_used_idx 
+                ON events_formregistrationverification (is_used);
+            CREATE INDEX IF NOT EXISTS events_formregistrationverification_form_id_idx 
+                ON events_formregistrationverification (form_id);
+            """,
+            reverse_sql="DROP TABLE IF EXISTS events_formregistrationverification CASCADE;"
         ),
     ]

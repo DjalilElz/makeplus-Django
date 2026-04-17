@@ -3,6 +3,55 @@
 from django.db import migrations, models
 
 
+def rename_indexes_safely(apps, schema_editor):
+    """Rename indexes only if they exist"""
+    from django.db import connection
+    
+    with connection.cursor() as cursor:
+        # Check if old indexes exist before renaming
+        index_renames = [
+            ('events_emaillogincode', 'events_emai_code_ha_idx', 'events_emai_code_ha_60562a_idx'),
+            ('events_formregistrationverification', 'events_form_email_form_idx', 'events_form_email_0391c3_idx'),
+            ('events_formregistrationverification', 'events_form_code_hash_idx', 'events_form_code_ha_b77569_idx'),
+            ('events_formregistrationverification', 'events_form_expires_idx', 'events_form_expires_959e14_idx'),
+            ('events_signupverification', 'events_sign_email_is_used_idx', 'events_sign_email_a18e44_idx'),
+            ('events_signupverification', 'events_sign_code_hash_idx', 'events_sign_code_ha_5fb7bf_idx'),
+            ('events_signupverification', 'events_sign_expires_idx', 'events_sign_expires_7d73df_idx'),
+        ]
+        
+        for table_name, old_index, new_index in index_renames:
+            # Check if old index exists
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM pg_indexes 
+                    WHERE tablename = %s 
+                    AND indexname = %s
+                );
+            """, [table_name, old_index])
+            
+            old_exists = cursor.fetchone()[0]
+            
+            # Check if new index already exists
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM pg_indexes 
+                    WHERE tablename = %s 
+                    AND indexname = %s
+                );
+            """, [table_name, new_index])
+            
+            new_exists = cursor.fetchone()[0]
+            
+            # Only rename if old exists and new doesn't
+            if old_exists and not new_exists:
+                cursor.execute(f'ALTER INDEX {old_index} RENAME TO {new_index};')
+                print(f"Renamed index {old_index} to {new_index}")
+            elif new_exists:
+                print(f"Index {new_index} already exists, skipping rename")
+            else:
+                print(f"Index {old_index} doesn't exist, skipping rename")
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,42 +59,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Only rename indexes - don't add fields that already exist
-        migrations.RenameIndex(
-            model_name='emaillogincode',
-            new_name='events_emai_code_ha_60562a_idx',
-            old_name='events_emai_code_ha_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='formregistrationverification',
-            new_name='events_form_email_0391c3_idx',
-            old_name='events_form_email_form_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='formregistrationverification',
-            new_name='events_form_code_ha_b77569_idx',
-            old_name='events_form_code_hash_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='formregistrationverification',
-            new_name='events_form_expires_959e14_idx',
-            old_name='events_form_expires_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='signupverification',
-            new_name='events_sign_email_a18e44_idx',
-            old_name='events_sign_email_is_used_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='signupverification',
-            new_name='events_sign_code_ha_5fb7bf_idx',
-            old_name='events_sign_code_hash_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='signupverification',
-            new_name='events_sign_expires_7d73df_idx',
-            old_name='events_sign_expires_idx',
-        ),
-        # Removed AddField operations for location_url and max_participants
-        # as they already exist from migrations 0017 and 0018
+        migrations.RunPython(rename_indexes_safely, migrations.RunPython.noop),
     ]
