@@ -140,34 +140,28 @@
                     <!-- Success Message -->
                     <div class="success-message text-center">
                         <i class="bi bi-check-circle-fill success-icon"></i>
-                        <h3 class="mt-3 mb-2">{% if is_re_registration %}Registration Updated!{% else %}Thank You!{% endif %}</h3>
-                        <p class="mb-0">{{ form_config.success_message }}</p>
+                        <h3 class="mt-3 mb-2">Registration Successful!</h3>
+                        <p class="mb-0">{{ message|default:form_config.success_message }}</p>
                         
-                        {% if login_code_sent %}
-                            <div class="alert alert-info mt-3">
-                                <i class="bi bi-envelope-check me-2"></i>
-                                <strong>{% if is_re_registration %}Updated!{% else %}Welcome!{% endif %}</strong> 
-                                {% if is_re_registration %}
-                                    Your registration has been updated successfully.
-                                {% else %}
-                                    Your account has been created successfully.
-                                {% endif %}
-                                <br>A confirmation email with your <strong>6-digit login code</strong> has been sent to <strong>{{ submitted_email }}</strong>
-                                <br><small class="text-muted">Please check your inbox (and spam folder) for your login code.</small>
-                            </div>
-                        {% endif %}
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-phone me-2"></i>
+                            <strong>Next Steps</strong>
+                            <br>You can now log in to the mobile app using:
+                            <br><strong>Email:</strong> {{ submitted_email }}
+                            <br><strong>Password:</strong> The password you set during sign up
+                        </div>
                         
                         <div class="alert alert-primary mt-3">
-                            <i class="bi bi-key me-2"></i>
-                            <strong>Login Instructions</strong>
-                            <br><small>Use your email and the 6-digit code from the email to log in to the mobile application.</small>
-                            <br><small class="text-muted">The login code is specific to this event.</small>
+                            <i class="bi bi-calendar-check me-2"></i>
+                            <strong>Event Access</strong>
+                            <br><small>You are now registered for {{ form_config.event.name }}.</small>
+                            <br><small class="text-muted">Check the mobile app for event details and your QR code.</small>
                         </div>
                     </div>
                     
                     <div class="text-center">
                         <a href="{% url 'public_form' form_config.slug %}" class="btn btn-outline-primary">
-                            Submit Another Response
+                            Register Another Person
                         </a>
                     </div>
                 {% elif form_closed %}
@@ -179,6 +173,152 @@
                             This registration form is currently not accepting submissions.
                         </p>
                     </div>
+                {% elif show_verification %}
+                    <!-- Verification Code Input -->
+                    <div class="text-center mb-4">
+                        <i class="bi bi-envelope-check-fill" style="font-size: 3rem; color: #667eea;"></i>
+                        <h3 class="mt-3 mb-2">Check Your Email</h3>
+                        <p class="text-muted">
+                            We've sent a 6-digit verification code to<br>
+                            <strong>{{ submitted_email }}</strong>
+                        </p>
+                    </div>
+
+                    {% if message %}
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>{{ message }}
+                        </div>
+                    {% endif %}
+
+                    {% if errors %}
+                        <div class="error-message">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Error:</strong>
+                            <ul class="mb-0 mt-2">
+                                {% for error in errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    <!-- Verification Form -->
+                    <form method="post" id="verificationForm">
+                        {% csrf_token %}
+                        <input type="hidden" name="email" value="{{ submitted_email }}">
+                        
+                        <div class="mb-4">
+                            <label for="verification_code" class="form-label text-center d-block">
+                                Enter Verification Code
+                            </label>
+                            <input 
+                                type="text" 
+                                class="form-control form-control-lg text-center" 
+                                id="verification_code" 
+                                name="verification_code"
+                                placeholder="000000"
+                                maxlength="6"
+                                pattern="[0-9]{6}"
+                                required
+                                autofocus
+                                style="font-size: 2rem; letter-spacing: 0.5rem; font-weight: 600;"
+                            >
+                            <small class="text-muted d-block text-center mt-2">
+                                Code expires in 3 minutes
+                            </small>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-submit">
+                                <i class="bi bi-check-circle-fill me-2"></i>Verify & Complete Registration
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Resend Code -->
+                    <div class="text-center mt-4">
+                        <p class="text-muted small mb-2">Didn't receive the code?</p>
+                        <button 
+                            type="button" 
+                            class="btn btn-outline-secondary btn-sm" 
+                            id="resendBtn"
+                            onclick="resendCode()"
+                        >
+                            <i class="bi bi-arrow-clockwise me-1"></i>Resend Code
+                        </button>
+                        <div id="resendTimer" class="text-muted small mt-2" style="display: none;">
+                            Please wait <span id="countdown">180</span> seconds before requesting a new code
+                        </div>
+                    </div>
+
+                    <script>
+                        let canResend = false;
+                        let countdownSeconds = 180; // 3 minutes
+
+                        function startResendTimer() {
+                            const resendBtn = document.getElementById('resendBtn');
+                            const resendTimer = document.getElementById('resendTimer');
+                            const countdownSpan = document.getElementById('countdown');
+                            
+                            resendBtn.disabled = true;
+                            resendTimer.style.display = 'block';
+                            
+                            const interval = setInterval(() => {
+                                countdownSeconds--;
+                                countdownSpan.textContent = countdownSeconds;
+                                
+                                if (countdownSeconds <= 0) {
+                                    clearInterval(interval);
+                                    resendBtn.disabled = false;
+                                    resendTimer.style.display = 'none';
+                                    canResend = true;
+                                    countdownSeconds = 180;
+                                }
+                            }, 1000);
+                        }
+
+                        function resendCode() {
+                            if (!canResend && countdownSeconds < 180) {
+                                alert('Please wait before requesting a new code.');
+                                return;
+                            }
+                            
+                            // Submit form to request new code
+                            const form = document.createElement('form');
+                            form.method = 'POST';
+                            form.action = window.location.href;
+                            
+                            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                            const csrfInput = document.createElement('input');
+                            csrfInput.type = 'hidden';
+                            csrfInput.name = 'csrfmiddlewaretoken';
+                            csrfInput.value = csrfToken;
+                            form.appendChild(csrfInput);
+                            
+                            const emailInput = document.createElement('input');
+                            emailInput.type = 'hidden';
+                            emailInput.name = 'email';
+                            emailInput.value = '{{ submitted_email }}';
+                            form.appendChild(emailInput);
+                            
+                            const resendInput = document.createElement('input');
+                            resendInput.type = 'hidden';
+                            resendInput.name = 'resend_code';
+                            resendInput.value = 'true';
+                            form.appendChild(resendInput);
+                            
+                            document.body.appendChild(form);
+                            form.submit();
+                        }
+
+                        // Start timer on page load
+                        startResendTimer();
+
+                        // Auto-format verification code input
+                        document.getElementById('verification_code').addEventListener('input', function(e) {
+                            this.value = this.value.replace(/[^0-9]/g, '');
+                        });
+                    </script>
                 {% else %}
                     <!-- Banner Image -->
                     {% if form_config.banner_image %}

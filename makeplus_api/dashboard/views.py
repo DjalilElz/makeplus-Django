@@ -2302,7 +2302,6 @@ def public_form_view(request, slug):
                 'form_data': request.POST.dict(),
             }
             return render(request, 'dashboard/public_form.html', context)
-            return render(request, 'dashboard/public_form.html', context)
     
     # GET request - display form
     context = {
