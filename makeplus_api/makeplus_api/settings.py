@@ -109,20 +109,14 @@ if config('USE_SUPABASE', default=False, cast=bool):
     # Supabase PostgreSQL with Session Pooler (for Render/IPv4 platforms)
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql',
+            'ENGINE': 'django_pg8000',
             'NAME': config('SUPABASE_DB_NAME', default='postgres'),
             'USER': config('SUPABASE_DB_USER', default='postgres.atwsdqeeymqpvsugeyko'),
             'PASSWORD': config('SUPABASE_DB_PASSWORD'),
             'HOST': config('SUPABASE_DB_HOST', default='aws-0-eu-central-1.pooler.supabase.com'),
             'PORT': config('SUPABASE_DB_PORT', default='6543'),  # Session Pooler port
             'OPTIONS': {
-                'sslmode': 'require',
-                'connect_timeout': 10,
-                'keepalives': 1,
-                'keepalives_idle': 30,
-                'keepalives_interval': 10,
-                'keepalives_count': 5,
-                'options': '-c statement_timeout=30000',  # 30 second query timeout
+                'ssl_context': True,  # Enable SSL for pg8000
             },
             'CONN_MAX_AGE': 600,  # Reuse connections for 10 minutes
             'CONN_HEALTH_CHECKS': True,  # Check connection health

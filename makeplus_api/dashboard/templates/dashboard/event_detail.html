@@ -503,6 +503,7 @@
                         <option value="organisateur">Organizers</option>
                         <option value="gestionnaire_des_salles">Room Managers</option>
                         <option value="controlleur_des_badges">Controllers</option>
+                        <option value="committee">Committee</option>
                         <option value="exposant">Exhibitors</option>
                         <option value="participant">Participants</option>
                     </select>
@@ -562,6 +563,8 @@
                                         <span class="badge bg-info">Room Manager</span>
                                     {% elif assignment.role == 'controlleur_des_badges' %}
                                         <span class="badge bg-warning text-dark">Controller</span>
+                                    {% elif assignment.role == 'committee' %}
+                                        <span class="badge bg-purple">Committee</span>
                                     {% elif assignment.role == 'exposant' %}
                                         <span class="badge bg-success">Exhibitor</span>
                                     {% elif assignment.role == 'participant' %}

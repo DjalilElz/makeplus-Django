@@ -94,6 +94,8 @@
                                 <span class="badge bg-info">Room Manager</span>
                             {% elif stat.assignment.role == 'controlleur_des_badges' %}
                                 <span class="badge bg-warning text-dark">Controller</span>
+                            {% elif stat.assignment.role == 'committee' %}
+                                <span class="badge bg-purple">Committee</span>
                             {% elif stat.assignment.role == 'exposant' %}
                                 <span class="badge bg-success">Exhibitor</span>
                             {% elif stat.assignment.role == 'participant' %}

@@ -8,6 +8,8 @@ from . import views
 from . import views_registration
 from . import auth_views
 from . import api_views  # REST API views for mobile app
+from . import signup_views  # Sign up views
+from . import form_validation_views  # Form validation views
 
 # Create router and register viewsets
 router = DefaultRouter()
@@ -34,7 +36,16 @@ urlpatterns = [
     path('auth/login/', auth_views.CustomLoginView.as_view(), name='login'),
     path('auth/logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('auth/request-code/', auth_views.RequestLoginCodeView.as_view(), name='request_login_code'),
-    path('auth/token/code/', serializers.LoginCodeTokenObtainView.as_view(), name='token_obtain_code'),  # Login with code for mobile
+    
+    # Sign up endpoints (mobile app)
+    path('auth/signup/request/', signup_views.SignUpRequestView.as_view(), name='signup_request'),
+    path('auth/signup/verify/', signup_views.SignUpVerifyView.as_view(), name='signup_verify'),
+    path('auth/signup/resend/', signup_views.SignUpResendView.as_view(), name='signup_resend'),
+    
+    # Form validation endpoints
+    path('forms/validate/', form_validation_views.FormValidationVerifyView.as_view(), name='form_validate'),
+    path('forms/validate/resend/', form_validation_views.FormValidationResendView.as_view(), name='form_validate_resend'),
+    
     path('auth/me/', api_views.UserProfileAPIView.as_view(), name='user-me'),  # REST API for mobile
     path('auth/profile/', auth_views.UserProfileView.as_view(), name='profile'),  # Template view for web
     path('auth/change-password/', auth_views.ChangePasswordView.as_view(), name='change-password'),

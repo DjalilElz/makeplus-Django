@@ -99,6 +99,8 @@
                                         <span class="badge bg-info">Room Manager</span>
                                     {% elif assignment.role == 'controlleur_des_badges' %}
                                         <span class="badge bg-warning text-dark">Controller</span>
+                                    {% elif assignment.role == 'committee' %}
+                                        <span class="badge bg-purple">Committee</span>
                                     {% elif assignment.role == 'exposant' %}
                                         <span class="badge bg-success">Exhibitor</span>
                                     {% elif assignment.role == 'participant' %}
@@ -163,6 +165,7 @@
                                                         <option value="organisateur" {% if assignment.role == 'organisateur' %}selected{% endif %}>Organizer</option>
                                                         <option value="gestionnaire_des_salles" {% if assignment.role == 'gestionnaire_des_salles' %}selected{% endif %}>Room Manager</option>
                                                         <option value="controlleur_des_badges" {% if assignment.role == 'controlleur_des_badges' %}selected{% endif %}>Controller</option>
+                                                        <option value="committee" {% if assignment.role == 'committee' %}selected{% endif %}>Committee</option>
                                                         <option value="exposant" {% if assignment.role == 'exposant' %}selected{% endif %}>Exhibitor</option>
                                                         <option value="participant" {% if assignment.role == 'participant' %}selected{% endif %}>Participant</option>
                                                     </select>

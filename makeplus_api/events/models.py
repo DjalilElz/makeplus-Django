@@ -9,6 +9,9 @@ import json
 import hashlib
 import secrets
 
+# Import verification models
+from .models_verification import SignUpVerification, FormRegistrationVerification
+
 
 class EmailLoginCode(models.Model):
     """
