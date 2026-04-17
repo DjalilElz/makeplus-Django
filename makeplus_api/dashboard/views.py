@@ -2083,12 +2083,6 @@ def public_form_view(request, slug):
     from django.utils import timezone
     from django.conf import settings
     from events.models import UserEventAssignment, Participant, UserProfile
-    from dashboard.registration_helpers import (
-        _ensure_registration_account,
-        handle_re_registration,
-        send_registration_confirmation_email
-    )
-    from events.login_code_service import issue_email_login_code
     import secrets
     
     # Get form regardless of active status
