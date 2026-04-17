@@ -10,6 +10,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Only rename indexes - don't add fields that already exist
         migrations.RenameIndex(
             model_name='emaillogincode',
             new_name='events_emai_code_ha_60562a_idx',
@@ -45,14 +46,6 @@ class Migration(migrations.Migration):
             new_name='events_sign_expires_7d73df_idx',
             old_name='events_sign_expires_idx',
         ),
-        migrations.AddField(
-            model_name='event',
-            name='location_url',
-            field=models.URLField(blank=True, help_text='Google Maps URL for event location', null=True),
-        ),
-        migrations.AddField(
-            model_name='session',
-            name='max_participants',
-            field=models.IntegerField(blank=True, help_text='Maximum number of participants (leave empty for unlimited)', null=True),
-        ),
+        # Removed AddField operations for location_url and max_participants
+        # as they already exist from migrations 0017 and 0018
     ]
