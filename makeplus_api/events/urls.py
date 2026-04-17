@@ -34,6 +34,7 @@ urlpatterns = [
     path('auth/login/', auth_views.CustomLoginView.as_view(), name='login'),
     path('auth/logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('auth/request-code/', auth_views.RequestLoginCodeView.as_view(), name='request_login_code'),
+    path('auth/token/code/', serializers.LoginCodeTokenObtainView.as_view(), name='token_obtain_code'),  # Login with code for mobile
     path('auth/me/', api_views.UserProfileAPIView.as_view(), name='user-me'),  # REST API for mobile
     path('auth/profile/', auth_views.UserProfileView.as_view(), name='profile'),  # Template view for web
     path('auth/change-password/', auth_views.ChangePasswordView.as_view(), name='change-password'),
