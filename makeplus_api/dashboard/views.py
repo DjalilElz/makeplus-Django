@@ -2115,150 +2115,171 @@ def public_form_view(request, slug):
     print(f"DEBUG: Form is ACTIVE, processing normally")
     
     if request.method == 'POST':
-        # CRITICAL: Re-check if form is still active before processing submission
-        # User might have had the form open when admin deactivated it
-        form_config.refresh_from_db()
-        
-        if not form_config.is_active:
-            print(f"DEBUG: Form was deactivated while user had it open - showing closed page")
-            # Form was deactivated while user had it open
-            context = {
-                'form_config': form_config,
-                'form_closed': True,
-                'show_submission_blocked_alert': True,  # Flag to show popup
-            }
-            response = render(request, 'dashboard/public_form.html', context)
-            # Prevent caching
-            response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            response['Pragma'] = 'no-cache'
-            response['Expires'] = '0'
-            return response
-        
-        # Collect form data
-        form_data = {}
-        email = None
-        first_name = None
-        last_name = None
-        errors = []
-        
-        for field in form_config.fields_config:
-            field_name = field.get('name')
+        try:
+            # CRITICAL: Re-check if form is still active before processing submission
+            # User might have had the form open when admin deactivated it
+            form_config.refresh_from_db()
             
-            # Handle checkbox fields (multiple values)
-            if field.get('type') == 'checkbox':
-                value = request.POST.getlist(field_name)
+            if not form_config.is_active:
+                print(f"DEBUG: Form was deactivated while user had it open - showing closed page")
+                # Form was deactivated while user had it open
+                context = {
+                    'form_config': form_config,
+                    'form_closed': True,
+                    'show_submission_blocked_alert': True,  # Flag to show popup
+                }
+                response = render(request, 'dashboard/public_form.html', context)
+                # Prevent caching
+                response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                response['Pragma'] = 'no-cache'
+                response['Expires'] = '0'
+                return response
+            
+            # Collect form data
+            form_data = {}
+            email = None
+            first_name = None
+            last_name = None
+            errors = []
+            
+            for field in form_config.fields_config:
+                field_name = field.get('name')
+                
+                # Handle checkbox fields (multiple values)
+                if field.get('type') == 'checkbox':
+                    value = request.POST.getlist(field_name)
+                else:
+                    value = request.POST.get(field_name, '')
+                
+                # Validate required fields
+                if field.get('required'):
+                    if not value or (isinstance(value, list) and len(value) == 0):
+                        errors.append(f'{field.get("label")} is required.')
+                        continue
+                
+                form_data[field_name] = value
+                
+                # Extract user creation fields
+                if field_name == 'email' or field.get('type') == 'email':
+                    email = value
+                elif field_name == 'first_name':
+                    first_name = value
+                elif field_name == 'last_name':
+                    last_name = value
+            
+            # Validate required fields for user creation
+            if not email:
+                errors.append('Email is required.')
+            if not first_name:
+                errors.append('First name is required.')
+            if not last_name:
+                errors.append('Last name is required.')
+            
+            # Validate event is assigned to form
+            if not form_config.event:
+                errors.append('This form is not linked to an event.')
+            elif not form_config.event.start_date:
+                errors.append('Event configuration is incomplete (missing start date).')
+                print(f"WARNING: Event {form_config.event.id} missing start_date")
+            
+            # If there are errors, redisplay form with errors
+            if errors:
+                context = {
+                    'form_config': form_config,
+                    'fields': form_config.fields_config,
+                    'errors': errors,
+                    'form_data': form_data,
+                }
+                return render(request, 'dashboard/public_form.html', context)
+            
+            # Get IP address
+            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+            if x_forwarded_for:
+                ip_address = x_forwarded_for.split(',')[0]
             else:
-                value = request.POST.get(field_name, '')
+                ip_address = request.META.get('REMOTE_ADDR')
             
-            # Validate required fields
-            if field.get('required'):
-                if not value or (isinstance(value, list) and len(value) == 0):
-                    errors.append(f'{field.get("label")} is required.')
-                    continue
+            # Check if user is re-registering for the same event
+            existing_user = User.objects.filter(email=email).first()
+            is_re_registration = False
             
-            form_data[field_name] = value
+            if existing_user and form_config.event:
+                if UserEventAssignment.objects.filter(user=existing_user, event=form_config.event).exists():
+                    is_re_registration = True
+                    # Invalidate old login codes for re-registration
+                    from events.login_code_service import invalidate_user_event_codes
+                    invalidate_user_event_codes(existing_user, form_config.event)
             
-            # Extract user creation fields
-            if field_name == 'email' or field.get('type') == 'email':
-                email = value
-            elif field_name == 'first_name':
-                first_name = value
-            elif field_name == 'last_name':
-                last_name = value
-        
-        # Validate required fields for user creation
-        if not email:
-            errors.append('Email is required.')
-        if not first_name:
-            errors.append('First name is required.')
-        if not last_name:
-            errors.append('Last name is required.')
-        
-        # Validate event is assigned to form
-        if not form_config.event:
-            errors.append('This form is not linked to an event.')
-        
-        # If there are errors, redisplay form with errors
-        if errors:
+            # Create or update user account (passwordless)
+            user, user_created, participant = _ensure_registration_account(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                event=form_config.event
+            )
+            
+            # Generate login code for this user+event
+            login_code, login_code_instance = issue_email_login_code(
+                user=user,
+                event=form_config.event,
+                invalidate_old=True
+            )
+            
+            # Update or create submission (update if same email exists)
+            submission, submission_created = FormSubmission.objects.update_or_create(
+                form=form_config,
+                email=email,
+                defaults={
+                    'data': form_data,
+                    'ip_address': ip_address,
+                    'user_agent': request.META.get('HTTP_USER_AGENT', '')[:500],
+                    'status': 'approved'  # Auto-approve registration forms
+                }
+            )
+            
+            # Only increment count if this is a new submission (not an update)
+            if submission_created:
+                form_config.increment_submission_count()
+            
+            # Send registration confirmation email with login code
+            try:
+                success, error, message_id = send_registration_confirmation_email(
+                    user=user,
+                    event=form_config.event,
+                    login_code=login_code
+                )
+                
+                if not success:
+                    print(f"Error sending registration email: {error}")
+            except Exception as e:
+                print(f"Exception sending registration email: {e}")
+            
+            # Show success page
             context = {
                 'form_config': form_config,
-                'fields': form_config.fields_config,
-                'errors': errors,
-                'form_data': form_data,
+                'success': True,
+                'submitted_email': email,
+                'is_re_registration': is_re_registration,
+                'login_code_sent': True,
             }
             return render(request, 'dashboard/public_form.html', context)
         
-        # Get IP address
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            ip_address = x_forwarded_for.split(',')[0]
-        else:
-            ip_address = request.META.get('REMOTE_ADDR')
-        
-        # Check if user is re-registering for the same event
-        existing_user = User.objects.filter(email=email).first()
-        is_re_registration = False
-        
-        if existing_user and form_config.event:
-            if UserEventAssignment.objects.filter(user=existing_user, event=form_config.event).exists():
-                is_re_registration = True
-                # Invalidate old login codes for re-registration
-                from events.login_code_service import invalidate_user_event_codes
-                invalidate_user_event_codes(existing_user, form_config.event)
-        
-        # Create or update user account (passwordless)
-        user, user_created, participant = _ensure_registration_account(
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-            event=form_config.event
-        )
-        
-        # Generate login code for this user+event
-        login_code, login_code_instance = issue_email_login_code(
-            user=user,
-            event=form_config.event,
-            invalidate_old=True
-        )
-        
-        # Update or create submission (update if same email exists)
-        submission, submission_created = FormSubmission.objects.update_or_create(
-            form=form_config,
-            email=email,
-            defaults={
-                'data': form_data,
-                'ip_address': ip_address,
-                'user_agent': request.META.get('HTTP_USER_AGENT', '')[:500],
-                'status': 'approved'  # Auto-approve registration forms
-            }
-        )
-        
-        # Only increment count if this is a new submission (not an update)
-        if submission_created:
-            form_config.increment_submission_count()
-        
-        # Send registration confirmation email with login code
-        try:
-            success, error, message_id = send_registration_confirmation_email(
-                user=user,
-                event=form_config.event,
-                login_code=login_code
-            )
-            
-            if not success:
-                print(f"Error sending registration email: {error}")
         except Exception as e:
-            print(f"Exception sending registration email: {e}")
-        
-        # Show success page
-        context = {
-            'form_config': form_config,
-            'success': True,
-            'submitted_email': email,
-            'is_re_registration': is_re_registration,
-            'login_code_sent': True,
-        }
-        return render(request, 'dashboard/public_form.html', context)
+            # Log the full error for debugging
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"ERROR in form submission: {str(e)}")
+            print(f"Full traceback:\n{error_details}")
+            
+            # Show user-friendly error page
+            context = {
+                'form_config': form_config,
+                'fields': form_config.fields_config,
+                'errors': [f'An error occurred while processing your submission. Please try again or contact support.'],
+                'form_data': request.POST.dict(),
+            }
+            return render(request, 'dashboard/public_form.html', context)
+            return render(request, 'dashboard/public_form.html', context)
     
     # GET request - display form
     context = {

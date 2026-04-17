@@ -69,7 +69,11 @@ Local: http://localhost:8000
   "role": "controller",
   "event": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "Tech Conference 2026"
+    "name": "Tech Conference 2026",
+    "start_date": "2026-06-15T09:00:00Z",
+    "end_date": "2026-06-17T18:00:00Z",
+    "location": "Convention Center",
+    "status": "active"
   }
 }
 ```
@@ -482,7 +486,7 @@ Authorization: Bearer <access_token>
 ### 14. Generate QR Code
 **Endpoint:** `GET /api/qr/generate/`
 
-**Description:** Generate QR code for current user
+**Description:** Generate QR code for current user with complete participant information including ALL paid items
 
 **Authentication:** Required
 
@@ -492,10 +496,99 @@ Authorization: Bearer <access_token>
   "success": true,
   "qr_data": {
     "user_id": 1,
-    "badge_id": "USER-1-ABC12345"
+    "badge_id": "USER-1-ABC12345",
+    "email": "john@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "full_name": "John Doe",
+    "role": "participant",
+    "event": {
+      "id": "event-uuid",
+      "name": "Tech Conference 2026",
+      "start_date": "2026-06-15T09:00:00Z",
+      "end_date": "2026-06-17T18:00:00Z"
+    },
+    "participant_id": "participant-uuid",
+    "is_checked_in": true,
+    "checked_in_at": "2026-06-15T09:30:00Z",
+    "paid_items": [
+      {
+        "type": "session",
+        "id": "session-uuid-1",
+        "title": "Advanced Workshop",
+        "is_paid": true,
+        "payment_status": "paid",
+        "amount_paid": 50.0,
+        "has_access": true
+      },
+      {
+        "type": "session",
+        "id": "session-uuid-2",
+        "title": "Free Conference",
+        "is_paid": false,
+        "payment_status": "free",
+        "amount_paid": 0.0,
+        "has_access": true
+      },
+      {
+        "type": "room",
+        "id": "room-uuid-1",
+        "title": "VIP Lounge",
+        "is_paid": true,
+        "payment_status": "paid",
+        "amount_paid": 100.0,
+        "has_access": true
+      }
+    ],
+    "total_paid_items": 2,
+    "access_summary": {
+      "total_sessions": 2,
+      "paid_sessions": 1,
+      "total_rooms": 1,
+      "has_any_paid_access": true
+    }
   }
 }
 ```
+
+**QR Data Fields:**
+- `user_id` - User ID
+- `badge_id` - Unique badge identifier
+- `email` - User email
+- `first_name`, `last_name`, `full_name` - User name
+- `role` - User role in event
+- `event` - Event details (id, name, dates)
+- `participant_id` - Participant ID (if registered)
+- `is_checked_in` - Check-in status
+- `checked_in_at` - Check-in timestamp
+- `paid_items` - Array of ALL items with access (sessions, rooms, etc.)
+  - `type` - Item type: "session" or "room"
+  - `id` - Item ID
+  - `title` - Item name
+  - `is_paid` - Whether item requires payment (true/false)
+  - `payment_status` - "paid" or "free"
+  - `amount_paid` - Amount paid (0 if free)
+  - `has_access` - Whether user has access (true/false)
+- `total_paid_items` - Count of paid items
+- `access_summary` - Quick summary of access
+
+**Mobile App Usage:**
+When controller scans this QR code, display a screen showing:
+1. **Participant Info:** Name, email, badge ID
+2. **Check-in Status:** ✅ Checked in or ❌ Not checked in
+3. **Access Items:** List of all items where `has_access: true`
+4. **Simple Display:** Show item name and whether it's paid or free
+
+**Access Logic (Binary - Simple):**
+- `has_access: true` → ✅ Show the item (ALLOW ENTRY)
+- `has_access: false` → Don't show the item (NO ACCESS)
+
+**Important:**
+- If someone paid for something → `has_access: true`
+- If something is free → `has_access: true`
+- Binary logic: 1 = has access, 0 = no access
+- Controller just verifies participant has access
+- No action buttons needed - information only
 
 ---
 
@@ -733,9 +826,58 @@ Authorization: Bearer <access_token>
 
 ---
 
+## User Profile
+
+### 23. Get User Profile
+**Endpoint:** `GET /api/auth/me/`
+
+**Description:** Get current user profile information
+
+**Authentication:** Required (Bearer token)
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Success Response:** `200 OK`
+```json
+{
+  "id": 40,
+  "email": "controller1@wemakeplus.com",
+  "first_name": "Controller",
+  "last_name": "One",
+  "full_name": "Controller One",
+  "role": "controller",
+  "event": {
+    "id": "event-uuid",
+    "name": "Tech Conference 2026",
+    "status": "active"
+  }
+}
+```
+
+**Response Fields:**
+- `id` - User ID
+- `email` - User email address
+- `first_name` - User's first name
+- `last_name` - User's last name
+- `full_name` - Full name (or email if name not set)
+- `role` - User's role in the event (controller, gestionnaire, exposant, participant, admin)
+- `event` - Current active event assignment (null if no assignment)
+
+**Error Response:** `401 Unauthorized`
+```json
+{
+  "detail": "Authentication credentials were not provided."
+}
+```
+
+---
+
 ## Statistics & Dashboard
 
-### 25. Get Dashboard Statistics
+### 24. Get Dashboard Statistics
 **Endpoint:** `GET /api/dashboard/stats/`
 
 **Description:** Get dashboard statistics for current user based on their role
@@ -764,34 +906,42 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 26. Get My Room Statistics
+### 25. Get My Room Statistics
 **Endpoint:** `GET /api/my-room/statistics/`
 
-**Description:** Get statistics for rooms assigned to current user (controller/gestionnaire only)
+**Description:** Get statistics for check-ins performed by the current controller
+
+**Important:** Each controller sees only THEIR OWN scans/check-ins, not all check-ins in the event
 
 **Authentication:** Required (Controller or Gestionnaire role)
 
 **Success Response:** `200 OK`
 ```json
 {
-  "assigned_rooms": 2,
-  "total_sessions_today": 6,
-  "current_participants": 78,
-  "total_check_ins_today": 145,
+  "total_rooms": 3,
+  "total_sessions_today": 12,
+  "my_check_ins_today": 45,
   "rooms": [
     {
-      "id": "room-uuid",
-      "name": "Main Hall A",
+      "id": "room-uuid-1",
+      "name": "Salle A",
       "capacity": 200,
-      "sessions_today": 3,
-      "check_ins_today": 75
+      "sessions_today": 4,
+      "my_check_ins_today": 18
     },
     {
       "id": "room-uuid-2",
-      "name": "Workshop Room B",
-      "capacity": 50,
+      "name": "Salle B",
+      "capacity": 150,
+      "sessions_today": 5,
+      "my_check_ins_today": 22
+    },
+    {
+      "id": "room-uuid-3",
+      "name": "Salle C",
+      "capacity": 100,
       "sessions_today": 3,
-      "check_ins_today": 70
+      "my_check_ins_today": 5
     }
   ],
   "role": "controller",
@@ -802,6 +952,19 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Response Fields:**
+- `total_rooms` - Total number of rooms in the event
+- `total_sessions_today` - Total sessions across all rooms today
+- `my_check_ins_today` - Total check-ins performed by THIS controller today
+- `rooms` - Array of all rooms with:
+  - `sessions_today` - Sessions in this room today
+  - `my_check_ins_today` - Check-ins by THIS controller in this room today
+
+**Example:**
+- Controller1 scans 45 participants → sees `my_check_ins_today: 45`
+- Controller2 scans 30 participants → sees `my_check_ins_today: 30`
+- Each controller sees only their own scans
+
 **Error Response:** `404 Not Found`
 ```json
 {
@@ -811,7 +974,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 27. Get My Events
+### 26. Get My Events
 **Endpoint:** `GET /api/my-events/`
 
 **Description:** Get list of events assigned to current user
@@ -841,7 +1004,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 28. Get My Ateliers
+### 27. Get My Ateliers
 **Endpoint:** `GET /api/my-ateliers/`
 
 **Description:** Get list of workshops/ateliers user has access to
@@ -872,7 +1035,7 @@ Authorization: Bearer <access_token>
 
 ## Exposant Scans (Booth Visits)
 
-### 29. List Exposant Scans
+### 28. List Exposant Scans
 **Endpoint:** `GET /api/exposant-scans/`
 
 **Description:** Get list of participant scans by exposants
@@ -907,7 +1070,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 30. Create Exposant Scan
+### 29. Create Exposant Scan
 **Endpoint:** `POST /api/exposant-scans/`
 
 **Description:** Record a participant scan at exposant booth
