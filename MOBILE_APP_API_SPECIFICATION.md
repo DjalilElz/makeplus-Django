@@ -113,9 +113,7 @@ Local: http://localhost:8000
 
 **Password Requirements:**
 - At least 8 characters
-- Cannot be too common
-- Cannot be entirely numeric
-- Cannot be too similar to email
+- Must contain at least one number
 
 ---
 
