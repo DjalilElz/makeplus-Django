@@ -1113,18 +1113,28 @@ def event_users(request, event_id):
         user = assignment.user
         
         # Get participant profile if exists
-        participant = Participant.objects.filter(user=user, event=event).first()
+        try:
+            participant = Participant.objects.get(user=user)
+            # Check if registered for this event
+            from events.models import ParticipantEventRegistration
+            event_registration = ParticipantEventRegistration.objects.filter(
+                participant=participant,
+                event=event
+            ).first()
+        except Participant.DoesNotExist:
+            participant = None
+            event_registration = None
         
         stats = {
             'assignment': assignment,
             'user': user,
             'participant': participant,
-            'is_checked_in': participant.is_checked_in if participant else False,
-            'checked_in_at': participant.checked_in_at if participant else None,
+            'is_checked_in': event_registration.is_checked_in if event_registration else False,
+            'checked_in_at': event_registration.checked_in_at if event_registration else None,
         }
         
         # If participant, get additional stats
-        if participant:
+        if participant and event_registration:
             # Total spent
             total_spent = CaisseTransaction.objects.filter(
                 participant=participant
