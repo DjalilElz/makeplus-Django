@@ -182,7 +182,7 @@ def dashboard_home(request):
         # Get recent events only (limit to 20 for performance)
         # Use prefetch to get counts efficiently
         events = list(Event.objects.select_related('created_by').prefetch_related(
-            'participants', 'rooms', 'sessions'
+            'registered_participants', 'rooms', 'sessions'
         ).order_by('-start_date')[:20])
         
         # Calculate overall statistics using aggregate (single query)
