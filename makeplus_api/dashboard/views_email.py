@@ -275,32 +275,35 @@ def send_event_email(request, event_id, template_id):
     if request.method == 'POST':
         target_type = request.POST.get('target_type')
         
-        # Get participants based on target type
-        participants = Participant.objects.filter(event=event).select_related('user')
+        # Get participants registered for this event via ParticipantEventRegistration
+        from events.models import ParticipantEventRegistration
+        event_registrations = ParticipantEventRegistration.objects.filter(
+            event=event
+        ).select_related('participant__user')
         
         if target_type == 'attended':
-            participants = participants.filter(check_in_time__isnull=False)
+            event_registrations = event_registrations.filter(is_checked_in=True)
         elif target_type == 'not_attended':
-            participants = participants.filter(check_in_time__isnull=True)
+            event_registrations = event_registrations.filter(is_checked_in=False)
         elif target_type == 'paid':
             # Participants who have transactions
             from caisse.models import CaisseTransaction
             paid_participant_ids = CaisseTransaction.objects.filter(
-                participant__event=event,
+                caisse__event=event,
                 status='completed'
             ).values_list('participant_id', flat=True).distinct()
-            participants = participants.filter(id__in=paid_participant_ids)
+            event_registrations = event_registrations.filter(participant_id__in=paid_participant_ids)
         elif target_type == 'not_paid':
             # Participants without transactions
             from caisse.models import CaisseTransaction
             paid_participant_ids = CaisseTransaction.objects.filter(
-                participant__event=event,
+                caisse__event=event,
                 status='completed'
             ).values_list('participant_id', flat=True).distinct()
-            participants = participants.exclude(id__in=paid_participant_ids)
+            event_registrations = event_registrations.exclude(participant_id__in=paid_participant_ids)
         # else: all_participants (default, no filter)
         
-        if not participants.exists():
+        if not event_registrations.exists():
             messages.warning(request, 'No participants match the selected criteria.')
             return redirect('dashboard:send_event_email', event_id=event.id, template_id=template.id)
         
@@ -311,18 +314,21 @@ def send_event_email(request, event_id, template_id):
             subject=template.subject,
             body=template.body,
             target_type=target_type,
-            recipient_count=participants.count(),
+            recipient_count=event_registrations.count(),
             sent_by=request.user,
             status='sending'
         )
-        email_log.recipients.set(participants)
+        # Set recipients as participants
+        participants_list = [reg.participant for reg in event_registrations]
+        email_log.recipients.set(participants_list)
         
         # Send emails
         sent_count = 0
         failed_count = 0
         errors = []
         
-        for participant in participants:
+        for registration in event_registrations:
+            participant = registration.participant
             try:
                 # Build context for template variables
                 context = {
@@ -334,7 +340,7 @@ def send_event_email(request, event_id, template_id):
                     'participant_email': participant.user.email,
                     'participant_phone': participant.user.profile.phone if hasattr(participant.user, 'profile') else '',
                     'badge_id': participant.badge_id,
-                    'qr_code_url': request.build_absolute_uri(f'/media/qr_codes/{participant.qr_code}') if participant.qr_code else '',
+                    'qr_code_url': request.build_absolute_uri(f'/media/qr_codes/{participant.qr_code_data}') if participant.qr_code_data else '',
                 }
                 
                 # Replace variables in subject and body
@@ -374,16 +380,17 @@ def send_event_email(request, event_id, template_id):
     # GET request - show send form
     # Count participants for each target type
     from caisse.models import CaisseTransaction
+    from events.models import ParticipantEventRegistration
     
-    all_count = Participant.objects.filter(event=event).count()
-    attended_count = Participant.objects.filter(event=event, check_in_time__isnull=False).count()
-    not_attended_count = Participant.objects.filter(event=event, check_in_time__isnull=True).count()
+    all_count = ParticipantEventRegistration.objects.filter(event=event).count()
+    attended_count = ParticipantEventRegistration.objects.filter(event=event, is_checked_in=True).count()
+    not_attended_count = ParticipantEventRegistration.objects.filter(event=event, is_checked_in=False).count()
     
     paid_participant_ids = CaisseTransaction.objects.filter(
-        participant__event=event,
+        caisse__event=event,
         status='completed'
     ).values_list('participant_id', flat=True).distinct()
-    paid_count = Participant.objects.filter(id__in=paid_participant_ids).count()
+    paid_count = ParticipantEventRegistration.objects.filter(event=event, participant_id__in=paid_participant_ids).count()
     not_paid_count = all_count - paid_count
     
     context = {

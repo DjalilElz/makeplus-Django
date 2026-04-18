@@ -290,7 +290,9 @@ def event_detail(request, event_id):
     }
     
     # Use aggregate for statistics (single query instead of multiple counts)
-    participant_stats = Participant.objects.filter(event=event).aggregate(
+    # Count participants registered for this event via ParticipantEventRegistration
+    from .models import ParticipantEventRegistration
+    participant_stats = ParticipantEventRegistration.objects.filter(event=event).aggregate(
         total=Count('id'),
         checked_in=Count('id', filter=Q(is_checked_in=True))
     )
@@ -308,13 +310,17 @@ def event_detail(request, event_id):
     ateliers = session_stats['ateliers'] or 0
     
     # Get participants queryset for template (but don't iterate here)
-    participants = Participant.objects.filter(event=event).select_related('user')
+    # Get all participants registered for this event
+    participant_registrations = ParticipantEventRegistration.objects.filter(
+        event=event
+    ).select_related('participant__user')
+    participants = [reg.participant for reg in participant_registrations]
     
     # Room access statistics (optimized)
     room_accesses = RoomAccess.objects.filter(room__event=event).count() if RoomAccess.objects.filter(room__event=event).exists() else 0
     
-    # Exposant scans (optimized) - use correct field name 'scanned_participant'
-    exposant_scans = ExposantScan.objects.filter(scanned_participant__event=event).count() if ExposantScan.objects.filter(scanned_participant__event=event).exists() else 0
+    # Exposant scans (optimized) - count scans for this event
+    exposant_scans = ExposantScan.objects.filter(event=event).count()
     
     # Session questions (use aggregate with correct field name)
     question_stats = SessionQuestion.objects.filter(session__event=event).aggregate(

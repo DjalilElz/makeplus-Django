@@ -69,11 +69,16 @@ class EventViewSet(viewsets.ModelViewSet):
         """Get event statistics"""
         event = self.get_object()
         
+        # Count participants via ParticipantEventRegistration
+        from .models import ParticipantEventRegistration
+        total_participants = ParticipantEventRegistration.objects.filter(event=event).count()
+        checked_in_count = ParticipantEventRegistration.objects.filter(event=event, is_checked_in=True).count()
+        
         stats = {
             'total_rooms': event.rooms.filter(is_active=True).count(),
             'total_sessions': event.sessions.count(),
-            'total_participants': event.participants.count(),
-            'checked_in_count': event.participants.filter(is_checked_in=True).count(),
+            'total_participants': total_participants,
+            'checked_in_count': checked_in_count,
             'live_sessions': event.sessions.filter(status='en_cours').count(),
             'completed_sessions': event.sessions.filter(status='termine').count(),
         }
