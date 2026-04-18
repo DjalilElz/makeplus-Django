@@ -517,9 +517,16 @@ Authorization: Bearer <access_token>
 ### 12. Generate QR Code
 **Endpoint:** `GET /api/qr/generate/`
 
+**⚠️ IMPORTANT:** This is the ONLY endpoint for generating participant QR codes. Do NOT use `/api/my-ateliers/` for QR code generation.
+
 **Description:** Generate QR code for current user with complete participant information including ALL paid items
 
-**Authentication:** Required
+**Authentication:** Required (Bearer token)
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
 
 **Success Response:** `200 OK`
 ```json
@@ -582,6 +589,13 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Error Response:** `401 Unauthorized`
+```json
+{
+  "detail": "Authentication credentials were not provided."
+}
+```
+
 **Mobile App Usage:**
 When controller scans this QR code, display a screen showing:
 1. **Participant Info:** Name, email, badge ID
@@ -599,6 +613,12 @@ When controller scans this QR code, display a screen showing:
 - Binary logic: 1 = has access, 0 = no access
 - Controller just verifies participant has access
 - No action buttons needed - information only
+
+**Common Mistake:**
+❌ DO NOT use `/api/my-ateliers/` for QR code generation
+✅ USE `/api/qr/generate/` for QR code generation
+
+The `/api/my-ateliers/` endpoint is for listing workshops the user is registered for, NOT for generating QR codes.
 
 ---
 
@@ -793,6 +813,81 @@ https://makeplus-django-5.onrender.com
 
 ---
 
-**Last Updated:** April 17, 2026  
+## Common Issues & Troubleshooting
+
+### Issue: QR Code Returns Empty or Wrong Data
+
+**Problem:** Using `/api/my-ateliers/` instead of `/api/qr/generate/`
+
+**Solution:** 
+```dart
+// ❌ WRONG - This is for listing workshops
+GET /api/my-ateliers/
+
+// ✅ CORRECT - This generates QR code
+GET /api/qr/generate/
+```
+
+**Correct Implementation:**
+```dart
+Future<Map<String, dynamic>> getQRCode() async {
+  final response = await dio.get(
+    '/api/qr/generate/',  // ← Use this endpoint
+    options: Options(
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+      },
+    ),
+  );
+  
+  if (response.statusCode == 200) {
+    return response.data['qr_data'];
+  }
+  throw Exception('Failed to generate QR code');
+}
+```
+
+---
+
+### Issue: Password Validation Fails
+
+**Problem:** Password doesn't meet requirements
+
+**Requirements:**
+- At least 8 characters
+- Must contain at least one number (0-9)
+
+**Examples:**
+```
+❌ "password" - No number
+❌ "pass1" - Too short (less than 8 chars)
+✅ "password1" - Valid
+✅ "mypass123" - Valid
+```
+
+---
+
+### Issue: Verification Code Expired
+
+**Problem:** Code expires after 3 minutes
+
+**Solution:**
+- Request a new code using `/api/auth/signup/resend/`
+- Must wait 3 minutes between requests
+- Use `wait_seconds` from response to show countdown
+
+---
+
+### Issue: "Email already registered"
+
+**Problem:** User trying to sign up with existing email
+
+**Solution:**
+- User should login instead: `POST /api/auth/token/`
+- Cannot create duplicate accounts
+
+---
+
+**Last Updated:** April 18, 2026  
 **API Version:** 2.0  
 **Status:** ✅ Production Ready

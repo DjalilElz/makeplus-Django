@@ -228,11 +228,36 @@ Users register for events on the website using the same email they used to sign 
 - `POST /api/auth/token/refresh/` - Refresh access token
 - `POST /api/auth/token/verify/` - Verify token validity
 
-### User Profile
+### User Profile & QR Code
 - `GET /api/auth/me/` - Get current user profile
+- `GET /api/qr/generate/` - **Generate QR code for participant** (USE THIS FOR QR CODE!)
 
 ### Other Endpoints
 - All other endpoints remain the same (events, rooms, sessions, etc.)
+
+---
+
+## ⚠️ IMPORTANT: QR Code Generation
+
+**Correct Endpoint:** `GET /api/qr/generate/`
+
+**DO NOT USE:** `/api/my-ateliers/` (this is for listing workshops, NOT QR codes)
+
+The QR code endpoint returns:
+```json
+{
+  "success": true,
+  "qr_data": {
+    "user_id": 1,
+    "badge_id": "USER-1-ABC12345",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "paid_items": [...],
+    "access_summary": {...}
+  }
+}
+```
 
 ---
 
