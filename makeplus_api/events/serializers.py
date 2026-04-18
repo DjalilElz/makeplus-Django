@@ -9,7 +9,8 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import (
     Event, Room, Session, Participant, RoomAccess, UserEventAssignment,
-    SessionAccess, Annonce, SessionQuestion, RoomAssignment, ExposantScan
+    SessionAccess, Annonce, SessionQuestion, RoomAssignment, ExposantScan,
+    EventRegistration
 )
 
 
@@ -124,22 +125,47 @@ class SessionSerializer(serializers.ModelSerializer):
 
 
 class ParticipantSerializer(serializers.ModelSerializer):
-    """Participant serializer"""
+    """Participant serializer - One participant per user"""
     user = UserSerializer(read_only=True)
     user_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         source='user',
         write_only=True
     )
+    registered_events = serializers.SerializerMethodField()
+    events_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Participant
         fields = [
-            'id', 'user', 'user_id', 'event', 'badge_id', 'qr_code_data',
-            'is_checked_in', 'checked_in_at', 'allowed_rooms', 'plan_file',
+            'id', 'user', 'user_id', 'badge_id', 'qr_code_data', 'role',
+            'plan_file', 'registered_events', 'events_count',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'badge_id', 'qr_code_data', 'role', 'created_at', 'updated_at']
+    
+    def get_registered_events(self, obj):
+        """Get list of events this participant is registered for"""
+        return [{'id': str(event.id), 'name': event.name} for event in obj.events.all()]
+    
+    def get_events_count(self, obj):
+        """Get count of events registered"""
+        return obj.events.count()
+
+
+class EventRegistrationSerializer(serializers.ModelSerializer):
+    """Event registration serializer - Links participant to specific event"""
+    participant_name = serializers.CharField(source='participant.user.get_full_name', read_only=True)
+    event_name = serializers.CharField(source='event.name', read_only=True)
+    
+    class Meta:
+        model = EventRegistration
+        fields = [
+            'id', 'participant', 'participant_name', 'event', 'event_name',
+            'is_checked_in', 'checked_in_at', 'allowed_rooms',
+            'registered_at', 'metadata'
+        ]
+        read_only_fields = ['id', 'registered_at']
 
 
 class RoomAccessSerializer(serializers.ModelSerializer):

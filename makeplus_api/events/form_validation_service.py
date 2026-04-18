@@ -145,31 +145,29 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
         
         # Check if user already registered for this event
         if form.event:
-            existing_participant = Participant.objects.filter(
+            # Get or create participant profile
+            participant, created = Participant.objects.get_or_create(
                 user=user,
-                event=form.event
-            ).first()
+                defaults={
+                    'badge_id': UserProfile.get_qr_for_user(user)['badge_id'],
+                    'qr_code_data': UserProfile.get_qr_for_user(user),
+                    'role': 'participant'
+                }
+            )
             
-            if existing_participant:
-                # Update existing participant
-                participant = existing_participant
-            else:
-                # Create participant record
-                qr_data = UserProfile.get_qr_for_user(user)
-                
-                participant = Participant.objects.create(
-                    user=user,
-                    event=form.event,
-                    badge_id=qr_data['badge_id'],
-                    qr_code_data=qr_data
-                )
-                
-                # Create or update user event assignment
-                UserEventAssignment.objects.get_or_create(
-                    user=user,
-                    event=form.event,
-                    defaults={'role': 'participant'}
-                )
+            # Check if already registered for this event
+            from .models import EventRegistration
+            event_registration, reg_created = EventRegistration.objects.get_or_create(
+                participant=participant,
+                event=form.event
+            )
+            
+            # Create or update user event assignment
+            UserEventAssignment.objects.get_or_create(
+                user=user,
+                event=form.event,
+                defaults={'role': 'participant'}
+            )
         else:
             participant = None
         

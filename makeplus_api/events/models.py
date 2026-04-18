@@ -419,20 +419,16 @@ class Session(models.Model):
 
 
 class Participant(models.Model):
-    """Event Participant"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='participations')
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='participants')
+    """Event Participant - One participant per user, can register for multiple events"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='participant_profile')
+    events = models.ManyToManyField(Event, through='EventRegistration', related_name='registered_participants')
     
     # Participant details
     badge_id = models.CharField(max_length=100, unique=True)
     qr_code_data = models.TextField(help_text="QR code content")
     
-    # Status
-    is_checked_in = models.BooleanField(default=False)
-    checked_in_at = models.DateTimeField(null=True, blank=True)
-    
-    # Access
-    allowed_rooms = models.ManyToManyField(Room, blank=True, related_name='allowed_participants')
+    # Role (always participant for users who sign up via mobile app)
+    role = models.CharField(max_length=30, default='participant', editable=False)
     
     # Exposant plan (PDF file for exposants only)
     plan_file = models.FileField(upload_to='exposants/plans/', blank=True, null=True, help_text="Plan PDF for exposants")
@@ -444,14 +440,47 @@ class Participant(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        unique_together = ('user', 'event')
         indexes = [
-            models.Index(fields=['event', 'is_checked_in']),
             models.Index(fields=['badge_id']),
         ]
     
     def __str__(self):
-        return f"{self.user.username} - {self.event.name}"
+        return f"{self.user.username} - Participant"
+    
+    def get_registered_events(self):
+        """Get all events this participant is registered for"""
+        return self.events.all()
+    
+    def is_registered_for_event(self, event):
+        """Check if participant is registered for a specific event"""
+        return self.events.filter(id=event.id).exists()
+
+
+class EventRegistration(models.Model):
+    """Through model for Participant-Event relationship"""
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='registrations')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='participant_registrations')
+    
+    # Registration status
+    is_checked_in = models.BooleanField(default=False)
+    checked_in_at = models.DateTimeField(null=True, blank=True)
+    
+    # Access control for this specific event
+    allowed_rooms = models.ManyToManyField(Room, blank=True, related_name='allowed_participants')
+    
+    # Registration metadata
+    registered_at = models.DateTimeField(auto_now_add=True)
+    metadata = models.JSONField(default=dict, blank=True, help_text="Event-specific data")
+    
+    class Meta:
+        unique_together = ('participant', 'event')
+        indexes = [
+            models.Index(fields=['event', 'is_checked_in']),
+            models.Index(fields=['participant', 'event']),
+        ]
+    
+    def __str__(self):
+        return f"{self.participant.user.username} - {self.event.name}"
 
 
 class RoomAccess(models.Model):

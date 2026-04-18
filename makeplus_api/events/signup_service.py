@@ -153,6 +153,17 @@ def verify_signup_code(email, code, ip_address=None, user_agent=''):
             password=password_hash  # Already hashed
         )
         
+        # Create Participant profile automatically
+        from .models import Participant, UserProfile
+        qr_data = UserProfile.get_qr_for_user(user)
+        
+        Participant.objects.create(
+            user=user,
+            badge_id=qr_data['badge_id'],
+            qr_code_data=qr_data,
+            role='participant'
+        )
+        
         # Mark code as used
         verification.mark_as_used(ip_address=ip_address, user_agent=user_agent)
         

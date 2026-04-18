@@ -157,17 +157,43 @@ class SessionAdmin(admin.ModelAdmin):
 
 @admin.register(Participant)
 class ParticipantAdmin(admin.ModelAdmin):
-    list_display = ['user', 'event', 'badge_id', 'is_checked_in', 'checked_in_at']
-    list_filter = ['event', 'is_checked_in']
+    list_display = ['user', 'badge_id', 'role', 'created_at', 'get_events_count']
+    list_filter = ['role', 'created_at']
     search_fields = ['user__username', 'user__email', 'badge_id']
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ['badge_id', 'qr_code_data', 'role', 'created_at', 'updated_at']
     
     fieldsets = (
-        ('User & Event', {
-            'fields': ('user', 'event')
+        ('User Information', {
+            'fields': ('user', 'role')
         }),
         ('Badge Information', {
             'fields': ('badge_id', 'qr_code_data')
+        }),
+        ('Exposant Plan', {
+            'fields': ('plan_file',),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('metadata', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_events_count(self, obj):
+        return obj.events.count()
+    get_events_count.short_description = 'Events Registered'
+
+
+@admin.register(EventRegistration)
+class EventRegistrationAdmin(admin.ModelAdmin):
+    list_display = ['participant', 'event', 'is_checked_in', 'checked_in_at', 'registered_at']
+    list_filter = ['event', 'is_checked_in', 'registered_at']
+    search_fields = ['participant__user__email', 'participant__user__first_name', 'event__name']
+    readonly_fields = ['registered_at']
+    
+    fieldsets = (
+        ('Registration', {
+            'fields': ('participant', 'event', 'registered_at')
         }),
         ('Check-in Status', {
             'fields': ('is_checked_in', 'checked_in_at')
@@ -177,7 +203,7 @@ class ParticipantAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Metadata', {
-            'fields': ('created_at', 'updated_at'),
+            'fields': ('metadata',),
             'classes': ('collapse',)
         }),
     )
