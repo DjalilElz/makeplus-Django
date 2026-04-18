@@ -149,6 +149,7 @@ Local: http://localhost:8000
 **Notes:**
 - Account is created using the data stored with the verification code
 - Returns JWT tokens immediately after account creation
+- **Participant profile is created automatically** with unique badge_id
 - **QR code is automatically generated and included** - no need to call `/api/qr/generate/` separately
 - User can login right away or use the returned tokens
 - Store the `qr_code` data locally for displaying QR code in the app
@@ -814,29 +815,31 @@ await prefs.remove('refresh_token');
 
 1. **Sign Up Required**: Users must create an account in the mobile app before registering for events
 
-2. **Password-Based Auth**: All authentication is now password-based (no more code login)
+2. **Automatic Participant Profile**: When users sign up, a participant profile is created automatically with a unique badge_id and QR code
 
-3. **QR Code Auto-Generated**: QR code is automatically included in login and signup responses - no need to call `/api/qr/generate/` separately (reduces API calls)
+3. **Password-Based Auth**: All authentication is now password-based (no more code login)
 
-4. **Token Lifetime**: 
+4. **QR Code Auto-Generated**: QR code is automatically included in login and signup responses - no need to call `/api/qr/generate/` separately (reduces API calls)
+
+5. **Token Lifetime**: 
    - Access token: 1 hour
    - Refresh token: 7 days
 
-5. **Verification Codes**:
+6. **Verification Codes**:
    - Sign up code: 6 digits, expires in 3 minutes
    - Can resend after 3 minutes
 
-6. **Multiple Events**: One user can register for multiple events with the same account
+7. **Multiple Events**: One participant can register for multiple events with the same account
 
-7. **Pagination**: Most list endpoints return paginated results (20 items per page by default)
+8. **Pagination**: Most list endpoints return paginated results (20 items per page by default)
 
-8. **Date Format**: All dates are in ISO 8601 format with UTC timezone
+9. **Date Format**: All dates are in ISO 8601 format with UTC timezone
 
-9. **UUIDs**: Most IDs are UUIDs, not integers
+10. **UUIDs**: Most IDs are UUIDs, not integers
 
-10. **File URLs**: All file URLs (images, PDFs) are absolute URLs
+11. **File URLs**: All file URLs (images, PDFs) are absolute URLs
 
-11. **Role Required**: Some endpoints require specific roles
+12. **Role Required**: Some endpoints require specific roles
 
 ---
 

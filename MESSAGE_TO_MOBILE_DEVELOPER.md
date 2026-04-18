@@ -20,8 +20,13 @@ The authentication system has been completely redesigned. Please read carefully 
 
 ### NEW FLOW (Current ✅)
 1. **User signs up in mobile app** (email + password + verification)
+   - User account created
+   - Participant profile created automatically
+   - Badge ID and QR code generated
 2. **User registers for events** on website (with validation code)
+   - Links participant to specific events
 3. **User logs in** with email + password
+   - Returns user data, role, event info, and QR code
 
 ---
 
@@ -97,7 +102,7 @@ Users must create an account in the mobile app BEFORE registering for any events
 }
 ```
 
-**Note:** QR code is automatically generated when account is created
+**Note:** QR code is automatically generated when account is created. The participant profile is also created automatically with a unique badge_id.
 
 **Resend Code:** `POST /api/auth/signup/resend/`
 - Requires: email, first_name, last_name, password (same as request)
@@ -177,36 +182,46 @@ Users register for events on the website using the same email they used to sign 
 
 ## 🔑 Key Points for Mobile Developer
 
-### 1. Sign Up is Required
-- Users MUST sign up in the mobile app first
-- Cannot register for events without an account
-- Sign up creates account with role "participant"
-- Account is NOT linked to any event yet
+### 1. Automatic Participant Profile
+- Users who sign up get a Participant profile created automatically
+- One user = One participant profile (permanent)
+- Badge ID and QR code generated on signup
+- Role is always "participant" for mobile app users
 
-### 2. Password-Based Authentication
+### 2. Sign Up Creates Participant
+- User signs up → User account + Participant profile created
+- Participant has unique badge_id and QR code
+- User can then register for multiple events
+
+### 3. Event Registration
+- User registers for Event A → Links participant to Event A
+- User registers for Event B → Links participant to Event B
+- Same participant, multiple event registrations
+
+### 4. Password-Based Authentication
 - ❌ NO MORE login with email + code
 - ✅ Login with email + password only
 - Use standard JWT token authentication
 - Tokens expire: Access (1 hour), Refresh (7 days)
 
-### 3. QR Code Auto-Generated
+### 5. QR Code Auto-Generated
 - ✅ QR code automatically included in login response
 - ✅ QR code automatically included in signup response
 - ❌ No need to call `/api/qr/generate/` separately
 - Reduces API calls and improves performance
 - Store QR code data locally for offline access
 
-### 4. Verification Codes
+### 6. Verification Codes
 - Sign up code: 6 digits, expires in 3 minutes
 - Can resend after 3 minutes
 - Codes are hashed and stored securely
 
-### 5. Multiple Events
-- One user account can register for multiple events
-- Same account, different participant records per event
-- User's `event` in login response shows their active event
+### 7. Multiple Events
+- One participant can register for multiple events
+- Each event registration tracked separately
+- User's `event` in login response shows their most recent active event
 
-### 6. User Roles
+### 8. User Roles
 - **Participants:** Sign up via mobile app (email + password)
 - **Controllers/Staff:** Created by admins (email + password)
 - All users login with email + password
