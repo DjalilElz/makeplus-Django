@@ -718,8 +718,7 @@ def user_list(request):
     users = User.objects.prefetch_related(
         'event_assignments__event',
         'profile',
-        'participations__event',
-        'participations__allowed_rooms'
+        'participant_profile__events'  # Updated for new structure
     ).order_by('-date_joined')
     
     # Filter by role if specified
