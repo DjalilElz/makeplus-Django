@@ -991,18 +991,26 @@ def registration_form_toggle(request, form_id):
 def registration_form_submissions(request, form_id):
     """View submissions for a form"""
     from .models_form import FormConfiguration, FormSubmission
-    from events.models import Participant
+    from events.models import Participant, ParticipantEventRegistration
     import json
     
     form = get_object_or_404(FormConfiguration, id=form_id)
     submissions = FormSubmission.objects.filter(form=form).order_by('-submitted_at')
     
     # Count by participation status (check-in status)
-    # Get all participants for this event
-    participants_checked_in = Participant.objects.filter(
-        event=form.event,
-        is_checked_in=True
-    ).values_list('user__email', flat=True)
+    # Get all participants for this event who are checked in
+    participants_checked_in = []
+    if form.event:
+        # Get checked-in participants for this event
+        checked_in_registrations = ParticipantEventRegistration.objects.filter(
+            event=form.event,
+            is_checked_in=True
+        ).select_related('participant__user')
+        
+        participants_checked_in = [
+            reg.participant.user.email 
+            for reg in checked_in_registrations
+        ]
     
     registered_count = submissions.count()
     participated_count = submissions.filter(email__in=participants_checked_in).count()
