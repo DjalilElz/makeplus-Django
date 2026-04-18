@@ -8,19 +8,23 @@ from .models import SignUpVerification
 from dashboard.email_sender import send_email
 
 
-def send_signup_verification_code(email, first_name, ip_address=None, user_agent=''):
+def send_signup_verification_code(email, first_name, password, last_name, ip_address=None, user_agent=''):
     """
     Send verification code for sign up
     
     Args:
         email: User's email
         first_name: User's first name (for email personalization)
+        password: User's password (will be hashed and stored temporarily)
+        last_name: User's last name
         ip_address: IP address of request
         user_agent: User agent string
     
     Returns:
         tuple: (success: bool, message: str, wait_seconds: int or None)
     """
+    from django.contrib.auth.hashers import make_password
+    
     # Check if user already exists
     if User.objects.filter(email=email).exists():
         return False, "Email already registered", None
@@ -30,9 +34,17 @@ def send_signup_verification_code(email, first_name, ip_address=None, user_agent
     if not can_resend:
         return False, f"Please wait {wait_seconds} seconds before requesting a new code", wait_seconds
     
-    # Create verification code
+    # Hash the password for temporary storage
+    password_hash = make_password(password)
+    
+    # Create verification code with signup data
     code, verification = SignUpVerification.create_verification(
         email=email,
+        signup_data={
+            'first_name': first_name,
+            'last_name': last_name,
+            'password_hash': password_hash
+        },
         ip_address=ip_address,
         user_agent=user_agent
     )
@@ -81,16 +93,13 @@ def send_signup_verification_code(email, first_name, ip_address=None, user_agent
         return False, f"Failed to send email: {error}", None
 
 
-def verify_signup_code(email, code, password, first_name, last_name, ip_address=None, user_agent=''):
+def verify_signup_code(email, code, ip_address=None, user_agent=''):
     """
     Verify sign up code and create user account
     
     Args:
         email: User's email
         code: 6-digit verification code
-        password: User's password
-        first_name: User's first name
-        last_name: User's last name
         ip_address: IP address of request
         user_agent: User agent string
     
@@ -119,6 +128,15 @@ def verify_signup_code(email, code, password, first_name, last_name, ip_address=
         if not is_valid:
             return False, None, message
         
+        # Get stored signup data
+        signup_data = verification.signup_data
+        first_name = signup_data.get('first_name', '')
+        last_name = signup_data.get('last_name', '')
+        password_hash = signup_data.get('password_hash', '')
+        
+        if not all([first_name, last_name, password_hash]):
+            return False, None, "Invalid verification data. Please request a new code."
+        
         # Create user account
         username = email.split('@')[0]
         counter = 1
@@ -127,12 +145,12 @@ def verify_signup_code(email, code, password, first_name, last_name, ip_address=
             username = f"{original_username}{counter}"
             counter += 1
         
-        user = User.objects.create_user(
+        user = User.objects.create(
             username=username,
             email=email,
             first_name=first_name,
             last_name=last_name,
-            password=password
+            password=password_hash  # Already hashed
         )
         
         # Mark code as used
@@ -144,17 +162,19 @@ def verify_signup_code(email, code, password, first_name, last_name, ip_address=
         return False, None, f"Error creating account: {str(e)}"
 
 
-def resend_signup_code(email, first_name, ip_address=None, user_agent=''):
+def resend_signup_code(email, first_name, password, last_name, ip_address=None, user_agent=''):
     """
     Resend verification code for sign up
     
     Args:
         email: User's email
         first_name: User's first name
+        password: User's password
+        last_name: User's last name
         ip_address: IP address of request
         user_agent: User agent string
     
     Returns:
         tuple: (success: bool, message: str, wait_seconds: int or None)
     """
-    return send_signup_verification_code(email, first_name, ip_address, user_agent)
+    return send_signup_verification_code(email, first_name, password, last_name, ip_address, user_agent)

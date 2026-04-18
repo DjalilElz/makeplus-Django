@@ -750,6 +750,9 @@ class SignUpVerification(models.Model):
     email = models.EmailField(db_index=True)
     code_hash = models.CharField(max_length=64, db_index=True)
     
+    # Store signup data temporarily until verified
+    signup_data = models.JSONField(default=dict, blank=True, help_text="Temporary storage for first_name, last_name, password_hash")
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     expires_at = models.DateTimeField(db_index=True)
@@ -808,7 +811,7 @@ class SignUpVerification(models.Model):
         self.save(update_fields=['is_used', 'used_at', 'ip_address', 'user_agent'])
     
     @classmethod
-    def create_verification(cls, email, ip_address=None, user_agent=''):
+    def create_verification(cls, email, signup_data=None, ip_address=None, user_agent=''):
         """Create a new verification code"""
         code = cls.generate_code()
         expires_at = timezone.now() + timedelta(minutes=3)
@@ -816,6 +819,7 @@ class SignUpVerification(models.Model):
         verification = cls.objects.create(
             email=email,
             code_hash=cls.hash_code(code),
+            signup_data=signup_data or {},
             expires_at=expires_at,
             ip_address=ip_address,
             user_agent=user_agent

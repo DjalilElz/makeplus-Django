@@ -37,7 +37,9 @@ Users must create an account in the mobile app BEFORE registering for any events
 ```json
 {
   "email": "user@example.com",
-  "first_name": "John"
+  "first_name": "John",
+  "last_name": "Doe",
+  "password": "mypass123"
 }
 ```
 
@@ -51,6 +53,10 @@ Users must create an account in the mobile app BEFORE registering for any events
 
 **User receives 6-digit code via email (expires in 3 minutes)**
 
+**Password is validated in this step:**
+- Must be at least 8 characters
+- Must contain at least one number
+
 ---
 
 **Endpoint:** `POST /api/auth/signup/verify/`
@@ -59,10 +65,7 @@ Users must create an account in the mobile app BEFORE registering for any events
 ```json
 {
   "email": "user@example.com",
-  "code": "123456",
-  "password": "SecurePassword123!",
-  "first_name": "John",
-  "last_name": "Doe"
+  "code": "123456"
 }
 ```
 
@@ -83,6 +86,7 @@ Users must create an account in the mobile app BEFORE registering for any events
 ```
 
 **Resend Code:** `POST /api/auth/signup/resend/`
+- Requires: email, first_name, last_name, password (same as request)
 - Can only resend after 3 minutes
 - Returns `wait_seconds` if too soon
 
@@ -178,16 +182,18 @@ Users register for events on the website using the same email they used to sign 
 
 ### Add Sign Up Screen
 ```dart
-// Sign Up Flow
+// Sign Up Flow - Step 1: Collect Info
 1. Email input
 2. First name input
-3. Request verification code button
-4. Show "Code sent" message
-5. Code input (6 digits)
-6. Password input
-7. Last name input
+3. Last name input
+4. Password input (validate: 8+ chars, has number)
+5. Request verification code button
+
+// Sign Up Flow - Step 2: Verify
+6. Show "Code sent to email" message
+7. Code input (6 digits)
 8. Verify button
-9. Show success → Navigate to login
+9. Show success → Navigate to login (or auto-login with returned tokens)
 ```
 
 ### Update Login Screen

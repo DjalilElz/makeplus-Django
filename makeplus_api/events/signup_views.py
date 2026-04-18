@@ -16,6 +16,7 @@ class SignUpRequestView(APIView):
     """
     Request sign up verification code
     POST /api/auth/signup/request/
+    Body: email, first_name, last_name, password
     """
     permission_classes = []
     renderer_classes = [JSONRenderer]
@@ -23,11 +24,22 @@ class SignUpRequestView(APIView):
     def post(self, request):
         email = request.data.get('email', '').strip().lower()
         first_name = request.data.get('first_name', '').strip()
+        last_name = request.data.get('last_name', '').strip()
+        password = request.data.get('password', '').strip()
         
-        if not email or not first_name:
+        if not all([email, first_name, last_name, password]):
             return Response({
                 'success': False,
-                'message': 'Email and first name are required'
+                'message': 'Email, first name, last name, and password are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate password BEFORE sending code
+        try:
+            validate_password(password)
+        except ValidationError as e:
+            return Response({
+                'success': False,
+                'message': ', '.join(e.messages)
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Get client info
@@ -38,6 +50,8 @@ class SignUpRequestView(APIView):
         success, message, wait_seconds = send_signup_verification_code(
             email=email,
             first_name=first_name,
+            password=password,
+            last_name=last_name,
             ip_address=ip_address,
             user_agent=user_agent
         )
@@ -59,6 +73,7 @@ class SignUpVerifyView(APIView):
     """
     Verify sign up code and create account
     POST /api/auth/signup/verify/
+    Body: email, code
     """
     permission_classes = []
     renderer_classes = [JSONRenderer]
@@ -66,23 +81,11 @@ class SignUpVerifyView(APIView):
     def post(self, request):
         email = request.data.get('email', '').strip().lower()
         code = request.data.get('code', '').strip()
-        password = request.data.get('password', '').strip()
-        first_name = request.data.get('first_name', '').strip()
-        last_name = request.data.get('last_name', '').strip()
         
-        if not all([email, code, password, first_name, last_name]):
+        if not email or not code:
             return Response({
                 'success': False,
-                'message': 'All fields are required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate password
-        try:
-            validate_password(password)
-        except ValidationError as e:
-            return Response({
-                'success': False,
-                'message': ', '.join(e.messages)
+                'message': 'Email and code are required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Get client info
@@ -93,9 +96,6 @@ class SignUpVerifyView(APIView):
         success, user, message = verify_signup_code(
             email=email,
             code=code,
-            password=password,
-            first_name=first_name,
-            last_name=last_name,
             ip_address=ip_address,
             user_agent=user_agent
         )
@@ -127,6 +127,7 @@ class SignUpResendView(APIView):
     """
     Resend sign up verification code
     POST /api/auth/signup/resend/
+    Body: email, first_name, last_name, password
     """
     permission_classes = []
     renderer_classes = [JSONRenderer]
@@ -134,11 +135,22 @@ class SignUpResendView(APIView):
     def post(self, request):
         email = request.data.get('email', '').strip().lower()
         first_name = request.data.get('first_name', '').strip()
+        last_name = request.data.get('last_name', '').strip()
+        password = request.data.get('password', '').strip()
         
-        if not email or not first_name:
+        if not all([email, first_name, last_name, password]):
             return Response({
                 'success': False,
-                'message': 'Email and first name are required'
+                'message': 'Email, first name, last name, and password are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate password
+        try:
+            validate_password(password)
+        except ValidationError as e:
+            return Response({
+                'success': False,
+                'message': ', '.join(e.messages)
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Get client info
@@ -149,6 +161,8 @@ class SignUpResendView(APIView):
         success, message, wait_seconds = resend_signup_code(
             email=email,
             first_name=first_name,
+            password=password,
+            last_name=last_name,
             ip_address=ip_address,
             user_agent=user_agent
         )

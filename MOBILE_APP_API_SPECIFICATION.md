@@ -19,7 +19,7 @@ Local: http://localhost:8000
 ### 1. Sign Up - Request Verification Code
 **Endpoint:** `POST /api/auth/signup/request/`
 
-**Description:** Request a verification code to create a new account
+**Description:** Request a verification code to create a new account. Password is validated at this step.
 
 **Authentication:** None (public endpoint)
 
@@ -27,7 +27,9 @@ Local: http://localhost:8000
 ```json
 {
   "email": "user@example.com",
-  "first_name": "John"
+  "first_name": "John",
+  "last_name": "Doe",
+  "password": "mypass123"
 }
 ```
 
@@ -43,8 +45,23 @@ Local: http://localhost:8000
 ```json
 {
   "success": false,
-  "message": "Email already registered",
-  "wait_seconds": null
+  "message": "Email already registered"
+}
+```
+
+**Error Response (Weak Password):** `400 Bad Request`
+```json
+{
+  "success": false,
+  "message": "Password must be at least 8 characters long."
+}
+```
+
+**Error Response (No Number):** `400 Bad Request`
+```json
+{
+  "success": false,
+  "message": "Password must contain at least one number."
 }
 ```
 
@@ -56,6 +73,8 @@ Local: http://localhost:8000
 - Code expires in 3 minutes
 - Code is 6 digits
 - Sent via email
+- Password is validated and stored temporarily (hashed)
+- User data (first_name, last_name, password) is stored with the verification code
 
 ---
 
