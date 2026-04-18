@@ -112,16 +112,29 @@ class UserProfile(models.Model):
                 "end_date": assignment.event.end_date.isoformat() if assignment.event.end_date else None,
             }
             
-            # Get participant info if exists
-            participant = Participant.objects.filter(
-                user=user,
-                event=assignment.event
-            ).first()
+            # Get participant info if exists (one participant per user)
+            try:
+                participant = Participant.objects.get(user=user)
+            except Participant.DoesNotExist:
+                participant = None
             
             if participant:
+                # Get event registration for this specific event
+                from .models import ParticipantEventRegistration
+                event_registration = ParticipantEventRegistration.objects.filter(
+                    participant=participant,
+                    event=assignment.event
+                ).first()
+                
                 qr_data["participant_id"] = str(participant.id)
-                qr_data["is_checked_in"] = participant.is_checked_in
-                qr_data["checked_in_at"] = participant.checked_in_at.isoformat() if participant.checked_in_at else None
+                
+                # Check-in status is per-event
+                if event_registration:
+                    qr_data["is_checked_in"] = event_registration.is_checked_in
+                    qr_data["checked_in_at"] = event_registration.checked_in_at.isoformat() if event_registration.checked_in_at else None
+                else:
+                    qr_data["is_checked_in"] = False
+                    qr_data["checked_in_at"] = None
                 
                 # Get ALL paid items (sessions, rooms, etc.)
                 paid_items = []
@@ -145,20 +158,21 @@ class UserProfile(models.Model):
                         })
                 
                 # 2. Paid Room Access (if any rooms require payment)
-                from .models import Room
-                allowed_rooms = participant.allowed_rooms.all()
-                for room in allowed_rooms:
-                    # Check if this room requires payment (you can add a field to Room model)
-                    # For now, we'll include all allowed rooms
-                    paid_items.append({
-                        "type": "room",
-                        "id": str(room.id),
-                        "title": room.name,
-                        "is_paid": False,  # Set to True if room requires payment
-                        "payment_status": "free",
-                        "amount_paid": 0,
-                        "has_access": True
-                    })
+                if event_registration:
+                    from .models import Room
+                    allowed_rooms = event_registration.allowed_rooms.all()
+                    for room in allowed_rooms:
+                        # Check if this room requires payment (you can add a field to Room model)
+                        # For now, we'll include all allowed rooms
+                        paid_items.append({
+                            "type": "room",
+                            "id": str(room.id),
+                            "title": room.name,
+                            "is_paid": False,  # Set to True if room requires payment
+                            "payment_status": "free",
+                            "amount_paid": 0,
+                            "has_access": True
+                        })
                 
                 qr_data["paid_items"] = paid_items
                 qr_data["total_paid_items"] = len([item for item in paid_items if item['is_paid']])
