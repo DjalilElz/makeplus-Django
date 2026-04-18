@@ -863,22 +863,49 @@ https://makeplus-django-5.onrender.com
 
 ### Issue: QR Code Returns Empty or Wrong Data
 
-**Problem:** Using `/api/my-ateliers/` instead of `/api/qr/generate/`
+**Problem:** Not using the QR code data from login/signup response
 
 **Solution:** 
 ```dart
+// ✅ BEST - QR code already in login/signup response
+POST /api/auth/token/
+Response includes: { ..., "qr_code": {...} }
+
+// ✅ ALTERNATIVE - Refresh QR code data
+GET /api/qr/generate/
+
 // ❌ WRONG - This is for listing workshops
 GET /api/my-ateliers/
-
-// ✅ CORRECT - This generates QR code
-GET /api/qr/generate/
 ```
 
 **Correct Implementation:**
 ```dart
-Future<Map<String, dynamic>> getQRCode() async {
+// Login and get QR code automatically
+Future<Map<String, dynamic>> login(String email, String password) async {
+  final response = await dio.post(
+    '/api/auth/token/',
+    data: {
+      'email': email,
+      'password': password,
+    },
+  );
+  
+  if (response.statusCode == 200) {
+    // QR code is already in the response!
+    final qrCode = response.data['qr_code'];
+    
+    // Store it locally
+    await prefs.setString('qr_code_data', jsonEncode(qrCode));
+    
+    return response.data;
+  }
+  throw Exception('Login failed');
+}
+
+// Optional: Refresh QR code after registering for events
+Future<Map<String, dynamic>> refreshQRCode() async {
   final response = await dio.get(
-    '/api/qr/generate/',  // ← Use this endpoint
+    '/api/qr/generate/',
     options: Options(
       headers: {
         'Authorization': 'Bearer $accessToken',
@@ -889,7 +916,7 @@ Future<Map<String, dynamic>> getQRCode() async {
   if (response.statusCode == 200) {
     return response.data['qr_data'];
   }
-  throw Exception('Failed to generate QR code');
+  throw Exception('Failed to refresh QR code');
 }
 ```
 

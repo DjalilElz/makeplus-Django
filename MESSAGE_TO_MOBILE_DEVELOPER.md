@@ -189,17 +189,24 @@ Users register for events on the website using the same email they used to sign 
 - Use standard JWT token authentication
 - Tokens expire: Access (1 hour), Refresh (7 days)
 
-### 3. Verification Codes
+### 3. QR Code Auto-Generated
+- ✅ QR code automatically included in login response
+- ✅ QR code automatically included in signup response
+- ❌ No need to call `/api/qr/generate/` separately
+- Reduces API calls and improves performance
+- Store QR code data locally for offline access
+
+### 4. Verification Codes
 - Sign up code: 6 digits, expires in 3 minutes
 - Can resend after 3 minutes
 - Codes are hashed and stored securely
 
-### 4. Multiple Events
+### 5. Multiple Events
 - One user account can register for multiple events
 - Same account, different participant records per event
 - User's `event` in login response shows their active event
 
-### 5. User Roles
+### 6. User Roles
 - **Participants:** Sign up via mobile app (email + password)
 - **Controllers/Staff:** Created by admins (email + password)
 - All users login with email + password
@@ -221,7 +228,8 @@ Users register for events on the website using the same email they used to sign 
 6. Show "Code sent to email" message
 7. Code input (6 digits)
 8. Verify button
-9. Show success → Navigate to login (or auto-login with returned tokens)
+9. Store tokens AND QR code data from response
+10. Show success → Navigate to home (user is logged in)
 ```
 
 ### Update Login Screen
@@ -232,6 +240,10 @@ Users register for events on the website using the same email they used to sign 
 - Password input
 - Login button
 - "Don't have an account? Sign up" link
+
+// After successful login:
+- Store access token, refresh token, AND qr_code data
+- QR code is already in the response!
 ```
 
 ### Add Resend Functionality
@@ -240,6 +252,39 @@ Users register for events on the website using the same email they used to sign 
 - Show countdown timer (3 minutes)
 - Enable "Resend Code" button after timer expires
 - Handle wait_seconds from API response
+```
+
+### Store QR Code Data
+```dart
+// After login or signup
+final response = await loginOrSignup();
+
+// Store tokens
+await prefs.setString('access_token', response['access']);
+await prefs.setString('refresh_token', response['refresh']);
+
+// Store QR code data (already included in response!)
+await prefs.setString('qr_code_data', jsonEncode(response['qr_code']));
+
+// No need to call /api/qr/generate/ separately
+```
+
+### Display QR Code
+```dart
+// Retrieve stored QR code data
+final qrCodeJson = prefs.getString('qr_code_data');
+final qrData = jsonDecode(qrCodeJson);
+
+// Generate QR code image from badge_id or full qr_data
+final qrImage = QrImage(
+  data: jsonEncode(qrData), // Or use qrData['badge_id']
+  version: QrVersions.auto,
+  size: 200.0,
+);
+
+// Optional: Refresh QR code if user registers for new events
+final refreshedQR = await api.get('/api/qr/generate/');
+await prefs.setString('qr_code_data', jsonEncode(refreshedQR['qr_data']));
 ```
 
 ---
@@ -258,34 +303,24 @@ Users register for events on the website using the same email they used to sign 
 
 ### User Profile & QR Code
 - `GET /api/auth/me/` - Get current user profile
-- `GET /api/qr/generate/` - **Generate QR code for participant** (USE THIS FOR QR CODE!)
+- `GET /api/qr/generate/` - Refresh QR code data (optional - QR code already provided on login/signup)
 
 ### Other Endpoints
 - All other endpoints remain the same (events, rooms, sessions, etc.)
 
 ---
 
-## ⚠️ IMPORTANT: QR Code Generation
+## ⚠️ IMPORTANT: QR Code is Auto-Generated
 
-**Correct Endpoint:** `GET /api/qr/generate/`
+**QR code is automatically included in login and signup responses!**
 
-**DO NOT USE:** `/api/my-ateliers/` (this is for listing workshops, NOT QR codes)
+You don't need to call `/api/qr/generate/` separately - the QR code data is already provided when users:
+- Login: `POST /api/auth/token/` → Returns `qr_code` field
+- Sign up: `POST /api/auth/signup/verify/` → Returns `qr_code` field
 
-The QR code endpoint returns:
-```json
-{
-  "success": true,
-  "qr_data": {
-    "user_id": 1,
-    "badge_id": "USER-1-ABC12345",
-    "email": "user@example.com",
-    "first_name": "John",
-    "last_name": "Doe",
-    "paid_items": [...],
-    "access_summary": {...}
-  }
-}
-```
+**Optional Refresh:** Use `GET /api/qr/generate/` only if you need to refresh QR code data after user registers for new events or makes payments.
+
+**DO NOT USE:** `/api/my-ateliers/` for QR codes (that's for listing workshops only)
 
 ---
 
