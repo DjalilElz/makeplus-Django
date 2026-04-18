@@ -104,31 +104,44 @@ class Migration(migrations.Migration):
             reverse_sql="-- No reverse"
         ),
         
-        # Step 6: Migrate data from old structure to new structure
+        # Step 6: Migrate data from old structure to new structure (SKIPPED - no data after 0022)
         migrations.RunSQL(
             sql="""
-            -- Insert event registrations from backup
-            INSERT INTO events_participanteventregistration (participant_id, event_id, is_checked_in, checked_in_at, registered_at)
-            SELECT 
-                p.id,
-                pb.event_id,
-                pb.is_checked_in,
-                pb.checked_in_at,
-                pb.created_at
-            FROM events_participant_backup pb
-            JOIN events_participant p ON p.user_id = pb.user_id
-            ON CONFLICT (participant_id, event_id) DO NOTHING;
-            
-            -- Migrate allowed_rooms relationships
-            INSERT INTO events_participanteventregistration_allowed_rooms (participanteventregistration_id, room_id)
-            SELECT 
-                er.id,
-                par.room_id
-            FROM events_participant_backup pb
-            JOIN events_participant p ON p.user_id = pb.user_id
-            JOIN events_participanteventregistration er ON er.participant_id = p.id AND er.event_id = pb.event_id
-            JOIN events_participant_allowed_rooms par ON par.participant_id = pb.id
-            ON CONFLICT (participanteventregistration_id, room_id) DO NOTHING;
+            -- Skip data migration since all participants were deleted in migration 0022
+            -- The backup table exists but is empty or doesn't have event_id column
+            DO $$ 
+            BEGIN
+                -- Check if backup table has data and event_id column
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'events_participant_backup' AND column_name = 'event_id'
+                ) AND EXISTS (
+                    SELECT 1 FROM events_participant_backup LIMIT 1
+                ) THEN
+                    -- Insert event registrations from backup
+                    INSERT INTO events_participanteventregistration (participant_id, event_id, is_checked_in, checked_in_at, registered_at)
+                    SELECT 
+                        p.id,
+                        pb.event_id,
+                        pb.is_checked_in,
+                        pb.checked_in_at,
+                        pb.created_at
+                    FROM events_participant_backup pb
+                    JOIN events_participant p ON p.user_id = pb.user_id
+                    ON CONFLICT (participant_id, event_id) DO NOTHING;
+                    
+                    -- Migrate allowed_rooms relationships
+                    INSERT INTO events_participanteventregistration_allowed_rooms (participanteventregistration_id, room_id)
+                    SELECT 
+                        er.id,
+                        par.room_id
+                    FROM events_participant_backup pb
+                    JOIN events_participant p ON p.user_id = pb.user_id
+                    JOIN events_participanteventregistration er ON er.participant_id = p.id AND er.event_id = pb.event_id
+                    JOIN events_participant_allowed_rooms par ON par.participant_id = pb.id
+                    ON CONFLICT (participanteventregistration_id, room_id) DO NOTHING;
+                END IF;
+            END $$;
             """,
             reverse_sql="-- No reverse"
         ),
