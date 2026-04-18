@@ -18,11 +18,7 @@ def delete_participants(apps, schema_editor):
         
         # Delete user event assignments for participant role
         cursor.execute("DELETE FROM events_usereventassignment WHERE role = 'participant';")
-        cursor.execute("SELECT ROW_COUNT();")
         
-        print(f"Deleted participant assignments")
-        
-        # Note: We don't delete users as they might be needed for the new system
         print("Participant deletion complete")
 
 
