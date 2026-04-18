@@ -156,8 +156,8 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
             )
             
             # Check if already registered for this event
-            from .models import EventRegistration
-            event_registration, reg_created = EventRegistration.objects.get_or_create(
+            from .models import ParticipantEventRegistration
+            event_registration, reg_created = ParticipantEventRegistration.objects.get_or_create(
                 participant=participant,
                 event=form.event
             )

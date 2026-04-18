@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
     Event, Room, Session, Participant, RoomAccess, UserEventAssignment,
-    EventRegistration, SessionAccess, Annonce, SessionQuestion, 
+    ParticipantEventRegistration, SessionAccess, Annonce, SessionQuestion, 
     RoomAssignment, ExposantScan, UserProfile
 )
 
@@ -184,8 +184,8 @@ class ParticipantAdmin(admin.ModelAdmin):
     get_events_count.short_description = 'Events Registered'
 
 
-@admin.register(EventRegistration)
-class EventRegistrationAdmin(admin.ModelAdmin):
+@admin.register(ParticipantEventRegistration)
+class ParticipantEventRegistrationAdmin(admin.ModelAdmin):
     list_display = ['participant', 'event', 'is_checked_in', 'checked_in_at', 'registered_at']
     list_filter = ['event', 'is_checked_in', 'registered_at']
     search_fields = ['participant__user__email', 'participant__user__first_name', 'event__name']

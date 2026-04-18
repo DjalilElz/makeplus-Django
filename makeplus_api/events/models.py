@@ -421,7 +421,7 @@ class Session(models.Model):
 class Participant(models.Model):
     """Event Participant - One participant per user, can register for multiple events"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='participant_profile')
-    events = models.ManyToManyField(Event, through='EventRegistration', related_name='registered_participants')
+    events = models.ManyToManyField(Event, through='ParticipantEventRegistration', related_name='registered_participants')
     
     # Participant details
     badge_id = models.CharField(max_length=100, unique=True)
@@ -456,7 +456,7 @@ class Participant(models.Model):
         return self.events.filter(id=event.id).exists()
 
 
-class EventRegistration(models.Model):
+class ParticipantEventRegistration(models.Model):
     """Through model for Participant-Event relationship"""
     participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='registrations')
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='participant_registrations')

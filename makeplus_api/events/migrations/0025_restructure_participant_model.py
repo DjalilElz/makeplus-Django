@@ -11,10 +11,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Step 1: Create new EventRegistration table
+        # Step 1: Create new ParticipantEventRegistration table
         migrations.RunSQL(
             sql="""
-            CREATE TABLE IF NOT EXISTS events_eventregistration (
+            CREATE TABLE IF NOT EXISTS events_participanteventregistration (
                 id SERIAL PRIMARY KEY,
                 participant_id INTEGER NOT NULL,
                 event_id UUID NOT NULL,
@@ -25,25 +25,25 @@ class Migration(migrations.Migration):
                 UNIQUE (participant_id, event_id)
             );
             
-            CREATE INDEX IF NOT EXISTS events_eventregistration_event_checked_idx 
-                ON events_eventregistration (event_id, is_checked_in);
-            CREATE INDEX IF NOT EXISTS events_eventregistration_participant_event_idx 
-                ON events_eventregistration (participant_id, event_id);
+            CREATE INDEX IF NOT EXISTS events_participanteventregistration_event_checked_idx 
+                ON events_participanteventregistration (event_id, is_checked_in);
+            CREATE INDEX IF NOT EXISTS events_participanteventregistration_participant_event_idx 
+                ON events_participanteventregistration (participant_id, event_id);
             """,
-            reverse_sql="DROP TABLE IF EXISTS events_eventregistration CASCADE;"
+            reverse_sql="DROP TABLE IF EXISTS events_participanteventregistration CASCADE;"
         ),
         
-        # Step 2: Create junction table for EventRegistration allowed_rooms
+        # Step 2: Create junction table for ParticipantEventRegistration allowed_rooms
         migrations.RunSQL(
             sql="""
-            CREATE TABLE IF NOT EXISTS events_eventregistration_allowed_rooms (
+            CREATE TABLE IF NOT EXISTS events_participanteventregistration_allowed_rooms (
                 id SERIAL PRIMARY KEY,
-                eventregistration_id INTEGER NOT NULL,
+                participanteventregistration_id INTEGER NOT NULL,
                 room_id UUID NOT NULL,
-                UNIQUE (eventregistration_id, room_id)
+                UNIQUE (participanteventregistration_id, room_id)
             );
             """,
-            reverse_sql="DROP TABLE IF EXISTS events_eventregistration_allowed_rooms CASCADE;"
+            reverse_sql="DROP TABLE IF EXISTS events_participanteventregistration_allowed_rooms CASCADE;"
         ),
         
         # Step 3: Backup existing participant data
@@ -108,7 +108,7 @@ class Migration(migrations.Migration):
         migrations.RunSQL(
             sql="""
             -- Insert event registrations from backup
-            INSERT INTO events_eventregistration (participant_id, event_id, is_checked_in, checked_in_at, registered_at)
+            INSERT INTO events_participanteventregistration (participant_id, event_id, is_checked_in, checked_in_at, registered_at)
             SELECT 
                 p.id,
                 pb.event_id,
@@ -120,15 +120,15 @@ class Migration(migrations.Migration):
             ON CONFLICT (participant_id, event_id) DO NOTHING;
             
             -- Migrate allowed_rooms relationships
-            INSERT INTO events_eventregistration_allowed_rooms (eventregistration_id, room_id)
+            INSERT INTO events_participanteventregistration_allowed_rooms (participanteventregistration_id, room_id)
             SELECT 
                 er.id,
                 par.room_id
             FROM events_participant_backup pb
             JOIN events_participant p ON p.user_id = pb.user_id
-            JOIN events_eventregistration er ON er.participant_id = p.id AND er.event_id = pb.event_id
+            JOIN events_participanteventregistration er ON er.participant_id = p.id AND er.event_id = pb.event_id
             JOIN events_participant_allowed_rooms par ON par.participant_id = pb.id
-            ON CONFLICT (eventregistration_id, room_id) DO NOTHING;
+            ON CONFLICT (participanteventregistration_id, room_id) DO NOTHING;
             """,
             reverse_sql="-- No reverse"
         ),
@@ -152,22 +152,22 @@ class Migration(migrations.Migration):
         # Step 8: Add foreign key constraints
         migrations.RunSQL(
             sql="""
-            -- Add foreign keys for EventRegistration
-            ALTER TABLE events_eventregistration 
-                ADD CONSTRAINT events_eventregistration_participant_fk 
+            -- Add foreign keys for ParticipantEventRegistration
+            ALTER TABLE events_participanteventregistration 
+                ADD CONSTRAINT events_participanteventregistration_participant_fk 
                 FOREIGN KEY (participant_id) REFERENCES events_participant(id) ON DELETE CASCADE;
             
-            ALTER TABLE events_eventregistration 
-                ADD CONSTRAINT events_eventregistration_event_fk 
+            ALTER TABLE events_participanteventregistration 
+                ADD CONSTRAINT events_participanteventregistration_event_fk 
                 FOREIGN KEY (event_id) REFERENCES events_event(id) ON DELETE CASCADE;
             
             -- Add foreign keys for allowed_rooms
-            ALTER TABLE events_eventregistration_allowed_rooms 
-                ADD CONSTRAINT events_eventregistration_allowed_rooms_registration_fk 
-                FOREIGN KEY (eventregistration_id) REFERENCES events_eventregistration(id) ON DELETE CASCADE;
+            ALTER TABLE events_participanteventregistration_allowed_rooms 
+                ADD CONSTRAINT events_participanteventregistration_allowed_rooms_registration_fk 
+                FOREIGN KEY (participanteventregistration_id) REFERENCES events_participanteventregistration(id) ON DELETE CASCADE;
             
-            ALTER TABLE events_eventregistration_allowed_rooms 
-                ADD CONSTRAINT events_eventregistration_allowed_rooms_room_fk 
+            ALTER TABLE events_participanteventregistration_allowed_rooms 
+                ADD CONSTRAINT events_participanteventregistration_allowed_rooms_room_fk 
                 FOREIGN KEY (room_id) REFERENCES events_room(id) ON DELETE CASCADE;
             """,
             reverse_sql="-- No reverse"

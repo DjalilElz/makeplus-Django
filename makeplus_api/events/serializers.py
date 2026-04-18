@@ -10,7 +10,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import (
     Event, Room, Session, Participant, RoomAccess, UserEventAssignment,
     SessionAccess, Annonce, SessionQuestion, RoomAssignment, ExposantScan,
-    EventRegistration
+    ParticipantEventRegistration
 )
 
 
@@ -153,13 +153,13 @@ class ParticipantSerializer(serializers.ModelSerializer):
         return obj.events.count()
 
 
-class EventRegistrationSerializer(serializers.ModelSerializer):
-    """Event registration serializer - Links participant to specific event"""
+class ParticipantEventRegistrationSerializer(serializers.ModelSerializer):
+    """Participant event registration serializer - Links participant to specific event"""
     participant_name = serializers.CharField(source='participant.user.get_full_name', read_only=True)
     event_name = serializers.CharField(source='event.name', read_only=True)
     
     class Meta:
-        model = EventRegistration
+        model = ParticipantEventRegistration
         fields = [
             'id', 'participant', 'participant_name', 'event', 'event_name',
             'is_checked_in', 'checked_in_at', 'allowed_rooms',
