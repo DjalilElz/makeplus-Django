@@ -81,7 +81,7 @@ Local: http://localhost:8000
 ### 2. Sign Up - Verify Code and Create Account
 **Endpoint:** `POST /api/auth/signup/verify/`
 
-**Description:** Verify the code and create user account
+**Description:** Verify the code and create user account. User data (first_name, last_name, password) was already provided in the request step.
 
 **Authentication:** None (public endpoint)
 
@@ -89,10 +89,7 @@ Local: http://localhost:8000
 ```json
 {
   "email": "user@example.com",
-  "code": "123456",
-  "password": "SecurePassword123!",
-  "first_name": "John",
-  "last_name": "Doe"
+  "code": "123456"
 }
 ```
 
@@ -122,24 +119,25 @@ Local: http://localhost:8000
 }
 ```
 
-`400 Bad Request` - Weak password:
+`400 Bad Request` - Code already used:
 ```json
 {
   "success": false,
-  "message": "This password is too common., This password is entirely numeric."
+  "message": "Code already used"
 }
 ```
 
-**Password Requirements:**
-- At least 8 characters
-- Must contain at least one number
+**Notes:**
+- Account is created using the data stored with the verification code
+- Returns JWT tokens immediately after account creation
+- User can login right away or use the returned tokens
 
 ---
 
 ### 3. Sign Up - Resend Verification Code
 **Endpoint:** `POST /api/auth/signup/resend/`
 
-**Description:** Resend verification code if expired or not received
+**Description:** Resend verification code if expired or not received. Must provide all data again.
 
 **Authentication:** None (public endpoint)
 
@@ -147,7 +145,9 @@ Local: http://localhost:8000
 ```json
 {
   "email": "user@example.com",
-  "first_name": "John"
+  "first_name": "John",
+  "last_name": "Doe",
+  "password": "mypass123"
 }
 ```
 
@@ -171,6 +171,7 @@ Local: http://localhost:8000
 **Notes:**
 - Can only resend after 3 minutes from last request
 - Use `wait_seconds` to show countdown timer
+- Password is validated again
 
 ---
 
@@ -693,13 +694,13 @@ When controller scans this QR code, display a screen showing:
 ### 1. Sign Up (New Users)
 ```
 POST /api/auth/signup/request/
-Body: { "email": "user@example.com", "first_name": "John" }
+Body: { "email": "user@example.com", "first_name": "John", "last_name": "Doe", "password": "mypass123" }
 Response: { "success": true, "message": "Verification code sent" }
 
 User receives 6-digit code via email
 
 POST /api/auth/signup/verify/
-Body: { "email": "user@example.com", "code": "123456", "password": "SecurePassword123!", "first_name": "John", "last_name": "Doe" }
+Body: { "email": "user@example.com", "code": "123456" }
 Response: { "success": true, "access": "...", "refresh": "...", "user": {...} }
 ```
 
