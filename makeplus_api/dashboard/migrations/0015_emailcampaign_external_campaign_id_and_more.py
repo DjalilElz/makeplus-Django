@@ -3,6 +3,101 @@
 from django.db import migrations, models
 
 
+def add_fields_if_not_exist(apps, schema_editor):
+    """Add fields only if they don't exist"""
+    from django.db import connection
+    
+    with connection.cursor() as cursor:
+        # Check and add external_campaign_id to emailcampaign
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_name = 'dashboard_emailcampaign' 
+                AND column_name = 'external_campaign_id'
+            );
+        """)
+        if not cursor.fetchone()[0]:
+            cursor.execute("""
+                ALTER TABLE dashboard_emailcampaign 
+                ADD COLUMN external_campaign_id VARCHAR(100) DEFAULT '' NOT NULL;
+                ALTER TABLE dashboard_emailcampaign 
+                ALTER COLUMN external_campaign_id DROP DEFAULT;
+            """)
+            print("Added external_campaign_id to emailcampaign")
+        else:
+            print("external_campaign_id already exists in emailcampaign")
+        
+        # Check and add clicks_count to emailrecipient
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_name = 'dashboard_emailrecipient' 
+                AND column_name = 'clicks_count'
+            );
+        """)
+        if not cursor.fetchone()[0]:
+            cursor.execute("""
+                ALTER TABLE dashboard_emailrecipient 
+                ADD COLUMN clicks_count INTEGER DEFAULT 0 NOT NULL;
+            """)
+            print("Added clicks_count to emailrecipient")
+        else:
+            print("clicks_count already exists in emailrecipient")
+        
+        # Check and add external_id to emailrecipient
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_name = 'dashboard_emailrecipient' 
+                AND column_name = 'external_id'
+            );
+        """)
+        if not cursor.fetchone()[0]:
+            cursor.execute("""
+                ALTER TABLE dashboard_emailrecipient 
+                ADD COLUMN external_id VARCHAR(100) DEFAULT '' NOT NULL;
+                ALTER TABLE dashboard_emailrecipient 
+                ALTER COLUMN external_id DROP DEFAULT;
+            """)
+            print("Added external_id to emailrecipient")
+        else:
+            print("external_id already exists in emailrecipient")
+        
+        # Check and add opens_count to emailrecipient
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_name = 'dashboard_emailrecipient' 
+                AND column_name = 'opens_count'
+            );
+        """)
+        if not cursor.fetchone()[0]:
+            cursor.execute("""
+                ALTER TABLE dashboard_emailrecipient 
+                ADD COLUMN opens_count INTEGER DEFAULT 0 NOT NULL;
+            """)
+            print("Added opens_count to emailrecipient")
+        else:
+            print("opens_count already exists in emailrecipient")
+        
+        # Check and add index
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM pg_indexes 
+                WHERE tablename = 'dashboard_emailrecipient' 
+                AND indexname = 'dashboard_e_externa_61772c_idx'
+            );
+        """)
+        if not cursor.fetchone()[0]:
+            cursor.execute("""
+                CREATE INDEX dashboard_e_externa_61772c_idx 
+                ON dashboard_emailrecipient (external_id);
+            """)
+            print("Added index dashboard_e_externa_61772c_idx")
+        else:
+            print("Index dashboard_e_externa_61772c_idx already exists")
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,38 +106,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='emailcampaign',
-            name='external_campaign_id',
-            field=models.CharField(blank=True, help_text='Brevo campaign ID', max_length=100),
-        ),
-        migrations.AddField(
-            model_name='emailrecipient',
-            name='clicks_count',
-            field=models.IntegerField(default=0, help_text='Total clicks count'),
-        ),
-        migrations.AddField(
-            model_name='emailrecipient',
-            name='external_id',
-            field=models.CharField(blank=True, help_text='Brevo contact ID', max_length=100),
-        ),
-        migrations.AddField(
-            model_name='emailrecipient',
-            name='opens_count',
-            field=models.IntegerField(default=0, help_text='Total opens count'),
-        ),
-        migrations.AlterField(
-            model_name='eposteremailtemplate',
-            name='body_html',
-            field=models.TextField(help_text='HTML content with placeholders: {{nom}}, {{prenom}}, {{titre}}, {{event_name}}, {{event_location}}, {{event_start_date}}, {{event_end_date}}'),
-        ),
-        migrations.AlterField(
-            model_name='eposteremailtemplate',
-            name='template_type',
-            field=models.CharField(choices=[('accepted', 'Acceptation'), ('rejected', 'Rejet')], max_length=30),
-        ),
-        migrations.AddIndex(
-            model_name='emailrecipient',
-            index=models.Index(fields=['external_id'], name='dashboard_e_externa_61772c_idx'),
-        ),
+        migrations.RunPython(add_fields_if_not_exist, migrations.RunPython.noop),
     ]
