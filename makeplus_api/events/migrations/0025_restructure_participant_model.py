@@ -165,23 +165,45 @@ class Migration(migrations.Migration):
         # Step 8: Add foreign key constraints
         migrations.RunSQL(
             sql="""
-            -- Add foreign keys for ParticipantEventRegistration
-            ALTER TABLE events_participanteventregistration 
-                ADD CONSTRAINT events_participanteventregistration_participant_fk 
-                FOREIGN KEY (participant_id) REFERENCES events_participant(id) ON DELETE CASCADE;
-            
-            ALTER TABLE events_participanteventregistration 
-                ADD CONSTRAINT events_participanteventregistration_event_fk 
-                FOREIGN KEY (event_id) REFERENCES events_event(id) ON DELETE CASCADE;
-            
-            -- Add foreign keys for allowed_rooms
-            ALTER TABLE events_participanteventregistration_allowed_rooms 
-                ADD CONSTRAINT events_participanteventregistration_allowed_rooms_registration_fk 
-                FOREIGN KEY (participanteventregistration_id) REFERENCES events_participanteventregistration(id) ON DELETE CASCADE;
-            
-            ALTER TABLE events_participanteventregistration_allowed_rooms 
-                ADD CONSTRAINT events_participanteventregistration_allowed_rooms_room_fk 
-                FOREIGN KEY (room_id) REFERENCES events_room(id) ON DELETE CASCADE;
+            -- Add foreign keys for ParticipantEventRegistration (with existence checks)
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint 
+                    WHERE conname = 'events_participanteventregistration_participant_fk'
+                ) THEN
+                    ALTER TABLE events_participanteventregistration 
+                        ADD CONSTRAINT events_participanteventregistration_participant_fk 
+                        FOREIGN KEY (participant_id) REFERENCES events_participant(id) ON DELETE CASCADE;
+                END IF;
+                
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint 
+                    WHERE conname = 'events_participanteventregistration_event_fk'
+                ) THEN
+                    ALTER TABLE events_participanteventregistration 
+                        ADD CONSTRAINT events_participanteventregistration_event_fk 
+                        FOREIGN KEY (event_id) REFERENCES events_event(id) ON DELETE CASCADE;
+                END IF;
+                
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint 
+                    WHERE conname = 'events_participanteventregistration_allowed_rooms_registration_fk'
+                ) THEN
+                    ALTER TABLE events_participanteventregistration_allowed_rooms 
+                        ADD CONSTRAINT events_participanteventregistration_allowed_rooms_registration_fk 
+                        FOREIGN KEY (participanteventregistration_id) REFERENCES events_participanteventregistration(id) ON DELETE CASCADE;
+                END IF;
+                
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint 
+                    WHERE conname = 'events_participanteventregistration_allowed_rooms_room_fk'
+                ) THEN
+                    ALTER TABLE events_participanteventregistration_allowed_rooms 
+                        ADD CONSTRAINT events_participanteventregistration_allowed_rooms_room_fk 
+                        FOREIGN KEY (room_id) REFERENCES events_room(id) ON DELETE CASCADE;
+                END IF;
+            END $$;
             """,
             reverse_sql="-- No reverse"
         ),
