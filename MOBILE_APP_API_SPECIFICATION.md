@@ -105,6 +105,25 @@ Local: http://localhost:8000
     "email": "user@example.com",
     "first_name": "John",
     "last_name": "Doe"
+  },
+  "qr_code": {
+    "user_id": 1,
+    "badge_id": "USER-1-ABC12345",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "full_name": "John Doe",
+    "role": "participant",
+    "event": null,
+    "participant_id": null,
+    "is_checked_in": false,
+    "paid_items": [],
+    "access_summary": {
+      "total_sessions": 0,
+      "paid_sessions": 0,
+      "total_rooms": 0,
+      "has_any_paid_access": false
+    }
   }
 }
 ```
@@ -130,7 +149,9 @@ Local: http://localhost:8000
 **Notes:**
 - Account is created using the data stored with the verification code
 - Returns JWT tokens immediately after account creation
+- **QR code is automatically generated and included** - no need to call `/api/qr/generate/` separately
 - User can login right away or use the returned tokens
+- Store the `qr_code` data locally for displaying QR code in the app
 
 ---
 
@@ -209,6 +230,20 @@ Local: http://localhost:8000
     "end_date": "2026-06-17T18:00:00Z",
     "location": "Convention Center",
     "status": "active"
+  },
+  "qr_code": {
+    "user_id": 1,
+    "badge_id": "USER-1-ABC12345",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "full_name": "John Doe",
+    "role": "participant",
+    "event": {...},
+    "participant_id": "participant-uuid",
+    "is_checked_in": false,
+    "paid_items": [...],
+    "access_summary": {...}
   }
 }
 ```
@@ -230,6 +265,8 @@ Local: http://localhost:8000
 **Notes:**
 - If user hasn't registered for any event, `event` will be `null`
 - If user registered for multiple events, returns the most recent active event
+- **QR code is automatically included** - no need to call `/api/qr/generate/` separately
+- Store the `qr_code` data locally for displaying QR code in the app
 
 ---
 
@@ -517,7 +554,7 @@ Authorization: Bearer <access_token>
 ### 12. Generate QR Code
 **Endpoint:** `GET /api/qr/generate/`
 
-**⚠️ IMPORTANT:** This is the ONLY endpoint for generating participant QR codes. Do NOT use `/api/my-ateliers/` for QR code generation.
+**⚠️ NOTE:** QR code is automatically included in login and signup responses. This endpoint is optional - use it only if you need to refresh QR code data.
 
 **Description:** Generate QR code for current user with complete participant information including ALL paid items
 
@@ -614,9 +651,15 @@ When controller scans this QR code, display a screen showing:
 - Controller just verifies participant has access
 - No action buttons needed - information only
 
+**When to Use This Endpoint:**
+- To refresh QR code data after user registers for new events
+- To get updated paid items after user makes payments
+- QR code is already provided on login/signup, so this is optional
+
 **Common Mistake:**
 ❌ DO NOT use `/api/my-ateliers/` for QR code generation
-✅ USE `/api/qr/generate/` for QR code generation
+✅ QR code is automatically included in login/signup responses
+✅ Use `/api/qr/generate/` only if you need to refresh QR data
 
 The `/api/my-ateliers/` endpoint is for listing workshops the user is registered for, NOT for generating QR codes.
 
@@ -721,23 +764,24 @@ User receives 6-digit code via email
 
 POST /api/auth/signup/verify/
 Body: { "email": "user@example.com", "code": "123456" }
-Response: { "success": true, "access": "...", "refresh": "...", "user": {...} }
+Response: { "success": true, "access": "...", "refresh": "...", "user": {...}, "qr_code": {...} }
 ```
 
 ### 2. Login (Existing Users)
 ```
 POST /api/auth/token/
 Body: { "email": "user@example.com", "password": "SecurePassword123!" }
-Response: { "access": "...", "refresh": "...", "user": {...}, "role": "...", "event": {...} }
+Response: { "access": "...", "refresh": "...", "user": {...}, "role": "...", "event": {...}, "qr_code": {...} }
 ```
 
-### 3. Store Tokens
+### 3. Store Tokens and QR Code
 ```dart
-// Store both tokens securely
+// Store tokens and QR code data securely
 SharedPreferences prefs = await SharedPreferences.getInstance();
 await prefs.setString('access_token', response['access']);
 await prefs.setString('refresh_token', response['refresh']);
 await prefs.setString('user_role', response['role']);
+await prefs.setString('qr_code_data', jsonEncode(response['qr_code']));
 ```
 
 ### 4. Use Access Token
@@ -772,25 +816,27 @@ await prefs.remove('refresh_token');
 
 2. **Password-Based Auth**: All authentication is now password-based (no more code login)
 
-3. **Token Lifetime**: 
+3. **QR Code Auto-Generated**: QR code is automatically included in login and signup responses - no need to call `/api/qr/generate/` separately (reduces API calls)
+
+4. **Token Lifetime**: 
    - Access token: 1 hour
    - Refresh token: 7 days
 
-4. **Verification Codes**:
+5. **Verification Codes**:
    - Sign up code: 6 digits, expires in 3 minutes
    - Can resend after 3 minutes
 
-5. **Multiple Events**: One user can register for multiple events with the same account
+6. **Multiple Events**: One user can register for multiple events with the same account
 
-6. **Pagination**: Most list endpoints return paginated results (20 items per page by default)
+7. **Pagination**: Most list endpoints return paginated results (20 items per page by default)
 
-7. **Date Format**: All dates are in ISO 8601 format with UTC timezone
+8. **Date Format**: All dates are in ISO 8601 format with UTC timezone
 
-8. **UUIDs**: Most IDs are UUIDs, not integers
+9. **UUIDs**: Most IDs are UUIDs, not integers
 
-9. **File URLs**: All file URLs (images, PDFs) are absolute URLs
+10. **File URLs**: All file URLs (images, PDFs) are absolute URLs
 
-10. **Role Required**: Some endpoints require specific roles
+11. **Role Required**: Some endpoints require specific roles
 
 ---
 

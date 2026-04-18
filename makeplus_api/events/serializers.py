@@ -287,6 +287,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             data['role'] = 'participant'  # Default role
             data['event'] = None
         
+        # Get QR code data automatically
+        from .models import UserProfile
+        qr_data = UserProfile.get_qr_for_user(user)
+        data['qr_code'] = qr_data
+        
         return data
 
 

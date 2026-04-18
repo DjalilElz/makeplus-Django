@@ -81,9 +81,23 @@ Users must create an account in the mobile app BEFORE registering for any events
     "email": "user@example.com",
     "first_name": "John",
     "last_name": "Doe"
+  },
+  "qr_code": {
+    "user_id": 1,
+    "badge_id": "USER-1-ABC12345",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "full_name": "John Doe",
+    "role": "participant",
+    "event": null,
+    "paid_items": [],
+    "access_summary": {...}
   }
 }
 ```
+
+**Note:** QR code is automatically generated when account is created
 
 **Resend Code:** `POST /api/auth/signup/resend/`
 - Requires: email, first_name, last_name, password (same as request)
@@ -123,11 +137,25 @@ Users must create an account in the mobile app BEFORE registering for any events
     "end_date": "2026-06-17T18:00:00Z",
     "location": "Convention Center",
     "status": "active"
+  },
+  "qr_code": {
+    "user_id": 1,
+    "badge_id": "USER-1-ABC12345",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "full_name": "John Doe",
+    "role": "participant",
+    "event": {...},
+    "paid_items": [...],
+    "access_summary": {...}
   }
 }
 ```
 
-**Note:** If user hasn't registered for any event yet, `event` will be `null`.
+**Note:** 
+- If user hasn't registered for any event yet, `event` will be `null`.
+- QR code is automatically generated and included in the response
 
 ---
 

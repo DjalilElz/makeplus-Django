@@ -109,6 +109,10 @@ class SignUpVerifyView(APIView):
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         
+        # Get QR code data automatically
+        from events.models import UserProfile
+        qr_data = UserProfile.get_qr_for_user(user)
+        
         return Response({
             'success': True,
             'message': 'Account created successfully',
@@ -119,7 +123,8 @@ class SignUpVerifyView(APIView):
                 'email': user.email,
                 'first_name': user.first_name,
                 'last_name': user.last_name,
-            }
+            },
+            'qr_code': qr_data
         }, status=status.HTTP_201_CREATED)
 
 
