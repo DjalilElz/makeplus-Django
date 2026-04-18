@@ -21,7 +21,37 @@ def delete_users_without_roles(apps, schema_editor):
         count = cursor.fetchone()[0]
         print(f"Found {count} users without roles (excluding staff/superusers)")
         
-        # Delete users without any role assignments (keep staff and superusers)
+        # Delete related UserProfile records first
+        cursor.execute("""
+            DELETE FROM events_userprofile 
+            WHERE user_id IN (
+                SELECT u.id 
+                FROM auth_user u
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM events_usereventassignment uea 
+                    WHERE uea.user_id = u.id
+                )
+                AND NOT u.is_staff 
+                AND NOT u.is_superuser
+            );
+        """)
+        
+        # Delete related Participant records
+        cursor.execute("""
+            DELETE FROM events_participant 
+            WHERE user_id IN (
+                SELECT u.id 
+                FROM auth_user u
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM events_usereventassignment uea 
+                    WHERE uea.user_id = u.id
+                )
+                AND NOT u.is_staff 
+                AND NOT u.is_superuser
+            );
+        """)
+        
+        # Now delete users without any role assignments (keep staff and superusers)
         cursor.execute("""
             DELETE FROM auth_user 
             WHERE id IN (
@@ -36,7 +66,7 @@ def delete_users_without_roles(apps, schema_editor):
             );
         """)
         
-        print(f"Deleted {count} users without roles")
+        print(f"Deleted {count} users without roles and their related records")
 
 
 def reverse_delete(apps, schema_editor):
