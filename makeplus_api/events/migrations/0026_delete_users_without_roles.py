@@ -21,7 +21,26 @@ def delete_users_without_roles(apps, schema_editor):
         count = cursor.fetchone()[0]
         print(f"Found {count} users without roles (excluding staff/superusers)")
         
-        # Delete related JWT token blacklist records
+        # Delete related JWT token blacklist records (blacklisted tokens first, then outstanding tokens)
+        # Step 1: Delete blacklisted tokens that reference outstanding tokens for these users
+        cursor.execute("""
+            DELETE FROM token_blacklist_blacklistedtoken 
+            WHERE token_id IN (
+                SELECT id FROM token_blacklist_outstandingtoken 
+                WHERE user_id IN (
+                    SELECT u.id 
+                    FROM auth_user u
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM events_usereventassignment uea 
+                        WHERE uea.user_id = u.id
+                    )
+                    AND NOT u.is_staff 
+                    AND NOT u.is_superuser
+                )
+            );
+        """)
+        
+        # Step 2: Delete outstanding tokens
         cursor.execute("""
             DELETE FROM token_blacklist_outstandingtoken 
             WHERE user_id IN (
