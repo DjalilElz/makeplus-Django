@@ -135,19 +135,23 @@ def caisse_dashboard(request):
     transaction_count = caisse.get_transaction_count()
     
     # Get only participants (users with role 'participant') for this event
-    from events.models import UserEventAssignment
+    from events.models import UserEventAssignment, ParticipantEventRegistration
     participant_user_ids = UserEventAssignment.objects.filter(
         event=event,
         role='participant'
     ).values_list('user_id', flat=True)
     
-    all_participants = Participant.objects.filter(
+    # Get participants registered for this event via ParticipantEventRegistration
+    event_registrations = ParticipantEventRegistration.objects.filter(
         event=event,
-        user_id__in=participant_user_ids
-    ).select_related('user').prefetch_related(
-        'caisse_transactions__items',
-        'caisse_transactions__caisse'
-    ).order_by('user__first_name', 'user__last_name')
+        participant__user_id__in=participant_user_ids
+    ).select_related('participant__user').prefetch_related(
+        'participant__caisse_transactions__items',
+        'participant__caisse_transactions__caisse'
+    ).order_by('participant__user__first_name', 'participant__user__last_name')
+    
+    # Extract participants from registrations
+    all_participants = [reg.participant for reg in event_registrations]
     
     # Build a dictionary of participant paid items for quick lookup
     participant_paid_items = {}
@@ -193,29 +197,30 @@ def search_participant(request):
         return JsonResponse({'success': False, 'message': 'Please enter a search term'})
     
     # Get only users with 'participant' role
-    from events.models import UserEventAssignment
+    from events.models import UserEventAssignment, ParticipantEventRegistration
     participant_user_ids = UserEventAssignment.objects.filter(
         event=event,
         role='participant'
     ).values_list('user_id', flat=True)
     
-    # Search participants with participant role only
-    participants = Participant.objects.filter(
+    # Search participants with participant role only - get via ParticipantEventRegistration
+    event_registrations = ParticipantEventRegistration.objects.filter(
         event=event,
-        user_id__in=participant_user_ids
+        participant__user_id__in=participant_user_ids
     ).filter(
-        Q(user__first_name__icontains=query) |
-        Q(user__last_name__icontains=query) |
-        Q(user__email__icontains=query) |
-        Q(user__username__icontains=query) |
-        Q(qr_code__icontains=query)
-    ).select_related('user').prefetch_related('caisse_transactions')[:10]
+        Q(participant__user__first_name__icontains=query) |
+        Q(participant__user__last_name__icontains=query) |
+        Q(participant__user__email__icontains=query) |
+        Q(participant__user__username__icontains=query) |
+        Q(participant__qr_code_data__icontains=query)
+    ).select_related('participant__user').prefetch_related('participant__caisse_transactions')[:10]
     
-    if not participants.exists():
+    if not event_registrations.exists():
         return JsonResponse({'success': False, 'message': 'No participants found'})
     
     results = []
-    for participant in participants:
+    for registration in event_registrations:
+        participant = registration.participant
         # Check if already checked in
         has_transaction = participant.caisse_transactions.filter(
             caisse=caisse,
@@ -231,7 +236,7 @@ def search_participant(request):
             'id': participant.id,
             'name': participant.user.get_full_name() or participant.user.username,
             'email': participant.user.email,
-            'qr_code': participant.qr_code,
+            'qr_code': participant.qr_code_data,
             'checked_in': has_transaction,
             'transaction_count': transaction_count
         })
@@ -246,7 +251,10 @@ def get_participant_paid_items(request, participant_id):
     caisse = request.caisse
     
     try:
-        participant = Participant.objects.get(id=participant_id, event=caisse.event)
+        participant = Participant.objects.get(id=participant_id)
+        # Verify participant is registered for this event
+        if not participant.is_registered_for_event(caisse.event):
+            return JsonResponse({'success': False, 'message': 'Participant not registered for this event'})
     except Participant.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Participant not found'})
     
@@ -295,7 +303,10 @@ def process_transaction(request):
         return JsonResponse({'success': False, 'message': 'Participant ID required'})
     
     try:
-        participant = Participant.objects.get(id=participant_id, event=caisse.event)
+        participant = Participant.objects.get(id=participant_id)
+        # Verify participant is registered for this event
+        if not participant.is_registered_for_event(caisse.event):
+            return JsonResponse({'success': False, 'message': 'Participant not registered for this event'})
     except Participant.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Participant not found'})
     
@@ -497,10 +508,11 @@ def print_badge(request, participant_id):
     caisse = request.caisse
     
     try:
-        participant = Participant.objects.select_related('user').get(
-            id=participant_id,
-            event=caisse.event
-        )
+        participant = Participant.objects.select_related('user').get(id=participant_id)
+        # Verify participant is registered for this event
+        if not participant.is_registered_for_event(caisse.event):
+            messages.error(request, 'Participant not registered for this event')
+            return redirect('caisse:dashboard')
     except Participant.DoesNotExist:
         messages.error(request, 'Participant not found')
         return redirect('caisse:dashboard')
