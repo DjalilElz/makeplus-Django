@@ -934,52 +934,66 @@ def user_detail(request, user_id):
             'assigned_room': assigned_room
         })
     
-    # Get participant profiles with detailed information
-    participant_profiles = Participant.objects.filter(
-        user=user
-    ).select_related('event').prefetch_related('allowed_rooms')
+    # Get participant profile (one per user)
+    try:
+        participant = Participant.objects.get(user=user)
+    except Participant.DoesNotExist:
+        participant = None
     
-    # For each participant profile, get their event data
+    # Get participant event registrations
     participant_data = []
-    for participant in participant_profiles:
-        event = participant.event
-        
-        # Get paid sessions (ateliers) for this participant in this event
-        paid_sessions = Session.objects.filter(
-            event=event,
-            is_paid=True
-        ).values('id', 'title', 'price', 'start_time', 'room__name')
-        
-        # Get transactions for this participant in this event
-        transactions = CaisseTransaction.objects.filter(
+    if participant:
+        # Get all event registrations for this participant
+        from events.models import ParticipantEventRegistration
+        event_registrations = ParticipantEventRegistration.objects.filter(
             participant=participant
-        ).select_related('caisse').order_by('-created_at')
+        ).select_related('event').prefetch_related('allowed_rooms')
         
-        # Calculate total spent
-        total_spent = transactions.aggregate(total=models.Sum('total_amount'))['total'] or 0
-        
-        # Get room access history
-        room_accesses = RoomAccess.objects.filter(
-            participant=participant
-        ).select_related('room', 'session', 'verified_by').order_by('-accessed_at')
-        
-        # Get scans by exposants
-        scans = ExposantScan.objects.filter(
-            scanned_participant=participant
-        ).select_related('exposant__user', 'event').order_by('-scanned_at')
-        
-        participant_data.append({
-            'participant': participant,
-            'event': event,
-            'paid_sessions': paid_sessions,
-            'transactions': transactions,
-            'total_spent': total_spent,
-            'room_accesses': room_accesses,
-            'scans': scans,
-            'transaction_count': transactions.count(),
-            'scan_count': scans.count(),
-            'room_access_count': room_accesses.count()
-        })
+        for event_reg in event_registrations:
+            event = event_reg.event
+            
+            # Get paid sessions (ateliers) for this participant in this event
+            paid_sessions = Session.objects.filter(
+                event=event,
+                is_paid=True
+            ).values('id', 'title', 'price', 'start_time', 'room__name')
+            
+            # Get transactions for this participant in this event
+            transactions = CaisseTransaction.objects.filter(
+                participant=participant,
+                caisse__event=event
+            ).select_related('caisse').order_by('-created_at')
+            
+            # Calculate total spent
+            total_spent = transactions.aggregate(total=models.Sum('total_amount'))['total'] or 0
+            
+            # Get room access history
+            room_accesses = RoomAccess.objects.filter(
+                participant=participant,
+                room__event=event
+            ).select_related('room', 'session', 'verified_by').order_by('-accessed_at')
+            
+            # Get scans by exposants
+            scans = ExposantScan.objects.filter(
+                scanned_participant=participant,
+                event=event
+            ).select_related('exposant__user', 'event').order_by('-scanned_at')
+            
+            participant_data.append({
+                'participant': participant,
+                'event': event,
+                'event_registration': event_reg,
+                'is_checked_in': event_reg.is_checked_in,
+                'checked_in_at': event_reg.checked_in_at,
+                'paid_sessions': paid_sessions,
+                'transactions': transactions,
+                'total_spent': total_spent,
+                'room_accesses': room_accesses,
+                'scans': scans,
+                'transaction_count': transactions.count(),
+                'scan_count': scans.count(),
+                'room_access_count': room_accesses.count()
+            })
     
     # Check if user has participant or committee role
     user_roles = list(assignments.values_list('role', flat=True))
