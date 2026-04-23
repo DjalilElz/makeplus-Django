@@ -211,46 +211,40 @@
                 
                 <!-- Participant Stats Row -->
                 <div class="row g-3 mb-4">
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <div class="stat-mini-card text-center">
-                            <h5 class="mb-1">{{ data.total_spent|floatformat:2 }} DT</h5>
+                            <h5 class="mb-1">{{ data.total_spent|floatformat:2 }} DA</h5>
                             <p class="text-muted small mb-0">Total Spent</p>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <div class="stat-mini-card text-center">
                             <h5 class="mb-1">{{ data.transaction_count }}</h5>
                             <p class="text-muted small mb-0">Transactions</p>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <div class="stat-mini-card text-center">
-                            <h5 class="mb-1">{{ data.room_access_count }}</h5>
-                            <p class="text-muted small mb-0">Room Accesses</p>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="stat-mini-card text-center">
-                            <h5 class="mb-1">{{ data.scan_count }}</h5>
-                            <p class="text-muted small mb-0">Badge Scans</p>
+                            <h5 class="mb-1">{% if data.event_registration.is_checked_in %}<i class="bi bi-check-circle-fill text-success"></i> Checked In{% else %}<i class="bi bi-clock text-warning"></i> Not Checked In{% endif %}</h5>
+                            <p class="text-muted small mb-0">Check-in Status</p>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Check-in Status -->
-                <div class="alert {% if data.participant.is_checked_in %}alert-success{% else %}alert-warning{% endif %}">
-                    <i class="bi {% if data.participant.is_checked_in %}bi-check-circle-fill{% else %}bi-clock{% endif %}"></i>
-                    {% if data.participant.is_checked_in %}
-                        Checked in on {{ data.participant.checked_in_at|date:"M d, Y H:i" }}
+                <div class="alert {% if data.event_registration.is_checked_in %}alert-success{% else %}alert-warning{% endif %}">
+                    <i class="bi {% if data.event_registration.is_checked_in %}bi-check-circle-fill{% else %}bi-clock{% endif %}"></i>
+                    {% if data.event_registration.is_checked_in %}
+                        Checked in on {{ data.event_registration.checked_in_at|date:"M d, Y H:i" }}
                     {% else %}
                         Not checked in yet
                     {% endif %}
                 </div>
                 
-                <!-- Paid Sessions Section -->
+                <!-- Paid Sessions Section - Only show if there are actual transactions -->
+                {% if data.transactions %}
                 <h5 class="mt-4"><i class="bi bi-cash-coin"></i> Paid Workshops/Ateliers</h5>
                 <hr>
-                {% if data.paid_sessions %}
                 <div class="table-responsive">
                     <table class="table table-sm">
                         <thead>
@@ -258,29 +252,29 @@
                                 <th>Workshop</th>
                                 <th>Room</th>
                                 <th>Date & Time</th>
-                                <th>Price</th>
+                                <th>Amount Paid</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for session in data.paid_sessions %}
-                            <tr>
-                                <td><strong>{{ session.title }}</strong></td>
-                                <td>{{ session.room__name }}</td>
-                                <td><small>{{ session.start_time|date:"M d, Y H:i" }}</small></td>
-                                <td><span class="badge bg-success">{{ session.price }} DT</span></td>
-                            </tr>
+                            {% for trans in data.transactions %}
+                                {% for item in trans.items %}
+                                    {% if item.item_type == 'session' %}
+                                    <tr>
+                                        <td><strong>{{ item.name }}</strong></td>
+                                        <td>{{ item.session.room.name|default:"-" }}</td>
+                                        <td><small>{{ item.session.start_time|date:"M d, Y H:i"|default:"-" }}</small></td>
+                                        <td><span class="badge bg-success">{{ item.price }} DA</span></td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-                {% else %}
-                <p class="text-muted">No paid workshops registered</p>
-                {% endif %}
                 
                 <!-- Transactions Section -->
                 <h5 class="mt-4"><i class="bi bi-receipt"></i> Payment Transactions</h5>
                 <hr>
-                {% if data.transactions %}
                 <div class="table-responsive">
                     <table class="table table-sm">
                         <thead>
@@ -298,7 +292,7 @@
                                 <td><small>{{ trans.created_at|date:"M d, H:i" }}</small></td>
                                 <td>{{ trans.caisse.name }}</td>
                                 <td>{{ trans.items|length }} item(s)</td>
-                                <td><strong>{{ trans.total_amount }} DT</strong></td>
+                                <td><strong>{{ trans.total_amount }} DA</strong></td>
                                 <td>
                                     {% if trans.payment_method == 'cash' %}
                                         <span class="badge bg-success">Cash</span>
@@ -313,41 +307,7 @@
                         </tbody>
                     </table>
                 </div>
-                {% else %}
-                <p class="text-muted">No transactions yet</p>
                 {% endif %}
-                
-                <!-- Room Access History -->
-                <h5 class="mt-4"><i class="bi bi-door-open"></i> Room Access History</h5>
-                <hr>
-                {% if data.room_accesses %}
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Room</th>
-                                <th>Session</th>
-                                <th>Access Time</th>
-                                <th>Verified By</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for access in data.room_accesses %}
-                            <tr>
-                                <td>{{ access.room.name }}</td>
-                                <td>
-                                    {% if access.session %}
-                                        {{ access.session.title }}
-                                    {% else %}
-                                        <span class="text-muted">General access</span>
-                                    {% endif %}
-                                </td>
-                                <td><small>{{ access.accessed_at|date:"M d, H:i" }}</small></td>
-                                <td>
-                                    {% if access.verified_by %}
-                                        {{ access.verified_by.get_full_name|default:access.verified_by.username }}
-                                    {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
@@ -425,6 +385,20 @@
             <div class="stat-card">
                 <h5 class="mb-3"><i class="bi bi-graph-up"></i> Quick Statistics</h5>
                 <div class="d-flex flex-column gap-3">
+                    {% if participant %}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Events:</span>
+                        <strong>{{ event_registrations_count }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Active Roles:</span>
+                        <strong>1</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Participant in:</span>
+                        <strong>{{ event_registrations_count }} event(s)</strong>
+                    </div>
+                    {% else %}
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="text-muted">Events:</span>
                         <strong>{{ assignments.count }}</strong>
@@ -432,11 +406,6 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="text-muted">Active Roles:</span>
                         <strong>{{ assignments|length }}</strong>
-                    </div>
-                    {% if participant_data %}
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="text-muted">Participant in:</span>
-                        <strong>{{ participant_data|length }} event(s)</strong>
                     </div>
                     {% endif %}
                     <div class="d-flex justify-content-between align-items-center">
