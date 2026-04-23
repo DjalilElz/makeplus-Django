@@ -305,4 +305,34 @@ class UserProfileAPIView(APIView):
             profile_data['role'] = None
             profile_data['event'] = None
         
+        # Add participant profile data (QR code, badge ID, etc.)
+        try:
+            participant = Participant.objects.get(user=user)
+            profile_data['participant'] = {
+                'id': str(participant.id),
+                'badge_id': participant.badge_id,
+                'role': participant.role,
+                'qr_code_data': participant.qr_code_data
+            }
+            
+            # Get registered events
+            registered_events = []
+            for event in participant.events.all():
+                registered_events.append({
+                    'id': str(event.id),
+                    'name': event.name,
+                    'status': event.status,
+                    'start_date': event.start_date.isoformat() if event.start_date else None,
+                    'end_date': event.end_date.isoformat() if event.end_date else None
+                })
+            profile_data['participant']['registered_events'] = registered_events
+            
+        except Participant.DoesNotExist:
+            profile_data['participant'] = None
+        
+        # Get QR code from UserProfile
+        from .models import UserProfile
+        qr_data = UserProfile.get_qr_for_user(user)
+        profile_data['qr_code'] = qr_data
+        
         return Response(profile_data)

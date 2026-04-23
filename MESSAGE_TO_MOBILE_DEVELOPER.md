@@ -164,6 +164,97 @@ Users must create an account in the mobile app BEFORE registering for any events
 
 ---
 
+### Get User Profile (with QR Code)
+
+**Endpoint:** `GET /api/auth/me/`
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "email": "user@example.com",
+  "first_name": "John",
+  "last_name": "Doe",
+  "full_name": "John Doe",
+  "role": "participant",
+  "event": {
+    "id": "event-uuid",
+    "name": "TechSummit Algeria 2026",
+    "status": "active"
+  },
+  "participant": {
+    "id": "participant-uuid",
+    "badge_id": "USER-1-ABC12345",
+    "role": "participant",
+    "qr_code_data": {
+      "user_id": 1,
+      "badge_id": "USER-1-ABC12345",
+      "email": "user@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "full_name": "John Doe",
+      "role": "participant",
+      "event": {...},
+      "paid_items": [...],
+      "access_summary": {...}
+    },
+    "registered_events": [
+      {
+        "id": "event-uuid-1",
+        "name": "TechSummit Algeria 2026",
+        "status": "active",
+        "start_date": "2026-06-15T09:00:00Z",
+        "end_date": "2026-06-17T18:00:00Z"
+      },
+      {
+        "id": "event-uuid-2",
+        "name": "Innovation Forum 2026",
+        "status": "upcoming",
+        "start_date": "2026-09-20T09:00:00Z",
+        "end_date": "2026-09-22T18:00:00Z"
+      }
+    ]
+  },
+  "qr_code": {
+    "user_id": 1,
+    "badge_id": "USER-1-ABC12345",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "full_name": "John Doe",
+    "role": "participant",
+    "event": {...},
+    "participant_id": "participant-uuid",
+    "is_checked_in": false,
+    "checked_in_at": null,
+    "paid_items": [...],
+    "total_paid_items": 2,
+    "access_summary": {
+      "total_sessions": 5,
+      "paid_sessions": 2,
+      "total_rooms": 3,
+      "has_any_paid_access": true
+    }
+  }
+}
+```
+
+**Note:**
+- This endpoint returns complete user profile including:
+  - User basic info
+  - Current role and event assignment
+  - Participant profile with badge_id and QR code data
+  - List of ALL registered events
+  - Complete QR code data with payment and access information
+- Use this endpoint to refresh user data after event registration or payments
+
+---
+
 ### Step 3: Event Registration (Website)
 
 Users register for events on the website using the same email they used to sign up.
@@ -317,7 +408,7 @@ await prefs.setString('qr_code_data', jsonEncode(refreshedQR['qr_data']));
 - `POST /api/auth/token/verify/` - Verify token validity
 
 ### User Profile & QR Code
-- `GET /api/auth/me/` - Get current user profile
+- `GET /api/auth/me/` - Get current user profile (includes QR code, participant data, and registered events)
 - `GET /api/qr/generate/` - Refresh QR code data (optional - QR code already provided on login/signup)
 
 ### Other Endpoints

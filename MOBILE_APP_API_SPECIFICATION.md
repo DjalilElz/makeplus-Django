@@ -334,7 +334,7 @@ Local: http://localhost:8000
 ### 7. Get User Profile
 **Endpoint:** `GET /api/auth/me/`
 
-**Description:** Get current user profile information
+**Description:** Get current user profile information including QR code, participant data, and registered events
 
 **Authentication:** Required (Bearer token)
 
@@ -356,9 +356,105 @@ Authorization: Bearer <access_token>
     "id": "event-uuid",
     "name": "Tech Conference 2026",
     "status": "active"
+  },
+  "participant": {
+    "id": "participant-uuid",
+    "badge_id": "USER-1-ABC12345",
+    "role": "participant",
+    "qr_code_data": {
+      "user_id": 1,
+      "badge_id": "USER-1-ABC12345",
+      "email": "user@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "full_name": "John Doe",
+      "role": "participant",
+      "event": {
+        "id": "event-uuid",
+        "name": "Tech Conference 2026",
+        "start_date": "2026-06-15T09:00:00Z",
+        "end_date": "2026-06-17T18:00:00Z"
+      },
+      "participant_id": "participant-uuid",
+      "is_checked_in": false,
+      "checked_in_at": null,
+      "paid_items": [
+        {
+          "type": "session",
+          "id": "session-uuid",
+          "title": "Workshop: AI Development",
+          "is_paid": true,
+          "payment_status": "paid",
+          "amount_paid": 50.0,
+          "has_access": true
+        }
+      ],
+      "total_paid_items": 1,
+      "access_summary": {
+        "total_sessions": 5,
+        "paid_sessions": 1,
+        "total_rooms": 3,
+        "has_any_paid_access": true
+      }
+    },
+    "registered_events": [
+      {
+        "id": "event-uuid-1",
+        "name": "Tech Conference 2026",
+        "status": "active",
+        "start_date": "2026-06-15T09:00:00Z",
+        "end_date": "2026-06-17T18:00:00Z"
+      },
+      {
+        "id": "event-uuid-2",
+        "name": "Innovation Forum 2026",
+        "status": "upcoming",
+        "start_date": "2026-09-20T09:00:00Z",
+        "end_date": "2026-09-22T18:00:00Z"
+      }
+    ]
+  },
+  "qr_code": {
+    "user_id": 1,
+    "badge_id": "USER-1-ABC12345",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "full_name": "John Doe",
+    "role": "participant",
+    "event": {
+      "id": "event-uuid",
+      "name": "Tech Conference 2026",
+      "start_date": "2026-06-15T09:00:00Z",
+      "end_date": "2026-06-17T18:00:00Z"
+    },
+    "participant_id": "participant-uuid",
+    "is_checked_in": false,
+    "checked_in_at": null,
+    "paid_items": [...],
+    "total_paid_items": 1,
+    "access_summary": {
+      "total_sessions": 5,
+      "paid_sessions": 1,
+      "total_rooms": 3,
+      "has_any_paid_access": true
+    }
   }
 }
 ```
+
+**Response Fields:**
+- `participant`: Participant profile data (null if user is not a participant)
+  - `badge_id`: Unique badge identifier for QR code
+  - `qr_code_data`: Complete QR code data stored in participant profile
+  - `registered_events`: List of ALL events the participant has registered for
+- `qr_code`: Latest QR code data generated from UserProfile (includes current event info and payment status)
+
+**Notes:**
+- If user hasn't registered for any event, `event` will be `null`
+- If user is not a participant (e.g., staff), `participant` will be `null`
+- `qr_code` is always generated and includes the most up-to-date information
+- Use this endpoint to refresh user data after event registration or payments
 
 **Error Response:** `401 Unauthorized`
 ```json
