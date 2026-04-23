@@ -997,8 +997,14 @@ def user_detail(request, user_id):
     
     # Check if user has participant or committee role
     user_roles = list(assignments.values_list('role', flat=True))
-    is_participant = 'participant' in user_roles
+    is_participant = 'participant' in user_roles or participant is not None
     is_committee = 'committee' in user_roles
+    
+    # Get event registrations count (for participants)
+    event_registrations_count = 0
+    if participant:
+        from events.models import ParticipantEventRegistration
+        event_registrations_count = ParticipantEventRegistration.objects.filter(participant=participant).count()
     
     context = {
         'user': user,
@@ -1007,6 +1013,8 @@ def user_detail(request, user_id):
         'assignments': assignments,
         'assignments_with_rooms': assignments_with_rooms,
         'participant_data': participant_data,
+        'participant': participant,
+        'event_registrations_count': event_registrations_count,
         'is_participant': is_participant,
         'is_committee': is_committee,
     }

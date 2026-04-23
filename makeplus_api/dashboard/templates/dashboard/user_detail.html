@@ -66,7 +66,11 @@
             
             <!-- Event Assignments Card -->
             <div class="stat-card mb-4">
+                {% if participant %}
+                <h4 class="mb-3"><i class="bi bi-calendar-check"></i> Event Registrations ({{ event_registrations_count }})</h4>
+                {% else %}
                 <h4 class="mb-3"><i class="bi bi-calendar-check"></i> Event Assignments ({{ assignments.count }})</h4>
+                {% endif %}
                 
                 {% if assignments %}
                 <div class="table-responsive">
@@ -185,6 +189,10 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                </div>
+                {% elif participant %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> This participant has not registered for any events yet.
                 </div>
                 {% else %}
                 <div class="alert alert-info">
