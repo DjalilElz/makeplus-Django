@@ -143,6 +143,8 @@
                                         {% endif %}
                                     {% endfor %}
                                 </div>
+                            {% elif user.participant_profile %}
+                                <span class="badge bg-secondary">Participant</span>
                             {% else %}
                                 <span class="text-muted">No role</span>
                             {% endif %}

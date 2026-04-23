@@ -728,7 +728,10 @@ def user_list(request):
     ).order_by('-date_joined')
     
     # Filter by role if specified
-    if role_filter != 'all':
+    if role_filter == 'participant':
+        # Show all users with Participant profile (includes those without event assignments)
+        users = users.filter(participant_profile__isnull=False).distinct()
+    elif role_filter != 'all':
         users = users.filter(event_assignments__role=role_filter).distinct()
     
     # Filter by event if specified
@@ -745,13 +748,14 @@ def user_list(request):
         )
     
     # Get counts for each role
+    # Participant count includes ALL users with Participant profile (even without event assignments)
     role_counts = {
         'all': User.objects.count(),
         'organisateur': UserEventAssignment.objects.filter(role='organisateur').values('user').distinct().count(),
         'gestionnaire_des_salles': UserEventAssignment.objects.filter(role='gestionnaire_des_salles').values('user').distinct().count(),
         'controlleur_des_badges': UserEventAssignment.objects.filter(role='controlleur_des_badges').values('user').distinct().count(),
         'exposant': UserEventAssignment.objects.filter(role='exposant').values('user').distinct().count(),
-        'participant': UserEventAssignment.objects.filter(role='participant').values('user').distinct().count(),
+        'participant': Participant.objects.count(),  # Count all participants, not just those with event assignments
     }
     
     # Get all events for filter dropdown
