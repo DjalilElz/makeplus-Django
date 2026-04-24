@@ -257,7 +257,7 @@
                         </thead>
                         <tbody>
                             {% for trans in data.transactions %}
-                                {% for item in trans.items %}
+                                {% for item in trans.items.all %}
                                     {% if item.item_type == 'session' %}
                                     <tr>
                                         <td><strong>{{ item.name }}</strong></td>
