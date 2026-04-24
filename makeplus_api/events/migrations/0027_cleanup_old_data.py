@@ -89,7 +89,7 @@ def reverse_cleanup(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('events', '0026_delete_users_without_roles'),
+        ('events', '0025_restructure_participant_model'),
     ]
 
     operations = [
