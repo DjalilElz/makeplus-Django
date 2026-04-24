@@ -13,6 +13,10 @@ def delete_participants(apps, schema_editor):
         participant_count = cursor.fetchone()[0]
         print(f"Deleting {participant_count} participants...")
         
+        # First, delete caisse transactions that reference participants
+        cursor.execute("DELETE FROM caisse_caissetransaction WHERE participant_id IS NOT NULL;")
+        print("Deleted caisse transactions")
+        
         # Delete all participants (cascades will handle related records)
         cursor.execute("DELETE FROM events_participant;")
         
