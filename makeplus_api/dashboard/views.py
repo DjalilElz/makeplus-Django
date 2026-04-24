@@ -291,7 +291,7 @@ def event_detail(request, event_id):
     
     # Use aggregate for statistics (single query instead of multiple counts)
     # Count participants registered for this event via ParticipantEventRegistration
-    from .models import ParticipantEventRegistration
+    from events.models import ParticipantEventRegistration
     participant_stats = ParticipantEventRegistration.objects.filter(event=event).aggregate(
         total=Count('id'),
         checked_in=Count('id', filter=Q(is_checked_in=True))
