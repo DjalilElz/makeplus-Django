@@ -84,7 +84,6 @@ class UserProfile(models.Model):
         """Generate or return existing user-level QR code with full participant info"""
         # Always regenerate to get latest data
         user = self.user
-        badge_id = f"USER-{user.id}-{uuid.uuid4().hex[:8].upper()}"
         
         # Get user's active event assignment
         from .models import UserEventAssignment, Participant, SessionAccess, RoomAccess
@@ -92,6 +91,15 @@ class UserProfile(models.Model):
             user=user,
             is_active=True
         ).select_related('event').first()
+        
+        # Get participant to reuse existing badge_id
+        try:
+            participant = Participant.objects.get(user=user)
+            badge_id = participant.badge_id  # Reuse existing badge_id
+        except Participant.DoesNotExist:
+            # Generate new badge_id only if participant doesn't exist yet
+            badge_id = f"USER-{user.id}-{uuid.uuid4().hex[:8].upper()}"
+            participant = None
         
         qr_data = {
             "user_id": user.id,
@@ -111,12 +119,6 @@ class UserProfile(models.Model):
                 "start_date": assignment.event.start_date.isoformat() if assignment.event.start_date else None,
                 "end_date": assignment.event.end_date.isoformat() if assignment.event.end_date else None,
             }
-            
-            # Get participant info if exists (one participant per user)
-            try:
-                participant = Participant.objects.get(user=user)
-            except Participant.DoesNotExist:
-                participant = None
             
             if participant:
                 # Get event registration for this specific event
@@ -439,7 +441,7 @@ class Participant(models.Model):
     
     # Participant details
     badge_id = models.CharField(max_length=100, unique=True)
-    qr_code_data = models.TextField(help_text="QR code content")
+    qr_code_data = models.JSONField(default=dict, blank=True, help_text="QR code content as JSON")
     
     # Role (always participant for users who sign up via mobile app)
     role = models.CharField(max_length=30, default='participant', editable=False)

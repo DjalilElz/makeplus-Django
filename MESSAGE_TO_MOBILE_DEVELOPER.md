@@ -485,23 +485,26 @@ Check `MOBILE_APP_API_SPECIFICATION.md` for complete API documentation with all 
 When a participant pays for a session/workshop at the caisse (cash register):
 
 1. **Payment Processing:**
-   - Caisse operator selects participant and paid items (sessions/workshops)
+   - Caisse operator selects participant and paid items (sessions/workshops/access)
    - System creates `CaisseTransaction` with status='completed'
    - System creates `SessionAccess` records for each paid session:
      - `has_access=True`
      - `payment_status='paid'`
      - `amount_paid=<session_price>`
+   - **QR code data is updated** with new paid items (badge_id stays the same!)
 
 2. **Badge Scanning (Controller):**
-   - Controller scans participant's QR code/badge
-   - Mobile app calls `POST /api/events/rooms/{room_id}/verify_access/`
-   - Backend checks if `SessionAccess` exists for that participant and session
-   - If exists with `has_access=True` → Access granted ✅
-   - If not exists or `has_access=False` → Access denied ❌
+   - Controller scans participant's QR code/badge (same badge_id as before)
+   - Mobile app calls `POST /api/events/rooms/{room_id}/scan_participant/`
+   - Backend returns ALL paid items + free items from QR code
+   - Controller sees complete list of what participant has access to
+   - **No verification needed** - if paid, participant enters directly
 
-### Badge Verification API
+**Important:** Each participant gets ONE permanent QR code with a fixed `badge_id` (e.g., "USER-1-ABC12345"). When they make payments, only the data inside the QR code is updated (the `paid_items` array grows). The participant doesn't need a new QR code - they keep using the same one, and it always reflects their latest purchases.
 
-**Endpoint:** `POST /api/events/rooms/{room_id}/verify_access/`
+### Badge Scanning API (Primary Method)
+
+**Endpoint:** `POST /api/events/rooms/{room_id}/scan_participant/`
 
 **Headers:**
 ```
@@ -512,60 +515,89 @@ Content-Type: application/json
 **Request:**
 ```json
 {
-  "qr_data": "{\"user_id\": 1, \"badge_id\": \"USER-1-ABC12345\"}",
-  "session": "session-uuid-here"
+  "qr_data": "{\"user_id\": 1, \"badge_id\": \"USER-1-ABC12345\", \"paid_items\": [...]}"
 }
 ```
 
 **Note:** 
-- `qr_data` is the JSON string from the participant's QR code
-- `session` is REQUIRED when checking access for a paid workshop/atelier
-- `session` is OPTIONAL for general room access
+- `qr_data` is the complete JSON string from the participant's QR code
+- QR code contains ALL paid items (sessions, access, rooms, etc.)
+- Controller simply displays what's in the QR code - no backend verification needed
 
-**Response (Access Granted):**
+**Response (Success):**
 ```json
 {
-  "status": "granted",
-  "message": "Access granted successfully",
+  "status": "success",
   "participant": {
     "id": "participant-uuid",
     "name": "John Doe",
     "email": "user@example.com",
     "badge_id": "USER-1-ABC12345"
   },
-  "access": {
-    "id": "access-uuid",
-    "accessed_at": "2026-04-24T20:00:00Z"
-  }
-}
-```
-
-**Response (Payment Required):**
-```json
-{
-  "status": "denied",
-  "message": "Payment required for this atelier",
-  "participant": {
-    "id": "participant-uuid",
-    "name": "John Doe",
-    "badge_id": "USER-1-ABC12345"
+  "room": {
+    "id": "room-uuid",
+    "name": "Conference Hall A"
   },
-  "session": {
-    "title": "Advanced Python Workshop",
-    "price": "50.00"
-  }
+  "event": {
+    "id": "event-uuid",
+    "name": "TechSummit 2026"
+  },
+  "paid_items": [
+    {
+      "type": "session",
+      "id": "session-uuid-1",
+      "title": "Advanced Python Workshop",
+      "is_paid": true,
+      "payment_status": "paid",
+      "amount_paid": 50.00,
+      "has_access": true
+    },
+    {
+      "type": "access",
+      "id": "access-uuid",
+      "title": "VIP Lounge Access",
+      "is_paid": true,
+      "payment_status": "paid",
+      "amount_paid": 100.00,
+      "has_access": true
+    }
+  ],
+  "free_items": [
+    {
+      "type": "session",
+      "id": "session-uuid-2",
+      "title": "Opening Keynote",
+      "is_paid": false,
+      "payment_status": "free",
+      "amount_paid": 0,
+      "has_access": true
+    }
+  ],
+  "total_paid_items": 2,
+  "total_free_items": 1,
+  "has_access": true
 }
 ```
 
 **Response (Not Registered for Event):**
 ```json
 {
-  "status": "denied",
-  "message": "User does not have access to this event",
-  "user": {
+  "status": "error",
+  "message": "Participant not registered for this event",
+  "participant": {
+    "id": "participant-uuid",
     "name": "John Doe",
-    "email": "user@example.com"
+    "email": "user@example.com",
+    "badge_id": "USER-1-ABC12345"
   }
+}
+```
+
+**Response (Invalid QR Code):**
+```json
+{
+  "status": "invalid",
+  "message": "Invalid QR code format"
 }
 ```
 
@@ -625,35 +657,55 @@ Authorization: Bearer <participant_token>
 // 1. Scan QR code
 final qrCode = await scanQRCode();
 
-// 2. Parse QR data
+// 2. Parse QR data to display immediately
 final qrData = jsonDecode(qrCode);
+final paidItems = qrData['paid_items'] ?? [];
+final totalPaidItems = qrData['total_paid_items'] ?? 0;
 
-// 3. Get current session (if scanning for specific workshop)
-final sessionId = getCurrentSessionId(); // From your session selection
-
-// 4. Verify access
+// 3. Call backend to get complete list (paid + free items)
 final response = await http.post(
-  Uri.parse('$baseUrl/api/events/rooms/$roomId/verify_access/'),
+  Uri.parse('$baseUrl/api/events/rooms/$roomId/scan_participant/'),
   headers: {
     'Authorization': 'Bearer $controllerToken',
     'Content-Type': 'application/json',
   },
   body: jsonEncode({
     'qr_data': qrCode,
-    'session': sessionId, // Include if checking for paid session
   }),
 );
 
 final result = jsonDecode(response.body);
 
-// 5. Show result
-if (result['status'] == 'granted') {
-  showSuccess('Access Granted: ${result['participant']['name']}');
-} else {
-  showError('Access Denied: ${result['message']}');
-  if (result['session'] != null) {
-    showPaymentRequired(result['session']['title'], result['session']['price']);
+// 4. Display results
+if (result['status'] == 'success') {
+  // Show participant info
+  final participant = result['participant'];
+  showParticipantInfo(participant['name'], participant['email']);
+  
+  // Show ALL paid items (sessions, access, rooms, etc.)
+  final paidItems = result['paid_items'] ?? [];
+  final freeItems = result['free_items'] ?? [];
+  
+  // Display paid items
+  if (paidItems.isNotEmpty) {
+    showPaidItemsList(paidItems);
+    // Example: "✅ Advanced Python Workshop (50 DA)"
+    // Example: "✅ VIP Lounge Access (100 DA)"
   }
+  
+  // Display free items
+  if (freeItems.isNotEmpty) {
+    showFreeItemsList(freeItems);
+    // Example: "🆓 Opening Keynote (Free)"
+  }
+  
+  // Participant can enter directly - no verification needed
+  showSuccess('Access Granted - ${paidItems.length} paid items, ${freeItems.length} free items');
+  
+} else if (result['status'] == 'error') {
+  showError('Error: ${result['message']}');
+} else {
+  showError('Invalid QR Code');
 }
 ```
 
@@ -688,19 +740,79 @@ ListView.builder(
 ### Important Notes:
 
 1. **SessionAccess Records**: Automatically created when payment is processed at caisse
-2. **QR Code Format**: Contains JSON with `user_id` and `badge_id`
-3. **Session Parameter**: MUST be included when verifying access for paid workshops
-4. **Payment Status**: Check `payment_status='paid'` and `has_access=True` in SessionAccess
-5. **Currency**: All prices are in DA (Algerian Dinar)
+2. **QR Code Format**: Contains complete JSON with `user_id`, `badge_id`, and `paid_items` array
+3. **No Session Selection**: Controller doesn't select a session - they just scan and see ALL items
+4. **Payment Status**: All paid items have `payment_status='paid'` and `has_access=True`
+5. **Free Items**: Free sessions/items shown to everyone with `is_paid=false`
+6. **Item Types**: 
+   - `session`: Paid workshops/ateliers
+   - `access`: Special access (VIP lounge, backstage, etc.)
+   - `room`: Room-specific access
+   - `other`: Any other paid items
+7. **Currency**: All prices are in DA (Algerian Dinar)
+8. **Direct Access**: If participant paid, they enter directly - no grant/deny logic
 
 ### Testing Flow:
 
 1. ✅ Participant signs up → Participant profile created
 2. ✅ Participant registers for Event A → UserEventAssignment + ParticipantEventRegistration created
-3. ✅ Participant pays for Workshop 1 at caisse → CaisseTransaction + SessionAccess created
-4. ✅ Controller scans participant's badge → Backend checks SessionAccess → Access granted/denied
+3. ✅ Participant pays for Workshop 1 at caisse → CaisseTransaction + SessionAccess created → QR code regenerated
+4. ✅ Controller scans participant's badge → Backend returns ALL paid items + free items → Controller displays list
+5. ✅ Participant enters directly (no verification needed)
+
+### Alternative: Verify Access Endpoint (Legacy)
+
+**Note:** This endpoint is still available but NOT recommended for the new flow. Use `scan_participant` instead.
+
+**Endpoint:** `POST /api/events/rooms/{room_id}/verify_access/`
+
+This endpoint requires a `session` parameter and performs backend verification. It's designed for session-specific access control, but the new flow uses `scan_participant` which simply displays what's in the QR code.
 
 ---
 
 **Last Updated:** April 24, 2026  
 **Status:** ✅ Paid Sessions Feature Implemented
+
+---
+
+## 🏪 Caisse (Cash Register) System
+
+### Caisse Login
+
+**URL:** `https://makeplus-platform.onrender.com/caisse/`
+
+**Credentials:** Created by event administrators in the dashboard
+
+**Features:**
+- Process payments for sessions, workshops, and other items
+- Search participants by name, email, or QR code
+- View transaction history
+- Print participant badges
+- Real-time capacity tracking for paid sessions
+
+### How It Works:
+
+1. **Caisse operator logs in** at `/caisse/`
+2. **Search for participant** by name, email, or scan QR code
+3. **Select items to purchase** (sessions, workshops, access, etc.)
+4. **Process payment** → Creates transaction + SessionAccess records
+5. **QR code automatically regenerated** with new paid items
+6. **Print badge** (optional) with updated QR code
+
+### Payment Processing:
+
+When a payment is processed:
+- `CaisseTransaction` created with status='completed'
+- `SessionAccess` records created for each paid session
+- Participant's QR code regenerated with updated `paid_items` array
+- Badge can be reprinted with new QR code
+
+### Caisse Dashboard Features:
+
+- View all participants registered for the event
+- See which items each participant has already paid for
+- Check session capacity (max participants vs. registered)
+- View recent transactions
+- Transaction statistics (total amount, participant count, etc.)
+
+---

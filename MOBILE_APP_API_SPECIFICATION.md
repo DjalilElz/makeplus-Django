@@ -1,39 +1,37 @@
-# Mobile App API Specification - MakePlus
+# Mobile App API Specification
 
 ## Base URL
 ```
-Production: https://makeplus-django-5.onrender.com
-Local: http://localhost:8000
+Production: https://makeplus-platform.onrender.com
+Development: http://localhost:8000
+```
+
+## Authentication
+
+All authenticated endpoints require a Bearer token in the Authorization header:
+```
+Authorization: Bearer <access_token>
 ```
 
 ---
 
-## 🚨 MAJOR UPDATE: New Authentication System
+## 1. Sign Up Flow
 
-**Breaking Changes:** The authentication system has been completely redesigned. Please read the authentication section carefully.
+### 1.1 Request Verification Code
 
----
+**Endpoint:** `POST /api/events/auth/signup/request/`
 
-## Authentication & Sign Up
-
-### 1. Sign Up - Request Verification Code
-**Endpoint:** `POST /api/auth/signup/request/`
-
-**Description:** Request a verification code to create a new account. Password is validated at this step.
-
-**Authentication:** None (public endpoint)
-
-**Request Body:**
+**Request:**
 ```json
 {
   "email": "user@example.com",
   "first_name": "John",
   "last_name": "Doe",
-  "password": "mypass123"
+  "password": "SecurePass123"
 }
 ```
 
-**Success Response:** `200 OK`
+**Response (Success):**
 ```json
 {
   "success": true,
@@ -41,51 +39,19 @@ Local: http://localhost:8000
 }
 ```
 
-**Error Response:** `400 Bad Request`
+**Response (Error):**
 ```json
 {
   "success": false,
-  "message": "Email already registered"
+  "message": "Email already exists"
 }
 ```
 
-**Error Response (Weak Password):** `400 Bad Request`
-```json
-{
-  "success": false,
-  "message": "Password must be at least 8 characters long."
-}
-```
+### 1.2 Verify Code and Create Account
 
-**Error Response (No Number):** `400 Bad Request`
-```json
-{
-  "success": false,
-  "message": "Password must contain at least one number."
-}
-```
+**Endpoint:** `POST /api/events/auth/signup/verify/`
 
-**Rate Limiting:**
-- Can only request a new code every 3 minutes
-- If too soon, returns `wait_seconds` indicating how long to wait
-
-**Notes:**
-- Code expires in 3 minutes
-- Code is 6 digits
-- Sent via email
-- Password is validated and stored temporarily (hashed)
-- User data (first_name, last_name, password) is stored with the verification code
-
----
-
-### 2. Sign Up - Verify Code and Create Account
-**Endpoint:** `POST /api/auth/signup/verify/`
-
-**Description:** Verify the code and create user account. User data (first_name, last_name, password) was already provided in the request step.
-
-**Authentication:** None (public endpoint)
-
-**Request Body:**
+**Request:**
 ```json
 {
   "email": "user@example.com",
@@ -93,7 +59,7 @@ Local: http://localhost:8000
 }
 ```
 
-**Success Response:** `201 Created`
+**Response (Success):**
 ```json
 {
   "success": true,
@@ -113,106 +79,49 @@ Local: http://localhost:8000
     "first_name": "John",
     "last_name": "Doe",
     "full_name": "John Doe",
-    "role": "participant",
-    "event": null,
-    "participant_id": null,
-    "is_checked_in": false,
     "paid_items": [],
-    "access_summary": {
-      "total_sessions": 0,
-      "paid_sessions": 0,
-      "total_rooms": 0,
-      "has_any_paid_access": false
-    }
+    "total_paid_items": 0
   }
 }
 ```
 
-**Error Responses:**
+### 1.3 Resend Verification Code
 
-`400 Bad Request` - Invalid code:
-```json
-{
-  "success": false,
-  "message": "Invalid or expired code"
-}
-```
+**Endpoint:** `POST /api/events/auth/signup/resend/`
 
-`400 Bad Request` - Code already used:
-```json
-{
-  "success": false,
-  "message": "Code already used"
-}
-```
-
-**Notes:**
-- Account is created using the data stored with the verification code
-- Returns JWT tokens immediately after account creation
-- **Participant profile is created automatically** with unique badge_id
-- **QR code is automatically generated and included** - no need to call `/api/qr/generate/` separately
-- User can login right away or use the returned tokens
-- Store the `qr_code` data locally for displaying QR code in the app
-
----
-
-### 3. Sign Up - Resend Verification Code
-**Endpoint:** `POST /api/auth/signup/resend/`
-
-**Description:** Resend verification code if expired or not received. Must provide all data again.
-
-**Authentication:** None (public endpoint)
-
-**Request Body:**
+**Request:**
 ```json
 {
   "email": "user@example.com",
   "first_name": "John",
   "last_name": "Doe",
-  "password": "mypass123"
+  "password": "SecurePass123"
 }
 ```
 
-**Success Response:** `200 OK`
+**Response:**
 ```json
 {
   "success": true,
-  "message": "Verification code sent to your email"
+  "message": "Verification code resent"
 }
 ```
-
-**Error Response:** `400 Bad Request` (Too soon)
-```json
-{
-  "success": false,
-  "message": "Please wait 120 seconds before requesting a new code",
-  "wait_seconds": 120
-}
-```
-
-**Notes:**
-- Can only resend after 3 minutes from last request
-- Use `wait_seconds` to show countdown timer
-- Password is validated again
 
 ---
 
-### 4. Login (Get JWT Token)
-**Endpoint:** `POST /api/auth/token/`
+## 2. Login
 
-**Description:** Login with email and password to get JWT tokens
+**Endpoint:** `POST /api/events/auth/token/`
 
-**Authentication:** None (public endpoint)
-
-**Request Body:**
+**Request:**
 ```json
 {
   "email": "user@example.com",
-  "password": "SecurePassword123!"
+  "password": "SecurePass123"
 }
 ```
 
-**Success Response:** `200 OK`
+**Response:**
 ```json
 {
   "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
@@ -225,125 +134,44 @@ Local: http://localhost:8000
   },
   "role": "participant",
   "event": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "Tech Conference 2026",
-    "start_date": "2026-06-15T09:00:00Z",
-    "end_date": "2026-06-17T18:00:00Z",
-    "location": "Convention Center",
+    "id": "event-uuid",
+    "name": "TechSummit 2026",
     "status": "active"
   },
   "qr_code": {
     "user_id": 1,
     "badge_id": "USER-1-ABC12345",
     "email": "user@example.com",
-    "first_name": "John",
-    "last_name": "Doe",
     "full_name": "John Doe",
     "role": "participant",
-    "event": {...},
-    "participant_id": "participant-uuid",
-    "is_checked_in": false,
-    "paid_items": [...],
-    "access_summary": {...}
+    "paid_items": [
+      {
+        "type": "session",
+        "id": "session-uuid",
+        "title": "Workshop A",
+        "is_paid": true,
+        "payment_status": "paid",
+        "amount_paid": 50.00,
+        "has_access": true
+      }
+    ],
+    "total_paid_items": 1
   }
 }
 ```
 
-**Error Response:** `401 Unauthorized`
-```json
-{
-  "detail": "No active account found with the given credentials"
-}
-```
-
-**Possible Roles:**
-- `participant` - Regular attendee (signed up via mobile app)
-- `exposant` - Exhibitor
-- `gestionnaire_des_salles` - Room manager
-- `controlleur_des_badges` - Access controller
-- `committee` - Committee member
-
-**Notes:**
-- If user hasn't registered for any event, `event` will be `null`
-- If user registered for multiple events, returns the most recent active event
-- **QR code is automatically included** - no need to call `/api/qr/generate/` separately
-- Store the `qr_code` data locally for displaying QR code in the app
-
 ---
 
-### 5. Refresh Token
-**Endpoint:** `POST /api/auth/token/refresh/`
+## 3. User Profile
 
-**Description:** Get a new access token using refresh token
-
-**Authentication:** None (uses refresh token)
-
-**Request Body:**
-```json
-{
-  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-}
-```
-
-**Success Response:** `200 OK`
-```json
-{
-  "access": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-}
-```
-
-**Error Response:** `401 Unauthorized`
-```json
-{
-  "detail": "Token is invalid or expired",
-  "code": "token_not_valid"
-}
-```
-
----
-
-### 6. Verify Token
-**Endpoint:** `POST /api/auth/token/verify/`
-
-**Description:** Check if an access token is valid
-
-**Authentication:** None
-
-**Request Body:**
-```json
-{
-  "token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-}
-```
-
-**Success Response:** `200 OK`
-```json
-{}
-```
-
-**Error Response:** `401 Unauthorized`
-```json
-{
-  "detail": "Token is invalid or expired",
-  "code": "token_not_valid"
-}
-```
-
----
-
-### 7. Get User Profile
-**Endpoint:** `GET /api/auth/me/`
-
-**Description:** Get current user profile information including QR code, participant data, and registered events
-
-**Authentication:** Required (Bearer token)
+**Endpoint:** `GET /api/events/auth/me/`
 
 **Headers:**
 ```
 Authorization: Bearer <access_token>
 ```
 
-**Success Response:** `200 OK`
+**Response:**
 ```json
 {
   "id": 1,
@@ -354,291 +182,253 @@ Authorization: Bearer <access_token>
   "role": "participant",
   "event": {
     "id": "event-uuid",
-    "name": "Tech Conference 2026",
+    "name": "TechSummit 2026",
     "status": "active"
   },
   "participant": {
     "id": "participant-uuid",
     "badge_id": "USER-1-ABC12345",
     "role": "participant",
-    "qr_code_data": {
-      "user_id": 1,
-      "badge_id": "USER-1-ABC12345",
-      "email": "user@example.com",
-      "first_name": "John",
-      "last_name": "Doe",
-      "full_name": "John Doe",
-      "role": "participant",
-      "event": {
-        "id": "event-uuid",
-        "name": "Tech Conference 2026",
-        "start_date": "2026-06-15T09:00:00Z",
-        "end_date": "2026-06-17T18:00:00Z"
-      },
-      "participant_id": "participant-uuid",
-      "is_checked_in": false,
-      "checked_in_at": null,
-      "paid_items": [
-        {
-          "type": "session",
-          "id": "session-uuid",
-          "title": "Workshop: AI Development",
-          "is_paid": true,
-          "payment_status": "paid",
-          "amount_paid": 50.0,
-          "has_access": true
-        }
-      ],
-      "total_paid_items": 1,
-      "access_summary": {
-        "total_sessions": 5,
-        "paid_sessions": 1,
-        "total_rooms": 3,
-        "has_any_paid_access": true
-      }
-    },
+    "qr_code_data": { ... },
     "registered_events": [
       {
-        "id": "event-uuid-1",
-        "name": "Tech Conference 2026",
+        "id": "event-uuid",
+        "name": "TechSummit 2026",
         "status": "active",
         "start_date": "2026-06-15T09:00:00Z",
         "end_date": "2026-06-17T18:00:00Z"
-      },
-      {
-        "id": "event-uuid-2",
-        "name": "Innovation Forum 2026",
-        "status": "upcoming",
-        "start_date": "2026-09-20T09:00:00Z",
-        "end_date": "2026-09-22T18:00:00Z"
       }
     ]
   },
   "qr_code": {
     "user_id": 1,
     "badge_id": "USER-1-ABC12345",
+    "paid_items": [ ... ],
+    "total_paid_items": 2
+  }
+}
+```
+
+---
+
+## 4. Badge Scanning (Controller)
+
+### 4.1 Scan Participant Badge (Primary Method)
+
+**Endpoint:** `POST /api/events/rooms/{room_id}/scan_participant/`
+
+**Description:** Scan participant's QR code and display ALL paid items (sessions, access, rooms, etc.) + free items. This is the primary method for badge scanning.
+
+**Headers:**
+```
+Authorization: Bearer <controller_token>
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "qr_data": "{\"user_id\": 1, \"badge_id\": \"USER-1-ABC12345\", \"paid_items\": [...]}"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "status": "success",
+  "participant": {
+    "id": "participant-uuid",
+    "name": "John Doe",
     "email": "user@example.com",
-    "first_name": "John",
-    "last_name": "Doe",
-    "full_name": "John Doe",
-    "role": "participant",
-    "event": {
-      "id": "event-uuid",
-      "name": "Tech Conference 2026",
-      "start_date": "2026-06-15T09:00:00Z",
-      "end_date": "2026-06-17T18:00:00Z"
+    "badge_id": "USER-1-ABC12345"
+  },
+  "room": {
+    "id": "room-uuid",
+    "name": "Conference Hall A"
+  },
+  "event": {
+    "id": "event-uuid",
+    "name": "TechSummit 2026"
+  },
+  "paid_items": [
+    {
+      "type": "session",
+      "id": "session-uuid-1",
+      "title": "Advanced Python Workshop",
+      "is_paid": true,
+      "payment_status": "paid",
+      "amount_paid": 50.00,
+      "has_access": true
     },
-    "participant_id": "participant-uuid",
-    "is_checked_in": false,
-    "checked_in_at": null,
-    "paid_items": [...],
-    "total_paid_items": 1,
-    "access_summary": {
-      "total_sessions": 5,
-      "paid_sessions": 1,
-      "total_rooms": 3,
-      "has_any_paid_access": true
-    }
-  }
-}
-```
-
-**Response Fields:**
-- `participant`: Participant profile data (null if user is not a participant)
-  - `badge_id`: Unique badge identifier for QR code
-  - `qr_code_data`: Complete QR code data stored in participant profile
-  - `registered_events`: List of ALL events the participant has registered for
-- `qr_code`: Latest QR code data generated from UserProfile (includes current event info and payment status)
-
-**Notes:**
-- If user hasn't registered for any event, `event` will be `null`
-- If user is not a participant (e.g., staff), `participant` will be `null`
-- `qr_code` is always generated and includes the most up-to-date information
-- Use this endpoint to refresh user data after event registration or payments
-
-**Error Response:** `401 Unauthorized`
-```json
-{
-  "detail": "Authentication credentials were not provided."
-}
-```
-
----
-
-## Events
-
-### 8. List Events
-**Endpoint:** `GET /api/events/`
-
-**Description:** Get list of events user has access to
-
-**Authentication:** Required (Bearer token)
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Query Parameters:**
-- `status` (optional): Filter by status (upcoming, active, completed, cancelled)
-- `search` (optional): Search by name
-- `page` (optional): Page number
-- `page_size` (optional): Items per page (default: 20)
-
-**Success Response:** `200 OK`
-```json
-{
-  "count": 1,
-  "next": null,
-  "previous": null,
-  "results": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "Tech Conference 2026",
-      "description": "Annual technology conference",
-      "start_date": "2026-06-15T09:00:00Z",
-      "end_date": "2026-06-17T18:00:00Z",
-      "location": "Convention Center",
-      "location_url": "https://maps.google.com/?q=Convention+Center",
-      "logo": "https://domain.com/media/events/logos/logo.png",
-      "banner": "https://domain.com/media/events/banners/banner.png",
-      "status": "active",
-      "dynamic_status": "ongoing",
-      "total_participants": 250,
-      "total_rooms": 5,
-      "created_at": "2026-01-15T10:00:00Z"
+      "type": "access",
+      "id": "access-uuid",
+      "title": "VIP Lounge Access",
+      "is_paid": true,
+      "payment_status": "paid",
+      "amount_paid": 100.00,
+      "has_access": true
     }
-  ]
-}
-```
-
----
-
-### 9. Get Event Details
-**Endpoint:** `GET /api/events/{event_id}/`
-
-**Description:** Get detailed information about a specific event
-
-**Authentication:** Required
-
-**Success Response:** `200 OK`
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "Tech Conference 2026",
-  "description": "Annual technology conference",
-  "start_date": "2026-06-15T09:00:00Z",
-  "end_date": "2026-06-17T18:00:00Z",
-  "location": "Convention Center",
-  "location_url": "https://maps.google.com/?q=Convention+Center",
-  "location_details": "Main Hall, Floor 3",
-  "logo": "https://domain.com/media/events/logos/logo.png",
-  "banner": "https://domain.com/media/events/banners/banner.png",
-  "status": "active",
-  "dynamic_status": "ongoing",
-  "total_participants": 250,
-  "total_exhibitors": 30,
-  "total_rooms": 5,
-  "organizer_contact": "organizer@example.com",
-  "programme_file": "https://domain.com/media/events/programmes/programme.pdf",
-  "guide_file": "https://domain.com/media/events/guides/guide.pdf",
-  "created_at": "2026-01-15T10:00:00Z",
-  "updated_at": "2026-04-01T14:30:00Z"
-}
-```
-
----
-
-## Rooms
-
-### 10. List Rooms
-**Endpoint:** `GET /api/rooms/`
-
-**Description:** Get list of rooms
-
-**Authentication:** Required
-
-**Query Parameters:**
-- `event` (optional): Filter by event ID
-- `is_active` (optional): Filter by active status (true/false)
-
-**Success Response:** `200 OK`
-```json
-{
-  "count": 5,
-  "next": null,
-  "previous": null,
-  "results": [
+  ],
+  "free_items": [
     {
-      "id": "room-uuid",
-      "event": "event-uuid",
-      "event_name": "Tech Conference 2026",
-      "name": "Main Hall A",
-      "capacity": 200,
-      "location": "Floor 3, West Wing",
-      "current_participants": 45,
-      "is_active": true,
-      "session_count": 8,
-      "next_session": {
-        "id": "session-uuid",
-        "title": "AI in Healthcare",
-        "start_time": "2026-06-15T14:00:00Z",
-        "speaker_name": "Dr. Jane Smith"
-      },
-      "created_at": "2026-01-15T10:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-## Sessions
-
-### 11. List Sessions
-**Endpoint:** `GET /api/sessions/`
-
-**Description:** Get list of sessions
-
-**Authentication:** Required
-
-**Query Parameters:**
-- `event` (optional): Filter by event ID
-- `room` (optional): Filter by room ID
-- `status` (optional): Filter by status (scheduled, live, completed, cancelled)
-- `session_type` (optional): Filter by type (conference, atelier, workshop, panel, keynote)
-
-**Success Response:** `200 OK`
-```json
-{
-  "count": 45,
-  "next": "http://api/sessions/?page=2",
-  "previous": null,
-  "results": [
-    {
-      "id": "session-uuid",
-      "event": "event-uuid",
-      "room": "room-uuid",
-      "room_name": "Main Hall A",
-      "title": "AI in Healthcare",
-      "description": "Exploring AI applications in modern healthcare",
-      "start_time": "2026-06-15T14:00:00Z",
-      "end_time": "2026-06-15T15:30:00Z",
-      "speaker_name": "Dr. Jane Smith",
-      "speaker_title": "Chief AI Officer",
-      "speaker_bio": "Leading expert in healthcare AI",
-      "speaker_photo_url": "https://domain.com/media/speakers/jane.jpg",
-      "theme": "Healthcare Technology",
-      "session_type": "conference",
-      "status": "scheduled",
+      "type": "session",
+      "id": "session-uuid-2",
+      "title": "Opening Keynote",
       "is_paid": false,
-      "price": null,
-      "max_participants": null,
-      "youtube_live_url": "https://youtube.com/live/xyz",
-      "cover_image_url": "https://domain.com/media/sessions/cover.jpg",
-      "is_live": false,
-      "duration_minutes": 90,
-      "created_at": "2026-01-15T10:00:00Z"
+      "payment_status": "free",
+      "amount_paid": 0,
+      "has_access": true
+    }
+  ],
+  "total_paid_items": 2,
+  "total_free_items": 1,
+  "has_access": true
+}
+```
+
+**Response (Not Registered):**
+```json
+{
+  "status": "error",
+  "message": "Participant not registered for this event",
+  "participant": {
+    "id": "participant-uuid",
+    "name": "John Doe",
+    "email": "user@example.com",
+    "badge_id": "USER-1-ABC12345"
+  }
+}
+```
+
+**Response (Invalid QR):**
+```json
+{
+  "status": "invalid",
+  "message": "Invalid QR code format"
+}
+```
+
+**Response (User Not Found):**
+```json
+{
+  "status": "invalid",
+  "message": "Invalid QR code - user not found"
+}
+```
+
+### 4.2 Verify Access (Legacy - Session-Specific)
+
+**Endpoint:** `POST /api/events/rooms/{room_id}/verify_access/`
+
+**Description:** Legacy endpoint for session-specific access verification. Use `scan_participant` instead for the new flow.
+
+**Headers:**
+```
+Authorization: Bearer <controller_token>
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "qr_data": "{\"user_id\": 1, \"badge_id\": \"USER-1-ABC12345\"}",
+  "session": "session-uuid-here"
+}
+```
+
+**Note:** 
+- `session` is REQUIRED for this endpoint
+- This endpoint performs backend verification and creates RoomAccess records
+- Use `scan_participant` for simpler flow without session selection
+
+**Response (Access Granted):**
+```json
+{
+  "status": "granted",
+  "message": "Access granted successfully",
+  "participant": {
+    "id": "participant-uuid",
+    "name": "John Doe",
+    "email": "user@example.com",
+    "badge_id": "USER-1-ABC12345"
+  },
+  "session": {
+    "id": "session-uuid",
+    "title": "Advanced Python Workshop",
+    "room": "Conference Hall A"
+  },
+  "access": {
+    "id": "access-uuid",
+    "accessed_at": "2026-04-24T20:00:00Z"
+  }
+}
+```
+
+**Response (Payment Required):**
+```json
+{
+  "status": "denied",
+  "message": "Payment required for this session",
+  "participant": {
+    "id": "participant-uuid",
+    "name": "John Doe",
+    "badge_id": "USER-1-ABC12345"
+  },
+  "session": {
+    "id": "session-uuid",
+    "title": "Advanced Python Workshop",
+    "price": "50.00",
+    "start_time": "2026-06-15T14:00:00Z"
+  }
+}
+```
+
+---
+
+## 5. Get Paid Sessions (Participant)
+
+**Endpoint:** `GET /api/events/my-ateliers/`
+
+**Headers:**
+```
+Authorization: Bearer <participant_token>
+```
+
+**Response:**
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "id": "session-uuid-1",
+      "title": "Advanced Python Workshop",
+      "description": "Learn advanced Python concepts",
+      "start_time": "2026-06-15T14:00:00Z",
+      "end_time": "2026-06-15T16:00:00Z",
+      "room": {
+        "id": "room-uuid",
+        "name": "Room A"
+      },
+      "payment_status": "paid",
+      "amount_paid": 50.00,
+      "is_paid": true,
+      "price": 50.00
+    },
+    {
+      "id": "session-uuid-2",
+      "title": "Web Development Bootcamp",
+      "description": "Full-stack web development",
+      "start_time": "2026-06-16T10:00:00Z",
+      "end_time": "2026-06-16T12:00:00Z",
+      "room": {
+        "id": "room-uuid-2",
+        "name": "Room B"
+      },
+      "payment_status": "paid",
+      "amount_paid": 75.00,
+      "is_paid": true,
+      "price": 75.00
     }
   ]
 }
@@ -646,420 +436,434 @@ Authorization: Bearer <access_token>
 
 ---
 
-## QR Code Operations
+## 6. Controller Statistics
 
-### 12. Generate QR Code
-**Endpoint:** `GET /api/qr/generate/`
-
-**⚠️ NOTE:** QR code is automatically included in login and signup responses. This endpoint is optional - use it only if you need to refresh QR code data.
-
-**Description:** Generate QR code for current user with complete participant information including ALL paid items
-
-**Authentication:** Required (Bearer token)
+**Endpoint:** `GET /api/events/my-room/statistics/`
 
 **Headers:**
 ```
-Authorization: Bearer <access_token>
+Authorization: Bearer <controller_token>
 ```
 
-**Success Response:** `200 OK`
-```json
-{
-  "success": true,
-  "qr_data": {
-    "user_id": 1,
-    "badge_id": "USER-1-ABC12345",
-    "email": "john@example.com",
-    "first_name": "John",
-    "last_name": "Doe",
-    "full_name": "John Doe",
-    "role": "participant",
-    "event": {
-      "id": "event-uuid",
-      "name": "Tech Conference 2026",
-      "start_date": "2026-06-15T09:00:00Z",
-      "end_date": "2026-06-17T18:00:00Z"
-    },
-    "participant_id": "participant-uuid",
-    "is_checked_in": true,
-    "checked_in_at": "2026-06-15T09:30:00Z",
-    "paid_items": [
-      {
-        "type": "session",
-        "id": "session-uuid-1",
-        "title": "Advanced Workshop",
-        "is_paid": true,
-        "payment_status": "paid",
-        "amount_paid": 50.0,
-        "has_access": true
-      },
-      {
-        "type": "session",
-        "id": "session-uuid-2",
-        "title": "Free Conference",
-        "is_paid": false,
-        "payment_status": "free",
-        "amount_paid": 0.0,
-        "has_access": true
-      },
-      {
-        "type": "room",
-        "id": "room-uuid-1",
-        "title": "VIP Lounge",
-        "is_paid": true,
-        "payment_status": "paid",
-        "amount_paid": 100.0,
-        "has_access": true
-      }
-    ],
-    "total_paid_items": 2,
-    "access_summary": {
-      "total_sessions": 2,
-      "paid_sessions": 1,
-      "total_rooms": 1,
-      "has_any_paid_access": true
-    }
-  }
-}
-```
-
-**Error Response:** `401 Unauthorized`
-```json
-{
-  "detail": "Authentication credentials were not provided."
-}
-```
-
-**Mobile App Usage:**
-When controller scans this QR code, display a screen showing:
-1. **Participant Info:** Name, email, badge ID
-2. **Check-in Status:** ✅ Checked in or ❌ Not checked in
-3. **Access Items:** List of all items where `has_access: true`
-4. **Simple Display:** Show item name and whether it's paid or free
-
-**Access Logic (Binary - Simple):**
-- `has_access: true` → ✅ Show the item (ALLOW ENTRY)
-- `has_access: false` → Don't show the item (NO ACCESS)
-
-**Important:**
-- If someone paid for something → `has_access: true`
-- If something is free → `has_access: true`
-- Binary logic: 1 = has access, 0 = no access
-- Controller just verifies participant has access
-- No action buttons needed - information only
-
-**When to Use This Endpoint:**
-- To refresh QR code data after user registers for new events
-- To get updated paid items after user makes payments
-- QR code is already provided on login/signup, so this is optional
-
-**Common Mistake:**
-❌ DO NOT use `/api/my-ateliers/` for QR code generation
-✅ QR code is automatically included in login/signup responses
-✅ Use `/api/qr/generate/` only if you need to refresh QR data
-
-The `/api/my-ateliers/` endpoint is for listing workshops the user is registered for, NOT for generating QR codes.
-
----
-
-## Statistics & Dashboard
-
-### 13. Get My Room Statistics
-**Endpoint:** `GET /api/my-room/statistics/`
-
-**Description:** Get statistics for check-ins performed by the current controller
-
-**Important:** Each controller sees only THEIR OWN scans/check-ins, not all check-ins in the event
-
-**Authentication:** Required (Controller or Gestionnaire role)
-
-**Success Response:** `200 OK`
+**Response:**
 ```json
 {
   "total_rooms": 3,
-  "total_sessions_today": 12,
-  "my_check_ins_today": 45,
+  "total_sessions_today": 5,
+  "my_check_ins_today": 12,
   "rooms": [
     {
-      "id": "room-uuid-1",
-      "name": "Salle A",
-      "capacity": 200,
-      "sessions_today": 4,
-      "my_check_ins_today": 18
-    },
-    {
-      "id": "room-uuid-2",
-      "name": "Salle B",
-      "capacity": 150,
-      "sessions_today": 5,
-      "my_check_ins_today": 22
+      "id": "room-uuid",
+      "name": "Conference Hall A",
+      "capacity": 100,
+      "sessions_today": 2,
+      "my_check_ins_today": 5
     }
   ],
   "role": "controlleur_des_badges",
   "event": {
     "id": "event-uuid",
-    "name": "Tech Conference 2026"
+    "name": "TechSummit 2026"
   }
 }
 ```
 
 ---
 
-## Error Responses
+## Key Concepts
 
-### Common Error Codes:
+### QR Code Structure
 
-**400 Bad Request**
+The QR code contains complete JSON with all participant information and paid items. **The badge_id remains constant** - only the data inside the QR code is updated when payments are made.
+
 ```json
 {
-  "detail": "Invalid request data",
-  "errors": {
-    "field_name": ["Error message"]
-  }
-}
-```
-
-**401 Unauthorized**
-```json
-{
-  "detail": "Authentication credentials were not provided."
-}
-```
-
-**403 Forbidden**
-```json
-{
-  "detail": "You do not have permission to perform this action."
-}
-```
-
-**404 Not Found**
-```json
-{
-  "detail": "Not found."
-}
-```
-
-**500 Internal Server Error**
-```json
-{
-  "detail": "Internal server error"
-}
-```
-
----
-
-## Authentication Flow
-
-### 1. Sign Up (New Users)
-```
-POST /api/auth/signup/request/
-Body: { "email": "user@example.com", "first_name": "John", "last_name": "Doe", "password": "mypass123" }
-Response: { "success": true, "message": "Verification code sent" }
-
-User receives 6-digit code via email
-
-POST /api/auth/signup/verify/
-Body: { "email": "user@example.com", "code": "123456" }
-Response: { "success": true, "access": "...", "refresh": "...", "user": {...}, "qr_code": {...} }
-```
-
-### 2. Login (Existing Users)
-```
-POST /api/auth/token/
-Body: { "email": "user@example.com", "password": "SecurePassword123!" }
-Response: { "access": "...", "refresh": "...", "user": {...}, "role": "...", "event": {...}, "qr_code": {...} }
-```
-
-### 3. Store Tokens and QR Code
-```dart
-// Store tokens and QR code data securely
-SharedPreferences prefs = await SharedPreferences.getInstance();
-await prefs.setString('access_token', response['access']);
-await prefs.setString('refresh_token', response['refresh']);
-await prefs.setString('user_role', response['role']);
-await prefs.setString('qr_code_data', jsonEncode(response['qr_code']));
-```
-
-### 4. Use Access Token
-```dart
-// Add to all API requests
-headers: {
-  'Authorization': 'Bearer $accessToken',
-  'Content-Type': 'application/json',
-}
-```
-
-### 5. Handle Token Expiration
-```dart
-// If you get 401 error, refresh the token
-POST /api/auth/token/refresh/
-Body: { "refresh": "stored_refresh_token" }
-Response: { "access": "new_access_token" }
-```
-
-### 6. Logout
-```dart
-// Simply delete stored tokens
-await prefs.remove('access_token');
-await prefs.remove('refresh_token');
-```
-
----
-
-## Important Notes
-
-1. **Sign Up Required**: Users must create an account in the mobile app before registering for events
-
-2. **Automatic Participant Profile**: When users sign up, a participant profile is created automatically with a unique badge_id and QR code
-
-3. **Password-Based Auth**: All authentication is now password-based (no more code login)
-
-4. **QR Code Auto-Generated**: QR code is automatically included in login and signup responses - no need to call `/api/qr/generate/` separately (reduces API calls)
-
-5. **Token Lifetime**: 
-   - Access token: 1 hour
-   - Refresh token: 7 days
-
-6. **Verification Codes**:
-   - Sign up code: 6 digits, expires in 3 minutes
-   - Can resend after 3 minutes
-
-7. **Multiple Events**: One participant can register for multiple events with the same account
-
-8. **Pagination**: Most list endpoints return paginated results (20 items per page by default)
-
-9. **Date Format**: All dates are in ISO 8601 format with UTC timezone
-
-10. **UUIDs**: Most IDs are UUIDs, not integers
-
-11. **File URLs**: All file URLs (images, PDFs) are absolute URLs
-
-12. **Role Required**: Some endpoints require specific roles
-
----
-
-## Testing
-
-### Test Credentials (Staff/Controllers)
-```
-Email: controller1@wemakeplus.com
-Password: test123
-Role: controlleur_des_badges
-```
-
-### Test Sign Up (Participants)
-Use any email to create a new account through the sign up flow.
-
-### Test Server
-```
-https://makeplus-django-5.onrender.com
-```
-
----
-
-## Common Issues & Troubleshooting
-
-### Issue: QR Code Returns Empty or Wrong Data
-
-**Problem:** Not using the QR code data from login/signup response
-
-**Solution:** 
-```dart
-// ✅ BEST - QR code already in login/signup response
-POST /api/auth/token/
-Response includes: { ..., "qr_code": {...} }
-
-// ✅ ALTERNATIVE - Refresh QR code data
-GET /api/qr/generate/
-
-// ❌ WRONG - This is for listing workshops
-GET /api/my-ateliers/
-```
-
-**Correct Implementation:**
-```dart
-// Login and get QR code automatically
-Future<Map<String, dynamic>> login(String email, String password) async {
-  final response = await dio.post(
-    '/api/auth/token/',
-    data: {
-      'email': email,
-      'password': password,
+  "user_id": 1,
+  "badge_id": "USER-1-ABC12345",  // This NEVER changes
+  "email": "user@example.com",
+  "first_name": "John",
+  "last_name": "Doe",
+  "full_name": "John Doe",
+  "role": "participant",
+  "event": {
+    "id": "event-uuid",
+    "name": "TechSummit 2026",
+    "start_date": "2026-06-15T09:00:00Z",
+    "end_date": "2026-06-17T18:00:00Z"
+  },
+  "participant_id": "participant-uuid",
+  "is_checked_in": false,
+  "checked_in_at": null,
+  "paid_items": [  // This array is updated when participant pays
+    {
+      "type": "session",
+      "id": "session-uuid",
+      "title": "Advanced Python Workshop",
+      "is_paid": true,
+      "payment_status": "paid",
+      "amount_paid": 50.00,
+      "has_access": true
     },
-  );
-  
-  if (response.statusCode == 200) {
-    // QR code is already in the response!
-    final qrCode = response.data['qr_code'];
-    
-    // Store it locally
-    await prefs.setString('qr_code_data', jsonEncode(qrCode));
-    
-    return response.data;
+    {
+      "type": "access",
+      "id": "access-uuid",
+      "title": "VIP Lounge Access",
+      "is_paid": true,
+      "payment_status": "paid",
+      "amount_paid": 100.00,
+      "has_access": true
+    },
+    {
+      "type": "room",
+      "id": "room-uuid",
+      "title": "Conference Hall A",
+      "is_paid": false,
+      "payment_status": "free",
+      "amount_paid": 0,
+      "has_access": true
+    }
+  ],
+  "total_paid_items": 2,
+  "access_summary": {
+    "total_sessions": 1,
+    "paid_sessions": 1,
+    "total_rooms": 1,
+    "has_any_paid_access": true
   }
-  throw Exception('Login failed');
-}
-
-// Optional: Refresh QR code after registering for events
-Future<Map<String, dynamic>> refreshQRCode() async {
-  final response = await dio.get(
-    '/api/qr/generate/',
-    options: Options(
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-      },
-    ),
-  );
-  
-  if (response.statusCode == 200) {
-    return response.data['qr_data'];
-  }
-  throw Exception('Failed to refresh QR code');
 }
 ```
 
+**Important:** The `badge_id` is generated once during signup and never changes. When a participant makes a payment, only the `paid_items` array is updated with new items. The participant keeps the same QR code (same badge_id), but the data inside it is refreshed.
+
+### Payment Flow
+
+1. **Participant pays at caisse** → `SessionAccess` records created with `has_access=True`, `payment_status='paid'`
+2. **QR code data updated** → `paid_items` array updated with all paid sessions, access, rooms, etc. **The badge_id stays the same!**
+3. **Controller scans badge** → Calls `scan_participant` endpoint → Backend returns ALL paid items + free items
+4. **Controller displays list** → Shows participant name, paid items, free items
+5. **Participant enters directly** → No verification/grant/deny logic - if paid, they have access
+
+**Important:** The participant receives ONE QR code with a permanent `badge_id` (e.g., "USER-1-ABC12345"). When they make payments, the data inside the QR code is updated (the `paid_items` array grows), but the `badge_id` remains the same. The participant doesn't need to get a new QR code - they can keep using the same one, and it will always show their latest paid items when scanned.
+
+### Item Types
+
+- **session**: Paid workshops/ateliers (e.g., "Advanced Python Workshop - 50 DA")
+- **access**: Special access (e.g., "VIP Lounge Access - 100 DA")
+- **room**: Room-specific access (e.g., "Conference Hall A - Free")
+- **other**: Any other paid items
+
+### Free vs Paid
+
+- **Free items**: `is_paid=false`, `payment_status='free'`, everyone has access
+- **Paid items**: `is_paid=true`, `payment_status='paid'`, only those who paid have access
+- **Payment status values**: `paid`, `free`, `pending`, `refunded`
+
+### Badge Scanning Flow
+
+**New Flow (Recommended):**
+1. Controller scans QR code
+2. Mobile app calls `POST /api/events/rooms/{room_id}/scan_participant/`
+3. Backend parses QR code and returns:
+   - Participant info
+   - ALL paid items from QR code
+   - ALL free items in the room
+4. Controller displays complete list
+5. Participant enters (no verification needed)
+
+**Legacy Flow (Session-Specific):**
+1. Controller selects session
+2. Controller scans QR code
+3. Mobile app calls `POST /api/events/rooms/{room_id}/verify_access/` with `session` parameter
+4. Backend checks `SessionAccess` table
+5. Returns granted/denied status
+6. Creates `RoomAccess` record
+
+**Use the new flow for simpler implementation!**
+
 ---
 
-### Issue: Password Validation Fails
+## Mobile App Implementation Guide
 
-**Problem:** Password doesn't meet requirements
+### Controller App - Badge Scanning Screen
 
-**Requirements:**
-- At least 8 characters
-- Must contain at least one number (0-9)
+```dart
+class BadgeScannerScreen extends StatefulWidget {
+  final String roomId;
+  final String roomName;
+  
+  @override
+  _BadgeScannerScreenState createState() => _BadgeScannerScreenState();
+}
 
-**Examples:**
+class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
+  
+  Future<void> scanBadge() async {
+    try {
+      // 1. Scan QR code
+      final qrCode = await BarcodeScanner.scan();
+      
+      if (qrCode.isEmpty) return;
+      
+      // 2. Call scan_participant endpoint
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/events/rooms/${widget.roomId}/scan_participant/'),
+        headers: {
+          'Authorization': 'Bearer $controllerToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'qr_data': qrCode}),
+      );
+      
+      final result = jsonDecode(response.body);
+      
+      // 3. Handle response
+      if (result['status'] == 'success') {
+        _showAccessGranted(result);
+      } else if (result['status'] == 'error') {
+        _showError(result['message']);
+      } else {
+        _showError('Invalid QR code');
+      }
+      
+    } catch (e) {
+      _showError('Scan failed: $e');
+    }
+  }
+  
+  void _showAccessGranted(Map<String, dynamic> result) {
+    final participant = result['participant'];
+    final paidItems = result['paid_items'] ?? [];
+    final freeItems = result['free_items'] ?? [];
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('✅ Access Granted'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Participant info
+              Text('Name: ${participant['name']}',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('Email: ${participant['email']}'),
+              Text('Badge: ${participant['badge_id']}'),
+              
+              SizedBox(height: 16),
+              
+              // Paid items
+              if (paidItems.isNotEmpty) ...[
+                Text('Paid Items:', style: TextStyle(fontWeight: FontWeight.bold)),
+                ...paidItems.map((item) => Padding(
+                  padding: EdgeInsets.only(left: 8, top: 4),
+                  child: Text('✅ ${item['title']} (${item['amount_paid']} DA)'),
+                )),
+                SizedBox(height: 8),
+              ],
+              
+              // Free items
+              if (freeItems.isNotEmpty) ...[
+                Text('Free Items:', style: TextStyle(fontWeight: FontWeight.bold)),
+                ...freeItems.map((item) => Padding(
+                  padding: EdgeInsets.only(left: 8, top: 4),
+                  child: Text('🆓 ${item['title']} (Free)'),
+                )),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showError(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('❌ Access Denied'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Scan Badge - ${widget.roomName}'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.qr_code_scanner, size: 100, color: Colors.blue),
+            SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: scanBadge,
+              icon: Icon(Icons.camera_alt),
+              label: Text('Scan QR Code'),
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 ```
-❌ "password" - No number
-❌ "pass1" - Too short (less than 8 chars)
-✅ "password1" - Valid
-✅ "mypass123" - Valid
+
+### Participant App - View Paid Sessions
+
+```dart
+class MyPaidSessionsScreen extends StatefulWidget {
+  @override
+  _MyPaidSessionsScreenState createState() => _MyPaidSessionsScreenState();
+}
+
+class _MyPaidSessionsScreenState extends State<MyPaidSessionsScreen> {
+  List<dynamic> paidSessions = [];
+  bool isLoading = true;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadPaidSessions();
+  }
+  
+  Future<void> _loadPaidSessions() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/events/my-ateliers/'),
+        headers: {
+          'Authorization': 'Bearer $participantToken',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          paidSessions = data['results'];
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      _showError('Failed to load sessions: $e');
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('My Paid Sessions'),
+      ),
+      body: isLoading
+        ? Center(child: CircularProgressIndicator())
+        : paidSessions.isEmpty
+          ? Center(child: Text('No paid sessions yet'))
+          : ListView.builder(
+              itemCount: paidSessions.length,
+              itemBuilder: (context, index) {
+                final session = paidSessions[index];
+                return Card(
+                  margin: EdgeInsets.all(8),
+                  child: ListTile(
+                    leading: Icon(Icons.check_circle, color: Colors.green, size: 40),
+                    title: Text(session['title'],
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Room: ${session['room']['name']}'),
+                        Text('Paid: ${session['amount_paid']} DA',
+                          style: TextStyle(color: Colors.green)),
+                        Text('Start: ${_formatDate(session['start_time'])}'),
+                      ],
+                    ),
+                    trailing: Icon(Icons.arrow_forward_ios),
+                    onTap: () => _showSessionDetails(session),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+  
+  String _formatDate(String isoDate) {
+    final date = DateTime.parse(isoDate);
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+  
+  void _showSessionDetails(Map<String, dynamic> session) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(session['title']),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(session['description'] ?? 'No description'),
+            SizedBox(height: 16),
+            Text('Room: ${session['room']['name']}'),
+            Text('Start: ${_formatDate(session['start_time'])}'),
+            Text('End: ${_formatDate(session['end_time'])}'),
+            SizedBox(height: 8),
+            Text('Amount Paid: ${session['amount_paid']} DA',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+}
 ```
 
 ---
 
-### Issue: Verification Code Expired
+## Error Codes
 
-**Problem:** Code expires after 3 minutes
-
-**Solution:**
-- Request a new code using `/api/auth/signup/resend/`
-- Must wait 3 minutes between requests
-- Use `wait_seconds` from response to show countdown
-
----
-
-### Issue: "Email already registered"
-
-**Problem:** User trying to sign up with existing email
-
-**Solution:**
-- User should login instead: `POST /api/auth/token/`
-- Cannot create duplicate accounts
+- `400` - Bad Request (invalid data)
+- `401` - Unauthorized (invalid/missing token)
+- `403` - Forbidden (not registered for event)
+- `404` - Not Found (user/participant not found)
+- `500` - Internal Server Error
 
 ---
 
-**Last Updated:** April 18, 2026  
-**API Version:** 2.0  
-**Status:** ✅ Production Ready
+## Currency
+
+All prices are in **DA (Algerian Dinar)**.
+
+---
+
+**Last Updated:** April 24, 2026  
+**Version:** 2.0

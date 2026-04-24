@@ -390,7 +390,11 @@ def process_transaction(request):
                 session_access.save()
     
     # Regenerate QR code to include new paid sessions
-    UserProfile.get_qr_for_user(participant.user)
+    updated_qr_data = UserProfile.get_qr_for_user(participant.user)
+    
+    # Update participant's qr_code_data field (now a JSONField)
+    participant.qr_code_data = updated_qr_data
+    participant.save(update_fields=['qr_code_data'])
     
     return JsonResponse({
         'success': True,
