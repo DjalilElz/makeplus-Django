@@ -262,7 +262,7 @@ def event_detail(request, event_id):
     all_assignments = list(UserEventAssignment.objects.filter(
         event=event,
         is_active=True
-    ).select_related('user__profile', 'assigned_by').prefetch_related('user__participations'))
+    ).select_related('user__profile', 'assigned_by').prefetch_related('user__participant_profile'))
     
     # Separate by role in Python (faster than 4 separate queries)
     organisateurs = [a for a in all_assignments if a.role == 'organisateur']
