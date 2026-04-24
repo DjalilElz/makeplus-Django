@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('events', '0025_restructure_participant_model'),
+        ('events', '0029_convert_qr_code_data_to_json'),
     ]
 
     operations = [
