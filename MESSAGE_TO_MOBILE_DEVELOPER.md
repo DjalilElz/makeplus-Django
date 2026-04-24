@@ -474,3 +474,233 @@ Check `MOBILE_APP_API_SPECIFICATION.md` for complete API documentation with all 
 
 **Last Updated:** April 17, 2026  
 **Status:** ✅ Ready for Implementation
+
+
+---
+
+## 💳 Paid Sessions & Badge Scanning
+
+### How Paid Sessions Work
+
+When a participant pays for a session/workshop at the caisse (cash register):
+
+1. **Payment Processing:**
+   - Caisse operator selects participant and paid items (sessions/workshops)
+   - System creates `CaisseTransaction` with status='completed'
+   - System creates `SessionAccess` records for each paid session:
+     - `has_access=True`
+     - `payment_status='paid'`
+     - `amount_paid=<session_price>`
+
+2. **Badge Scanning (Controller):**
+   - Controller scans participant's QR code/badge
+   - Mobile app calls `POST /api/events/rooms/{room_id}/verify_access/`
+   - Backend checks if `SessionAccess` exists for that participant and session
+   - If exists with `has_access=True` → Access granted ✅
+   - If not exists or `has_access=False` → Access denied ❌
+
+### Badge Verification API
+
+**Endpoint:** `POST /api/events/rooms/{room_id}/verify_access/`
+
+**Headers:**
+```
+Authorization: Bearer <controller_token>
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "qr_data": "{\"user_id\": 1, \"badge_id\": \"USER-1-ABC12345\"}",
+  "session": "session-uuid-here"
+}
+```
+
+**Note:** 
+- `qr_data` is the JSON string from the participant's QR code
+- `session` is REQUIRED when checking access for a paid workshop/atelier
+- `session` is OPTIONAL for general room access
+
+**Response (Access Granted):**
+```json
+{
+  "status": "granted",
+  "message": "Access granted successfully",
+  "participant": {
+    "id": "participant-uuid",
+    "name": "John Doe",
+    "email": "user@example.com",
+    "badge_id": "USER-1-ABC12345"
+  },
+  "access": {
+    "id": "access-uuid",
+    "accessed_at": "2026-04-24T20:00:00Z"
+  }
+}
+```
+
+**Response (Payment Required):**
+```json
+{
+  "status": "denied",
+  "message": "Payment required for this atelier",
+  "participant": {
+    "id": "participant-uuid",
+    "name": "John Doe",
+    "badge_id": "USER-1-ABC12345"
+  },
+  "session": {
+    "title": "Advanced Python Workshop",
+    "price": "50.00"
+  }
+}
+```
+
+**Response (Not Registered for Event):**
+```json
+{
+  "status": "denied",
+  "message": "User does not have access to this event",
+  "user": {
+    "name": "John Doe",
+    "email": "user@example.com"
+  }
+}
+```
+
+### Get Participant's Paid Sessions
+
+**Endpoint:** `GET /api/events/my-ateliers/`
+
+**Headers:**
+```
+Authorization: Bearer <participant_token>
+```
+
+**Response:**
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "id": "session-uuid-1",
+      "title": "Advanced Python Workshop",
+      "description": "Learn advanced Python concepts",
+      "start_time": "2026-06-15T14:00:00Z",
+      "end_time": "2026-06-15T16:00:00Z",
+      "room": {
+        "id": "room-uuid",
+        "name": "Room A"
+      },
+      "payment_status": "paid",
+      "amount_paid": 50.00,
+      "is_paid": true,
+      "price": 50.00
+    },
+    {
+      "id": "session-uuid-2",
+      "title": "Web Development Bootcamp",
+      "description": "Full-stack web development",
+      "start_time": "2026-06-16T10:00:00Z",
+      "end_time": "2026-06-16T12:00:00Z",
+      "room": {
+        "id": "room-uuid-2",
+        "name": "Room B"
+      },
+      "payment_status": "paid",
+      "amount_paid": 75.00,
+      "is_paid": true,
+      "price": 75.00
+    }
+  ]
+}
+```
+
+### Mobile App Implementation
+
+#### For Controllers (Badge Scanning):
+
+```dart
+// 1. Scan QR code
+final qrCode = await scanQRCode();
+
+// 2. Parse QR data
+final qrData = jsonDecode(qrCode);
+
+// 3. Get current session (if scanning for specific workshop)
+final sessionId = getCurrentSessionId(); // From your session selection
+
+// 4. Verify access
+final response = await http.post(
+  Uri.parse('$baseUrl/api/events/rooms/$roomId/verify_access/'),
+  headers: {
+    'Authorization': 'Bearer $controllerToken',
+    'Content-Type': 'application/json',
+  },
+  body: jsonEncode({
+    'qr_data': qrCode,
+    'session': sessionId, // Include if checking for paid session
+  }),
+);
+
+final result = jsonDecode(response.body);
+
+// 5. Show result
+if (result['status'] == 'granted') {
+  showSuccess('Access Granted: ${result['participant']['name']}');
+} else {
+  showError('Access Denied: ${result['message']}');
+  if (result['session'] != null) {
+    showPaymentRequired(result['session']['title'], result['session']['price']);
+  }
+}
+```
+
+#### For Participants (View Paid Sessions):
+
+```dart
+// Fetch paid sessions
+final response = await http.get(
+  Uri.parse('$baseUrl/api/events/my-ateliers/'),
+  headers: {
+    'Authorization': 'Bearer $participantToken',
+  },
+);
+
+final data = jsonDecode(response.body);
+final paidSessions = data['results'];
+
+// Display in UI
+ListView.builder(
+  itemCount: paidSessions.length,
+  itemBuilder: (context, index) {
+    final session = paidSessions[index];
+    return ListTile(
+      title: Text(session['title']),
+      subtitle: Text('Paid: ${session['amount_paid']} DA'),
+      trailing: Icon(Icons.check_circle, color: Colors.green),
+    );
+  },
+);
+```
+
+### Important Notes:
+
+1. **SessionAccess Records**: Automatically created when payment is processed at caisse
+2. **QR Code Format**: Contains JSON with `user_id` and `badge_id`
+3. **Session Parameter**: MUST be included when verifying access for paid workshops
+4. **Payment Status**: Check `payment_status='paid'` and `has_access=True` in SessionAccess
+5. **Currency**: All prices are in DA (Algerian Dinar)
+
+### Testing Flow:
+
+1. ✅ Participant signs up → Participant profile created
+2. ✅ Participant registers for Event A → UserEventAssignment + ParticipantEventRegistration created
+3. ✅ Participant pays for Workshop 1 at caisse → CaisseTransaction + SessionAccess created
+4. ✅ Controller scans participant's badge → Backend checks SessionAccess → Access granted/denied
+
+---
+
+**Last Updated:** April 24, 2026  
+**Status:** ✅ Paid Sessions Feature Implemented

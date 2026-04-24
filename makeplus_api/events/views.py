@@ -263,13 +263,20 @@ class RoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def verify_access(self, request, pk=None):
-        """Verify QR code for room access - User-level QR with event/session access control"""
+        """Verify QR code for SESSION access - Session-based access control"""
         room = self.get_object()
         serializer = QRVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         qr_data = serializer.validated_data['qr_data']
         session_id = serializer.validated_data.get('session')
+        
+        # SESSION ID IS REQUIRED - Access is always session-based
+        if not session_id:
+            return Response({
+                'status': 'invalid',
+                'message': 'Session ID is required for access verification'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             # Parse QR data (user-level QR code)
@@ -286,6 +293,16 @@ class RoomViewSet(viewsets.ModelViewSet):
             # Get user
             from django.contrib.auth.models import User
             user = User.objects.get(id=user_id)
+            
+            # Get session
+            session = Session.objects.get(id=session_id)
+            
+            # Verify session is in this room
+            if session.room_id != room.id:
+                return Response({
+                    'status': 'invalid',
+                    'message': 'Session is not in this room'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             # Check event access via UserEventAssignment
             event = room.event
@@ -306,37 +323,23 @@ class RoomViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_403_FORBIDDEN)
             
             # Get participant profile
-            participant = Participant.objects.filter(
-                user=user,
-                event=event
-            ).first()
+            participant = Participant.objects.filter(user=user).first()
             
             if not participant:
                 return Response({
                     'status': 'denied',
-                    'message': 'Participant profile not found for this event',
+                    'message': 'Participant profile not found',
                     'user': {
                         'name': user.get_full_name(),
                         'email': user.email
                     }
                 }, status=status.HTTP_404_NOT_FOUND)
             
-            # Check room access (if allowed_rooms is restricted)
-            allowed_rooms = participant.allowed_rooms.all()
-            if allowed_rooms.exists() and room not in allowed_rooms:
-                # Create denied access record
-                RoomAccess.objects.create(
-                    participant=participant,
-                    room=room,
-                    session_id=session_id,
-                    verified_by=request.user,
-                    status='denied',
-                    denial_reason='Not authorized for this room'
-                )
-                
+            # Check if participant is registered for this event
+            if not participant.is_registered_for_event(event):
                 return Response({
                     'status': 'denied',
-                    'message': 'Not authorized for this room',
+                    'message': 'Participant not registered for this event',
                     'participant': {
                         'id': str(participant.id),
                         'name': user.get_full_name(),
@@ -344,48 +347,46 @@ class RoomViewSet(viewsets.ModelViewSet):
                     }
                 }, status=status.HTTP_403_FORBIDDEN)
             
-            # Check session access (if scanning for a specific paid session)
-            if session_id:
-                session = Session.objects.get(id=session_id)
+            # Check session access - ALWAYS check for paid sessions
+            if session.is_paid:
+                session_access = SessionAccess.objects.filter(
+                    participant=participant,
+                    session=session,
+                    has_access=True
+                ).first()
                 
-                # If paid session, verify payment
-                if session.is_paid:
-                    session_access = SessionAccess.objects.filter(
+                if not session_access:
+                    # Create denied access record
+                    RoomAccess.objects.create(
                         participant=participant,
+                        room=room,
                         session=session,
-                        has_access=True
-                    ).first()
+                        verified_by=request.user,
+                        status='denied',
+                        denial_reason='Payment required for this session'
+                    )
                     
-                    if not session_access:
-                        # Create denied access record
-                        RoomAccess.objects.create(
-                            participant=participant,
-                            room=room,
-                            session=session,
-                            verified_by=request.user,
-                            status='denied',
-                            denial_reason='Payment required for this atelier'
-                        )
-                        
-                        return Response({
-                            'status': 'denied',
-                            'message': 'Payment required for this atelier',
-                            'participant': {
-                                'id': str(participant.id),
-                                'name': user.get_full_name(),
-                                'badge_id': qr_dict.get('badge_id')
-                            },
-                            'session': {
-                                'title': session.title,
-                                'price': str(session.price) if session.price else '0.00'
-                            }
-                        }, status=status.HTTP_402_PAYMENT_REQUIRED)
+                    return Response({
+                        'status': 'denied',
+                        'message': 'Payment required for this session',
+                        'participant': {
+                            'id': str(participant.id),
+                            'name': user.get_full_name(),
+                            'badge_id': qr_dict.get('badge_id')
+                        },
+                        'session': {
+                            'id': str(session.id),
+                            'title': session.title,
+                            'price': str(session.price) if session.price else '0.00',
+                            'start_time': session.start_time.isoformat() if session.start_time else None
+                        }
+                    }, status=status.HTTP_402_PAYMENT_REQUIRED)
             
             # Grant access - all checks passed
             access = RoomAccess.objects.create(
                 participant=participant,
                 room=room,
-                session_id=session_id,
+                session=session,
                 verified_by=request.user,
                 status='granted'
             )
@@ -397,13 +398,16 @@ class RoomViewSet(viewsets.ModelViewSet):
                     'id': str(participant.id),
                     'name': user.get_full_name(),
                     'email': user.email,
-                    'badge_id': qr_dict.get('badge_id'),
-                    'photo_url': participant.photo.url if participant.photo else None
+                    'badge_id': qr_dict.get('badge_id')
+                },
+                'session': {
+                    'id': str(session.id),
+                    'title': session.title,
+                    'room': room.name
                 },
                 'access': {
                     'id': str(access.id),
-                    'accessed_at': access.accessed_at.isoformat(),
-                    'room_name': room.name
+                    'accessed_at': access.accessed_at.isoformat()
                 }
             }, status=status.HTTP_200_OK)
             

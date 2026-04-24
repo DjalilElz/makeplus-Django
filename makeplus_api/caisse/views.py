@@ -363,31 +363,31 @@ def process_transaction(request):
     transaction.items.set(items)
     
     # Grant access to the selected sessions/ateliers
-    # Update participant's allowed_rooms with sessions linked to the paid items
-    from events.models import Session
+    # Create SessionAccess records for paid sessions
+    from events.models import Session, SessionAccess
     
     for item in items:
         if item.session:
             # Get the session
             session = item.session
             
-            # Grant access by adding session's room to participant's allowed_rooms
-            if session.room:
-                # Get or update participant's allowed_rooms in metadata
-                if not participant.metadata:
-                    participant.metadata = {}
-                
-                allowed_rooms = participant.metadata.get('allowed_rooms', [])
-                if not isinstance(allowed_rooms, list):
-                    allowed_rooms = []
-                
-                # Add room ID if not already present
-                room_id_str = str(session.room.id)
-                if room_id_str not in allowed_rooms:
-                    allowed_rooms.append(room_id_str)
-                
-                participant.metadata['allowed_rooms'] = allowed_rooms
-                participant.save()
+            # Create or update SessionAccess record
+            session_access, created = SessionAccess.objects.get_or_create(
+                participant=participant,
+                session=session,
+                defaults={
+                    'has_access': True,
+                    'payment_status': 'paid',
+                    'amount_paid': item.price
+                }
+            )
+            
+            # If already exists, update it
+            if not created:
+                session_access.has_access = True
+                session_access.payment_status = 'paid'
+                session_access.amount_paid = item.price
+                session_access.save()
     
     return JsonResponse({
         'success': True,
