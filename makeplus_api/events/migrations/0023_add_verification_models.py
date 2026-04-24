@@ -55,7 +55,7 @@ def rename_indexes_safely(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('events', '0022_delete_existing_participants'),
+        ('events', '0021_add_verification_models'),
     ]
 
     operations = [
