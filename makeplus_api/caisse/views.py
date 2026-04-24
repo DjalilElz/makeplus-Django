@@ -364,7 +364,7 @@ def process_transaction(request):
     
     # Grant access to the selected sessions/ateliers
     # Create SessionAccess records for paid sessions
-    from events.models import Session, SessionAccess
+    from events.models import Session, SessionAccess, UserProfile
     
     for item in items:
         if item.session:
@@ -388,6 +388,9 @@ def process_transaction(request):
                 session_access.payment_status = 'paid'
                 session_access.amount_paid = item.price
                 session_access.save()
+    
+    # Regenerate QR code to include new paid sessions
+    UserProfile.get_qr_for_user(participant.user)
     
     return JsonResponse({
         'success': True,

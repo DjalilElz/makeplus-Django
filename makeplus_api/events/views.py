@@ -262,6 +262,106 @@ class RoomViewSet(viewsets.ModelViewSet):
         })
     
     @action(detail=True, methods=['post'])
+    def scan_participant(self, request, pk=None):
+        """Scan participant QR code and return their info with paid sessions"""
+        room = self.get_object()
+        
+        qr_data = request.data.get('qr_data')
+        if not qr_data:
+            return Response({
+                'status': 'invalid',
+                'message': 'QR data is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Parse QR data
+            import json
+            qr_dict = json.loads(qr_data) if isinstance(qr_data, str) else qr_data
+            user_id = qr_dict.get('user_id')
+            
+            if not user_id:
+                return Response({
+                    'status': 'invalid',
+                    'message': 'Invalid QR code format'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get user
+            from django.contrib.auth.models import User
+            user = User.objects.get(id=user_id)
+            
+            # Get participant profile
+            participant = Participant.objects.filter(user=user).first()
+            
+            if not participant:
+                return Response({
+                    'status': 'error',
+                    'message': 'Participant profile not found',
+                    'user': {
+                        'name': user.get_full_name(),
+                        'email': user.email
+                    }
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Check if participant is registered for this event
+            event = room.event
+            if not participant.is_registered_for_event(event):
+                return Response({
+                    'status': 'error',
+                    'message': 'Participant not registered for this event',
+                    'participant': {
+                        'id': str(participant.id),
+                        'name': user.get_full_name(),
+                        'email': user.email,
+                        'badge_id': qr_dict.get('badge_id')
+                    }
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Get paid sessions from QR code data (already includes all paid sessions)
+            paid_items = qr_dict.get('paid_items', [])
+            
+            # Filter to only show sessions in this room
+            room_sessions = Session.objects.filter(room=room).values_list('id', flat=True)
+            room_sessions_str = [str(sid) for sid in room_sessions]
+            
+            paid_sessions_in_room = [
+                item for item in paid_items 
+                if item.get('type') == 'session' and item.get('id') in room_sessions_str
+            ]
+            
+            return Response({
+                'status': 'success',
+                'participant': {
+                    'id': str(participant.id),
+                    'name': user.get_full_name(),
+                    'email': user.email,
+                    'badge_id': qr_dict.get('badge_id')
+                },
+                'room': {
+                    'id': str(room.id),
+                    'name': room.name
+                },
+                'paid_sessions': paid_sessions_in_room,
+                'total_paid_sessions': len(paid_sessions_in_room),
+                'qr_data': qr_dict  # Return full QR data for reference
+            })
+            
+        except User.DoesNotExist:
+            return Response({
+                'status': 'invalid',
+                'message': 'Invalid QR code - user not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except json.JSONDecodeError:
+            return Response({
+                'status': 'invalid',
+                'message': 'Invalid QR code format'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': f'Error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'])
     def verify_access(self, request, pk=None):
         """Verify QR code for SESSION access - Session-based access control"""
         room = self.get_object()
