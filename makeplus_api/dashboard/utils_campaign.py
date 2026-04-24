@@ -88,15 +88,20 @@ def build_recipient_context(recipient_email, event):
         
         user = User.objects.filter(email=recipient_email).first()
         if user and event:
-            participant = Participant.objects.filter(
-                user=user,
-                event=event
-            ).first()
+            # Get participant profile (one per user)
+            participant = Participant.objects.filter(user=user).first()
             
             if participant:
+                # Get event registration to check is_checked_in
+                from events.models import ParticipantEventRegistration
+                event_registration = ParticipantEventRegistration.objects.filter(
+                    participant=participant,
+                    event=event
+                ).first()
+                
                 context['badge_id'] = participant.badge_id or ''
-                context['qr_code_url'] = participant.qr_code.url if participant.qr_code else ''
-                context['is_checked_in'] = 'Yes' if participant.is_checked_in else 'No'
+                context['qr_code_url'] = ''  # QR code is now in qr_code_data JSON field
+                context['is_checked_in'] = 'Yes' if (event_registration and event_registration.is_checked_in) else 'No'
     except Exception as e:
         print(f"Error fetching participant data: {e}")
     

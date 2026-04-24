@@ -140,4 +140,7 @@ class Command(BaseCommand):
         self.stdout.write(f'   Events: {Event.objects.count()}')
         self.stdout.write(f'   Rooms: {Room.objects.filter(event=event).count()}')
         self.stdout.write(f'   Sessions: {Session.objects.filter(event=event).count()}')
-        self.stdout.write(f'   Participants: {Participant.objects.filter(event=event).count()}')
+        # Count participants registered for this event via ParticipantEventRegistration
+        from events.models import ParticipantEventRegistration
+        participant_count = ParticipantEventRegistration.objects.filter(event=event).count()
+        self.stdout.write(f'   Participants: {participant_count}')
