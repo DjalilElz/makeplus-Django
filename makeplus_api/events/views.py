@@ -263,7 +263,7 @@ class RoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def scan_participant(self, request, pk=None):
-        """Scan participant QR code and return their info with paid sessions"""
+        """Scan participant QR code and display all paid items (sessions, access, etc.)"""
         room = self.get_object()
         
         qr_data = request.data.get('qr_data')
@@ -316,17 +316,45 @@ class RoomViewSet(viewsets.ModelViewSet):
                     }
                 }, status=status.HTTP_403_FORBIDDEN)
             
-            # Get paid sessions from QR code data (already includes all paid sessions)
+            # Get ALL paid items from QR code (sessions, access, rooms, etc.)
             paid_items = qr_dict.get('paid_items', [])
             
-            # Filter to only show sessions in this room
-            room_sessions = Session.objects.filter(room=room).values_list('id', flat=True)
-            room_sessions_str = [str(sid) for sid in room_sessions]
+            # Get all sessions in this room (to show free sessions too)
+            room_sessions = Session.objects.filter(room=room).order_by('start_time')
             
-            paid_sessions_in_room = [
-                item for item in paid_items 
-                if item.get('type') == 'session' and item.get('id') in room_sessions_str
-            ]
+            # Build complete list: paid items + free sessions
+            all_items = []
+            
+            # Add paid items from QR code
+            for item in paid_items:
+                all_items.append({
+                    'type': item.get('type'),
+                    'id': item.get('id'),
+                    'title': item.get('title'),
+                    'is_paid': item.get('is_paid', False),
+                    'payment_status': item.get('payment_status', 'free'),
+                    'amount_paid': item.get('amount_paid', 0),
+                    'has_access': item.get('has_access', True)
+                })
+            
+            # Add free sessions in this room (everyone has access)
+            paid_session_ids = [item['id'] for item in paid_items if item.get('type') == 'session']
+            for session in room_sessions:
+                session_id_str = str(session.id)
+                if not session.is_paid and session_id_str not in paid_session_ids:
+                    all_items.append({
+                        'type': 'session',
+                        'id': session_id_str,
+                        'title': session.title,
+                        'is_paid': False,
+                        'payment_status': 'free',
+                        'amount_paid': 0,
+                        'has_access': True  # Free sessions = everyone has access
+                    })
+            
+            # Separate paid and free items for display
+            paid_items_list = [item for item in all_items if item['is_paid']]
+            free_items_list = [item for item in all_items if not item['is_paid']]
             
             return Response({
                 'status': 'success',
@@ -340,9 +368,15 @@ class RoomViewSet(viewsets.ModelViewSet):
                     'id': str(room.id),
                     'name': room.name
                 },
-                'paid_sessions': paid_sessions_in_room,
-                'total_paid_sessions': len(paid_sessions_in_room),
-                'qr_data': qr_dict  # Return full QR data for reference
+                'event': {
+                    'id': str(event.id),
+                    'name': event.name
+                },
+                'paid_items': paid_items_list,
+                'free_items': free_items_list,
+                'total_paid_items': len(paid_items_list),
+                'total_free_items': len(free_items_list),
+                'has_access': True  # Participant always has access if registered for event
             })
             
         except User.DoesNotExist:
