@@ -13,7 +13,11 @@ def delete_participants(apps, schema_editor):
         participant_count = cursor.fetchone()[0]
         print(f"Deleting {participant_count} participants...")
         
-        # First, delete caisse transactions that reference participants
+        # First, delete the many-to-many relationship records (junction table)
+        cursor.execute("DELETE FROM caisse_caissetransaction_items WHERE caissetransaction_id IS NOT NULL;")
+        print("Deleted caisse transaction items (junction table)")
+        
+        # Then, delete caisse transactions that reference participants
         cursor.execute("DELETE FROM caisse_caissetransaction WHERE participant_id IS NOT NULL;")
         print("Deleted caisse transactions")
         
