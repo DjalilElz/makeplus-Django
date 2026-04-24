@@ -26,7 +26,7 @@ else:
     ALLOWED_HOSTS = []
 
 # Always add these critical hosts
-ALLOWED_HOSTS.extend(['makeplus-django-5.onrender.com', 'localhost', '127.0.0.1'])
+ALLOWED_HOSTS.extend(['makeplus-django-5.onrender.com', 'makeplus-platform.onrender.com', 'localhost', '127.0.0.1'])
 # Remove duplicates while preserving order
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 
