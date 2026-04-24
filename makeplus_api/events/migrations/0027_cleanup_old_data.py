@@ -7,8 +7,7 @@ def cleanup_old_data(apps, schema_editor):
     """
     Clean up old data that might cause issues:
     1. Delete old form submissions/registrations
-    2. Clean up orphaned participant data
-    3. Remove any inconsistent records
+    2. Clean up orphaned data (but preserve data with valid foreign key references)
     """
     
     with schema_editor.connection.cursor() as cursor:
@@ -55,31 +54,22 @@ def cleanup_old_data(apps, schema_editor):
         """)
         print("Cleaned up orphaned user profiles")
         
-        # 6. Delete caisse transactions for orphaned participants FIRST (before deleting participants)
+        # 6. Clean up orphaned caisse transactions (participants that don't exist)
         cursor.execute("""
             DELETE FROM caisse_caissetransaction 
             WHERE participant_id NOT IN (SELECT id FROM events_participant);
         """)
         print("Cleaned up orphaned caisse transactions")
         
-        # 7. Delete caisse transactions for participants whose users don't exist
-        cursor.execute("""
-            DELETE FROM caisse_caissetransaction 
-            WHERE participant_id IN (
-                SELECT id FROM events_participant 
-                WHERE user_id NOT IN (SELECT id FROM auth_user)
-            );
-        """)
-        print("Cleaned up caisse transactions for non-existent users")
-        
-        # 8. Clean up orphaned Participant records (users that don't exist)
+        # 7. Clean up orphaned Participant records (users that don't exist AND no caisse transactions)
         cursor.execute("""
             DELETE FROM events_participant 
-            WHERE user_id NOT IN (SELECT id FROM auth_user);
+            WHERE user_id NOT IN (SELECT id FROM auth_user)
+            AND id NOT IN (SELECT DISTINCT participant_id FROM caisse_caissetransaction WHERE participant_id IS NOT NULL);
         """)
-        print("Cleaned up orphaned participant records")
+        print("Cleaned up orphaned participant records (preserving those with transactions)")
         
-        # 9. Clean up orphaned UserEventAssignment records (users or events that don't exist)
+        # 8. Clean up orphaned UserEventAssignment records (users or events that don't exist)
         cursor.execute("""
             DELETE FROM events_usereventassignment 
             WHERE user_id NOT IN (SELECT id FROM auth_user)
@@ -87,7 +77,7 @@ def cleanup_old_data(apps, schema_editor):
         """)
         print("Cleaned up orphaned user event assignments")
         
-        # 10. Clean up orphaned ParticipantEventRegistration records
+        # 9. Clean up orphaned ParticipantEventRegistration records
         cursor.execute("""
             DELETE FROM events_participanteventregistration 
             WHERE participant_id NOT IN (SELECT id FROM events_participant)
