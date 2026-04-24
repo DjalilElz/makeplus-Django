@@ -55,14 +55,31 @@ def cleanup_old_data(apps, schema_editor):
         """)
         print("Cleaned up orphaned user profiles")
         
-        # 6. Clean up orphaned Participant records (users that don't exist)
+        # 6. Delete caisse transactions for orphaned participants FIRST (before deleting participants)
+        cursor.execute("""
+            DELETE FROM caisse_caissetransaction 
+            WHERE participant_id NOT IN (SELECT id FROM events_participant);
+        """)
+        print("Cleaned up orphaned caisse transactions")
+        
+        # 7. Delete caisse transactions for participants whose users don't exist
+        cursor.execute("""
+            DELETE FROM caisse_caissetransaction 
+            WHERE participant_id IN (
+                SELECT id FROM events_participant 
+                WHERE user_id NOT IN (SELECT id FROM auth_user)
+            );
+        """)
+        print("Cleaned up caisse transactions for non-existent users")
+        
+        # 8. Clean up orphaned Participant records (users that don't exist)
         cursor.execute("""
             DELETE FROM events_participant 
             WHERE user_id NOT IN (SELECT id FROM auth_user);
         """)
         print("Cleaned up orphaned participant records")
         
-        # 7. Clean up orphaned UserEventAssignment records (users or events that don't exist)
+        # 9. Clean up orphaned UserEventAssignment records (users or events that don't exist)
         cursor.execute("""
             DELETE FROM events_usereventassignment 
             WHERE user_id NOT IN (SELECT id FROM auth_user)
@@ -70,7 +87,7 @@ def cleanup_old_data(apps, schema_editor):
         """)
         print("Cleaned up orphaned user event assignments")
         
-        # 8. Clean up orphaned ParticipantEventRegistration records
+        # 10. Clean up orphaned ParticipantEventRegistration records
         cursor.execute("""
             DELETE FROM events_participanteventregistration 
             WHERE participant_id NOT IN (SELECT id FROM events_participant)
