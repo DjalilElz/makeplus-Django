@@ -291,7 +291,7 @@
                             <tr>
                                 <td><small>{{ trans.created_at|date:"M d, H:i" }}</small></td>
                                 <td>{{ trans.caisse.name }}</td>
-                                <td>{{ trans.items|length }} item(s)</td>
+                                <td>{{ trans.items.all|length }} item(s)</td>
                                 <td><strong>{{ trans.total_amount }} DA</strong></td>
                                 <td>
                                     {% if trans.payment_method == 'cash' %}
