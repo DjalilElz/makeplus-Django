@@ -263,7 +263,7 @@ class RoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def scan_participant(self, request, pk=None):
-        """Scan participant QR code and display all paid items (sessions, access, etc.)"""
+        """Scan participant QR code and display all paid items (sessions, access, etc.) - ALWAYS FETCHES FRESH DATA"""
         room = self.get_object()
         
         qr_data = request.data.get('qr_data')
@@ -316,33 +316,36 @@ class RoomViewSet(viewsets.ModelViewSet):
                     }
                 }, status=status.HTTP_403_FORBIDDEN)
             
-            # Get ALL paid items from QR code (sessions, access, rooms, etc.)
-            paid_items = qr_dict.get('paid_items', [])
+            # ✅ FETCH FRESH DATA FROM DATABASE (not from QR code)
+            # Get ALL paid items from SessionAccess table (REAL-TIME DATA)
+            session_accesses = SessionAccess.objects.filter(
+                participant=participant,
+                has_access=True
+            ).select_related('session')
+            
+            paid_items_list = []
+            for access in session_accesses:
+                if access.session.is_paid or access.payment_status == 'paid':
+                    paid_items_list.append({
+                        'type': 'session',
+                        'id': str(access.session.id),
+                        'title': access.session.title,
+                        'is_paid': access.session.is_paid,
+                        'payment_status': access.payment_status,
+                        'amount_paid': float(access.amount_paid) if access.amount_paid else 0,
+                        'has_access': access.has_access
+                    })
             
             # Get all sessions in this room (to show free sessions too)
             room_sessions = Session.objects.filter(room=room).order_by('start_time')
             
-            # Build complete list: paid items + free sessions
-            all_items = []
-            
-            # Add paid items from QR code
-            for item in paid_items:
-                all_items.append({
-                    'type': item.get('type'),
-                    'id': item.get('id'),
-                    'title': item.get('title'),
-                    'is_paid': item.get('is_paid', False),
-                    'payment_status': item.get('payment_status', 'free'),
-                    'amount_paid': item.get('amount_paid', 0),
-                    'has_access': item.get('has_access', True)
-                })
-            
             # Add free sessions in this room (everyone has access)
-            paid_session_ids = [item['id'] for item in paid_items if item.get('type') == 'session']
+            paid_session_ids = [item['id'] for item in paid_items_list]
+            free_items_list = []
             for session in room_sessions:
                 session_id_str = str(session.id)
                 if not session.is_paid and session_id_str not in paid_session_ids:
-                    all_items.append({
+                    free_items_list.append({
                         'type': 'session',
                         'id': session_id_str,
                         'title': session.title,
@@ -351,10 +354,6 @@ class RoomViewSet(viewsets.ModelViewSet):
                         'amount_paid': 0,
                         'has_access': True  # Free sessions = everyone has access
                     })
-            
-            # Separate paid and free items for display
-            paid_items_list = [item for item in all_items if item['is_paid']]
-            free_items_list = [item for item in all_items if not item['is_paid']]
             
             return Response({
                 'status': 'success',
@@ -372,7 +371,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                     'id': str(event.id),
                     'name': event.name
                 },
-                'paid_items': paid_items_list,
+                'paid_items': paid_items_list,  # ✅ FRESH from database
                 'free_items': free_items_list,
                 'total_paid_items': len(paid_items_list),
                 'total_free_items': len(free_items_list),
