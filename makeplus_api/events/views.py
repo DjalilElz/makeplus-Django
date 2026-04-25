@@ -316,25 +316,54 @@ class RoomViewSet(viewsets.ModelViewSet):
                     }
                 }, status=status.HTTP_403_FORBIDDEN)
             
-            # ✅ FETCH FRESH DATA FROM DATABASE (not from QR code)
-            # Get ALL paid items from SessionAccess table (REAL-TIME DATA)
-            session_accesses = SessionAccess.objects.filter(
+            # ✅ FETCH ALL PAID ITEMS FROM CAISSE TRANSACTIONS (REAL-TIME DATA)
+            from caisse.models import CaisseTransaction
+            completed_transactions = CaisseTransaction.objects.filter(
                 participant=participant,
-                has_access=True
-            ).select_related('session')
+                status='completed'
+            ).prefetch_related('items__session')
             
             paid_items_list = []
-            for access in session_accesses:
-                if access.session.is_paid or access.payment_status == 'paid':
-                    paid_items_list.append({
-                        'type': 'session',
-                        'id': str(access.session.id),
-                        'title': access.session.title,
-                        'is_paid': access.session.is_paid,
-                        'payment_status': access.payment_status,
-                        'amount_paid': float(access.amount_paid) if access.amount_paid else 0,
-                        'has_access': access.has_access
-                    })
+            seen_items = set()  # Track items by a unique key to avoid duplicates
+            
+            # Fetch all paid items from transactions
+            for transaction in completed_transactions:
+                for item in transaction.items.all():
+                    # Create unique key for this item
+                    if item.session:
+                        # For session items, use session ID as key
+                        unique_key = f"session-{item.session.id}"
+                    else:
+                        # For non-session items (access, dinner, other), use item ID
+                        unique_key = f"{item.item_type}-{item.id}"
+                    
+                    # Skip if already added
+                    if unique_key in seen_items:
+                        continue
+                    
+                    seen_items.add(unique_key)
+                    
+                    # Build paid item data
+                    paid_item = {
+                        'type': item.item_type,  # 'session', 'access', 'dinner', 'other'
+                        'id': str(item.session.id) if item.session else str(item.id),
+                        'title': item.name,
+                        'is_paid': True,
+                        'payment_status': 'paid',
+                        'amount_paid': float(item.price),
+                        'has_access': True,
+                        'transaction_date': transaction.created_at.isoformat()
+                    }
+                    
+                    # Add session details if it's a session item
+                    if item.session:
+                        paid_item['session_details'] = {
+                            'start_time': item.session.start_time.isoformat() if item.session.start_time else None,
+                            'end_time': item.session.end_time.isoformat() if item.session.end_time else None,
+                            'room': item.session.room.name if item.session.room else None
+                        }
+                    
+                    paid_items_list.append(paid_item)
             
             # Get all sessions in this room (to show free sessions too)
             room_sessions = Session.objects.filter(room=room).order_by('start_time')
