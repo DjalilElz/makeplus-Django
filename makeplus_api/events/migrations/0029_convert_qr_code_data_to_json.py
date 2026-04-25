@@ -11,8 +11,9 @@ def convert_qr_code_data_to_json(apps, schema_editor):
     
     with schema_editor.connection.cursor() as cursor:
         # Get all participants with their qr_code_data
+        # Cast to text explicitly to avoid JSON parsing in WHERE clause
         cursor.execute(
-            "SELECT id, qr_code_data FROM events_participant WHERE qr_code_data IS NOT NULL AND qr_code_data != ''"
+            "SELECT id, qr_code_data::text FROM events_participant WHERE qr_code_data::text IS NOT NULL AND qr_code_data::text != ''"
         )
         
         rows = cursor.fetchall()
