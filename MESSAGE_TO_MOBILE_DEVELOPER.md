@@ -496,15 +496,24 @@ When a participant pays for a session/workshop at the caisse (cash register):
 2. **Badge Scanning (Controller):**
    - Controller scans participant's QR code/badge (same badge_id as before)
    - Mobile app calls `POST /api/events/rooms/{room_id}/scan_participant/`
-   - Backend returns ALL paid items + free items from QR code
+   - **Backend fetches FRESH data from database** (not from QR code!)
+   - Backend queries `SessionAccess` table for real-time paid items
    - Controller sees complete list of what participant has access to
    - **No verification needed** - if paid, participant enters directly
 
-**Important:** Each participant gets ONE permanent QR code with a fixed `badge_id` (e.g., "USER-1-ABC12345"). When they make payments, only the data inside the QR code is updated (the `paid_items` array grows). The participant doesn't need a new QR code - they keep using the same one, and it always reflects their latest purchases.
+**Important:** Each participant gets ONE permanent QR code with a fixed `badge_id` (e.g., "USER-1-ABC12345"). When they make payments, only the data inside the QR code is updated (the `paid_items` array grows). The participant doesn't need a new QR code - they keep using the same one.
+
+**🔄 Real-Time Data Fetching:**
+- **QR Code Purpose:** Identification only (contains `user_id` and `badge_id`)
+- **Data Source:** Database (`SessionAccess` table) - always fresh and up-to-date
+- **Controller Benefit:** Sees latest payments immediately, even if participant hasn't refreshed their app
+- **Example:** Participant pays at 10:30 AM, controller scans at 10:45 AM → Controller sees the payment ✅
 
 ### Badge Scanning API (Primary Method)
 
 **Endpoint:** `POST /api/events/rooms/{room_id}/scan_participant/`
+
+**🔄 IMPORTANT - Real-Time Data:** This endpoint ALWAYS fetches FRESH data from the database, not from the QR code. The QR code is used ONLY for participant identification.
 
 **Headers:**
 ```
@@ -521,8 +530,25 @@ Content-Type: application/json
 
 **Note:** 
 - `qr_data` is the complete JSON string from the participant's QR code
-- QR code contains ALL paid items (sessions, access, rooms, etc.)
-- Controller simply displays what's in the QR code - no backend verification needed
+- The `paid_items` in the QR code are IGNORED by the backend
+- Backend uses `user_id` to query the database for fresh data
+- This ensures controller always sees latest payments, even if participant hasn't refreshed their app
+
+**How It Works:**
+1. Controller scans QR code
+2. Backend extracts `user_id` from QR code (for identification only)
+3. Backend queries `SessionAccess` table in database (FRESH DATA)
+4. Backend returns real-time paid items from database
+5. Controller displays latest payment information
+
+**Why This Matters:**
+```
+Scenario: Participant logs in at 10:00 AM (paid_items: [])
+         Participant pays at caisse at 10:30 AM (Workshop A added to database)
+         Controller scans at 10:45 AM
+         
+Result: Controller sees Workshop A ✅ (even though participant's app shows [])
+```
 
 **Response (Success):**
 ```json

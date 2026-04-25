@@ -217,7 +217,9 @@ Authorization: Bearer <access_token>
 
 **Endpoint:** `POST /api/events/rooms/{room_id}/scan_participant/`
 
-**Description:** Scan participant's QR code and display ALL paid items (sessions, access, rooms, etc.) + free items. This is the primary method for badge scanning.
+**Description:** Scan participant's QR code and display ALL paid items (sessions, access, rooms, etc.) + free items. **This endpoint ALWAYS fetches FRESH data from the database**, not from the QR code.
+
+**🔄 Real-Time Data:** The QR code is used ONLY for participant identification (user_id, badge_id). The paid items are ALWAYS fetched from the database in real-time, ensuring the controller sees the latest payments even if the participant hasn't refreshed their app.
 
 **Headers:**
 ```
@@ -231,6 +233,15 @@ Content-Type: application/json
   "qr_data": "{\"user_id\": 1, \"badge_id\": \"USER-1-ABC12345\", \"paid_items\": [...]}"
 }
 ```
+
+**Note:** The `paid_items` in the QR code are IGNORED by the backend. The backend uses `user_id` to identify the participant, then queries the `SessionAccess` table for fresh data.
+
+**How It Works:**
+1. Controller scans QR code
+2. Backend extracts `user_id` from QR code
+3. Backend queries `SessionAccess` table for latest paid items
+4. Backend returns FRESH data from database
+5. Controller displays real-time payment information
 
 **Response (Success):**
 ```json
@@ -286,6 +297,12 @@ Content-Type: application/json
   "has_access": true
 }
 ```
+
+**Key Benefits:**
+- ✅ **Always Fresh:** Data comes from database, not QR code
+- ✅ **Real-Time:** Controller sees payments immediately after they're made
+- ✅ **No Refresh Needed:** Participant doesn't need to refresh their app
+- ✅ **Accurate:** No stale data issues
 
 **Response (Not Registered):**
 ```json
