@@ -138,43 +138,44 @@ class UserProfile(models.Model):
                     qr_data["is_checked_in"] = False
                     qr_data["checked_in_at"] = None
                 
-                # Get ALL paid items (sessions, rooms, etc.)
+                # Get ALL paid items from CaisseTransaction (sessions, access, dinner, other)
                 paid_items = []
+                seen_items = set()  # Track unique items
                 
-                # 1. Paid Sessions
-                session_accesses = SessionAccess.objects.filter(
+                # Query all completed transactions for this participant
+                from caisse.models import CaisseTransaction
+                completed_transactions = CaisseTransaction.objects.filter(
                     participant=participant,
-                    has_access=True
-                ).select_related('session')
+                    status='completed'
+                ).prefetch_related('items', 'items__session')
                 
-                for access in session_accesses:
-                    if access.session.is_paid or access.payment_status == 'paid':
-                        paid_items.append({
-                            "type": "session",
-                            "id": str(access.session.id),
-                            "title": access.session.title,
-                            "is_paid": access.session.is_paid,
-                            "payment_status": access.payment_status,
-                            "amount_paid": float(access.amount_paid) if access.amount_paid else 0,
-                            "has_access": access.has_access
-                        })
-                
-                # 2. Paid Room Access (if any rooms require payment)
-                if event_registration:
-                    from .models import Room
-                    allowed_rooms = event_registration.allowed_rooms.all()
-                    for room in allowed_rooms:
-                        # Check if this room requires payment (you can add a field to Room model)
-                        # For now, we'll include all allowed rooms
-                        paid_items.append({
-                            "type": "room",
-                            "id": str(room.id),
-                            "title": room.name,
-                            "is_paid": False,  # Set to True if room requires payment
-                            "payment_status": "free",
-                            "amount_paid": 0,
+                # Fetch all paid items from transactions
+                for transaction in completed_transactions:
+                    for item in transaction.items.all():
+                        # Create unique key for this item
+                        if item.session:
+                            unique_key = f"session-{item.session.id}"
+                        else:
+                            unique_key = f"{item.item_type}-{item.id}"
+                        
+                        # Skip if already added
+                        if unique_key in seen_items:
+                            continue
+                        
+                        seen_items.add(unique_key)
+                        
+                        # Build paid item data
+                        paid_item = {
+                            "type": item.item_type,  # 'session', 'access', 'dinner', 'other'
+                            "id": str(item.session.id) if item.session else str(item.id),
+                            "title": item.name,
+                            "is_paid": True,
+                            "payment_status": "paid",
+                            "amount_paid": float(item.price),
                             "has_access": True
-                        })
+                        }
+                        
+                        paid_items.append(paid_item)
                 
                 qr_data["paid_items"] = paid_items
                 qr_data["total_paid_items"] = len([item for item in paid_items if item['is_paid']])
