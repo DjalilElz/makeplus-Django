@@ -302,15 +302,20 @@ Authorization: Bearer <access_token>
 
 ## 4. Badge Scanning (Controller)
 
-### 4.1 Scan Participant Badge (Primary Method)
+### Badge Scanning API (Controller - No Room Selection Needed)
 
-**Endpoint:** `POST /api/events/rooms/{room_id}/scan_participant/`
+**Endpoint:** `POST /api/events/participants/scan/`
 
-**🔄 CRITICAL - QR Code Contains Only ID Data:** 
+**🎯 NEW SIMPLIFIED APPROACH:**
+- ✅ Controllers can work in ANY room (no room assignment needed)
+- ✅ No need to select room before scanning
+- ✅ Returns ALL paid items for the participant
+- ✅ Shows sessions from all rooms + access + dinner + other items
+
+**🔄 QR Code Contains Only ID Data:** 
 - The QR code contains ONLY: `user_id`, `badge_id`, `email`, `first_name`, `last_name`
-- The QR code does NOT contain payment data (`paid_items`)
+- The QR code does NOT contain payment data
 - Backend ALWAYS fetches fresh payment data from database
-- This ensures controller sees latest payments in real-time
 
 **Headers:**
 ```
@@ -325,25 +330,126 @@ Content-Type: application/json
 }
 ```
 
-**🔑 Key Points:** 
-- `qr_data` is the JSON string from the participant's QR code
-- QR code contains ONLY identification data (no payment data)
-- Backend uses `user_id` to identify the participant
-- Backend queries `CaisseTransaction` table for **REAL-TIME** paid items
-- This ensures controller always sees latest payments
-
 **How It Works:**
-1. Controller scans QR code (gets user_id, badge_id, email, name)
+1. Controller scans QR code (gets user_id, badge_id)
 2. Backend extracts `user_id` from QR code
-3. Backend queries `CaisseTransaction` table (**FRESH DATA**)
-4. Backend fetches ALL completed transactions
-5. Backend returns ALL paid items: sessions, access, dinner, other
-6. Controller displays complete, up-to-date list
+3. Backend gets controller's active event
+4. Backend queries `CaisseTransaction` table (**FRESH DATA**)
+5. Backend returns ALL paid items: sessions (all rooms), access, dinner, other
+6. Controller displays complete payment history
 
-**Data Source:**
-- ❌ NOT from QR code (QR code doesn't contain payment data)
-- ✅ FROM `CaisseTransaction` table (always fresh)
-- ✅ Includes ALL item types: session, access, dinner, other
+**Response (Success):**
+```json
+{
+  "status": "success",
+  "participant": {
+    "id": "participant-uuid",
+    "name": "djalil azizi",
+    "email": "abdeldjalil.elazizi@ensia.edu.dz",
+    "badge_id": "USER-58-37F80526"
+  },
+  "event": {
+    "id": "event-uuid",
+    "name": "TechSummit Algeria 2026"
+  },
+  "paid_items": [
+    {
+      "type": "session",
+      "id": "session-uuid-1",
+      "title": "Intro to AI",
+      "is_paid": true,
+      "payment_status": "paid",
+      "amount_paid": 6000.0,
+      "has_access": true,
+      "transaction_date": "2026-04-27T10:30:00Z",
+      "session_details": {
+        "start_time": "2026-06-15T14:00:00Z",
+        "end_time": "2026-06-15T16:00:00Z",
+        "room": "Conference Hall A",
+        "room_id": "room-uuid-1"
+      }
+    },
+    {
+      "type": "access",
+      "id": "access-uuid",
+      "title": "VIP Lounge Access",
+      "is_paid": true,
+      "payment_status": "paid",
+      "amount_paid": 2000.0,
+      "has_access": true,
+      "transaction_date": "2026-04-27T10:30:00Z"
+    },
+    {
+      "type": "dinner",
+      "id": "dinner-uuid",
+      "title": "Gala Dinner",
+      "is_paid": true,
+      "payment_status": "paid",
+      "amount_paid": 3000.0,
+      "has_access": true,
+      "transaction_date": "2026-04-27T11:00:00Z"
+    },
+    {
+      "type": "other",
+      "id": "other-uuid",
+      "title": "Event T-Shirt",
+      "is_paid": true,
+      "payment_status": "paid",
+      "amount_paid": 1000.0,
+      "has_access": true,
+      "transaction_date": "2026-04-27T11:00:00Z"
+    }
+  ],
+  "total_paid_items": 4,
+  "total_amount": 12000.0,
+  "has_access": true
+}
+```
+
+**📦 Item Types Returned:**
+
+1. **Sessions** (`type: "session"`)
+   - Workshops/Ateliers from ANY room
+   - Includes room name and time details
+   - Example: "Intro to AI" in "Conference Hall A"
+
+2. **Access** (`type: "access"`)
+   - VIP access, backstage passes, special areas
+   - Example: "VIP Lounge Access"
+
+3. **Dinner** (`type: "dinner"`)
+   - Meals, lunch, dinner, coffee breaks
+   - Example: "Gala Dinner"
+
+4. **Other** (`type: "other"`)
+   - Merchandise, materials, certificates
+   - Example: "Event T-Shirt"
+
+**Response (Not Registered):**
+```json
+{
+  "status": "error",
+  "message": "Participant not registered for this event",
+  "participant": {
+    "id": "participant-uuid",
+    "name": "John Doe",
+    "email": "user@example.com",
+    "badge_id": "USER-58-37F80526"
+  },
+  "event": {
+    "id": "event-uuid",
+    "name": "TechSummit Algeria 2026"
+  }
+}
+```
+
+**Response (Invalid QR):**
+```json
+{
+  "status": "invalid",
+  "message": "Invalid QR code format - user_id missing"
+}
+```
 
 **Response (Success):**
 ```json

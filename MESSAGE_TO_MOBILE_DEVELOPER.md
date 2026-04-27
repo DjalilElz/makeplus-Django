@@ -504,7 +504,7 @@ Check `MOBILE_APP_API_SPECIFICATION.md` for complete API documentation with all 
 #### How Badge Scanning Works:
 
 1. **Controller scans QR code** → Gets `user_id` and `badge_id`
-2. **Mobile app calls API** → `POST /api/events/rooms/{room_id}/scan_participant/`
+2. **Mobile app calls API** → `POST /api/events/participants/scan/`
 3. **Backend queries database** → Fetches ALL paid items from `CaisseTransaction` table
 4. **Backend returns fresh data** → Controller sees current payment status
 5. **Controller displays** → Shows all paid items (sessions, access, dinner, other)
@@ -539,7 +539,7 @@ When a participant pays for a session/workshop at the caisse (cash register):
 2. **Badge Scanning (Controller):**
    - Controller scans participant's QR code/badge
    - **QR code contains ONLY:** `user_id`, `badge_id`, `email`, `name`
-   - Mobile app calls `POST /api/events/rooms/{room_id}/scan_participant/`
+   - Mobile app calls `POST /api/events/participants/scan/`
    - **Backend fetches FRESH data from database** (queries `CaisseTransaction` table)
    - Backend returns ALL paid items (sessions, access, dinner, other)
    - Controller sees complete list of what participant has access to
@@ -555,9 +555,19 @@ When a participant pays for a session/workshop at the caisse (cash register):
 
 ### Badge Scanning API (Primary Method)
 
-**Endpoint:** `POST /api/events/rooms/{room_id}/scan_participant/`
+**Endpoint:** `POST /api/events/participants/scan/`
 
-**🔄 CRITICAL - Real-Time Data Fetching:** This endpoint ALWAYS fetches FRESH data from the database, NOT from the QR code. The QR code is used ONLY for participant identification (`user_id` and `badge_id`).
+**🎯 SIMPLIFIED - No Room Selection Needed:**
+- ✅ Controllers work in ANY room (no specific assignment)
+- ✅ No need to select room before scanning
+- ✅ Just scan badge and see ALL paid items
+- ✅ Returns sessions from all rooms + access + dinner + other
+
+**🔄 Real-Time Data Fetching:** 
+- **QR Code Purpose:** Identification only (contains `user_id` and `badge_id`)
+- **Data Source:** Database (`CaisseTransaction` table) - always fresh
+- **Controller Benefit:** Sees latest payments immediately
+- **Example:** Participant pays at 10:30 AM, controller scans at 10:45 AM → Controller sees the payment ✅
 
 **Headers:**
 ```
@@ -568,39 +578,24 @@ Content-Type: application/json
 **Request:**
 ```json
 {
-  "qr_data": "{\"user_id\": 1, \"badge_id\": \"USER-1-ABC12345\", \"paid_items\": [...]}"
+  "qr_data": "{\"user_id\": 58, \"badge_id\": \"USER-58-37F80526\", \"email\": \"user@example.com\"}"
 }
 ```
 
 **🔑 Key Points:** 
-- `qr_data` is the complete JSON string from the participant's QR code
-- The `paid_items` array in the QR code is **COMPLETELY IGNORED** by the backend
+- `qr_data` is the JSON string from the participant's QR code
+- QR code contains ONLY identification data (no payment data)
 - Backend uses `user_id` to identify the participant
 - Backend queries `CaisseTransaction` table for **REAL-TIME** paid items
-- This ensures controller always sees latest payments, even if participant hasn't refreshed their app
+- This ensures controller always sees latest payments
 
 **How It Works:**
 1. Controller scans QR code
-2. Backend extracts `user_id` from QR code (identification only)
-3. Backend queries `CaisseTransaction` table in database (**FRESH DATA**)
-4. Backend fetches ALL completed transactions for this participant
-5. Backend returns ALL paid items: sessions, access, dinner, other
-6. Backend also returns free sessions in the current room
-7. Controller displays complete, up-to-date list
-
-**Why This Matters:**
-```
-Scenario: Participant logs in at 10:00 AM (paid_items: [])
-         Participant pays at caisse at 10:30 AM (Workshop A + VIP Access added to database)
-         Controller scans at 10:45 AM
-         
-Result: Controller sees Workshop A + VIP Access ✅ (even though participant's app shows [])
-```
-
-**Data Source:**
-- ❌ NOT from QR code `paid_items` array (may be stale)
-- ✅ FROM `CaisseTransaction` table (always fresh)
-- ✅ Includes ALL item types: session, access, dinner, other
+2. Backend extracts `user_id` from QR code
+3. Backend gets controller's active event
+4. Backend queries `CaisseTransaction` table (**FRESH DATA**)
+5. Backend returns ALL paid items: sessions (all rooms), access, dinner, other
+6. Controller displays complete payment history
 
 **Response (Success):**
 ```json
@@ -608,28 +603,30 @@ Result: Controller sees Workshop A + VIP Access ✅ (even though participant's a
   "status": "success",
   "participant": {
     "id": "participant-uuid",
-    "name": "John Doe",
-    "email": "user@example.com",
-    "badge_id": "USER-1-ABC12345"
-  },
-  "room": {
-    "id": "room-uuid",
-    "name": "Conference Hall A"
+    "name": "djalil azizi",
+    "email": "abdeldjalil.elazizi@ensia.edu.dz",
+    "badge_id": "USER-58-37F80526"
   },
   "event": {
     "id": "event-uuid",
-    "name": "TechSummit 2026"
+    "name": "TechSummit Algeria 2026"
   },
   "paid_items": [
     {
       "type": "session",
       "id": "session-uuid-1",
-      "title": "Advanced Python Workshop",
+      "title": "Intro to AI",
       "is_paid": true,
       "payment_status": "paid",
-      "amount_paid": 50.00,
+      "amount_paid": 6000.0,
       "has_access": true,
-      "transaction_date": "2026-04-24T10:30:00Z"
+      "transaction_date": "2026-04-27T10:30:00Z",
+      "session_details": {
+        "start_time": "2026-06-15T14:00:00Z",
+        "end_time": "2026-06-15T16:00:00Z",
+        "room": "Conference Hall A",
+        "room_id": "room-uuid-1"
+      }
     },
     {
       "type": "access",
@@ -637,7 +634,7 @@ Result: Controller sees Workshop A + VIP Access ✅ (even though participant's a
       "title": "VIP Lounge Access",
       "is_paid": true,
       "payment_status": "paid",
-      "amount_paid": 100.00,
+      "amount_paid": 2000.0,
       "has_access": true,
       "transaction_date": "2026-04-24T10:30:00Z"
     },

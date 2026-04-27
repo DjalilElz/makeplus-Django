@@ -786,6 +786,188 @@ class ParticipantViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(event_id=event_id)
         
         return queryset
+    
+    @action(detail=False, methods=['post'], url_path='scan')
+    def scan_participant(self, request):
+        """
+        Scan participant badge and return ALL paid items (no room selection needed)
+        Controllers can work in any room and see all participant's paid items
+        """
+        import json
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        qr_data = request.data.get('qr_data')
+        if not qr_data:
+            return Response({
+                'status': 'invalid',
+                'message': 'QR data is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Parse QR data
+            qr_dict = json.loads(qr_data) if isinstance(qr_data, str) else qr_data
+            user_id = qr_dict.get('user_id')
+            
+            if not user_id:
+                return Response({
+                    'status': 'invalid',
+                    'message': 'Invalid QR code format - user_id missing'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get user
+            from django.contrib.auth.models import User
+            user = User.objects.get(id=user_id)
+            
+            # Get participant profile
+            participant = Participant.objects.filter(user=user).first()
+            
+            if not participant:
+                return Response({
+                    'status': 'error',
+                    'message': 'Participant profile not found',
+                    'user': {
+                        'name': user.get_full_name(),
+                        'email': user.email
+                    }
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Get controller's event assignment
+            controller_assignment = UserEventAssignment.objects.filter(
+                user=request.user,
+                is_active=True
+            ).first()
+            
+            if not controller_assignment:
+                return Response({
+                    'status': 'error',
+                    'message': 'No active event assignment found for controller'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            event = controller_assignment.event
+            
+            # Check if participant is registered for this event
+            if not participant.is_registered_for_event(event):
+                return Response({
+                    'status': 'error',
+                    'message': 'Participant not registered for this event',
+                    'participant': {
+                        'id': str(participant.id),
+                        'name': user.get_full_name(),
+                        'email': user.email,
+                        'badge_id': qr_dict.get('badge_id')
+                    },
+                    'event': {
+                        'id': str(event.id),
+                        'name': event.name
+                    }
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # ✅ FETCH ALL PAID ITEMS FROM CAISSE TRANSACTIONS (REAL-TIME DATA)
+            from caisse.models import CaisseTransaction
+            
+            # Query with explicit prefetch to avoid N+1 queries
+            completed_transactions = CaisseTransaction.objects.filter(
+                participant=participant,
+                status='completed'
+            ).prefetch_related('items', 'items__session', 'items__session__room').order_by('-created_at')
+            
+            # Debug logging
+            logger.info(f"[SCAN] ==========================================")
+            logger.info(f"[SCAN] Controller: {request.user.email}")
+            logger.info(f"[SCAN] Participant: {participant.user.email}")
+            logger.info(f"[SCAN] Participant ID: {participant.id}")
+            logger.info(f"[SCAN] Event: {event.name}")
+            logger.info(f"[SCAN] Total completed transactions: {completed_transactions.count()}")
+            logger.info(f"[SCAN] ==========================================")
+            
+            paid_items_list = []
+            seen_items = set()  # Track items by a unique key to avoid duplicates
+            total_amount = 0
+            
+            # Fetch all paid items from transactions
+            for transaction in completed_transactions:
+                items_in_tx = transaction.items.all()
+                logger.info(f"[SCAN] Transaction {transaction.id}: {len(items_in_tx)} items, created at {transaction.created_at}")
+                
+                for item in items_in_tx:
+                    logger.info(f"[SCAN]   Item: {item.name} ({item.item_type}) - {item.price} DA")
+                    
+                    # Create unique key for this item
+                    if item.session:
+                        unique_key = f"session-{item.session.id}"
+                    else:
+                        unique_key = f"{item.item_type}-{item.id}"
+                    
+                    # Skip if already added
+                    if unique_key in seen_items:
+                        logger.info(f"[SCAN]   Skipping duplicate: {unique_key}")
+                        continue
+                    
+                    seen_items.add(unique_key)
+                    
+                    # Build paid item data
+                    paid_item = {
+                        'type': item.item_type,  # 'session', 'access', 'dinner', 'other'
+                        'id': str(item.session.id) if item.session else str(item.id),
+                        'title': item.name,
+                        'is_paid': True,
+                        'payment_status': 'paid',
+                        'amount_paid': float(item.price),
+                        'has_access': True,
+                        'transaction_date': transaction.created_at.isoformat()
+                    }
+                    
+                    # Add session details if it's a session item
+                    if item.session:
+                        paid_item['session_details'] = {
+                            'start_time': item.session.start_time.isoformat() if item.session.start_time else None,
+                            'end_time': item.session.end_time.isoformat() if item.session.end_time else None,
+                            'room': item.session.room.name if item.session.room else None,
+                            'room_id': str(item.session.room.id) if item.session.room else None
+                        }
+                    
+                    paid_items_list.append(paid_item)
+                    total_amount += float(item.price)
+            
+            logger.info(f"[SCAN] Total paid items found: {len(paid_items_list)}")
+            logger.info(f"[SCAN] Total amount: {total_amount} DA")
+            logger.info(f"[SCAN] ==========================================")
+            
+            return Response({
+                'status': 'success',
+                'participant': {
+                    'id': str(participant.id),
+                    'name': user.get_full_name(),
+                    'email': user.email,
+                    'badge_id': qr_dict.get('badge_id')
+                },
+                'event': {
+                    'id': str(event.id),
+                    'name': event.name
+                },
+                'paid_items': paid_items_list,  # ✅ FRESH from database
+                'total_paid_items': len(paid_items_list),
+                'total_amount': total_amount,
+                'has_access': True  # Participant always has access if registered for event
+            })
+            
+        except User.DoesNotExist:
+            return Response({
+                'status': 'invalid',
+                'message': 'Invalid QR code - user not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except json.JSONDecodeError:
+            return Response({
+                'status': 'invalid',
+                'message': 'Invalid QR code format'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"[SCAN] Error: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'Error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class RoomAccessViewSet(viewsets.ModelViewSet):
