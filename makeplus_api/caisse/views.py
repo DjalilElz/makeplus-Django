@@ -543,6 +543,22 @@ def cancel_transaction(request, transaction_id):
     # Cancel the transaction
     transaction.cancel(cancelled_by=caisse.name, reason=reason)
     
+    # Regenerate QR code to remove cancelled items
+    from events.models import UserProfile
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[CAISSE] Transaction {transaction.id} cancelled for {participant.user.email}")
+    logger.info(f"[CAISSE] Regenerating QR code to remove cancelled items...")
+    
+    updated_qr_data = UserProfile.get_qr_for_user(participant.user)
+    
+    # Update participant's qr_code_data field
+    participant.qr_code_data = updated_qr_data
+    participant.save(update_fields=['qr_code_data'])
+    
+    logger.info(f"[CAISSE] ✅ QR code updated - cancelled items removed")
+    
     return JsonResponse({
         'success': True,
         'message': 'Transaction cancelled successfully and access revoked'
