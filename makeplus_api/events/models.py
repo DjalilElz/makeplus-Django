@@ -144,13 +144,21 @@ class UserProfile(models.Model):
                 
                 # Query all completed transactions for this participant
                 from caisse.models import CaisseTransaction
+                import logging
+                logger = logging.getLogger(__name__)
+                
                 completed_transactions = CaisseTransaction.objects.filter(
                     participant=participant,
                     status='completed'
                 ).prefetch_related('items', 'items__session')
                 
+                logger.info(f"[QR GEN] Generating QR code for {user.email}")
+                logger.info(f"[QR GEN] Found {completed_transactions.count()} completed transactions")
+                
                 # Fetch all paid items from transactions
                 for transaction in completed_transactions:
+                    logger.info(f"[QR GEN]   Transaction {transaction.id}: status={transaction.status}, items={transaction.items.count()}")
+                    
                     for item in transaction.items.all():
                         # Create unique key for this item
                         if item.session:
@@ -176,6 +184,9 @@ class UserProfile(models.Model):
                         }
                         
                         paid_items.append(paid_item)
+                        logger.info(f"[QR GEN]     Added: {item.name} ({item.item_type})")
+                
+                logger.info(f"[QR GEN] Total paid items: {len(paid_items)}")
                 
                 qr_data["paid_items"] = paid_items
                 qr_data["total_paid_items"] = len([item for item in paid_items if item['is_paid']])

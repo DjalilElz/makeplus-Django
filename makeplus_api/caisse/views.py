@@ -543,13 +543,26 @@ def cancel_transaction(request, transaction_id):
     # Cancel the transaction
     transaction.cancel(cancelled_by=caisse.name, reason=reason)
     
+    # Verify transaction was cancelled
+    transaction.refresh_from_db()
+    
     # Regenerate QR code to remove cancelled items
     from events.models import UserProfile
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"[CAISSE] Transaction {transaction.id} cancelled for {participant.user.email}")
-    logger.info(f"[CAISSE] Regenerating QR code to remove cancelled items...")
+    logger.info(f"[CAISSE CANCEL] ==========================================")
+    logger.info(f"[CAISSE CANCEL] Transaction {transaction.id} cancelled for {participant.user.email}")
+    logger.info(f"[CAISSE CANCEL] Transaction status: {transaction.status}")
+    logger.info(f"[CAISSE CANCEL] Cancelled at: {transaction.cancelled_at}")
+    logger.info(f"[CAISSE CANCEL] Regenerating QR code to remove cancelled items...")
+    
+    # Check how many completed transactions remain
+    remaining_completed = CaisseTransaction.objects.filter(
+        participant=participant,
+        status='completed'
+    ).count()
+    logger.info(f"[CAISSE CANCEL] Remaining completed transactions: {remaining_completed}")
     
     updated_qr_data = UserProfile.get_qr_for_user(participant.user)
     
@@ -557,7 +570,19 @@ def cancel_transaction(request, transaction_id):
     participant.qr_code_data = updated_qr_data
     participant.save(update_fields=['qr_code_data'])
     
-    logger.info(f"[CAISSE] ✅ QR code updated - cancelled items removed")
+    # Log the updated QR code data
+    paid_items_count = len(updated_qr_data.get('paid_items', []))
+    logger.info(f"[CAISSE CANCEL] ✅ QR code updated")
+    logger.info(f"[CAISSE CANCEL] Paid items in QR code: {paid_items_count}")
+    
+    if paid_items_count > 0:
+        logger.info(f"[CAISSE CANCEL] Items:")
+        for item in updated_qr_data.get('paid_items', []):
+            logger.info(f"[CAISSE CANCEL]   - {item.get('title')} ({item.get('type')}) - {item.get('amount_paid')} DA")
+    else:
+        logger.info(f"[CAISSE CANCEL] No paid items remaining")
+    
+    logger.info(f"[CAISSE CANCEL] ==========================================")
     
     return JsonResponse({
         'success': True,
