@@ -578,19 +578,20 @@ Content-Type: application/json
 **Request:**
 ```json
 {
-  "qr_data": "{\"user_id\": 58, \"badge_id\": \"USER-58-37F80526\", \"email\": \"user@example.com\"}"
+  "qr_data": "{\"user_id\": 58, \"badge_id\": \"USER-58-37F80526\", \"email\": \"user@example.com\", \"first_name\": \"djalil\", \"last_name\": \"azizi\"}"
 }
 ```
 
 **🔑 Key Points:** 
 - `qr_data` is the JSON string from the participant's QR code
-- QR code contains ONLY identification data (no payment data)
+- QR code contains ONLY identification data: `user_id`, `badge_id`, `email`, `first_name`, `last_name`
+- QR code does NOT contain payment data (`paid_items`)
 - Backend uses `user_id` to identify the participant
 - Backend queries `CaisseTransaction` table for **REAL-TIME** paid items
 - This ensures controller always sees latest payments
 
 **How It Works:**
-1. Controller scans QR code
+1. Controller scans QR code → Gets `user_id`, `badge_id`, `email`, `name`
 2. Backend extracts `user_id` from QR code
 3. Backend gets controller's active event
 4. Backend queries `CaisseTransaction` table (**FRESH DATA**)
@@ -785,11 +786,12 @@ final qrCode = await scanQRCode();
 // 2. Parse QR data to display immediately (optional - for offline mode)
 final qrData = jsonDecode(qrCode);
 final badgeId = qrData['badge_id'];
-final userName = qrData['full_name'];
+final userName = qrData['full_name'] ?? '${qrData['first_name']} ${qrData['last_name']}';
 
 // 3. Call backend to get FRESH data from database
+// ✅ NO ROOM SELECTION NEEDED - Works for any room
 final response = await http.post(
-  Uri.parse('$baseUrl/api/events/rooms/$roomId/scan_participant/'),
+  Uri.parse('$baseUrl/api/events/participants/scan/'),
   headers: {
     'Authorization': 'Bearer $controllerToken',
     'Content-Type': 'application/json',

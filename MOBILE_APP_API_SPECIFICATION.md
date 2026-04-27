@@ -302,7 +302,7 @@ Authorization: Bearer <access_token>
 
 ## 4. Badge Scanning (Controller)
 
-### Badge Scanning API (Controller - No Room Selection Needed)
+### 4.1 Badge Scanning API (Controller - No Room Selection Needed)
 
 **Endpoint:** `POST /api/events/participants/scan/`
 
@@ -314,7 +314,7 @@ Authorization: Bearer <access_token>
 
 **🔄 QR Code Contains Only ID Data:** 
 - The QR code contains ONLY: `user_id`, `badge_id`, `email`, `first_name`, `last_name`
-- The QR code does NOT contain payment data
+- The QR code does NOT contain payment data (`paid_items`)
 - Backend ALWAYS fetches fresh payment data from database
 
 **Headers:**
@@ -331,7 +331,7 @@ Content-Type: application/json
 ```
 
 **How It Works:**
-1. Controller scans QR code (gets user_id, badge_id)
+1. Controller scans QR code (gets user_id, badge_id, email, name)
 2. Backend extracts `user_id` from QR code
 3. Backend gets controller's active event
 4. Backend queries `CaisseTransaction` table (**FRESH DATA**)
@@ -451,116 +451,6 @@ Content-Type: application/json
 }
 ```
 
-**Response (Success):**
-```json
-{
-  "status": "success",
-  "participant": {
-    "id": "participant-uuid",
-    "name": "John Doe",
-    "email": "user@example.com",
-    "badge_id": "USER-1-ABC12345"
-  },
-  "room": {
-    "id": "room-uuid",
-    "name": "Conference Hall A"
-  },
-  "event": {
-    "id": "event-uuid",
-    "name": "TechSummit 2026"
-  },
-  "paid_items": [
-    {
-      "type": "session",
-      "id": "session-uuid-1",
-      "title": "Advanced Python Workshop",
-      "is_paid": true,
-      "payment_status": "paid",
-      "amount_paid": 50.00,
-      "has_access": true,
-      "transaction_date": "2026-04-24T10:30:00Z"
-    },
-    {
-      "type": "access",
-      "id": "access-uuid",
-      "title": "VIP Lounge Access",
-      "is_paid": true,
-      "payment_status": "paid",
-      "amount_paid": 100.00,
-      "has_access": true,
-      "transaction_date": "2026-04-24T10:30:00Z"
-    },
-    {
-      "type": "dinner",
-      "id": "dinner-uuid",
-      "title": "Gala Dinner",
-      "is_paid": true,
-      "payment_status": "paid",
-      "amount_paid": 75.00,
-      "has_access": true,
-      "transaction_date": "2026-04-24T11:00:00Z"
-    },
-    {
-      "type": "other",
-      "id": "other-uuid",
-      "title": "Event T-Shirt",
-      "is_paid": true,
-      "payment_status": "paid",
-      "amount_paid": 25.00,
-      "has_access": true,
-      "transaction_date": "2026-04-24T11:00:00Z"
-    }
-  ],
-  "free_items": [
-    {
-      "type": "session",
-      "id": "session-uuid-2",
-      "title": "Opening Keynote",
-      "is_paid": false,
-      "payment_status": "free",
-      "amount_paid": 0,
-      "has_access": true
-    }
-  ],
-  "total_paid_items": 4,
-  "total_free_items": 1,
-  "has_access": true
-}
-```
-
-**📦 Payable Item Types:**
-
-There are TWO types of payable items:
-
-### 1. Session-Linked Items (`type: "session"`)
-- **Automatically synced** from sessions marked as paid (`is_paid=True`)
-- Linked to a specific `Session` object
-- Example: "Advanced Python Workshop - 50 DA"
-- Created when admin marks a session as paid in the system
-
-### 2. Custom Items (Created by Admin in Dashboard)
-Admins can manually create custom payable items with these types:
-
-- **`access`** - VIP access, backstage passes, special areas
-  - Example: "VIP Lounge Access - 100 DA"
-  
-- **`dinner`** - Event meals, lunch, dinner, coffee breaks
-  - Example: "Gala Dinner - 75 DA"
-  
-- **`other`** - Merchandise, materials, certificates, etc.
-  - Example: "Event T-Shirt - 25 DA"
-
-**Key Difference:**
-- Session items: `session` field is NOT NULL (linked to Session object)
-- Custom items: `session` field is NULL (standalone items)
-
-**Key Benefits:**
-- ✅ **Always Fresh:** Data comes from database, not QR code
-- ✅ **Real-Time:** Controller sees payments immediately after they're made
-- ✅ **No Refresh Needed:** Participant doesn't need to refresh their app
-- ✅ **Accurate:** No stale data issues
-- ✅ **Complete:** Shows ALL item types (session-linked + custom items)
-
 **Response (Not Registered):**
 ```json
 {
@@ -570,7 +460,11 @@ Admins can manually create custom payable items with these types:
     "id": "participant-uuid",
     "name": "John Doe",
     "email": "user@example.com",
-    "badge_id": "USER-1-ABC12345"
+    "badge_id": "USER-58-37F80526"
+  },
+  "event": {
+    "id": "event-uuid",
+    "name": "TechSummit Algeria 2026"
   }
 }
 ```
@@ -579,7 +473,7 @@ Admins can manually create custom payable items with these types:
 ```json
 {
   "status": "invalid",
-  "message": "Invalid QR code format"
+  "message": "Invalid QR code format - user_id missing"
 }
 ```
 
@@ -590,6 +484,14 @@ Admins can manually create custom payable items with these types:
   "message": "Invalid QR code - user not found"
 }
 ```
+
+**Key Benefits:**
+- ✅ **Always Fresh:** Data comes from database, not QR code
+- ✅ **Real-Time:** Controller sees payments immediately after they're made
+- ✅ **No Refresh Needed:** Participant doesn't need to refresh their app
+- ✅ **Accurate:** No stale data issues
+- ✅ **Complete:** Shows ALL item types (session-linked + custom items)
+- ✅ **No Room Selection:** Controller can scan in any room
 
 ### 4.2 Verify Access (Legacy - Session-Specific)
 
@@ -906,8 +808,7 @@ Admins can manually create custom payable items from the dashboard:
 
 ```dart
 class BadgeScannerScreen extends StatefulWidget {
-  final String roomId;
-  final String roomName;
+  // ✅ NO ROOM SELECTION NEEDED - Controller can scan in any room
   
   @override
   _BadgeScannerScreenState createState() => _BadgeScannerScreenState();
@@ -923,8 +824,9 @@ class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
       if (qrCode.isEmpty) return;
       
       // 2. Call scan_participant endpoint (fetches FRESH data from database)
+      // ✅ NO ROOM ID NEEDED - Works for any room
       final response = await http.post(
-        Uri.parse('$baseUrl/api/events/rooms/${widget.roomId}/scan_participant/'),
+        Uri.parse('$baseUrl/api/events/participants/scan/'),
         headers: {
           'Authorization': 'Bearer $controllerToken',
           'Content-Type': 'application/json',
@@ -951,7 +853,8 @@ class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
   void _showAccessGranted(Map<String, dynamic> result) {
     final participant = result['participant'];
     final paidItems = result['paid_items'] ?? [];
-    final freeItems = result['free_items'] ?? [];
+    final event = result['event'];
+    final totalAmount = result['total_amount'] ?? 0.0;
     
     // Group paid items by type
     final sessions = paidItems.where((i) => i['type'] == 'session').toList();
@@ -973,16 +876,29 @@ class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               Text('Email: ${participant['email']}'),
               Text('Badge: ${participant['badge_id']}'),
+              Text('Event: ${event['name']}',
+                style: TextStyle(color: Colors.blue)),
               
               SizedBox(height: 16),
               
-              // Paid Workshops
+              // Paid Workshops (with room info)
               if (sessions.isNotEmpty) ...[
                 Text('Paid Workshops:', style: TextStyle(fontWeight: FontWeight.bold)),
-                ...sessions.map((item) => Padding(
-                  padding: EdgeInsets.only(left: 8, top: 4),
-                  child: Text('✅ ${item['title']} (${item['amount_paid']} DA)'),
-                )),
+                ...sessions.map((item) {
+                  final sessionDetails = item['session_details'];
+                  final roomName = sessionDetails?['room'] ?? 'Unknown Room';
+                  return Padding(
+                    padding: EdgeInsets.only(left: 8, top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('✅ ${item['title']} (${item['amount_paid']} DA)'),
+                        Text('   Room: $roomName', 
+                          style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                  );
+                }),
                 SizedBox(height: 8),
               ],
               
@@ -1016,15 +932,6 @@ class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
                 SizedBox(height: 8),
               ],
               
-              // Free items
-              if (freeItems.isNotEmpty) ...[
-                Text('Free Items:', style: TextStyle(fontWeight: FontWeight.bold)),
-                ...freeItems.map((item) => Padding(
-                  padding: EdgeInsets.only(left: 8, top: 4),
-                  child: Text('🆓 ${item['title']} (Free)'),
-                )),
-              ],
-              
               SizedBox(height: 12),
               
               // Summary
@@ -1039,8 +946,7 @@ class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
                   children: [
                     Text('Summary:', style: TextStyle(fontWeight: FontWeight.bold)),
                     Text('${paidItems.length} paid items'),
-                    Text('${freeItems.length} free items'),
-                    Text('Total: ${paidItems.fold(0.0, (sum, item) => sum + item['amount_paid'])} DA',
+                    Text('Total: $totalAmount DA',
                       style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                   ],
                 ),
@@ -1078,7 +984,7 @@ class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Scan Badge - ${widget.roomName}'),
+        title: Text('Scan Badge - Any Room'),
       ),
       body: Center(
         child: Column(
@@ -1089,6 +995,11 @@ class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
             Text('🔄 Real-Time Data',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             Text('Always fetches fresh data from database',
+              style: TextStyle(color: Colors.grey)),
+            SizedBox(height: 8),
+            Text('✅ Works in Any Room',
+              style: TextStyle(fontSize: 14, color: Colors.green)),
+            Text('No room selection needed',
               style: TextStyle(color: Colors.grey)),
             SizedBox(height: 24),
             ElevatedButton.icon(
@@ -1109,6 +1020,11 @@ class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
 
 **🔄 Real-Time Data Benefits:**
 - ✅ Controller sees payments made seconds ago
+- ✅ No need for participant to refresh their app
+- ✅ No stale data issues
+- ✅ Single source of truth: database
+- ✅ Shows ALL item types (session, access, dinner, other)
+- ✅ Works in any room - no room selection neededr sees payments made seconds ago
 - ✅ No need for participant to refresh their app
 - ✅ No stale data issues
 - ✅ Single source of truth: database
