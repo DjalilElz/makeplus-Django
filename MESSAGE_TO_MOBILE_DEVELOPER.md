@@ -480,6 +480,52 @@ Check `MOBILE_APP_API_SPECIFICATION.md` for complete API documentation with all 
 
 ## 💳 Paid Sessions & Badge Scanning
 
+### ⚠️ CRITICAL: QR Code Architecture
+
+**The QR code contains ONLY identification data, NOT payment data!**
+
+#### QR Code Structure (Minimal):
+```json
+{
+  "user_id": 58,
+  "badge_id": "USER-58-37F80526",
+  "email": "abdeldjalil.elazizi@ensia.edu.dz",
+  "first_name": "djalil",
+  "last_name": "azizi"
+}
+```
+
+**Why?**
+- ✅ QR code never changes (same badge forever)
+- ✅ Payment data is always fresh from database
+- ✅ No need to regenerate QR code after payments
+- ✅ No stale data issues
+
+#### How Badge Scanning Works:
+
+1. **Controller scans QR code** → Gets `user_id` and `badge_id`
+2. **Mobile app calls API** → `POST /api/events/rooms/{room_id}/scan_participant/`
+3. **Backend queries database** → Fetches ALL paid items from `CaisseTransaction` table
+4. **Backend returns fresh data** → Controller sees current payment status
+5. **Controller displays** → Shows all paid items (sessions, access, dinner, other)
+
+**🔄 Real-Time Data Flow:**
+```
+Participant pays at caisse (10:30 AM)
+    ↓
+CaisseTransaction created in database
+    ↓
+Controller scans badge (10:45 AM)
+    ↓
+Backend queries CaisseTransaction table (FRESH DATA)
+    ↓
+Backend returns ALL paid items
+    ↓
+Controller sees payment immediately ✅
+```
+
+**Key Point:** The QR code is just an ID card. The actual payment data comes from the database via API call.
+
 ### How Paid Sessions Work
 
 When a participant pays for a session/workshop at the caisse (cash register):
@@ -487,25 +533,23 @@ When a participant pays for a session/workshop at the caisse (cash register):
 1. **Payment Processing:**
    - Caisse operator selects participant and paid items (sessions/workshops/access)
    - System creates `CaisseTransaction` with status='completed'
-   - System creates `SessionAccess` records for each paid session:
-     - `has_access=True`
-     - `payment_status='paid'`
-     - `amount_paid=<session_price>`
-   - **QR code data is updated** with new paid items (badge_id stays the same!)
+   - Items are linked to transaction in database
+   - **QR code does NOT change** - same badge_id forever
 
 2. **Badge Scanning (Controller):**
-   - Controller scans participant's QR code/badge (same badge_id as before)
+   - Controller scans participant's QR code/badge
+   - **QR code contains ONLY:** `user_id`, `badge_id`, `email`, `name`
    - Mobile app calls `POST /api/events/rooms/{room_id}/scan_participant/`
-   - **Backend fetches FRESH data from database** (not from QR code!)
-   - Backend queries `SessionAccess` table for real-time paid items
+   - **Backend fetches FRESH data from database** (queries `CaisseTransaction` table)
+   - Backend returns ALL paid items (sessions, access, dinner, other)
    - Controller sees complete list of what participant has access to
    - **No verification needed** - if paid, participant enters directly
 
-**Important:** Each participant gets ONE permanent QR code with a fixed `badge_id` (e.g., "USER-1-ABC12345"). When they make payments, only the data inside the QR code is updated (the `paid_items` array grows). The participant doesn't need a new QR code - they keep using the same one.
+**Important:** The QR code is just an identifier. Payment data always comes from the database via API call, ensuring it's always up-to-date.
 
 **🔄 Real-Time Data Fetching:**
 - **QR Code Purpose:** Identification only (contains `user_id` and `badge_id`)
-- **Data Source:** Database (`SessionAccess` table) - always fresh and up-to-date
+- **Data Source:** Database (`CaisseTransaction` table) - always fresh and up-to-date
 - **Controller Benefit:** Sees latest payments immediately, even if participant hasn't refreshed their app
 - **Example:** Participant pays at 10:30 AM, controller scans at 10:45 AM → Controller sees the payment ✅
 

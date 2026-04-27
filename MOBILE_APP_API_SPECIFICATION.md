@@ -1,5 +1,94 @@
 # Mobile App API Specification
 
+## ⚠️ CRITICAL: QR Code Architecture
+
+### QR Code Contains ONLY Identification Data
+
+The QR code is a **permanent identifier** that never changes. It contains ONLY:
+
+```json
+{
+  "user_id": 58,
+  "badge_id": "USER-58-37F80526",
+  "email": "abdeldjalil.elazizi@ensia.edu.dz",
+  "first_name": "djalil",
+  "last_name": "azizi"
+}
+```
+
+### QR Code Does NOT Contain:
+- ❌ Payment data (`paid_items`)
+- ❌ Transaction history
+- ❌ Session access information
+- ❌ Any dynamic data that changes
+
+### Why This Design?
+
+1. **QR code never changes** - Same badge forever, no reprinting needed
+2. **Always fresh data** - Payment data comes from database via API
+3. **No stale data** - Controller always sees current payment status
+4. **Instant updates** - Payments visible immediately after transaction
+
+### How It Works:
+
+```
+┌─────────────────┐
+│  Participant    │
+│  Scans Badge    │
+└────────┬────────┘
+         │
+         │ QR Code: {"user_id": 58, "badge_id": "USER-58-..."}
+         │
+         ▼
+┌─────────────────┐
+│  Controller App │
+│  Reads QR Code  │
+└────────┬────────┘
+         │
+         │ POST /api/events/rooms/{room_id}/scan_participant/
+         │ Body: {"qr_data": "..."}
+         │
+         ▼
+┌─────────────────┐
+│  Backend API    │
+│  Extracts       │
+│  user_id        │
+└────────┬────────┘
+         │
+         │ SELECT * FROM CaisseTransaction
+         │ WHERE participant.user_id = 58
+         │ AND status = 'completed'
+         │
+         ▼
+┌─────────────────┐
+│  Database       │
+│  Returns ALL    │
+│  Paid Items     │
+└────────┬────────┘
+         │
+         │ Response: {"paid_items": [...], "free_items": [...]}
+         │
+         ▼
+┌─────────────────┐
+│  Controller App │
+│  Displays Items │
+└─────────────────┘
+```
+
+### For Mobile Developers:
+
+**Controller App:**
+1. Scan QR code → Get `user_id` and `badge_id`
+2. Call API with QR data
+3. Display items from API response (NOT from QR code)
+
+**Participant App:**
+1. Display QR code with `badge_id` (for scanning)
+2. To show paid items, call `GET /api/auth/me/` or `GET /api/events/my-ateliers/`
+3. Never store payment data permanently (always fetch fresh)
+
+---
+
 ## Base URL
 ```
 Production: https://makeplus-platform.onrender.com
@@ -217,13 +306,11 @@ Authorization: Bearer <access_token>
 
 **Endpoint:** `POST /api/events/rooms/{room_id}/scan_participant/`
 
-**Description:** Scan participant's QR code and display ALL paid items (sessions, access, dinner, other) + free items. **This endpoint ALWAYS fetches FRESH data from the database**, not from the QR code.
-
-**🔄 Real-Time Data - CRITICAL:** 
-- The QR code is used ONLY for participant identification (`user_id`, `badge_id`)
-- The `paid_items` array in the QR code is **COMPLETELY IGNORED** by the backend
-- Backend queries `CaisseTransaction` table for **REAL-TIME** paid items
-- This ensures controller sees latest payments even if participant hasn't refreshed their app
+**🔄 CRITICAL - QR Code Contains Only ID Data:** 
+- The QR code contains ONLY: `user_id`, `badge_id`, `email`, `first_name`, `last_name`
+- The QR code does NOT contain payment data (`paid_items`)
+- Backend ALWAYS fetches fresh payment data from database
+- This ensures controller sees latest payments in real-time
 
 **Headers:**
 ```
@@ -234,23 +321,27 @@ Content-Type: application/json
 **Request:**
 ```json
 {
-  "qr_data": "{\"user_id\": 1, \"badge_id\": \"USER-1-ABC12345\", \"paid_items\": [...]}"
+  "qr_data": "{\"user_id\": 58, \"badge_id\": \"USER-58-37F80526\", \"email\": \"user@example.com\", \"first_name\": \"John\", \"last_name\": \"Doe\"}"
 }
 ```
 
-**Note:** The `paid_items` in the QR code are IGNORED by the backend. The backend uses `user_id` to identify the participant, then queries the `CaisseTransaction` table for fresh data.
+**🔑 Key Points:** 
+- `qr_data` is the JSON string from the participant's QR code
+- QR code contains ONLY identification data (no payment data)
+- Backend uses `user_id` to identify the participant
+- Backend queries `CaisseTransaction` table for **REAL-TIME** paid items
+- This ensures controller always sees latest payments
 
 **How It Works:**
-1. Controller scans QR code
+1. Controller scans QR code (gets user_id, badge_id, email, name)
 2. Backend extracts `user_id` from QR code
-3. Backend queries `CaisseTransaction` table for latest paid items
-4. Backend fetches ALL completed transactions for this participant
-5. Backend returns ALL paid items from database (sessions, access, dinner, other)
-6. Backend also returns free sessions in the current room
-7. Controller displays FRESH, up-to-date list
+3. Backend queries `CaisseTransaction` table (**FRESH DATA**)
+4. Backend fetches ALL completed transactions
+5. Backend returns ALL paid items: sessions, access, dinner, other
+6. Controller displays complete, up-to-date list
 
 **Data Source:**
-- ❌ NOT from QR code `paid_items` array (may be stale)
+- ❌ NOT from QR code (QR code doesn't contain payment data)
 - ✅ FROM `CaisseTransaction` table (always fresh)
 - ✅ Includes ALL item types: session, access, dinner, other
 
