@@ -553,6 +553,28 @@ When a participant pays for a session/workshop at the caisse (cash register):
 - **Controller Benefit:** Sees latest payments immediately, even if participant hasn't refreshed their app
 - **Example:** Participant pays at 10:30 AM, controller scans at 10:45 AM → Controller sees the payment ✅
 
+### 🚨 IMPORTANT: Remove Room Assignment Check
+
+**Your mobile app is checking for a room assignment that NO LONGER EXISTS!**
+
+**DELETE this code:**
+```dart
+// ❌ REMOVE THIS - Controllers don't need room assignments anymore
+final metadata = userAssignment['metadata'];
+final roomId = metadata?['room_id'];
+
+if (roomId == null) {
+  showError("No room assignment found");  // This error is wrong!
+  return;
+}
+```
+
+**Why?** Controllers can now work in ANY room without assignment. The new endpoint returns ALL paid items from ALL rooms.
+
+**See `MOBILE_APP_CONTROLLER_FIX.md` for complete migration guide.**
+
+---
+
 ### Badge Scanning API (Primary Method)
 
 **Endpoint:** `POST /api/events/participants/scan/`
