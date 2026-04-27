@@ -318,17 +318,32 @@ class RoomViewSet(viewsets.ModelViewSet):
             
             # ✅ FETCH ALL PAID ITEMS FROM CAISSE TRANSACTIONS (REAL-TIME DATA)
             from caisse.models import CaisseTransaction
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # Query with explicit prefetch to avoid N+1 queries
             completed_transactions = CaisseTransaction.objects.filter(
                 participant=participant,
                 status='completed'
-            ).prefetch_related('items__session')
+            ).prefetch_related('items', 'items__session').order_by('-created_at')
+            
+            # Debug logging
+            logger.info(f"[SCAN DEBUG] ==========================================")
+            logger.info(f"[SCAN DEBUG] Participant: {participant.user.email}")
+            logger.info(f"[SCAN DEBUG] Participant ID: {participant.id}")
+            logger.info(f"[SCAN DEBUG] Total completed transactions: {completed_transactions.count()}")
+            logger.info(f"[SCAN DEBUG] ==========================================")
             
             paid_items_list = []
             seen_items = set()  # Track items by a unique key to avoid duplicates
             
             # Fetch all paid items from transactions
             for transaction in completed_transactions:
+                items_in_tx = transaction.items.all()
+                logger.info(f"[SCAN DEBUG] Transaction {transaction.id}: {len(items_in_tx)} items, created at {transaction.created_at}")
                 for item in transaction.items.all():
+                    logger.info(f"[SCAN DEBUG]   Item: {item.name} ({item.item_type}) - {item.price} DA")
+                    
                     # Create unique key for this item
                     if item.session:
                         # For session items, use session ID as key
@@ -339,6 +354,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                     
                     # Skip if already added
                     if unique_key in seen_items:
+                        logger.info(f"[SCAN DEBUG]   Skipping duplicate: {unique_key}")
                         continue
                     
                     seen_items.add(unique_key)
@@ -364,6 +380,9 @@ class RoomViewSet(viewsets.ModelViewSet):
                         }
                     
                     paid_items_list.append(paid_item)
+            
+            logger.info(f"[SCAN DEBUG] Total paid items found: {len(paid_items_list)}")
+            logger.info(f"[SCAN DEBUG] ==========================================")
             
             # Get all sessions in this room (to show free sessions too)
             room_sessions = Session.objects.filter(room=room).order_by('start_time')
@@ -421,6 +440,84 @@ class RoomViewSet(viewsets.ModelViewSet):
             return Response({
                 'status': 'error',
                 'message': f'Error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'], url_path='debug-transactions')
+    def debug_transactions(self, request):
+        """Debug endpoint to check participant transactions"""
+        try:
+            import json
+            from caisse.models import CaisseTransaction
+            from django.contrib.auth.models import User
+            
+            # Get user_id or email from request
+            user_id = request.data.get('user_id')
+            email = request.data.get('email')
+            
+            if not user_id and not email:
+                return Response({
+                    'error': 'Provide user_id or email'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Find user
+            if user_id:
+                user = User.objects.get(id=user_id)
+            else:
+                user = User.objects.get(email=email)
+            
+            # Get participant
+            participant = Participant.objects.filter(user=user).first()
+            
+            if not participant:
+                return Response({
+                    'error': 'Participant not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Get all transactions
+            all_transactions = CaisseTransaction.objects.filter(
+                participant=participant
+            ).prefetch_related('items__session').order_by('-created_at')
+            
+            transactions_data = []
+            for tx in all_transactions:
+                items_data = []
+                for item in tx.items.all():
+                    items_data.append({
+                        'id': str(item.id),
+                        'name': item.name,
+                        'type': item.item_type,
+                        'price': float(item.price),
+                        'session_id': str(item.session.id) if item.session else None,
+                        'session_title': item.session.title if item.session else None
+                    })
+                
+                transactions_data.append({
+                    'id': tx.id,
+                    'status': tx.status,
+                    'total_amount': float(tx.total_amount),
+                    'created_at': tx.created_at.isoformat(),
+                    'items_count': tx.items.count(),
+                    'items': items_data
+                })
+            
+            return Response({
+                'participant': {
+                    'id': str(participant.id),
+                    'email': user.email,
+                    'name': user.get_full_name()
+                },
+                'total_transactions': all_transactions.count(),
+                'completed_transactions': all_transactions.filter(status='completed').count(),
+                'transactions': transactions_data
+            })
+            
+        except User.DoesNotExist:
+            return Response({
+                'error': 'User not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])

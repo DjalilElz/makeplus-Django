@@ -351,16 +351,58 @@ def process_transaction(request):
     
     total_amount = sum(item.price for item in items)
     
-    # Create transaction
-    transaction = CaisseTransaction.objects.create(
-        caisse=caisse,
-        participant=participant,
-        total_amount=total_amount,
-        status='completed',
-        notes=notes,
-        marked_present=True
-    )
-    transaction.items.set(items)
+    # Create transaction with explicit database transaction
+    import logging
+    from django.db import transaction as db_transaction
+    logger = logging.getLogger(__name__)
+    
+    try:
+        with db_transaction.atomic():
+            # Create the transaction record
+            transaction = CaisseTransaction.objects.create(
+                caisse=caisse,
+                participant=participant,
+                total_amount=total_amount,
+                status='completed',
+                notes=notes,
+                marked_present=True
+            )
+            
+            # Link items to transaction using add() instead of set()
+            # This ensures the many-to-many relationship is properly saved
+            for item in items:
+                transaction.items.add(item)
+            
+            # Explicitly save the transaction
+            transaction.save()
+            
+            logger.info(f"[CAISSE] ✅ Transaction {transaction.id} created successfully")
+            logger.info(f"[CAISSE] Participant: {participant.user.email}")
+            logger.info(f"[CAISSE] Items to link: {len(items)}")
+            
+    except Exception as e:
+        logger.error(f"[CAISSE] ❌ Failed to create transaction: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Failed to create transaction: {str(e)}'
+        })
+    
+    # Verify items were saved (outside the atomic block)
+    transaction.refresh_from_db()
+    items_count = transaction.items.count()
+    
+    logger.info(f"[CAISSE] Items actually linked: {items_count}")
+    
+    if items_count != len(items):
+        logger.error(f"[CAISSE] ⚠️ MISMATCH! Expected {len(items)} items but only {items_count} were saved!")
+        return JsonResponse({
+            'success': False,
+            'message': f'Transaction created but items not saved properly. Expected {len(items)}, got {items_count}'
+        })
+    
+    # Log each item
+    for item in transaction.items.all():
+        logger.info(f"[CAISSE]   ✓ {item.name} ({item.item_type}) - {item.price} DA")
     
     # Grant access to the selected sessions/ateliers
     # Create SessionAccess records for paid sessions
