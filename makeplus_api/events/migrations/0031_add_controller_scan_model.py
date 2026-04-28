@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('dashboard', '0016_add_controller_scan_model'),
+        ('dashboard', '0015_emailcampaign_external_campaign_id_and_more'),
         ('events', '0030_alter_participant_qr_code_data'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
