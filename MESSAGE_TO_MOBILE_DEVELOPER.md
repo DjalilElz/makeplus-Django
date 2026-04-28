@@ -553,25 +553,74 @@ When a participant pays for a session/workshop at the caisse (cash register):
 - **Controller Benefit:** Sees latest payments immediately, even if participant hasn't refreshed their app
 - **Example:** Participant pays at 10:30 AM, controller scans at 10:45 AM → Controller sees the payment ✅
 
-### 🚨 IMPORTANT: Remove Room Assignment Check
+### 🚨 IMPORTANT: Remove Room Assignment Check (Badge Controllers ONLY)
 
-**Your mobile app is checking for a room assignment that NO LONGER EXISTS!**
+**Your mobile app is checking for a room assignment that NO LONGER EXISTS for Badge Controllers!**
+
+**⚠️ CRITICAL: This only applies to `controlleur_des_badges` role!**
+
+**For Badge Controllers (`controlleur_des_badges`):**
 
 **DELETE this code:**
 ```dart
-// ❌ REMOVE THIS - Controllers don't need room assignments anymore
-final metadata = userAssignment['metadata'];
-final roomId = metadata?['room_id'];
+// ❌ REMOVE THIS - Badge controllers don't need room assignments
+if (role == 'controlleur_des_badges') {
+  final metadata = userAssignment['metadata'];
+  final roomId = metadata?['room_id'];
 
-if (roomId == null) {
-  showError("No room assignment found");  // This error is wrong!
-  return;
+  if (roomId == null) {
+    showError("No room assignment found");  // This error is wrong for controllers!
+    return;
+  }
 }
 ```
 
-**Why?** Controllers can now work in ANY room without assignment. The new endpoint returns ALL paid items from ALL rooms.
+**Use this instead:**
+```dart
+// ✅ CORRECT - Badge controllers work anywhere
+if (role == 'controlleur_des_badges') {
+  // No room check needed!
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => BadgeScannerScreen(),  // No room parameters
+    ),
+  );
+}
+```
 
-**See `MOBILE_APP_CONTROLLER_FIX.md` for complete migration guide.**
+**For Room Managers (`gestionnaire_des_salles`):**
+
+**KEEP the room assignment check:**
+```dart
+// ✅ CORRECT - Room managers need room assignment
+if (role == 'gestionnaire_des_salles') {
+  final metadata = userAssignment['metadata'];
+  final roomId = metadata?['room_id'];
+
+  if (roomId == null) {
+    showError("Aucune salle assignée pour cet utilisateur");
+    return;
+  }
+  
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => RoomManagementScreen(
+        roomId: roomId,
+        roomName: metadata['room_name'],
+      ),
+    ),
+  );
+}
+```
+
+**Why?** 
+- Badge Controllers can now work in ANY room without assignment
+- Room Managers still need a specific room to manage
+- The new endpoint returns ALL paid items from ALL rooms for controllers
+
+**See `ROLES_CLARIFICATION.md` for complete role-based implementation guide.**
 
 ---
 
@@ -583,7 +632,7 @@ if (roomId == null) {
 - ✅ Correct: `https://makeplus-platform.onrender.com/api/participants/scan/`
 - ❌ Wrong: `https://makeplus-platform.onrender.com/api/events/participants/scan/`
 
-**🎯 SIMPLIFIED - No Room Selection Needed:**
+**🎯 SIMPLIFIED - No Room Selection Needed (Badge Controllers Only):**
 - ✅ Controllers work in ANY room (no specific assignment)
 - ✅ No need to select room before scanning
 - ✅ Just scan badge and see ALL paid items
@@ -805,70 +854,104 @@ Authorization: Bearer <participant_token>
 
 #### For Controllers (Badge Scanning):
 
+**⚠️ IMPORTANT: Role-Based Implementation**
+
+This applies to **Badge Controllers** (`controlleur_des_badges`) only!
+
 ```dart
-// 1. Scan QR code
-final qrCode = await scanQRCode();
+// 1. Check user role first
+final role = userAssignment['role'];
 
-// 2. Parse QR data to display immediately (optional - for offline mode)
-final qrData = jsonDecode(qrCode);
-final badgeId = qrData['badge_id'];
-final userName = qrData['full_name'] ?? '${qrData['first_name']} ${qrData['last_name']}';
-
-// 3. Call backend to get FRESH data from database
-// ✅ NO ROOM SELECTION NEEDED - Works for any room
-final response = await http.post(
-  Uri.parse('$baseUrl/api/participants/scan/'),
-  headers: {
-    'Authorization': 'Bearer $controllerToken',
-    'Content-Type': 'application/json',
-  },
-  body: jsonEncode({
-    'qr_data': qrCode,
-  }),
-);
-
-final result = jsonDecode(response.body);
-
-// 4. Display results
-if (result['status'] == 'success') {
-  // Show participant info
-  final participant = result['participant'];
-  showParticipantInfo(participant['name'], participant['email']);
+if (role == 'controlleur_des_badges') {
+  // ✅ Badge Controller - No room check needed
   
-  // Show ALL paid items (sessions, access, dinner, other)
-  final paidItems = result['paid_items'] ?? [];
-  final freeItems = result['free_items'] ?? [];
-  
-  // Display paid items by type
-  if (paidItems.isNotEmpty) {
-    // Group by type for better display
-    final sessions = paidItems.where((i) => i['type'] == 'session').toList();
-    final access = paidItems.where((i) => i['type'] == 'access').toList();
-    final dinners = paidItems.where((i) => i['type'] == 'dinner').toList();
-    final others = paidItems.where((i) => i['type'] == 'other').toList();
+  // 2. Scan QR code
+  final qrCode = await scanQRCode();
+
+  // 3. Parse QR data to display immediately (optional - for offline mode)
+  final qrData = jsonDecode(qrCode);
+  final badgeId = qrData['badge_id'];
+  final userName = qrData['full_name'] ?? '${qrData['first_name']} ${qrData['last_name']}';
+
+  // 4. Call backend to get FRESH data from database
+  // ✅ NO ROOM SELECTION NEEDED - Works for any room
+  final response = await http.post(
+    Uri.parse('$baseUrl/api/participants/scan/'),
+    headers: {
+      'Authorization': 'Bearer $controllerToken',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'qr_data': qrCode,
+    }),
+  );
+
+  final result = jsonDecode(response.body);
+
+  // 5. Display results
+  if (result['status'] == 'success') {
+    // Show participant info
+    final participant = result['participant'];
+    showParticipantInfo(participant['name'], participant['email']);
     
-    // Display each category
-    if (sessions.isNotEmpty) {
-      showSection('Paid Workshops', sessions);
-      // Example: "✅ Advanced Python Workshop (50 DA)"
+    // Show ALL paid items (sessions, access, dinner, other)
+    final paidItems = result['paid_items'] ?? [];
+    
+    // Display paid items by type
+    if (paidItems.isNotEmpty) {
+      // Group by type for better display
+      final sessions = paidItems.where((i) => i['type'] == 'session').toList();
+      final access = paidItems.where((i) => i['type'] == 'access').toList();
+      final dinners = paidItems.where((i) => i['type'] == 'dinner').toList();
+      final others = paidItems.where((i) => i['type'] == 'other').toList();
+      
+      // Display each category
+      if (sessions.isNotEmpty) {
+        showSection('Paid Workshops', sessions);
+        // Example: "✅ Advanced Python Workshop (50 DA)"
+      }
+      if (access.isNotEmpty) {
+        showSection('Access Passes', access);
+        // Example: "✅ VIP Lounge Access (100 DA)"
+      }
+      if (dinners.isNotEmpty) {
+        showSection('Meals', dinners);
+        // Example: "✅ Gala Dinner (75 DA)"
+      }
+      if (others.isNotEmpty) {
+        showSection('Other Items', others);
+        // Example: "✅ Event T-Shirt (25 DA)"
+      }
     }
-    if (access.isNotEmpty) {
-      showSection('Access Passes', access);
-      // Example: "✅ VIP Lounge Access (100 DA)"
-    }
-    if (dinners.isNotEmpty) {
-      showSection('Meals', dinners);
-      // Example: "✅ Gala Dinner (75 DA)"
-    }
-    if (others.isNotEmpty) {
-      showSection('Other Items', others);
-      // Example: "✅ Event T-Shirt (25 DA)"
-    }
+    
+  } else if (result['status'] == 'error') {
+    showError('Error: ${result['message']}');
+  } else {
+    showError('Invalid QR Code');
   }
   
-  // Display free items
-  if (freeItems.isNotEmpty) {
-    showFreeItemsList(freeItems);
+} else if (role == 'gestionnaire_des_salles') {
+  // ✅ Room Manager - Room check IS needed
+  final metadata = userAssignment['metadata'];
+  final roomId = metadata?['room_id'];
+  
+  if (roomId == null) {
+    showError("Aucune salle assignée pour cet utilisateur");
+    return;
+  }
+  
+  // Navigate to room management screen
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => RoomManagementScreen(
+        roomId: roomId,
+        roomName: metadata['room_name'],
+      ),
+    ),
+  );
+}
+```
     // Example: "🆓 Opening Keynote (Free)"
   }
   

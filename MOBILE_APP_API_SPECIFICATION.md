@@ -1,5 +1,26 @@
 # Mobile App API Specification
 
+## 🎭 User Roles (IMPORTANT)
+
+### Role-Based Requirements
+
+Different user roles have different requirements:
+
+| Role | Room Assignment | Purpose | Endpoints |
+|------|----------------|---------|-----------|
+| `controlleur_des_badges` | ❌ Not needed | Scan badges anywhere | `/api/participants/scan/` |
+| `gestionnaire_des_salles` | ✅ Required | Manage specific room | `/api/rooms/{room_id}/...` |
+| `participant` | ❌ Not needed | Attend event | `/api/auth/me/`, `/api/events/my-ateliers/` |
+
+**⚠️ CRITICAL:**
+- **Badge Controllers** (`controlleur_des_badges`) do NOT need room assignment
+- **Room Managers** (`gestionnaire_des_salles`) DO need room assignment
+- Check user role before implementing navigation logic
+
+**See `ROLES_CLARIFICATION.md` for complete implementation guide.**
+
+---
+
 ## ⚠️ CRITICAL: QR Code Architecture
 
 ### QR Code Contains ONLY Identification Data
@@ -302,7 +323,7 @@ Authorization: Bearer <access_token>
 
 ## 4. Badge Scanning (Controller)
 
-### 4.1 Badge Scanning API (Controller - No Room Selection Needed)
+### 4.1 Badge Scanning API (Badge Controllers Only - No Room Selection Needed)
 
 **Endpoint:** `POST /api/participants/scan/`
 
@@ -310,11 +331,16 @@ Authorization: Bearer <access_token>
 - ✅ Correct: `https://makeplus-platform.onrender.com/api/participants/scan/`
 - ❌ Wrong: `https://makeplus-platform.onrender.com/api/events/participants/scan/`
 
-**🎯 NEW SIMPLIFIED APPROACH:**
+**🎯 FOR BADGE CONTROLLERS ONLY (`controlleur_des_badges`):**
 - ✅ Controllers can work in ANY room (no room assignment needed)
 - ✅ No need to select room before scanning
 - ✅ Returns ALL paid items for the participant
 - ✅ Shows sessions from all rooms + access + dinner + other items
+
+**⚠️ NOT FOR ROOM MANAGERS (`gestionnaire_des_salles`):**
+- Room managers still need room assignment
+- They use different endpoints for room management
+- See `ROLES_CLARIFICATION.md` for details
 
 **🔄 QR Code Contains Only ID Data:** 
 - The QR code contains ONLY: `user_id`, `badge_id`, `email`, `first_name`, `last_name`
