@@ -19,8 +19,8 @@ from .serializers import EventSerializer
 
 class MyRoomStatisticsAPIView(APIView):
     """
-    REST API: Get statistics for check-ins performed by current controller
-    Each controller sees only their own scans/check-ins
+    REST API: Get statistics for scans performed by current controller
+    Each controller sees only their own scans
     """
     permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]  # Force JSON only
@@ -39,77 +39,80 @@ class MyRoomStatisticsAPIView(APIView):
                 'error': 'No active event assignment found'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Get all active rooms in the event
-        rooms = Room.objects.filter(
-            event=assignment.event,
-            is_active=True
-        )
-        
-        if not rooms.exists():
-            return Response({
-                'total_rooms': 0,
-                'total_sessions_today': 0,
-                'my_check_ins_today': 0,
-                'rooms': []
-            })
+        event = assignment.event
         
         # Get today's date range
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = today_start.replace(hour=23, minute=59, second=59)
         
-        # Get room IDs for queries
-        room_ids = [room.id for room in rooms]
+        # ✅ USE NEW ControllerScan MODEL
+        from .models import ControllerScan
+        
+        # Count scans performed by THIS controller today
+        my_scans_today = ControllerScan.objects.filter(
+            controller=user,
+            event=event,
+            scanned_at__gte=today_start,
+            scanned_at__lte=today_end
+        ).count()
+        
+        # Count successful scans today
+        successful_scans_today = ControllerScan.objects.filter(
+            controller=user,
+            event=event,
+            scanned_at__gte=today_start,
+            scanned_at__lte=today_end,
+            status='success'
+        ).count()
+        
+        # Get recent scans (last 50)
+        recent_scans = ControllerScan.objects.filter(
+            controller=user,
+            event=event
+        ).order_by('-scanned_at')[:50]
+        
+        # Build recent scans data
+        recent_scans_data = []
+        for scan in recent_scans:
+            recent_scans_data.append({
+                'id': scan.id,
+                'participant': {
+                    'user_id': scan.participant_user_id,
+                    'name': scan.participant_name,
+                    'email': scan.participant_email,
+                    'badge_id': scan.badge_id
+                },
+                'scanned_at': scan.scanned_at.isoformat(),
+                'status': scan.status,
+                'error_message': scan.error_message if scan.error_message else None,
+                'total_paid_items': scan.total_paid_items,
+                'total_amount': float(scan.total_amount)
+            })
+        
+        # Get all active rooms in the event (for compatibility)
+        rooms = Room.objects.filter(
+            event=event,
+            is_active=True
+        )
         
         # Count sessions today in all rooms
         sessions_today = Session.objects.filter(
-            room_id__in=room_ids,
+            room__in=rooms,
             start_time__gte=today_start,
             start_time__lte=today_end
         ).count()
         
-        # Count check-ins performed by THIS controller today
-        my_check_ins_today = RoomAccess.objects.filter(
-            verified_by=user,  # Only this controller's scans
-            accessed_at__gte=today_start,
-            accessed_at__lte=today_end,
-            status='granted'
-        ).count()
-        
-        # Build room details with this controller's check-ins per room
-        rooms_data = []
-        for room in rooms:
-            room_sessions = Session.objects.filter(
-                room=room,
-                start_time__gte=today_start,
-                start_time__lte=today_end
-            ).count()
-            
-            # Check-ins by THIS controller in this room
-            my_room_check_ins = RoomAccess.objects.filter(
-                room=room,
-                verified_by=user,  # Only this controller's scans
-                accessed_at__gte=today_start,
-                status='granted'
-            ).count()
-            
-            rooms_data.append({
-                'id': str(room.id),
-                'name': room.name,
-                'capacity': room.capacity,
-                'sessions_today': room_sessions,
-                'my_check_ins_today': my_room_check_ins
-            })
-        
         # Build response
         return Response({
-            'total_rooms': len(rooms),
+            'total_rooms': rooms.count(),
             'total_sessions_today': sessions_today,
-            'my_check_ins_today': my_check_ins_today,
-            'rooms': rooms_data,
+            'my_check_ins_today': my_scans_today,  # Total scans today
+            'successful_scans_today': successful_scans_today,
+            'recent_scans': recent_scans_data,  # ✅ NEW: Recent scan logs
             'role': assignment.role,
             'event': {
-                'id': str(assignment.event.id),
-                'name': assignment.event.name
+                'id': str(event.id),
+                'name': event.name
             }
         })
 

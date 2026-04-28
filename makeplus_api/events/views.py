@@ -848,6 +848,24 @@ class ParticipantViewSet(viewsets.ModelViewSet):
             
             # Check if participant is registered for this event
             if not participant.is_registered_for_event(event):
+                # ✅ SAVE FAILED SCAN LOG
+                from .models import ControllerScan
+                try:
+                    ControllerScan.objects.create(
+                        controller=request.user,
+                        event=event,
+                        participant_user_id=user.id,
+                        badge_id=qr_dict.get('badge_id', ''),
+                        participant_name=user.get_full_name() or f"{user.first_name} {user.last_name}",
+                        participant_email=user.email,
+                        status='not_registered',
+                        error_message='Participant not registered for this event',
+                        total_paid_items=0,
+                        total_amount=0
+                    )
+                except Exception:
+                    pass  # Don't fail the request if logging fails
+                
                 return Response({
                     'status': 'error',
                     'message': 'Participant not registered for this event',
@@ -933,6 +951,25 @@ class ParticipantViewSet(viewsets.ModelViewSet):
             logger.info(f"[SCAN] Total paid items found: {len(paid_items_list)}")
             logger.info(f"[SCAN] Total amount: {total_amount} DA")
             logger.info(f"[SCAN] ==========================================")
+            
+            # ✅ SAVE SCAN LOG TO DATABASE (for statistics)
+            from .models import ControllerScan
+            try:
+                ControllerScan.objects.create(
+                    controller=request.user,
+                    event=event,
+                    participant_user_id=user.id,
+                    badge_id=qr_dict.get('badge_id', ''),
+                    participant_name=user.get_full_name() or f"{user.first_name} {user.last_name}",
+                    participant_email=user.email,
+                    status='success',
+                    total_paid_items=len(paid_items_list),
+                    total_amount=total_amount
+                )
+                logger.info(f"[SCAN] ✅ Scan log saved to database")
+            except Exception as e:
+                logger.error(f"[SCAN] ❌ Failed to save scan log: {str(e)}")
+                # Don't fail the request if logging fails
             
             return Response({
                 'status': 'success',

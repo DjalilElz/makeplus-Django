@@ -1003,3 +1003,43 @@ class FormRegistrationVerification(models.Model):
             return False, wait_seconds
         
         return True, None
+
+
+class ControllerScan(models.Model):
+    """Track controller badge scans (for statistics and audit trail)"""
+    controller = models.ForeignKey(User, on_delete=models.CASCADE, related_name='controller_scans', help_text="Controller who scanned")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='controller_scans')
+    
+    # Participant info (denormalized for performance and history)
+    participant_user_id = models.IntegerField(help_text="User ID of scanned participant")
+    badge_id = models.CharField(max_length=100, help_text="Badge ID scanned")
+    participant_name = models.CharField(max_length=255, help_text="Participant full name")
+    participant_email = models.EmailField(help_text="Participant email")
+    
+    # Scan details
+    scanned_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('success', 'Success'),
+            ('error', 'Error'),
+            ('not_registered', 'Not Registered'),
+        ],
+        default='success'
+    )
+    error_message = models.TextField(blank=True, help_text="Error message if scan failed")
+    
+    # Metadata
+    total_paid_items = models.IntegerField(default=0, help_text="Number of paid items at scan time")
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Total amount paid")
+    
+    class Meta:
+        ordering = ['-scanned_at']
+        indexes = [
+            models.Index(fields=['controller', '-scanned_at']),
+            models.Index(fields=['event', '-scanned_at']),
+            models.Index(fields=['controller', 'event', '-scanned_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.controller.username} scanned {self.participant_name} at {self.scanned_at}"

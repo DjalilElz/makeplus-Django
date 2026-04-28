@@ -10,7 +10,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import (
     Event, Room, Session, Participant, RoomAccess, UserEventAssignment,
     SessionAccess, Annonce, SessionQuestion, RoomAssignment, ExposantScan,
-    ParticipantEventRegistration
+    ParticipantEventRegistration, ControllerScan
 )
 
 
@@ -525,3 +525,20 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     Custom token view that uses email instead of username
     """
     serializer_class = CustomTokenObtainPairSerializer
+
+
+
+class ControllerScanSerializer(serializers.ModelSerializer):
+    """ControllerScan serializer for tracking controller badge scans"""
+    controller_name = serializers.CharField(source='controller.get_full_name', read_only=True)
+    event_name = serializers.CharField(source='event.name', read_only=True)
+    
+    class Meta:
+        model = ControllerScan
+        fields = [
+            'id', 'controller', 'controller_name', 'event', 'event_name',
+            'participant_user_id', 'badge_id', 'participant_name', 'participant_email',
+            'scanned_at', 'status', 'error_message',
+            'total_paid_items', 'total_amount'
+        ]
+        read_only_fields = ['id', 'scanned_at']
