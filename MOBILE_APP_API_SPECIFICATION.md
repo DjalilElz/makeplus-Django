@@ -304,7 +304,11 @@ Authorization: Bearer <access_token>
 
 ### 4.1 Badge Scanning API (Controller - No Room Selection Needed)
 
-**Endpoint:** `POST /api/events/participants/scan/`
+**Endpoint:** `POST /api/participants/scan/`
+
+**⚠️ IMPORTANT: Correct URL Path**
+- ✅ Correct: `https://makeplus-platform.onrender.com/api/participants/scan/`
+- ❌ Wrong: `https://makeplus-platform.onrender.com/api/events/participants/scan/`
 
 **🎯 NEW SIMPLIFIED APPROACH:**
 - ✅ Controllers can work in ANY room (no room assignment needed)
@@ -826,7 +830,7 @@ class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
       // 2. Call scan_participant endpoint (fetches FRESH data from database)
       // ✅ NO ROOM ID NEEDED - Works for any room
       final response = await http.post(
-        Uri.parse('$baseUrl/api/events/participants/scan/'),
+        Uri.parse('$baseUrl/api/participants/scan/'),
         headers: {
           'Authorization': 'Bearer $controllerToken',
           'Content-Type': 'application/json',

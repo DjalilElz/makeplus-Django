@@ -114,8 +114,9 @@ class _BadgeScannerScreenState extends State<BadgeScannerScreen> {
       if (qrCode.isEmpty) return;
       
       // 2. ✅ NEW API call - No room ID needed
+      // ⚠️ CORRECT URL: /api/participants/scan/ (NOT /api/events/participants/scan/)
       final response = await http.post(
-        Uri.parse('$baseUrl/api/events/participants/scan/'),
+        Uri.parse('$baseUrl/api/participants/scan/'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',

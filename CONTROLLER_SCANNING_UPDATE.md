@@ -25,8 +25,12 @@
 
 ### Endpoint
 ```
-POST /api/events/participants/scan/
+POST /api/participants/scan/
 ```
+
+**⚠️ IMPORTANT: Correct URL**
+- ✅ Correct: `https://makeplus-platform.onrender.com/api/participants/scan/`
+- ❌ Wrong: `https://makeplus-platform.onrender.com/api/events/participants/scan/`
 
 ### Headers
 ```
@@ -172,9 +176,9 @@ final response = await http.post(
   ...
 );
 
-// ✅ NEW - Use this
+// ✅ NEW - Use this (CORRECT URL PATH)
 final response = await http.post(
-  Uri.parse('$baseUrl/api/events/participants/scan/'),
+  Uri.parse('$baseUrl/api/participants/scan/'),
   ...
 );
 ```

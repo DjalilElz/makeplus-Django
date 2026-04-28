@@ -504,7 +504,7 @@ Check `MOBILE_APP_API_SPECIFICATION.md` for complete API documentation with all 
 #### How Badge Scanning Works:
 
 1. **Controller scans QR code** → Gets `user_id` and `badge_id`
-2. **Mobile app calls API** → `POST /api/events/participants/scan/`
+2. **Mobile app calls API** → `POST /api/participants/scan/`
 3. **Backend queries database** → Fetches ALL paid items from `CaisseTransaction` table
 4. **Backend returns fresh data** → Controller sees current payment status
 5. **Controller displays** → Shows all paid items (sessions, access, dinner, other)
@@ -539,7 +539,7 @@ When a participant pays for a session/workshop at the caisse (cash register):
 2. **Badge Scanning (Controller):**
    - Controller scans participant's QR code/badge
    - **QR code contains ONLY:** `user_id`, `badge_id`, `email`, `name`
-   - Mobile app calls `POST /api/events/participants/scan/`
+   - Mobile app calls `POST /api/participants/scan/`
    - **Backend fetches FRESH data from database** (queries `CaisseTransaction` table)
    - Backend returns ALL paid items (sessions, access, dinner, other)
    - Controller sees complete list of what participant has access to
@@ -577,7 +577,11 @@ if (roomId == null) {
 
 ### Badge Scanning API (Primary Method)
 
-**Endpoint:** `POST /api/events/participants/scan/`
+**Endpoint:** `POST /api/participants/scan/`
+
+**⚠️ IMPORTANT: Correct URL Path**
+- ✅ Correct: `https://makeplus-platform.onrender.com/api/participants/scan/`
+- ❌ Wrong: `https://makeplus-platform.onrender.com/api/events/participants/scan/`
 
 **🎯 SIMPLIFIED - No Room Selection Needed:**
 - ✅ Controllers work in ANY room (no specific assignment)
@@ -813,7 +817,7 @@ final userName = qrData['full_name'] ?? '${qrData['first_name']} ${qrData['last_
 // 3. Call backend to get FRESH data from database
 // ✅ NO ROOM SELECTION NEEDED - Works for any room
 final response = await http.post(
-  Uri.parse('$baseUrl/api/events/participants/scan/'),
+  Uri.parse('$baseUrl/api/participants/scan/'),
   headers: {
     'Authorization': 'Bearer $controllerToken',
     'Content-Type': 'application/json',
