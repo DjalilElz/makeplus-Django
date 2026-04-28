@@ -1228,3 +1228,431 @@ All prices are in **DA (Algerian Dinar)**.
 - ✅ No stale data issues
 - ✅ Single source of truth
 - ✅ Better user experience
+
+
+---
+
+## 7. Controller Statistics (Updated)
+
+### 7.1 Get Controller Statistics
+
+**Endpoint:** `GET /api/my-room/statistics/`
+
+**🆕 NEW: Automatic Scan Logging**
+
+The backend now automatically saves a log record every time a controller scans a badge. The statistics endpoint returns these logs without any changes needed in your mobile app!
+
+**Headers:**
+```
+Authorization: Bearer <controller_token>
+```
+
+**Response:**
+```json
+{
+  "total_rooms": 3,
+  "total_sessions_today": 5,
+  "my_check_ins_today": 12,
+  "successful_scans_today": 10,
+  "recent_scans": [
+    {
+      "id": 1,
+      "participant": {
+        "user_id": 58,
+        "name": "djalil azizi",
+        "email": "abdeldjalil.elazizi@ensia.edu.dz",
+        "badge_id": "USER-58-37F80526"
+      },
+      "scanned_at": "2026-04-28T10:30:00Z",
+      "status": "success",
+      "error_message": null,
+      "total_paid_items": 4,
+      "total_amount": 12000.0
+    },
+    {
+      "id": 2,
+      "participant": {
+        "user_id": 59,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "badge_id": "USER-59-ABC12345"
+      },
+      "scanned_at": "2026-04-28T10:25:00Z",
+      "status": "not_registered",
+      "error_message": "Participant not registered for this event",
+      "total_paid_items": 0,
+      "total_amount": 0
+    },
+    {
+      "id": 3,
+      "participant": {
+        "user_id": 60,
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "badge_id": "USER-60-XYZ98765"
+      },
+      "scanned_at": "2026-04-28T10:20:00Z",
+      "status": "success",
+      "error_message": null,
+      "total_paid_items": 2,
+      "total_amount": 8000.0
+    }
+  ],
+  "role": "controlleur_des_badges",
+  "event": {
+    "id": "d3c3de4d-a41e-4b69-9bcf-f8b365a72647",
+    "name": "TechSummit Algeria 2026"
+  }
+}
+```
+
+**Response Fields:**
+
+**Existing Fields:**
+- `total_rooms`: Number of active rooms in the event
+- `total_sessions_today`: Number of sessions scheduled today
+- `my_check_ins_today`: Total scans performed by this controller today
+- `role`: Controller's role
+- `event`: Event information
+
+**🆕 NEW Fields:**
+- `successful_scans_today`: Count of successful scans today (status='success')
+- `recent_scans`: Array of last 50 scans with full details
+
+**Scan Object Structure:**
+- `id`: Unique scan log ID
+- `participant`: Object with participant details
+  - `user_id`: Participant's user ID
+  - `name`: Participant's full name
+  - `email`: Participant's email
+  - `badge_id`: Participant's badge ID
+- `scanned_at`: ISO 8601 timestamp of when scan occurred
+- `status`: Scan status
+  - `"success"`: Scan successful, participant registered
+  - `"not_registered"`: Participant not registered for event
+  - `"error"`: Other error occurred
+- `error_message`: Error details if scan failed (null if successful)
+- `total_paid_items`: Number of paid items at scan time
+- `total_amount`: Total amount paid at scan time (in DA)
+
+**Status Values:**
+- `success`: Participant scanned successfully
+- `not_registered`: Participant not registered for this event
+- `error`: Other error (invalid QR, network issue, etc.)
+
+---
+
+## 8. Automatic Scan Logging
+
+### How It Works
+
+**No Changes Needed in Mobile App!** 🎉
+
+The backend automatically logs every scan when you call `POST /api/participants/scan/`. Your existing code will automatically benefit from this feature.
+
+**Flow:**
+```
+1. Controller scans QR code
+   ↓
+2. Mobile app calls: POST /api/participants/scan/
+   ↓
+3. Backend:
+   - Returns participant data (existing)
+   - Saves scan log to database (NEW - automatic)
+   ↓
+4. Mobile app shows dialog
+   ↓
+5. Stats page calls: GET /api/my-room/statistics/
+   ↓
+6. Backend returns saved scans from database
+   ↓
+7. Mobile app displays scan history
+```
+
+**What Gets Logged:**
+
+Every scan (successful or failed) is automatically logged with:
+- Controller who scanned
+- Event context
+- Participant info (user_id, badge_id, name, email)
+- Scan timestamp
+- Status (success/error/not_registered)
+- Error message (if failed)
+- Payment info at scan time (total_paid_items, total_amount)
+
+**Benefits:**
+- ✅ Automatic - no extra API calls needed
+- ✅ Real-time statistics
+- ✅ Audit trail for all scans
+- ✅ Error tracking
+- ✅ No mobile app changes required
+
+---
+
+## 9. Mobile App Implementation
+
+### Statistics Screen
+
+```dart
+class ControllerStatisticsScreen extends StatefulWidget {
+  @override
+  _ControllerStatisticsScreenState createState() => _ControllerStatisticsScreenState();
+}
+
+class _ControllerStatisticsScreenState extends State<ControllerStatisticsScreen> {
+  Map<String, dynamic>? stats;
+  bool isLoading = true;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadStatistics();
+  }
+  
+  Future<void> _loadStatistics() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/my-room/statistics/'),
+        headers: {
+          'Authorization': 'Bearer $controllerToken',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        setState(() {
+          stats = jsonDecode(response.body);
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      _showError('Failed to load statistics: $e');
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Statistics')),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    if (stats == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Statistics')),
+        body: Center(child: Text('Failed to load statistics')),
+      );
+    }
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('My Statistics'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: () {
+              setState(() => isLoading = true);
+              _loadStatistics();
+            },
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _loadStatistics,
+        child: ListView(
+          padding: EdgeInsets.all(16),
+          children: [
+            // Summary Cards
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    'Total Scans Today',
+                    '${stats!['my_check_ins_today']}',
+                    Icons.qr_code_scanner,
+                    Colors.blue,
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: _buildStatCard(
+                    'Successful',
+                    '${stats!['successful_scans_today']}',
+                    Icons.check_circle,
+                    Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            
+            SizedBox(height: 24),
+            
+            // Recent Scans Section
+            Text('Recent Scans',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            SizedBox(height: 12),
+            
+            // Recent Scans List
+            ...((stats!['recent_scans'] ?? []) as List).map((scan) {
+              return _buildScanItem(scan);
+            }).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(icon, size: 40, color: color),
+            SizedBox(height: 8),
+            Text(value,
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            Text(title,
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+              textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildScanItem(Map<String, dynamic> scan) {
+    final participant = scan['participant'];
+    final status = scan['status'];
+    final isSuccess = status == 'success';
+    
+    return Card(
+      margin: EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: isSuccess ? Colors.green : Colors.red,
+          child: Icon(
+            isSuccess ? Icons.check : Icons.error,
+            color: Colors.white,
+          ),
+        ),
+        title: Text(participant['name'],
+          style: TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Badge: ${participant['badge_id']}'),
+            if (isSuccess)
+              Text('${scan['total_paid_items']} items - ${scan['total_amount']} DA',
+                style: TextStyle(color: Colors.green))
+            else
+              Text(scan['error_message'] ?? 'Error',
+                style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        trailing: Text(_formatTime(scan['scanned_at']),
+          style: TextStyle(fontSize: 12, color: Colors.grey)),
+        onTap: () => _showScanDetails(scan),
+      ),
+    );
+  }
+  
+  String _formatTime(String isoDate) {
+    final date = DateTime.parse(isoDate);
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${date.day}/${date.month} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+  
+  void _showScanDetails(Map<String, dynamic> scan) {
+    final participant = scan['participant'];
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Scan Details'),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Name: ${participant['name']}',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('Email: ${participant['email']}'),
+            Text('Badge: ${participant['badge_id']}'),
+            SizedBox(height: 12),
+            Text('Status: ${scan['status']}'),
+            Text('Scanned: ${_formatTime(scan['scanned_at'])}'),
+            if (scan['status'] == 'success') ...[
+              SizedBox(height: 12),
+              Text('Paid Items: ${scan['total_paid_items']}'),
+              Text('Total Amount: ${scan['total_amount']} DA',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+            ] else if (scan['error_message'] != null) ...[
+              SizedBox(height: 12),
+              Text('Error:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(scan['error_message'],
+                style: TextStyle(color: Colors.red)),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+}
+```
+
+---
+
+## Summary of Changes
+
+### What's New (April 28, 2026)
+
+1. **Automatic Scan Logging**
+   - Every scan is automatically logged to database
+   - No changes needed in mobile app
+   - Works with existing code
+
+2. **Enhanced Statistics Endpoint**
+   - New field: `successful_scans_today`
+   - New field: `recent_scans` (last 50 scans)
+   - Each scan includes full participant and payment details
+
+3. **Scan Status Tracking**
+   - Success: Participant scanned successfully
+   - Not Registered: Participant not registered for event
+   - Error: Other errors
+
+4. **Audit Trail**
+   - Complete history of all scans
+   - Includes failed scans for troubleshooting
+   - Timestamp, participant info, payment details
+
+### Mobile App: No Changes Required
+
+Your existing code will automatically:
+- ✅ Log scans when calling `/api/participants/scan/`
+- ✅ Receive scan history from `/api/my-room/statistics/`
+- ✅ Display the data (if you implement the UI)
+
+---
+
+**Last Updated:** April 28, 2026  
+**Version:** 2.2  
+**Status:** ✅ Deployed and Ready

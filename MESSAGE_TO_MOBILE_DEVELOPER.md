@@ -1059,3 +1059,177 @@ When a payment is processed:
 - Transaction statistics (total amount, participant count, etc.)
 
 ---
+
+
+## 🔄 Automatic Scan Logging (NEW)
+
+**Date:** April 28, 2026  
+**Status:** ✅ Implemented
+
+### What Changed
+
+The backend now **automatically saves a log record** every time a controller scans a participant's badge. This means the statistics page will show scan history without any changes needed in your mobile app!
+
+### How It Works
+
+**Before (What You Already Have):**
+1. Controller scans QR code
+2. Mobile app calls `POST /api/participants/scan/`
+3. Backend returns participant data
+4. Mobile app shows dialog
+
+**Now (Automatic Logging Added):**
+1. Controller scans QR code
+2. Mobile app calls `POST /api/participants/scan/`
+3. Backend:
+   - Returns participant data ✅
+   - **ALSO saves scan log to database** ✅ (NEW - automatic)
+4. Mobile app shows dialog
+5. Stats page calls `GET /api/my-room/statistics/`
+6. Backend returns saved scans from database
+
+### Mobile App: NO CHANGES NEEDED! 🎉
+
+Your mobile app already:
+- ✅ Calls `/api/participants/scan/` when scanning
+- ✅ Calls `/api/my-room/statistics/` for stats
+- ✅ Displays the data
+
+The scan logs will **automatically appear** in the statistics response!
+
+### Updated Statistics Endpoint
+
+**Endpoint:** `GET /api/my-room/statistics/`
+
+**New Response Fields:**
+```json
+{
+  "total_rooms": 3,
+  "total_sessions_today": 5,
+  "my_check_ins_today": 12,
+  "successful_scans_today": 10,
+  "recent_scans": [
+    {
+      "id": 1,
+      "participant": {
+        "user_id": 58,
+        "name": "djalil azizi",
+        "email": "user@example.com",
+        "badge_id": "USER-58-37F80526"
+      },
+      "scanned_at": "2026-04-28T10:30:00Z",
+      "status": "success",
+      "error_message": null,
+      "total_paid_items": 4,
+      "total_amount": 12000.0
+    },
+    {
+      "id": 2,
+      "participant": {
+        "user_id": 59,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "badge_id": "USER-59-ABC12345"
+      },
+      "scanned_at": "2026-04-28T10:25:00Z",
+      "status": "not_registered",
+      "error_message": "Participant not registered for this event",
+      "total_paid_items": 0,
+      "total_amount": 0
+    }
+  ],
+  "role": "controlleur_des_badges",
+  "event": {
+    "id": "event-uuid",
+    "name": "TechSummit Algeria 2026"
+  }
+}
+```
+
+**New Fields Explained:**
+- `successful_scans_today`: Count of successful scans today
+- `recent_scans`: Array of last 50 scans with full details
+
+**Each Scan Object Contains:**
+- `id`: Scan log ID
+- `participant`: Who was scanned (user_id, name, email, badge_id)
+- `scanned_at`: When the scan happened
+- `status`: "success", "error", or "not_registered"
+- `error_message`: Error details if scan failed (null if successful)
+- `total_paid_items`: Number of paid items at scan time
+- `total_amount`: Total amount paid at scan time
+
+### What Gets Logged
+
+**Successful Scans:**
+- Controller who scanned
+- Event context
+- Participant info (user_id, badge_id, name, email)
+- Scan timestamp
+- Status: "success"
+- Payment info (total_paid_items, total_amount)
+
+**Failed Scans:**
+- Same info as successful scans
+- Status: "not_registered" or "error"
+- Error message explaining why scan failed
+
+### Benefits for Mobile App
+
+1. **No Code Changes**: Your existing code will automatically show scan logs
+2. **Real-Time Stats**: Controllers see their scan history immediately
+3. **Error Tracking**: Failed scans are also logged for troubleshooting
+4. **Audit Trail**: Complete history of all scans for each controller
+
+### Testing
+
+After deployment, test the statistics page:
+
+1. **Controller scans a badge**
+2. **Open statistics page**
+3. **You should see:**
+   - Updated `my_check_ins_today` count
+   - New scan in `recent_scans` array
+   - Participant details
+   - Payment info at scan time
+
+### Example UI Implementation
+
+```dart
+// Statistics screen already calls this endpoint
+final response = await http.get(
+  Uri.parse('$baseUrl/api/my-room/statistics/'),
+  headers: {'Authorization': 'Bearer $token'},
+);
+
+final data = jsonDecode(response.body);
+
+// Display stats
+Text('Total Scans Today: ${data['my_check_ins_today']}');
+Text('Successful: ${data['successful_scans_today']}');
+
+// Display recent scans (NEW - automatically available)
+ListView.builder(
+  itemCount: data['recent_scans'].length,
+  itemBuilder: (context, index) {
+    final scan = data['recent_scans'][index];
+    return ListTile(
+      leading: Icon(
+        scan['status'] == 'success' ? Icons.check_circle : Icons.error,
+        color: scan['status'] == 'success' ? Colors.green : Colors.red,
+      ),
+      title: Text(scan['participant']['name']),
+      subtitle: Text(
+        '${scan['participant']['badge_id']} - '
+        '${scan['total_paid_items']} items (${scan['total_amount']} DA)'
+      ),
+      trailing: Text(_formatTime(scan['scanned_at'])),
+    );
+  },
+);
+```
+
+---
+
+**Last Updated:** April 28, 2026  
+**Status:** ✅ Deployed and Ready
