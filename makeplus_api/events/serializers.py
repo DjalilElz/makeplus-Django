@@ -199,14 +199,38 @@ class UserEventAssignmentSerializer(serializers.ModelSerializer):
         source='event',
         write_only=True
     )
+    room_assignment = serializers.SerializerMethodField()
     
     class Meta:
         model = UserEventAssignment
         fields = [
             'id', 'user', 'user_id', 'event', 'event_id', 'role',
-            'is_active', 'assigned_at', 'assigned_by'
+            'is_active', 'assigned_at', 'assigned_by', 'metadata', 'room_assignment'
         ]
         read_only_fields = ['id', 'assigned_at']
+    
+    def get_room_assignment(self, obj):
+        """Get room assignment for room managers"""
+        if obj.role == 'gestionnaire_des_salles':
+            from .models import RoomAssignment
+            from django.utils import timezone
+            
+            # Get active room assignment for this user and event
+            room_assignment = RoomAssignment.objects.filter(
+                user=obj.user,
+                event=obj.event,
+                is_active=True
+            ).select_related('room').first()
+            
+            if room_assignment:
+                return {
+                    'id': room_assignment.id,
+                    'room_id': str(room_assignment.room.id),
+                    'room_name': room_assignment.room.name,
+                    'start_time': room_assignment.start_time.isoformat() if room_assignment.start_time else None,
+                    'end_time': room_assignment.end_time.isoformat() if room_assignment.end_time else None,
+                }
+        return None
 
 
 class QRVerificationSerializer(serializers.Serializer):

@@ -642,7 +642,176 @@ Authorization: Bearer <participant_token>
 
 ---
 
-## 6. Controller Statistics
+## 6. User Assignments (Get User Role and Room Assignment)
+
+**Endpoint:** `GET /api/user-assignments/`
+
+**Description:** Get user's event assignment including role and room assignment (for room managers). The room assignment is automatically included in the response for users with role `gestionnaire_des_salles`.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `user` (required): User ID
+- `event` (required): Event ID
+- `is_active` (optional): Filter by active status (default: true)
+
+**Example Request:**
+```
+GET /api/user-assignments/?user=41&event=d3c3de4d-a41e-4b69-9bcf-f8b365a72647&is_active=true
+```
+
+**Response (Badge Controller):**
+```json
+{
+  "count": 1,
+  "results": [
+    {
+      "id": 40,
+      "user": {
+        "id": 41,
+        "email": "controller1@wemakeplus.com",
+        "first_name": "Controller",
+        "last_name": "One"
+      },
+      "event": {
+        "id": "d3c3de4d-a41e-4b69-9bcf-f8b365a72647",
+        "name": "TechSummit Algeria 2026",
+        ...
+      },
+      "role": "controlleur_des_badges",
+      "is_active": true,
+      "assigned_at": "2026-04-10T10:00:00Z",
+      "metadata": null,
+      "room_assignment": null
+    }
+  ]
+}
+```
+
+**Response (Room Manager with Room Assignment):**
+```json
+{
+  "count": 1,
+  "results": [
+    {
+      "id": 40,
+      "user": {
+        "id": 41,
+        "email": "gestionaire1@wemakeplus.com",
+        "first_name": "gestionaire1",
+        "last_name": "gestionaire1"
+      },
+      "event": {
+        "id": "d3c3de4d-a41e-4b69-9bcf-f8b365a72647",
+        "name": "TechSummit Algeria 2026",
+        ...
+      },
+      "role": "gestionnaire_des_salles",
+      "is_active": true,
+      "assigned_at": "2026-04-10T10:00:00Z",
+      "metadata": null,
+      "room_assignment": {
+        "id": 40,
+        "room_id": "room-uuid-here",
+        "room_name": "salle A",
+        "start_time": "2026-06-15T08:00:00Z",
+        "end_time": "2026-06-17T22:00:00Z"
+      }
+    }
+  ]
+}
+```
+
+**Usage in Mobile App:**
+```dart
+// Single API call gets both role and room assignment
+final response = await http.get(
+  Uri.parse('$baseUrl/api/user-assignments/?user=$userId&event=$eventId&is_active=true'),
+  headers: {
+    'Authorization': 'Bearer $token',
+  },
+);
+
+if (response.statusCode == 200) {
+  final data = jsonDecode(response.body);
+  if (data['results'] != null && data['results'].isNotEmpty) {
+    final userAssignment = data['results'][0];
+    final role = userAssignment['role'];
+    
+    if (role == 'controlleur_des_badges') {
+      // No room assignment needed
+      navigateToBadgeScanner();
+    } else if (role == 'gestionnaire_des_salles') {
+      final roomAssignment = userAssignment['room_assignment'];
+      if (roomAssignment != null) {
+        final roomId = roomAssignment['room_id'];
+        final roomName = roomAssignment['room_name'];
+        navigateToRoomManagement(roomId, roomName);
+      } else {
+        showError("No room assigned");
+      }
+    }
+  }
+}
+```
+
+---
+
+## 8. Room Assignments (Alternative Endpoint - Optional)
+
+**Endpoint:** `GET /api/room-assignments/`
+
+**Description:** Alternative endpoint to get room assignments directly. **Note:** You don't need to use this endpoint if you're using `/api/user-assignments/` which already includes the room assignment.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `user` (optional): Filter by user ID
+- `event` (optional): Filter by event ID
+- `is_active` (optional): Filter by active status (true/false)
+- `current` (optional): Get only current assignments (start_time <= now <= end_time)
+
+**Example Request:**
+```
+GET /api/room-assignments/?user=41&event=d3c3de4d-a41e-4b69-9bcf-f8b365a72647&is_active=true
+```
+
+**Response:**
+```json
+{
+  "count": 1,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 40,
+      "user": 41,
+      "user_name": "gestionaire1 gestionaire1",
+      "room": "room-uuid",
+      "room_name": "salle A",
+      "event": "event-uuid",
+      "event_name": "TechSummit Algeria 2026",
+      "role": "gestionnaire_des_salles",
+      "start_time": "2026-06-15T08:00:00Z",
+      "end_time": "2026-06-17T22:00:00Z",
+      "is_active": true,
+      "assigned_at": "2026-04-10T10:00:00Z",
+      "assigned_by": 1,
+      "assigned_by_name": "admin"
+    }
+  ]
+}
+```
+
+---
+
+## 9. Controller Statistics
 
 **Endpoint:** `GET /api/events/my-room/statistics/`
 

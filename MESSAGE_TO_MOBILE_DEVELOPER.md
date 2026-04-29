@@ -591,33 +591,36 @@ if (role == 'controlleur_des_badges') {
 
 **For Room Managers (`gestionnaire_des_salles`):**
 
-**KEEP the room assignment check:**
+**Room assignment is now automatically included in the user-assignments response:**
 ```dart
-// ✅ CORRECT - Room managers need room assignment
+// ✅ SIMPLIFIED - Room assignment is included automatically
 if (role == 'gestionnaire_des_salles') {
-  final metadata = userAssignment['metadata'];
-  final roomId = metadata?['room_id'];
-
-  if (roomId == null) {
-    showError("Aucune salle assignée pour cet utilisateur");
-    return;
-  }
+  final roomAssignment = userAssignment['room_assignment'];
   
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => RoomManagementScreen(
-        roomId: roomId,
-        roomName: metadata['room_name'],
+  if (roomAssignment != null) {
+    final roomId = roomAssignment['room_id'];
+    final roomName = roomAssignment['room_name'];
+    
+    // Navigate to room management screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RoomManagementScreen(
+          roomId: roomId,
+          roomName: roomName,
+        ),
       ),
-    ),
-  );
+    );
+  } else {
+    showError("Aucune salle assignée");
+  }
 }
 ```
 
 **Why?** 
 - Badge Controllers can now work in ANY room without assignment
 - Room Managers still need a specific room to manage
+- Room assignment is automatically fetched and included in the response (no second API call needed!)
 - The new endpoint returns ALL paid items from ALL rooms for controllers
 
 **See `ROLES_CLARIFICATION.md` for complete role-based implementation guide.**
@@ -632,11 +635,12 @@ if (role == 'gestionnaire_des_salles') {
 - ✅ Correct: `https://makeplus-platform.onrender.com/api/participants/scan/`
 - ❌ Wrong: `https://makeplus-platform.onrender.com/api/events/participants/scan/`
 
-**🎯 SIMPLIFIED - No Room Selection Needed (Badge Controllers Only):**
+**🎯 FOR BADGE CONTROLLERS ONLY (`controlleur_des_badges`):**
 - ✅ Controllers work in ANY room (no specific assignment)
 - ✅ No need to select room before scanning
 - ✅ Just scan badge and see ALL paid items
 - ✅ Returns sessions from all rooms + access + dinner + other
+- ✅ Automatically logs all scans to database for statistics
 
 **🔄 Real-Time Data Fetching:** 
 - **QR Code Purpose:** Identification only (contains `user_id` and `badge_id`)
@@ -931,25 +935,29 @@ if (role == 'controlleur_des_badges') {
   }
   
 } else if (role == 'gestionnaire_des_salles') {
-  // ✅ Room Manager - Room check IS needed
-  final metadata = userAssignment['metadata'];
-  final roomId = metadata?['room_id'];
+  // ✅ Room Manager - Room assignment is now included in the response
+  final roomAssignment = userAssignment['room_assignment'];
   
-  if (roomId == null) {
+  if (roomAssignment != null) {
+    final roomId = roomAssignment['room_id'];
+    final roomName = roomAssignment['room_name'];
+    
+    // Navigate to room management screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RoomManagementScreen(
+          roomId: roomId,
+          roomName: roomName,
+        ),
+      ),
+    );
+  } else {
     showError("Aucune salle assignée pour cet utilisateur");
+    // ⚠️ ADMIN ACTION REQUIRED: Room manager needs room assignment
+    // Admin must create a RoomAssignment record in Django admin
     return;
   }
-  
-  // Navigate to room management screen
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => RoomManagementScreen(
-        roomId: roomId,
-        roomName: metadata['room_name'],
-      ),
-    ),
-  );
 }
 ```
     // Example: "🆓 Opening Keynote (Free)"
