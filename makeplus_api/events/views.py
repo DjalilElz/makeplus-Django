@@ -1215,16 +1215,21 @@ class RoomAssignmentViewSet(viewsets.ModelViewSet):
     """
     queryset = RoomAssignment.objects.all()
     serializer_class = RoomAssignmentSerializer
-    permission_classes = [IsAuthenticated, IsGestionnaire]
+    permission_classes = [IsAuthenticated]  # Allow authenticated users to view their own assignments
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['user', 'room', 'event', 'role', 'is_active']
     ordering_fields = ['start_time', 'end_time']
     ordering = ['start_time']
     
     def get_queryset(self):
-        """Filter by room, user, or event"""
+        """Filter by room, user, or event - Users can only see their own assignments unless they're staff"""
         queryset = RoomAssignment.objects.select_related('user', 'room', 'event', 'assigned_by')
         
+        # Non-staff users can only see their own assignments
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(user=self.request.user)
+        
+        # Apply filters
         room_id = self.request.query_params.get('room_id')
         if room_id:
             queryset = queryset.filter(room_id=room_id)
@@ -1248,6 +1253,12 @@ class RoomAssignmentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Set assigned_by on creation"""
         serializer.save(assigned_by=self.request.user)
+    
+    def get_permissions(self):
+        """Only staff can create/update/delete room assignments"""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsGestionnaire()]
+        return [IsAuthenticated()]
 
 
 class ExposantScanViewSet(viewsets.ModelViewSet):
