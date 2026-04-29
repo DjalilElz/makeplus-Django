@@ -40,6 +40,16 @@ The QR code is a **permanent identifier** that never changes. It contains ONLY:
 }
 ```
 
+### 🚨 CRITICAL URL FIX
+
+**Room Endpoint:**
+- ✅ **CORRECT:** `GET /api/rooms/{room_id}/`
+- ❌ **WRONG:** `GET /api/events/{event_id}/rooms/{room_id}/`
+
+**Sessions Endpoint:**
+- ✅ **CORRECT:** `GET /api/sessions/?room={room_id}`
+- ✅ **CORRECT:** `GET /api/sessions/?event={event_id}`
+
 ### QR Code Does NOT Contain:
 - ❌ Payment data (`paid_items`)
 - ❌ Transaction history
@@ -1854,3 +1864,179 @@ Your existing code will automatically:
 **Last Updated:** April 28, 2026  
 **Version:** 2.2  
 **Status:** ✅ Deployed and Ready
+
+
+---
+
+## 🚨 CRITICAL: Room Manager Endpoints
+
+### Get Room Details
+
+**Endpoint:** `GET /api/rooms/{room_id}/`
+
+**⚠️ IMPORTANT:** Use `/api/rooms/{room_id}/` NOT `/api/events/{event_id}/rooms/{room_id}/`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Example Request:**
+```
+GET /api/rooms/65991fdc-2aab-44d7-b11f-1e4ccb94673c/
+```
+
+**Response:**
+```json
+{
+  "id": "65991fdc-2aab-44d7-b11f-1e4ccb94673c",
+  "event": "d3c3de4d-a41e-4b69-9bcf-f8b365a72647",
+  "event_name": "TechSummit Algeria 2026",
+  "name": "salle A",
+  "capacity": 100,
+  "location": "Building A, Floor 1",
+  "current_participants": 0,
+  "is_active": true,
+  "created_at": "2026-04-10T10:00:00Z",
+  "updated_at": "2026-04-10T10:00:00Z"
+}
+```
+
+---
+
+### Get Sessions for a Room
+
+**Endpoint:** `GET /api/sessions/?room={room_id}`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Example Request:**
+```
+GET /api/sessions/?room=65991fdc-2aab-44d7-b11f-1e4ccb94673c
+```
+
+**Response:**
+```json
+{
+  "count": 3,
+  "results": [
+    {
+      "id": "session-uuid-1",
+      "title": "Opening Keynote",
+      "description": "Welcome to TechSummit",
+      "start_time": "2026-06-15T09:00:00Z",
+      "end_time": "2026-06-15T10:00:00Z",
+      "room": "65991fdc-2aab-44d7-b11f-1e4ccb94673c",
+      "room_name": "salle A",
+      "speaker_name": "John Doe",
+      "status": "pas_encore",
+      "session_type": "conference",
+      "is_paid": false,
+      "price": "0.00"
+    },
+    {
+      "id": "session-uuid-2",
+      "title": "Advanced Python Workshop",
+      "description": "Learn advanced Python",
+      "start_time": "2026-06-15T14:00:00Z",
+      "end_time": "2026-06-15T16:00:00Z",
+      "room": "65991fdc-2aab-44d7-b11f-1e4ccb94673c",
+      "room_name": "salle A",
+      "speaker_name": "Jane Smith",
+      "status": "pas_encore",
+      "session_type": "atelier",
+      "is_paid": true,
+      "price": "50.00"
+    }
+  ]
+}
+```
+
+---
+
+### Complete Room Manager Flow
+
+```dart
+// 1. Get user assignment (includes room_assignment)
+final userAssignmentResponse = await http.get(
+  Uri.parse('$baseUrl/api/user-assignments/?user=$userId&event=$eventId&is_active=true'),
+  headers: {'Authorization': 'Bearer $token'},
+);
+
+final userAssignmentData = jsonDecode(userAssignmentResponse.body);
+final userAssignment = userAssignmentData['results'][0];
+final roomAssignment = userAssignment['room_assignment'];
+
+if (roomAssignment != null) {
+  final roomId = roomAssignment['room_id'];
+  final roomName = roomAssignment['room_name'];
+  
+  // 2. Get room details
+  final roomResponse = await http.get(
+    Uri.parse('$baseUrl/api/rooms/$roomId/'),  // ✅ CORRECT URL
+    headers: {'Authorization': 'Bearer $token'},
+  );
+  
+  if (roomResponse.statusCode == 200) {
+    final roomData = jsonDecode(roomResponse.body);
+    
+    // 3. Get sessions for this room
+    final sessionsResponse = await http.get(
+      Uri.parse('$baseUrl/api/sessions/?room=$roomId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    
+    if (sessionsResponse.statusCode == 200) {
+      final sessionsData = jsonDecode(sessionsResponse.body);
+      final sessions = sessionsData['results'];
+      
+      // 4. Navigate to room management screen
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RoomManagementScreen(
+            room: roomData,
+            sessions: sessions,
+          ),
+        ),
+      );
+    }
+  }
+}
+```
+
+---
+
+## API Endpoints Quick Reference
+
+### Room Manager Endpoints
+
+| Purpose | Endpoint | Method |
+|---------|----------|--------|
+| Get user role & room assignment | `/api/user-assignments/?user={userId}&event={eventId}&is_active=true` | GET |
+| Get room details | `/api/rooms/{roomId}/` | GET |
+| Get sessions for room | `/api/sessions/?room={roomId}` | GET |
+| Get all rooms for event | `/api/rooms/?event={eventId}` | GET |
+
+### Badge Controller Endpoints
+
+| Purpose | Endpoint | Method |
+|---------|----------|--------|
+| Scan participant badge | `/api/participants/scan/` | POST |
+| Get controller statistics | `/api/my-room/statistics/` | GET |
+
+### Participant Endpoints
+
+| Purpose | Endpoint | Method |
+|---------|----------|--------|
+| Get user profile | `/api/auth/me/` | GET |
+| Get paid sessions | `/api/events/my-ateliers/` | GET |
+| Generate QR code | `/api/qr/generate/` | GET |
+
+---
+
+**Last Updated:** April 29, 2026  
+**Status:** ✅ Room assignment working - Use correct URLs for room and session endpoints

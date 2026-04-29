@@ -4,7 +4,9 @@
 
 **Date:** April 17, 2026
 
-**Latest Update (April 29, 2026):** Fixed room assignment API permissions - Room managers can now access their assignments
+**Latest Update (April 29, 2026):** 
+- ✅ Fixed room assignment API - Room managers can now get their assigned room
+- ⚠️ **CRITICAL URL FIX:** Use `/api/rooms/{room_id}/` NOT `/api/events/{event_id}/rooms/{room_id}/`
 
 ### ⚠️ BREAKING CHANGES - Action Required
 
@@ -944,16 +946,45 @@ if (role == 'controlleur_des_badges') {
     final roomId = roomAssignment['room_id'];
     final roomName = roomAssignment['room_name'];
     
-    // Navigate to room management screen
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => RoomManagementScreen(
-          roomId: roomId,
-          roomName: roomName,
-        ),
-      ),
+    // ⚠️ CRITICAL: Use correct URL to fetch room details
+    // ✅ CORRECT: /api/rooms/{roomId}/
+    // ❌ WRONG: /api/events/{eventId}/rooms/{roomId}/
+    final roomResponse = await http.get(
+      Uri.parse('$baseUrl/api/rooms/$roomId/'),  // ✅ CORRECT URL
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
     );
+    
+    if (roomResponse.statusCode == 200) {
+      final roomData = jsonDecode(roomResponse.body);
+      
+      // Fetch sessions for this room
+      final sessionsResponse = await http.get(
+        Uri.parse('$baseUrl/api/sessions/?room=$roomId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+      
+      if (sessionsResponse.statusCode == 200) {
+        final sessionsData = jsonDecode(sessionsResponse.body);
+        final sessions = sessionsData['results'];
+        
+        // Navigate to room management screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RoomManagementScreen(
+              room: roomData,
+              sessions: sessions,
+            ),
+          ),
+        );
+      }
+    }
   } else {
     showError("Aucune salle assignée pour cet utilisateur");
     // ⚠️ ADMIN ACTION REQUIRED: Room manager needs room assignment
