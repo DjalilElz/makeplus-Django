@@ -655,7 +655,134 @@ Authorization: Bearer <participant_token>
 
 ---
 
-## 6. User Assignments (Get User Role and Room Assignment)
+## 6. Swap Session Times (Room Manager)
+
+**Endpoint:** `POST /api/sessions/swap-times/`
+
+**Description:** Swap start_time and end_time between two sessions. Both sessions must be in the same room. Only room managers (`gestionnaire_des_salles`) can use this endpoint.
+
+**Headers:**
+```
+Authorization: Bearer <room_manager_token>
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "session_1_id": "1bd01c40-f68b-4f84-892a-61cb2065b1a9",
+  "session_2_id": "96e5a02a-ba3a-465d-a3b1-d889af580dc4"
+}
+```
+
+**Response (Success - 200):**
+```json
+{
+  "success": true,
+  "message": "Sessions times swapped successfully",
+  "sessions": [
+    {
+      "id": "1bd01c40-f68b-4f84-892a-61cb2065b1a9",
+      "title": "Intro to AI",
+      "start_time": "2026-05-15T14:00:00Z",
+      "end_time": "2026-06-15T15:00:00Z",
+      "room": "room-uuid",
+      "room_name": "Conference Hall A",
+      "speaker_name": "Dr. Smith",
+      "status": "pas_encore",
+      "is_paid": true,
+      "price": "50.00"
+    },
+    {
+      "id": "96e5a02a-ba3a-465d-a3b1-d889af580dc4",
+      "title": "Deep Learning",
+      "start_time": "2026-06-15T08:00:00Z",
+      "end_time": "2026-06-15T10:00:00Z",
+      "room": "room-uuid",
+      "room_name": "Conference Hall A",
+      "speaker_name": "Prof. Johnson",
+      "status": "pas_encore",
+      "is_paid": false,
+      "price": "0.00"
+    }
+  ]
+}
+```
+
+**Response (Error - 400 - Different Rooms):**
+```json
+{
+  "success": false,
+  "error": "Sessions must be in the same room",
+  "message": "Cannot swap sessions from different rooms"
+}
+```
+
+**Response (Error - 400 - Missing Parameters):**
+```json
+{
+  "success": false,
+  "error": "Both session_1_id and session_2_id are required"
+}
+```
+
+**Response (Error - 404 - Session Not Found):**
+```json
+{
+  "success": false,
+  "error": "One or both sessions not found"
+}
+```
+
+**Usage in Mobile App:**
+```dart
+Future<void> swapSessionTimes(String session1Id, String session2Id) async {
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/sessions/swap-times/'),
+      headers: {
+        'Authorization': 'Bearer $roomManagerToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'session_1_id': session1Id,
+        'session_2_id': session2Id,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final result = jsonDecode(response.body);
+      if (result['success'] == true) {
+        // Show success message
+        showSuccess(result['message']);
+        
+        // Update UI with swapped sessions
+        final sessions = result['sessions'];
+        updateSessionsList(sessions);
+      }
+    } else if (response.statusCode == 400) {
+      final error = jsonDecode(response.body);
+      showError(error['message'] ?? error['error']);
+    } else if (response.statusCode == 404) {
+      showError('One or both sessions not found');
+    }
+  } catch (e) {
+    showError('Failed to swap sessions: $e');
+  }
+}
+```
+
+**Key Points:**
+- ✅ Only room managers can swap session times
+- ✅ Both sessions must be in the same room
+- ✅ Swaps both start_time and end_time
+- ✅ Returns both updated sessions in response
+- ✅ Validates sessions exist before swapping
+- ❌ Cannot swap sessions from different rooms
+
+---
+
+## 7. User Assignments (Get User Role and Room Assignment)
 
 **Endpoint:** `GET /api/user-assignments/`
 

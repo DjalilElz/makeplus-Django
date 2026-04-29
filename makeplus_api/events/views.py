@@ -764,6 +764,60 @@ class SessionViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(session)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsGestionnaire], url_path='swap-times')
+    def swap_times(self, request):
+        """Swap start_time and end_time between two sessions"""
+        session_1_id = request.data.get('session_1_id')
+        session_2_id = request.data.get('session_2_id')
+        
+        # Validate input
+        if not session_1_id or not session_2_id:
+            return Response({
+                'success': False,
+                'error': 'Both session_1_id and session_2_id are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get both sessions
+            session_1 = Session.objects.select_related('room').get(id=session_1_id)
+            session_2 = Session.objects.select_related('room').get(id=session_2_id)
+        except Session.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'One or both sessions not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Validate sessions are in the same room
+        if session_1.room_id != session_2.room_id:
+            return Response({
+                'success': False,
+                'error': 'Sessions must be in the same room',
+                'message': 'Cannot swap sessions from different rooms'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Swap times
+        session_1_start = session_1.start_time
+        session_1_end = session_1.end_time
+        
+        session_1.start_time = session_2.start_time
+        session_1.end_time = session_2.end_time
+        
+        session_2.start_time = session_1_start
+        session_2.end_time = session_1_end
+        
+        # Save both sessions
+        session_1.save(update_fields=['start_time', 'end_time'])
+        session_2.save(update_fields=['start_time', 'end_time'])
+        
+        # Serialize and return
+        serializer = self.get_serializer([session_1, session_2], many=True)
+        
+        return Response({
+            'success': True,
+            'message': 'Sessions times swapped successfully',
+            'sessions': serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 class ParticipantViewSet(viewsets.ModelViewSet):

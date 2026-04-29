@@ -6,6 +6,7 @@
 
 **Latest Update (April 29, 2026):** 
 - ✅ Fixed room assignment API - Room managers can now get their assigned room
+- ✅ Added session swap functionality - Room managers can swap times between two sessions
 - ⚠️ **CRITICAL URL FIX:** Use `/api/rooms/{room_id}/` NOT `/api/events/{event_id}/rooms/{room_id}/`
 
 ### ⚠️ BREAKING CHANGES - Action Required
@@ -628,6 +629,84 @@ if (role == 'gestionnaire_des_salles') {
 - The new endpoint returns ALL paid items from ALL rooms for controllers
 
 **See `ROLES_CLARIFICATION.md` for complete role-based implementation guide.**
+
+---
+
+### 🔄 Session Swap Functionality (Room Managers Only)
+
+**NEW FEATURE:** Room managers can now swap times between two sessions in their assigned room.
+
+**Endpoint:** `POST /api/sessions/swap-times/`
+
+**Use Case:** When a speaker needs to change their time slot, or when sessions need to be rearranged.
+
+**Request:**
+```json
+{
+  "session_1_id": "1bd01c40-f68b-4f84-892a-61cb2065b1a9",
+  "session_2_id": "96e5a02a-ba3a-465d-a3b1-d889af580dc4"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "message": "Sessions times swapped successfully",
+  "sessions": [
+    {
+      "id": "1bd01c40-f68b-4f84-892a-61cb2065b1a9",
+      "title": "Intro to AI",
+      "start_time": "2026-05-15T14:00:00Z",
+      "end_time": "2026-06-15T15:00:00Z"
+    },
+    {
+      "id": "96e5a02a-ba3a-465d-a3b1-d889af580dc4",
+      "title": "Deep Learning",
+      "start_time": "2026-06-15T08:00:00Z",
+      "end_time": "2026-06-15T10:00:00Z"
+    }
+  ]
+}
+```
+
+**Validation:**
+- ✅ Both sessions must exist
+- ✅ Both sessions must be in the same room
+- ✅ Only room managers can swap sessions
+- ❌ Returns error if sessions are in different rooms
+
+**Mobile App Implementation:**
+```dart
+// In room management screen, add swap button for each session pair
+Future<void> swapSessions(String session1Id, String session2Id) async {
+  final response = await http.post(
+    Uri.parse('$baseUrl/api/sessions/swap-times/'),
+    headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'session_1_id': session1Id,
+      'session_2_id': session2Id,
+    }),
+  );
+
+  if (response.statusCode == 200) {
+    final result = jsonDecode(response.body);
+    if (result['success']) {
+      showSuccess('Sessions swapped successfully');
+      // Refresh sessions list
+      refreshSessions();
+    }
+  } else if (response.statusCode == 400) {
+    final error = jsonDecode(response.body);
+    showError(error['message']);
+  }
+}
+```
+
+**See `MOBILE_APP_API_SPECIFICATION.md` section 6 for complete API documentation.**
 
 ---
 
