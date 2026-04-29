@@ -4,6 +4,8 @@
 
 **Date:** April 17, 2026
 
+**Latest Update (April 29, 2026):** Fixed room assignment API permissions - Room managers can now access their assignments
+
 ### ⚠️ BREAKING CHANGES - Action Required
 
 The authentication system has been completely redesigned. Please read carefully and update your mobile app accordingly.

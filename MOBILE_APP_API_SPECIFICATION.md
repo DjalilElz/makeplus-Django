@@ -9,13 +9,16 @@ Different user roles have different requirements:
 | Role | Room Assignment | Purpose | Endpoints |
 |------|----------------|---------|-----------|
 | `controlleur_des_badges` | ❌ Not needed | Scan badges anywhere | `/api/participants/scan/` |
-| `gestionnaire_des_salles` | ✅ Required | Manage specific room | `/api/rooms/{room_id}/...` |
+| `gestionnaire_des_salles` | ✅ Required | Manage specific room | `/api/user-assignments/` (includes room_assignment) |
 | `participant` | ❌ Not needed | Attend event | `/api/auth/me/`, `/api/events/my-ateliers/` |
 
 **⚠️ CRITICAL:**
 - **Badge Controllers** (`controlleur_des_badges`) do NOT need room assignment
 - **Room Managers** (`gestionnaire_des_salles`) DO need room assignment
+- Room assignment is automatically included in `/api/user-assignments/` response
 - Check user role before implementing navigation logic
+
+**✅ FIXED:** Room managers can now access their room assignments via API (permission issue resolved)
 
 **See `ROLES_CLARIFICATION.md` for complete implementation guide.**
 
