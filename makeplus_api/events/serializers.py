@@ -210,12 +210,27 @@ class UserEventAssignmentSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'assigned_at']
     
     def get_room_assignment(self, obj):
-        """Get room assignment for room managers"""
+        """Get room assignment for room managers from metadata OR RoomAssignment table"""
         if obj.role == 'gestionnaire_des_salles':
-            from .models import RoomAssignment
-            from django.utils import timezone
+            # First, try to get from metadata (dashboard saves it here)
+            if obj.metadata and 'assigned_room_id' in obj.metadata:
+                room_id = obj.metadata.get('assigned_room_id')
+                if room_id:
+                    from .models import Room
+                    try:
+                        room = Room.objects.get(id=room_id)
+                        return {
+                            'id': None,  # No RoomAssignment record
+                            'room_id': str(room.id),
+                            'room_name': room.name,
+                            'start_time': obj.event.start_date.isoformat() if obj.event.start_date else None,
+                            'end_time': obj.event.end_date.isoformat() if obj.event.end_date else None,
+                        }
+                    except Room.DoesNotExist:
+                        pass
             
-            # Get active room assignment for this user and event
+            # Fallback: Try to get from RoomAssignment table
+            from .models import RoomAssignment
             room_assignment = RoomAssignment.objects.filter(
                 user=obj.user,
                 event=obj.event,
