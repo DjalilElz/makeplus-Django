@@ -320,3 +320,43 @@ class EventRegistrationAdmin(admin.ModelAdmin):
     def mark_as_not_spam(self, request, queryset):
         queryset.update(is_spam=False)
     mark_as_not_spam.short_description = "Mark selected as not spam"
+
+
+
+@admin.register(RoomAssignment)
+class RoomAssignmentAdmin(admin.ModelAdmin):
+    list_display = ['user', 'room', 'event', 'role_badge', 'start_time', 'end_time', 'is_active']
+    list_filter = ['role', 'is_active', 'event', 'room']
+    search_fields = ['user__username', 'user__email', 'room__name', 'event__name']
+    readonly_fields = ['assigned_at', 'assigned_by']
+    date_hierarchy = 'start_time'
+    
+    fieldsets = (
+        ('Assignment', {
+            'fields': ('user', 'room', 'event', 'role')
+        }),
+        ('Schedule', {
+            'fields': ('start_time', 'end_time', 'is_active')
+        }),
+        ('Metadata', {
+            'fields': ('assigned_at', 'assigned_by'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def role_badge(self, obj):
+        colors = {
+            'gestionnaire_des_salles': '#9C27B0',
+            'controlleur_des_badges': '#2196F3',
+        }
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 3px;">{}</span>',
+            colors.get(obj.role, '#000'),
+            obj.get_role_display().upper()
+        )
+    role_badge.short_description = 'Role'
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # Only set assigned_by on creation
+            obj.assigned_by = request.user
+        super().save_model(request, obj, form, change)
