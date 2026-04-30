@@ -951,7 +951,234 @@ GET /api/room-assignments/?user=41&event=d3c3de4d-a41e-4b69-9bcf-f8b365a72647&is
 
 ---
 
-## 9. Controller Statistics
+## 10. Exposant (Exhibitor) APIs
+
+### 10.1 Get My Scans (Booth Visits)
+
+**Endpoint:** `GET /api/exposant-scans/my_scans/`
+
+**Description:** Get all booth visits scanned by the current exposant for a specific event.
+
+**Headers:**
+```
+Authorization: Bearer <exposant_token>
+```
+
+**Query Parameters:**
+- `event_id` (required): UUID of the event
+
+**Example Request:**
+```
+GET /api/exposant-scans/my_scans/?event_id=d3c3de4d-a41e-4b69-9bcf-f8b365a72647
+```
+
+**Response (Success - 200):**
+```json
+{
+  "total_visits": 25,
+  "today_visits": 5,
+  "scans": [
+    {
+      "id": 1,
+      "exposant": "exposant-uuid",
+      "exposant_name": "Company XYZ",
+      "scanned_participant": "participant-uuid",
+      "scanned_participant_name": "John Doe",
+      "scanned_participant_email": "john@example.com",
+      "event": "event-uuid",
+      "event_name": "TechSummit Algeria 2026",
+      "scanned_at": "2026-04-30T14:30:00Z",
+      "notes": "Interested in product demo"
+    },
+    {
+      "id": 2,
+      "exposant": "exposant-uuid",
+      "exposant_name": "Company XYZ",
+      "scanned_participant": "participant-uuid-2",
+      "scanned_participant_name": "Jane Smith",
+      "scanned_participant_email": "jane@example.com",
+      "event": "event-uuid",
+      "event_name": "TechSummit Algeria 2026",
+      "scanned_at": "2026-04-30T15:45:00Z",
+      "notes": "Requested pricing information"
+    }
+  ]
+}
+```
+
+**Response (Error - 400):**
+```json
+{
+  "error": "event_id is required"
+}
+```
+
+**Response (Error - 403):**
+```json
+{
+  "error": "Not registered for this event"
+}
+```
+
+**Response (Error - 404):**
+```json
+{
+  "error": "Exposant participant record not found"
+}
+```
+
+### 10.2 Scan Participant QR Code
+
+**Endpoint:** `POST /api/exposant-scans/`
+
+**Description:** Scan a participant's QR code to record a booth visit.
+
+**Headers:**
+```
+Authorization: Bearer <exposant_token>
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "scanned_participant": "participant-uuid",
+  "event": "event-uuid",
+  "notes": "Interested in product demo"
+}
+```
+
+**Response (Success - 201):**
+```json
+{
+  "id": 1,
+  "exposant": "exposant-uuid",
+  "exposant_name": "Company XYZ",
+  "scanned_participant": "participant-uuid",
+  "scanned_participant_name": "John Doe",
+  "scanned_participant_email": "john@example.com",
+  "event": "event-uuid",
+  "event_name": "TechSummit Algeria 2026",
+  "scanned_at": "2026-04-30T14:30:00Z",
+  "notes": "Interested in product demo"
+}
+```
+
+### 10.3 Export Booth Visits to Excel
+
+**Endpoint:** `GET /api/exposant-scans/export_excel/`
+
+**Description:** Export all booth visits to an Excel file with summary and detailed sheets for each event.
+
+**Headers:**
+```
+Authorization: Bearer <exposant_token>
+```
+
+**Response:**
+- Content-Type: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+- Downloads an Excel file with:
+  - **Summary Sheet**: Overview of visits per event
+  - **Event Sheets**: Detailed visit logs for each event
+
+**Excel Structure:**
+- **Résumé Global** (Summary):
+  - Événement (Event Name)
+  - Total Visites (Total Visits)
+  - Première Visite (First Visit Date)
+  - Dernière Visite (Last Visit Date)
+
+- **Event Sheets** (One per event):
+  - Date & Heure (Date & Time)
+  - Nom Complet (Full Name)
+  - Email
+  - Badge ID
+  - Notes
+
+**Usage in Mobile App:**
+```dart
+// Get booth visit statistics
+Future<void> getBoothVisits(String eventId) async {
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/exposant-scans/my_scans/?event_id=$eventId'),
+      headers: {
+        'Authorization': 'Bearer $exposantToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final totalVisits = data['total_visits'];
+      final todayVisits = data['today_visits'];
+      final scans = data['scans'];
+      
+      // Display statistics
+      showStatistics(totalVisits, todayVisits, scans);
+    }
+  } catch (e) {
+    showError('Failed to load booth visits: $e');
+  }
+}
+
+// Scan participant QR code
+Future<void> scanParticipant(String participantId, String eventId, String notes) async {
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/exposant-scans/'),
+      headers: {
+        'Authorization': 'Bearer $exposantToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'scanned_participant': participantId,
+        'event': eventId,
+        'notes': notes,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      showSuccess('Booth visit recorded successfully');
+    }
+  } catch (e) {
+    showError('Failed to record visit: $e');
+  }
+}
+
+// Export to Excel
+Future<void> exportToExcel() async {
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/exposant-scans/export_excel/'),
+      headers: {
+        'Authorization': 'Bearer $exposantToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      // Save file to device
+      final bytes = response.bodyBytes;
+      final fileName = 'booth_visits_${DateTime.now().millisecondsSinceEpoch}.xlsx';
+      await saveFile(fileName, bytes);
+      showSuccess('Excel file downloaded successfully');
+    }
+  } catch (e) {
+    showError('Failed to export: $e');
+  }
+}
+```
+
+**Key Points:**
+- ✅ Exposants can scan participant QR codes to track booth visits
+- ✅ Statistics show total visits and today's visits
+- ✅ Notes can be added to each scan for follow-up
+- ✅ Excel export includes all events the exposant is registered for
+- ✅ Each scan is timestamped automatically
+- ✅ Participant information is captured (name, email, badge ID)
+
+---
+
+## 11. Controller Statistics
 
 **Endpoint:** `GET /api/events/my-room/statistics/`
 

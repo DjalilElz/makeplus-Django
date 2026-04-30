@@ -1352,8 +1352,18 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
             if not event_id:
                 return Response({'error': 'event_id is required'}, status=status.HTTP_400_BAD_REQUEST)
             
-            exposant = Participant.objects.get(user=request.user, event_id=event_id)
-            scans = self.get_queryset().filter(exposant=exposant)
+            # Get participant for current user
+            try:
+                exposant = Participant.objects.get(user=request.user)
+            except Participant.DoesNotExist:
+                return Response({'error': 'Exposant participant record not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Check if participant is registered for this event
+            if not exposant.is_registered_for_event(Event.objects.get(id=event_id)):
+                return Response({'error': 'Not registered for this event'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Get scans for this exposant and event
+            scans = self.get_queryset().filter(exposant=exposant, event_id=event_id)
             
             # Get statistics
             total_scans = scans.count()
@@ -1366,8 +1376,10 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
                 'today_visits': today_scans,
                 'scans': serializer.data
             })
-        except Participant.DoesNotExist:
-            return Response({'error': 'Exposant participant record not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Event.DoesNotExist:
+            return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsExposant])
     def export_excel(self, request):
@@ -1378,14 +1390,21 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
         from openpyxl.utils import get_column_letter
         
         try:
-            # Get all events for this exposant
-            exposant_participants = Participant.objects.filter(
-                user=request.user
-            ).select_related('event')
-            
-            if not exposant_participants.exists():
+            # Get participant for current user
+            try:
+                exposant = Participant.objects.get(user=request.user)
+            except Participant.DoesNotExist:
                 return Response(
-                    {'error': 'No exposant participant records found'},
+                    {'error': 'No exposant participant record found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Get all events this exposant is registered for
+            registered_events = exposant.get_registered_events()
+            
+            if not registered_events.exists():
+                return Response(
+                    {'error': 'Not registered for any events'},
                     status=status.HTTP_404_NOT_FOUND
                 )
             
@@ -1419,10 +1438,10 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
             total_visits_all_events = 0
             
             # Process each event
-            for exposant in exposant_participants:
-                event = exposant.event
+            for event in registered_events:
                 scans = ExposantScan.objects.filter(
-                    exposant=exposant
+                    exposant=exposant,
+                    event=event
                 ).select_related('scanned_participant__user', 'event').order_by('scanned_at')
                 
                 visit_count = scans.count()

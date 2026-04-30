@@ -4,9 +4,10 @@
 
 **Date:** April 17, 2026
 
-**Latest Update (April 29, 2026):** 
+**Latest Update (April 30, 2026):** 
 - ✅ Fixed room assignment API - Room managers can now get their assigned room
 - ✅ Added session swap functionality - Room managers can swap times between two sessions
+- ✅ Fixed exposant APIs - Booth visit tracking now working correctly
 - ⚠️ **CRITICAL URL FIX:** Use `/api/rooms/{room_id}/` NOT `/api/events/{event_id}/rooms/{room_id}/`
 
 ### ⚠️ BREAKING CHANGES - Action Required
@@ -707,6 +708,98 @@ Future<void> swapSessions(String session1Id, String session2Id) async {
 ```
 
 **See `MOBILE_APP_API_SPECIFICATION.md` section 6 for complete API documentation.**
+
+---
+
+### 📊 Exposant (Exhibitor) Booth Visit Tracking
+
+**NEW FEATURE:** Exposants can now scan participant QR codes to track booth visits and export data to Excel.
+
+**Endpoint:** `GET /api/exposant-scans/my_scans/?event_id={event_id}`
+
+**Use Case:** Track which participants visited your booth, add notes for follow-up, and export all visits to Excel.
+
+**Get Booth Visit Statistics:**
+```dart
+// Get all booth visits for an event
+Future<void> getBoothVisits(String eventId) async {
+  final response = await http.get(
+    Uri.parse('$baseUrl/api/exposant-scans/my_scans/?event_id=$eventId'),
+    headers: {
+      'Authorization': 'Bearer $token',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    
+    // Display statistics
+    print('Total Visits: ${data['total_visits']}');
+    print('Today\'s Visits: ${data['today_visits']}');
+    
+    // Display visit list
+    final scans = data['scans'];
+    for (var scan in scans) {
+      print('${scan['scanned_participant_name']} - ${scan['scanned_at']}');
+      print('Notes: ${scan['notes']}');
+    }
+  }
+}
+```
+
+**Scan Participant QR Code:**
+```dart
+// Record a booth visit
+Future<void> scanParticipant(String participantId, String eventId, String notes) async {
+  final response = await http.post(
+    Uri.parse('$baseUrl/api/exposant-scans/'),
+    headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'scanned_participant': participantId,
+      'event': eventId,
+      'notes': notes,
+    }),
+  );
+
+  if (response.statusCode == 201) {
+    showSuccess('Booth visit recorded successfully');
+  }
+}
+```
+
+**Export to Excel:**
+```dart
+// Export all booth visits to Excel
+Future<void> exportToExcel() async {
+  final response = await http.get(
+    Uri.parse('$baseUrl/api/exposant-scans/export_excel/'),
+    headers: {
+      'Authorization': 'Bearer $token',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    // Save Excel file to device
+    final bytes = response.bodyBytes;
+    final fileName = 'booth_visits_${DateTime.now().millisecondsSinceEpoch}.xlsx';
+    await saveFile(fileName, bytes);
+    showSuccess('Excel file downloaded');
+  }
+}
+```
+
+**Features:**
+- ✅ Track all booth visits with timestamps
+- ✅ Add notes to each visit for follow-up
+- ✅ View total visits and today's visits
+- ✅ Export all visits to Excel with summary and detailed sheets
+- ✅ Excel includes: participant name, email, badge ID, visit time, notes
+- ✅ Separate sheets for each event
+
+**See `MOBILE_APP_API_SPECIFICATION.md` section 10 for complete API documentation.**
 
 ---
 
