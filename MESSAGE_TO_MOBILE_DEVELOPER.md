@@ -31,10 +31,21 @@
 2. **Wrong Endpoint Path**
    - Login: `/api/auth/token/` ✅ CORRECT
    - Signup: `/api/events/auth/signup/request/` ✅ CORRECT
+   - Scan Participant (Controller): `/api/participants/scan/` ✅ CORRECT
+   - ❌ WRONG: `/api/participants/verify/` (doesn't exist)
 
 3. **Missing Trailing Slash**
    - Some endpoints require a trailing slash `/`
    - Example: `/api/auth/token/` (with slash) vs `/api/auth/token` (without slash)
+
+4. **Wrong Scan Endpoint** ❌
+   ```
+   POST /api/participants/verify/  // WRONG - doesn't exist
+   ```
+   **Solution:** Use the correct scan endpoint ✅
+   ```
+   POST /api/participants/scan/  // CORRECT - for badge controllers
+   ```
 
 **How to Fix in Flutter:**
 ```dart
@@ -49,6 +60,28 @@ final loginUrl = '$baseUrl/api/auth/token/';  // Note the trailing slash
 
 // Signup endpoint
 final signupUrl = '$baseUrl/api/events/auth/signup/request/';
+
+// Scan participant endpoint (for controllers)
+final scanUrl = '$baseUrl/api/participants/scan/';  // NOT /verify/
+
+// Example: Scan participant QR code
+Future<void> scanParticipant(String qrData) async {
+  final response = await http.post(
+    Uri.parse(scanUrl),
+    headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'qr_data': qrData,  // The QR code JSON string
+    }),
+  );
+  
+  if (response.statusCode == 200) {
+    final result = jsonDecode(response.body);
+    // Handle success - show paid items, etc.
+  }
+}
 ```
 
 ---

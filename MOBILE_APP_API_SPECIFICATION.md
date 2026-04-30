@@ -135,6 +135,12 @@ Development: http://localhost:8000
 
 The mobile app must use the public domain `makeplus-platform.onrender.com`, NOT the internal Render origin domain.
 
+**⚠️ COMMON ENDPOINT MISTAKES:**
+- ✅ **CORRECT:** `POST /api/participants/scan/` (scan participant QR code)
+- ❌ **WRONG:** `POST /api/participants/verify/` (doesn't exist)
+- ✅ **CORRECT:** `POST /api/auth/token/` (login)
+- ❌ **WRONG:** `POST /api/events/auth/token/` (doesn't exist)
+
 ## Authentication
 
 All authenticated endpoints require a Bearer token in the Authorization header:
