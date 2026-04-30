@@ -649,12 +649,20 @@ def event_create_step4(request):
                 else:
                     messages.success(request, f'User "{user.get_full_name()}" created with role: {role}')
                 
-                # Create participant profile
-                Participant.objects.create(
+                # Create participant profile (one per user, can register for multiple events)
+                participant, created = Participant.objects.get_or_create(
                     user=user,
-                    event=event,
-                    badge_id=qr_data['badge_id'],
-                    qr_code_data=qr_data
+                    defaults={
+                        'badge_id': qr_data['badge_id'],
+                        'qr_code_data': qr_data
+                    }
+                )
+                
+                # Register participant for this event
+                from events.models import ParticipantEventRegistration
+                ParticipantEventRegistration.objects.get_or_create(
+                    participant=participant,
+                    event=event
                 )
                 
                 # Invalidate cache for this event
@@ -852,12 +860,20 @@ def user_create(request):
                 else:
                     messages.success(request, f'User "{user.get_full_name()}" created with role: {role}')
                 
-                # Create participant profile
-                Participant.objects.create(
+                # Create participant profile (one per user, can register for multiple events)
+                participant, created = Participant.objects.get_or_create(
                     user=user,
-                    event=event,
-                    badge_id=qr_data['badge_id'],
-                    qr_code_data=qr_data
+                    defaults={
+                        'badge_id': qr_data['badge_id'],
+                        'qr_code_data': qr_data
+                    }
+                )
+                
+                # Register participant for this event
+                from events.models import ParticipantEventRegistration
+                ParticipantEventRegistration.objects.get_or_create(
+                    participant=participant,
+                    event=event
                 )
                 
                 # Invalidate cache for this event
