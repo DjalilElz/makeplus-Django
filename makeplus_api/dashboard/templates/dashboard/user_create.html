@@ -186,15 +186,63 @@ function toggleRoomField() {
     }
 }
 
+function updateRoomOptions(eventId) {
+    const roomSelect = document.querySelector('select[name="assigned_room"]');
+    
+    if (!roomSelect || !eventId) {
+        return;
+    }
+    
+    // Clear current options
+    roomSelect.innerHTML = '<option value="">Loading rooms...</option>';
+    
+    // Fetch rooms for this event
+    fetch(`/dashboard/api/events/${eventId}/rooms/`)
+        .then(response => response.json())
+        .then(data => {
+            // Clear loading message
+            roomSelect.innerHTML = '<option value="">---------</option>';
+            
+            // Add rooms
+            if (data.rooms && data.rooms.length > 0) {
+                data.rooms.forEach(room => {
+                    const option = document.createElement('option');
+                    option.value = room.id;
+                    option.textContent = `${room.name} (${room.location})`;
+                    roomSelect.appendChild(option);
+                });
+            } else {
+                roomSelect.innerHTML = '<option value="">No rooms available</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching rooms:', error);
+            roomSelect.innerHTML = '<option value="">Error loading rooms</option>';
+        });
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     const roleSelect = document.querySelector('select[name="role"]');
+    const eventSelect = document.querySelector('select[name="event"]');
     
     if (roleSelect) {
         // Bind change event
         roleSelect.addEventListener('change', toggleRoomField);
         // Initialize visibility
         toggleRoomField();
+    }
+    
+    // If event select exists (when not from event page), bind change event
+    if (eventSelect) {
+        eventSelect.addEventListener('change', function() {
+            updateRoomOptions(this.value);
+        });
+        
+        // Load rooms for initially selected event
+        if (eventSelect.value) {
+            updateRoomOptions(eventSelect.value);
+        }
     }
 });
 </script>

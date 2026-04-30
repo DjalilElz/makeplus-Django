@@ -2116,6 +2116,24 @@ def api_events_list(request):
     return JsonResponse({'events': events_data})
 
 
+@login_required
+def api_event_rooms(request, event_id):
+    """API endpoint to get rooms for a specific event"""
+    event = get_object_or_404(Event, id=event_id)
+    rooms = Room.objects.filter(event=event, is_active=True).order_by('name')
+    
+    rooms_data = []
+    for room in rooms:
+        rooms_data.append({
+            'id': str(room.id),
+            'name': room.name,
+            'capacity': room.capacity,
+            'location': room.location
+        })
+    
+    return JsonResponse({'rooms': rooms_data})
+
+
 # ==================== Public Form Views ====================
 
 def public_form_view(request, slug):

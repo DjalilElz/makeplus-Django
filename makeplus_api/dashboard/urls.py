@@ -117,6 +117,7 @@ urlpatterns = [
     
     # API Endpoints
     path('api/events/', views.api_events_list, name='api_events_list'),
+    path('api/events/<uuid:event_id>/rooms/', views.api_event_rooms, name='api_event_rooms'),
     path('events/<uuid:event_id>/registration-fields/', views_email.event_registration_fields_api, name='event_registration_fields_api'),
     
     # Event Email Templates
