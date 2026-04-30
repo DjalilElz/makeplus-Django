@@ -129,6 +129,12 @@ Production: https://makeplus-platform.onrender.com
 Development: http://localhost:8000
 ```
 
+**⚠️ CRITICAL: Use the correct base URL!**
+- ✅ **CORRECT:** `https://makeplus-platform.onrender.com`
+- ❌ **WRONG:** `https://gcp-us-west1-1.origin.onrender.com` (internal Render domain)
+
+The mobile app must use the public domain `makeplus-platform.onrender.com`, NOT the internal Render origin domain.
+
 ## Authentication
 
 All authenticated endpoints require a Bearer token in the Authorization header:

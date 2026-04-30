@@ -9,6 +9,49 @@
 - ✅ Added session swap functionality - Room managers can swap times between two sessions
 - ✅ Fixed exposant APIs - Booth visit tracking now working correctly
 - ⚠️ **CRITICAL URL FIX:** Use `/api/rooms/{room_id}/` NOT `/api/events/{event_id}/rooms/{room_id}/`
+- ⚠️ **CRITICAL BASE URL:** Use `https://makeplus-platform.onrender.com` NOT `https://gcp-us-west1-1.origin.onrender.com`
+
+---
+
+## ⚠️ TROUBLESHOOTING: 404 Not Found Errors
+
+**Problem:** Getting 404 errors when calling API endpoints?
+
+**Common Causes:**
+
+1. **Wrong Base URL** ❌
+   ```
+   https://gcp-us-west1-1.origin.onrender.com  // WRONG - Internal Render domain
+   ```
+   **Solution:** Use the public domain ✅
+   ```
+   https://makeplus-platform.onrender.com  // CORRECT
+   ```
+
+2. **Wrong Endpoint Path**
+   - Login: `/api/auth/token/` ✅ CORRECT
+   - Signup: `/api/events/auth/signup/request/` ✅ CORRECT
+
+3. **Missing Trailing Slash**
+   - Some endpoints require a trailing slash `/`
+   - Example: `/api/auth/token/` (with slash) vs `/api/auth/token` (without slash)
+
+**How to Fix in Flutter:**
+```dart
+// ❌ WRONG
+const String baseUrl = 'https://gcp-us-west1-1.origin.onrender.com';
+
+// ✅ CORRECT
+const String baseUrl = 'https://makeplus-platform.onrender.com';
+
+// Login endpoint
+final loginUrl = '$baseUrl/api/auth/token/';  // Note the trailing slash
+
+// Signup endpoint
+final signupUrl = '$baseUrl/api/events/auth/signup/request/';
+```
+
+---
 
 ### ⚠️ BREAKING CHANGES - Action Required
 
