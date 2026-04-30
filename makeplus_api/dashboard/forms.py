@@ -366,9 +366,19 @@ class UserCreationForm(forms.ModelForm):
             )
             # Move event field to be first
             self.order_fields(['event', 'email', 'first_name', 'last_name', 'password', 'password_confirm', 'role', 'assigned_room'])
+            
+            # If POST data, get event from POST to populate rooms
+            if self.data:
+                try:
+                    event_id = self.data.get('event')
+                    if event_id:
+                        event = Event.objects.get(id=event_id)
+                except (ValueError, TypeError, Event.DoesNotExist):
+                    pass
         
+        # Set room queryset based on event
         if event:
-            self.fields['assigned_room'].queryset = Room.objects.filter(event=event)
+            self.fields['assigned_room'].queryset = Room.objects.filter(event=event, is_active=True).order_by('name')
         else:
             # No rooms initially, will be populated via JavaScript when event is selected
             self.fields['assigned_room'].queryset = Room.objects.none()
