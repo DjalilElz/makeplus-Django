@@ -682,7 +682,7 @@ class ExposantScan(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='exposant_scans')
     
     scanned_at = models.DateTimeField(auto_now_add=True)
-    notes = models.TextField(blank=True, help_text="Optional notes about the visit")
+    notes = models.TextField(blank=True, null=True, help_text="Optional notes about the visit")
     
     class Meta:
         ordering = ['-scanned_at']
