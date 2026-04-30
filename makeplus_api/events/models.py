@@ -313,6 +313,7 @@ class UserEventAssignment(models.Model):
     ADMIN_CREATABLE_ROLES = [
         ('gestionnaire_des_salles', 'Gestionnaire de Salle'),
         ('controlleur_des_badges', 'Contrôleur'),
+        ('exposant', 'Exposant'),
         ('committee', 'Committee'),
     ]
     

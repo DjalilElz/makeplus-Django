@@ -315,14 +315,16 @@ class UserCreationForm(forms.ModelForm):
     password = forms.CharField(
         widget=forms.PasswordInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Password'
+            'placeholder': 'Password',
+            'autocomplete': 'new-password'
         }),
         help_text="User's password"
     )
     password_confirm = forms.CharField(
         widget=forms.PasswordInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Confirm Password'
+            'placeholder': 'Confirm Password',
+            'autocomplete': 'new-password'
         }),
         label="Confirm Password"
     )
@@ -473,7 +475,8 @@ class QuickUserForm(forms.Form):
     password = forms.CharField(
         widget=forms.PasswordInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Password'
+            'placeholder': 'Password',
+            'autocomplete': 'new-password'
         })
     )
     
