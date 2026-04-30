@@ -825,23 +825,24 @@ Future<void> getBoothVisits(String eventId) async {
 
 **Scan Participant QR Code:**
 ```dart
-// Record a booth visit
-Future<void> scanParticipant(String participantId, String eventId, String notes) async {
+// Record a booth visit (RECOMMENDED METHOD)
+Future<void> scanParticipant(String qrData, String eventId, String notes) async {
   final response = await http.post(
-    Uri.parse('$baseUrl/api/exposant-scans/'),
+    Uri.parse('$baseUrl/api/exposant-scans/scan_participant/'),
     headers: {
       'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
     },
     body: jsonEncode({
-      'scanned_participant': participantId,
-      'event': eventId,
+      'qr_data': qrData,  // The QR code JSON string
+      'event_id': eventId,
       'notes': notes,
     }),
   );
 
   if (response.statusCode == 201) {
-    showSuccess('Booth visit recorded successfully');
+    final result = jsonDecode(response.body);
+    showSuccess(result['message']);
   }
 }
 ```

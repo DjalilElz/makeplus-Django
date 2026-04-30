@@ -1041,6 +1041,68 @@ GET /api/exposant-scans/my_scans/?event_id=d3c3de4d-a41e-4b69-9bcf-f8b365a72647
 
 ### 10.2 Scan Participant QR Code
 
+**Endpoint:** `POST /api/exposant-scans/scan_participant/`
+
+**Description:** Scan a participant's QR code to record a booth visit. This is the recommended endpoint for exposants to use.
+
+**Headers:**
+```
+Authorization: Bearer <exposant_token>
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "qr_data": "{\"user_id\": 58, \"badge_id\": \"USER-58-37F80526\", \"email\": \"user@example.com\", \"participant_id\": \"56\"}",
+  "event_id": "d3c3de4d-a41e-4b69-9bcf-f8b365a72647",
+  "notes": "Interested in product demo"
+}
+```
+
+**Response (Success - 201):**
+```json
+{
+  "status": "success",
+  "message": "Booth visit recorded successfully",
+  "scan": {
+    "id": 1,
+    "exposant": "exposant-uuid",
+    "exposant_name": "Company XYZ",
+    "scanned_participant": "participant-uuid",
+    "scanned_participant_name": "John Doe",
+    "scanned_participant_email": "john@example.com",
+    "event": "event-uuid",
+    "event_name": "TechSummit Algeria 2026",
+    "scanned_at": "2026-04-30T14:30:00Z",
+    "notes": "Interested in product demo"
+  }
+}
+```
+
+**Response (Error - 400):**
+```json
+{
+  "error": "qr_data is required"
+}
+```
+
+**Response (Error - 403):**
+```json
+{
+  "error": "Not registered for this event"
+}
+```
+
+**Response (Error - 404):**
+```json
+{
+  "error": "Participant not found"
+}
+```
+
+### 10.3 Create Booth Visit (Alternative Method)
+
 **Endpoint:** `POST /api/exposant-scans/`
 
 **Description:** Scan a participant's QR code to record a booth visit.
@@ -1076,7 +1138,7 @@ Content-Type: application/json
 }
 ```
 
-### 10.3 Export Booth Visits to Excel
+### 10.4 Export Booth Visits to Excel
 
 **Endpoint:** `GET /api/exposant-scans/export_excel/`
 
@@ -1133,24 +1195,28 @@ Future<void> getBoothVisits(String eventId) async {
   }
 }
 
-// Scan participant QR code
-Future<void> scanParticipant(String participantId, String eventId, String notes) async {
+// Scan participant QR code (RECOMMENDED METHOD)
+Future<void> scanParticipant(String qrData, String eventId, String notes) async {
   try {
     final response = await http.post(
-      Uri.parse('$baseUrl/api/exposant-scans/'),
+      Uri.parse('$baseUrl/api/exposant-scans/scan_participant/'),
       headers: {
         'Authorization': 'Bearer $exposantToken',
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
-        'scanned_participant': participantId,
-        'event': eventId,
+        'qr_data': qrData,  // The QR code JSON string
+        'event_id': eventId,
         'notes': notes,
       }),
     );
 
     if (response.statusCode == 201) {
-      showSuccess('Booth visit recorded successfully');
+      final result = jsonDecode(response.body);
+      showSuccess(result['message']);
+      // Display scan details
+      final scan = result['scan'];
+      print('Scanned: ${scan['scanned_participant_name']}');
     }
   } catch (e) {
     showError('Failed to record visit: $e');

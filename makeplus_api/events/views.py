@@ -1381,6 +1381,88 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsExposant])
+    def scan_participant(self, request):
+        """Scan a participant's QR code to record a booth visit"""
+        try:
+            import json
+            
+            # Get QR data and event ID
+            qr_data = request.data.get('qr_data')
+            event_id = request.data.get('event_id')
+            notes = request.data.get('notes', '')
+            
+            if not qr_data:
+                return Response({'error': 'qr_data is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if not event_id:
+                return Response({'error': 'event_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Parse QR data
+            try:
+                qr_dict = json.loads(qr_data) if isinstance(qr_data, str) else qr_data
+                user_id = qr_dict.get('user_id')
+                participant_id = qr_dict.get('participant_id')
+                
+                if not user_id:
+                    return Response({'error': 'Invalid QR code format - user_id missing'}, status=status.HTTP_400_BAD_REQUEST)
+            except json.JSONDecodeError:
+                return Response({'error': 'Invalid QR code format'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get event
+            try:
+                event = Event.objects.get(id=event_id)
+            except Event.DoesNotExist:
+                return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Get exposant (current user)
+            try:
+                exposant = Participant.objects.get(user=request.user)
+            except Participant.DoesNotExist:
+                return Response({'error': 'Exposant participant record not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Check if exposant is registered for this event
+            if not exposant.is_registered_for_event(event):
+                return Response({'error': 'Not registered for this event'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Get scanned participant
+            try:
+                if participant_id:
+                    scanned_participant = Participant.objects.get(id=participant_id)
+                else:
+                    # Fallback: get by user_id
+                    from django.contrib.auth.models import User
+                    user = User.objects.get(id=user_id)
+                    scanned_participant = Participant.objects.get(user=user)
+            except (Participant.DoesNotExist, User.DoesNotExist):
+                return Response({'error': 'Participant not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Check if participant is registered for this event
+            if not scanned_participant.is_registered_for_event(event):
+                return Response({'error': 'Scanned participant not registered for this event'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Create scan record
+            scan = ExposantScan.objects.create(
+                exposant=exposant,
+                scanned_participant=scanned_participant,
+                event=event,
+                notes=notes
+            )
+            
+            # Serialize and return
+            serializer = self.get_serializer(scan)
+            
+            return Response({
+                'status': 'success',
+                'message': 'Booth visit recorded successfully',
+                'scan': serializer.data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsExposant])
     def export_excel(self, request):
         """Export all booth visits to Excel file"""
