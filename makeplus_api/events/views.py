@@ -1442,11 +1442,12 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Scanned participant not registered for this event'}, status=status.HTTP_403_FORBIDDEN)
             
             # Create scan record
+            # Convert empty string to None for notes field (database compatibility)
             scan = ExposantScan.objects.create(
                 exposant=exposant,
                 scanned_participant=scanned_participant,
                 event=event,
-                notes=notes
+                notes=notes if notes else None  # Convert empty string to None
             )
             
             # Serialize and return
