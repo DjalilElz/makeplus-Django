@@ -8,6 +8,7 @@
 - ✅ Fixed room assignment API - Room managers can now get their assigned room
 - ✅ Added session swap functionality - Room managers can swap times between two sessions
 - ✅ Fixed exposant APIs - Booth visit tracking now working correctly
+- ✅ **FIXED:** Exposant scan endpoint database constraint - `notes` field now allows NULL values
 - ⚠️ **CRITICAL URL FIX:** Use `/api/rooms/{room_id}/` NOT `/api/events/{event_id}/rooms/{room_id}/`
 - ⚠️ **CRITICAL BASE URL:** Use `https://makeplus-platform.onrender.com` NOT `https://gcp-us-west1-1.origin.onrender.com`
 
@@ -791,6 +792,8 @@ Future<void> swapSessions(String session1Id, String session2Id) async {
 
 **NEW FEATURE:** Exposants can now scan participant QR codes to track booth visits and export data to Excel.
 
+**✅ FIXED (April 30, 2026):** Database constraint issue resolved - the `notes` field now properly allows empty/NULL values. The scan endpoint is fully functional.
+
 **Endpoint:** `GET /api/exposant-scans/my_scans/?event_id={event_id}`
 
 **Use Case:** Track which participants visited your booth, add notes for follow-up, and export all visits to Excel.
@@ -826,7 +829,8 @@ Future<void> getBoothVisits(String eventId) async {
 **Scan Participant QR Code:**
 ```dart
 // Record a booth visit (RECOMMENDED METHOD)
-Future<void> scanParticipant(String qrData, String eventId, String notes) async {
+// ✅ FIXED: notes field now optional - can be empty string or omitted
+Future<void> scanParticipant(String qrData, String eventId, {String notes = ''}) async {
   final response = await http.post(
     Uri.parse('$baseUrl/api/exposant-scans/scan_participant/'),
     headers: {
@@ -836,13 +840,16 @@ Future<void> scanParticipant(String qrData, String eventId, String notes) async 
     body: jsonEncode({
       'qr_data': qrData,  // The QR code JSON string
       'event_id': eventId,
-      'notes': notes,
+      'notes': notes,  // Optional - can be empty string
     }),
   );
 
   if (response.statusCode == 201) {
     final result = jsonDecode(response.body);
     showSuccess(result['message']);
+  } else if (response.statusCode == 500) {
+    // This error should no longer occur after the fix
+    showError('Server error - please contact support');
   }
 }
 ```

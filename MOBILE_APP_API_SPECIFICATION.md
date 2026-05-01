@@ -965,6 +965,8 @@ GET /api/room-assignments/?user=41&event=d3c3de4d-a41e-4b69-9bcf-f8b365a72647&is
 
 ## 10. Exposant (Exhibitor) APIs
 
+**✅ FIXED (April 30, 2026):** Database constraint issue resolved. The `notes` field in the `ExposantScan` model now properly allows NULL values. All exposant scan endpoints are fully functional.
+
 ### 10.1 Get My Scans (Booth Visits)
 
 **Endpoint:** `GET /api/exposant-scans/my_scans/`
@@ -1045,6 +1047,8 @@ GET /api/exposant-scans/my_scans/?event_id=d3c3de4d-a41e-4b69-9bcf-f8b365a72647
 
 **Description:** Scan a participant's QR code to record a booth visit. This is the recommended endpoint for exposants to use.
 
+**✅ FIXED:** The `notes` field is now optional and can be empty or omitted. The database constraint issue has been resolved.
+
 **Headers:**
 ```
 Authorization: Bearer <exposant_token>
@@ -1059,6 +1063,11 @@ Content-Type: application/json
   "notes": "Interested in product demo"
 }
 ```
+
+**Note:** The `notes` field is optional. You can:
+- Provide a note: `"notes": "Interested in product demo"`
+- Provide empty string: `"notes": ""`
+- Omit the field entirely (defaults to empty)
 
 **Response (Success - 201):**
 ```json
@@ -1100,6 +1109,14 @@ Content-Type: application/json
   "error": "Participant not found"
 }
 ```
+
+**Previous Error (Now Fixed):**
+```json
+{
+  "error": "null value in column \"notes\" of relation \"events_exposantscan\" violates not-null constraint"
+}
+```
+This error no longer occurs. The database schema has been updated to allow NULL values in the `notes` field.
 
 ### 10.3 Create Booth Visit (Alternative Method)
 
@@ -1196,7 +1213,8 @@ Future<void> getBoothVisits(String eventId) async {
 }
 
 // Scan participant QR code (RECOMMENDED METHOD)
-Future<void> scanParticipant(String qrData, String eventId, String notes) async {
+// ✅ FIXED: notes field now optional - can be empty string or omitted
+Future<void> scanParticipant(String qrData, String eventId, {String notes = ''}) async {
   try {
     final response = await http.post(
       Uri.parse('$baseUrl/api/exposant-scans/scan_participant/'),
@@ -1207,7 +1225,7 @@ Future<void> scanParticipant(String qrData, String eventId, String notes) async 
       body: jsonEncode({
         'qr_data': qrData,  // The QR code JSON string
         'event_id': eventId,
-        'notes': notes,
+        'notes': notes,  // Optional - can be empty string
       }),
     );
 
@@ -1217,6 +1235,9 @@ Future<void> scanParticipant(String qrData, String eventId, String notes) async 
       // Display scan details
       final scan = result['scan'];
       print('Scanned: ${scan['scanned_participant_name']}');
+    } else if (response.statusCode == 500) {
+      // This error should no longer occur after the fix
+      showError('Server error - please contact support');
     }
   } catch (e) {
     showError('Failed to record visit: $e');
@@ -1249,10 +1270,11 @@ Future<void> exportToExcel() async {
 **Key Points:**
 - ✅ Exposants can scan participant QR codes to track booth visits
 - ✅ Statistics show total visits and today's visits
-- ✅ Notes can be added to each scan for follow-up
+- ✅ Notes can be added to each scan for follow-up (optional - can be empty)
 - ✅ Excel export includes all events the exposant is registered for
 - ✅ Each scan is timestamped automatically
 - ✅ Participant information is captured (name, email, badge ID)
+- ✅ **FIXED (April 30, 2026):** Database constraint issue resolved - notes field now allows NULL/empty values
 
 ---
 
