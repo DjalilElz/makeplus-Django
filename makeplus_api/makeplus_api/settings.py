@@ -235,13 +235,37 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 STATICFILES_DIRS = []
 
 # Media files configuration
-# For now, use local storage (files will be ephemeral on Render)
-# TODO: Implement proper persistent storage solution
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# Use cPanel HTTP upload for persistent storage
+USE_CPANEL_STORAGE = config('USE_CPANEL_STORAGE', default=False, cast=bool)
 
-# Note: Files uploaded on Render will be lost on redeploy
-# This is temporary until we implement a better storage solution
+if USE_CPANEL_STORAGE:
+    # cPanel HTTP Storage Configuration
+    STORAGES = {
+        "default": {
+            "BACKEND": "makeplus_api.cpanel_storage.CPanelHTTPStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+    
+    # cPanel upload settings
+    CPANEL_UPLOAD_URL = config('CPANEL_UPLOAD_URL')
+    CPANEL_UPLOAD_KEY = config('CPANEL_UPLOAD_KEY')
+    CPANEL_BASE_URL = config('CPANEL_BASE_URL', default='https://wemakeplus.com/media/')
+    MEDIA_URL = CPANEL_BASE_URL
+else:
+    # Local storage for development
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
