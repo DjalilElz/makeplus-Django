@@ -239,24 +239,39 @@ STATICFILES_DIRS = []
 USE_FTP_STORAGE = config('USE_FTP_STORAGE', default=False, cast=bool)
 
 if USE_FTP_STORAGE:
-    # FTP Storage Configuration
-    DEFAULT_FILE_STORAGE = 'ftp_storage.storage.FTPStorage'
-    
-    FTP_STORAGE_LOCATION = 'ftp://{user}:{password}@{host}:{port}{path}'.format(
-        user=config('FTP_USER'),
-        password=config('FTP_PASSWORD'),
-        host=config('FTP_HOST'),
-        port=config('FTP_PORT', default='21'),
-        path=config('FTP_PATH', default='/'),
-    )
+    # FTP Storage Configuration using django-storages
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.ftp.FTPStorage",
+            "OPTIONS": {
+                "location": "ftp://{user}:{password}@{host}:{port}{path}".format(
+                    user=config('FTP_USER'),
+                    password=config('FTP_PASSWORD'),
+                    host=config('FTP_HOST'),
+                    port=config('FTP_PORT', default='21'),
+                    path=config('FTP_PATH', default='/'),
+                ),
+                "base_url": f"https://{config('FTP_DOMAIN')}/makeplus-media/",
+                "encoding": "utf-8",
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
     
     # Media URL will point to your domain
     MEDIA_URL = f"https://{config('FTP_DOMAIN')}/makeplus-media/"
-    
-    # FTP Storage settings
-    FTP_STORAGE_ENCODING = 'utf-8'
 else:
     # Local storage for development
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
 
