@@ -114,7 +114,7 @@ class EPosterSubmission(models.Model):
     rejection_email_sent = models.BooleanField(default=False)
     
     # Eposter code for final submission (generated when accepted)
-    eposter_code = models.CharField(max_length=50, blank=True, unique=True, verbose_name="Code ePoster")
+    eposter_code = models.CharField(max_length=50, blank=True, null=True, unique=True, verbose_name="Code ePoster")
     
     # Metadata
     ip_address = models.GenericIPAddressField(null=True, blank=True)
