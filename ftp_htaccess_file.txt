@@ -1,0 +1,35 @@
+# Security configuration for makeplus-media folder
+# Upload this file to: /home/wemaszvr/wemakeplus.com/makeplus-media/.htaccess
+
+# Allow access to image and PDF files only
+<FilesMatch "\.(jpg|jpeg|png|gif|pdf|svg|webp|doc|docx)$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>
+
+# Prevent directory listing
+Options -Indexes
+
+# Prevent execution of PHP files (security)
+<FilesMatch "\.php$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+
+# Enable CORS for file access
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, OPTIONS"
+</IfModule>
+
+# Set proper MIME types
+<IfModule mod_mime.c>
+    AddType image/jpeg .jpg .jpeg
+    AddType image/png .png
+    AddType image/gif .gif
+    AddType image/svg+xml .svg
+    AddType image/webp .webp
+    AddType application/pdf .pdf
+    AddType application/msword .doc
+    AddType application/vnd.openxmlformats-officedocument.wordprocessingml.document .docx
+</IfModule>
