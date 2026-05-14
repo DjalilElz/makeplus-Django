@@ -235,45 +235,13 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 STATICFILES_DIRS = []
 
 # Media files configuration
-# Use FTP storage for production (persistent), local storage for development
-USE_FTP_STORAGE = config('USE_FTP_STORAGE', default=False, cast=bool)
+# For now, use local storage (files will be ephemeral on Render)
+# TODO: Implement proper persistent storage solution
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
-if USE_FTP_STORAGE:
-    # FTP Storage Configuration using django-storages
-    STORAGES = {
-        "default": {
-            "BACKEND": "storages.backends.ftp.FTPStorage",
-            "OPTIONS": {
-                "location": "ftp://{user}:{password}@{host}:{port}{path}".format(
-                    user=config('FTP_USER'),
-                    password=config('FTP_PASSWORD'),
-                    host=config('FTP_HOST'),
-                    port=config('FTP_PORT', default='21'),
-                    path=config('FTP_PATH', default='/'),
-                ),
-                "base_url": f"https://{config('FTP_DOMAIN')}/makeplus-media/",
-                "encoding": "utf-8",
-            },
-        },
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-        },
-    }
-    
-    # Media URL will point to your domain
-    MEDIA_URL = f"https://{config('FTP_DOMAIN')}/makeplus-media/"
-else:
-    # Local storage for development
-    STORAGES = {
-        "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-        },
-    }
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = BASE_DIR / 'media'
+# Note: Files uploaded on Render will be lost on redeploy
+# This is temporary until we implement a better storage solution
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
