@@ -113,6 +113,9 @@ class EPosterSubmission(models.Model):
     acceptance_email_sent = models.BooleanField(default=False)
     rejection_email_sent = models.BooleanField(default=False)
     
+    # Eposter code for final submission (generated when accepted)
+    eposter_code = models.CharField(max_length=50, blank=True, unique=True, verbose_name="Code ePoster")
+    
     # Metadata
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
@@ -165,7 +168,10 @@ class EPosterSubmission(models.Model):
         # If enough approvals, mark as accepted
         if approvals >= self.validations_required:
             self.status = 'accepted'
-            self.save(update_fields=['status', 'updated_at'])
+            # Generate eposter code if not already generated
+            if not self.eposter_code:
+                self.generate_eposter_code()
+            self.save(update_fields=['status', 'eposter_code', 'updated_at'])
             return True
         
         # If more rejections than possible remaining approvals, reject
@@ -177,6 +183,133 @@ class EPosterSubmission(models.Model):
             return True
         
         return False
+    
+    def generate_eposter_code(self):
+        """Generate unique eposter code for this event"""
+        import random
+        import string
+        
+        # Get count of accepted submissions for this event
+        count = EPosterSubmission.objects.filter(
+            event=self.event,
+            status='accepted'
+        ).exclude(eposter_code='').count() + 1
+        
+        # Format: EPOSTER-{EVENT_ID_SHORT}-{NUMBER}
+        event_short = str(self.event.id)[:8].upper()
+        code = f"EPOSTER-{event_short}-{count:03d}"
+        
+        # Ensure uniqueness
+        while EPosterSubmission.objects.filter(eposter_code=code).exists():
+            count += 1
+            code = f"EPOSTER-{event_short}-{count:03d}"
+        
+        self.eposter_code = code
+        return code
+
+
+
+
+class EPosterFinalSubmission(models.Model):
+    """
+    Final ePoster Submission Model
+    Submitted by users who received validation and eposter code
+    """
+    
+    SPECIALITE_CHOICES = [
+        ('allerologie', 'Allerologie'),
+        ('anatomique', 'Anatomique'),
+        ('anesthesiologie', 'Anesthésiologie'),
+        ('biologie', 'Biologie'),
+        ('chirurgie_cardiaque', 'Chirurgie cardiaque'),
+        ('dermatologie', 'Dermatologie'),
+        ('diabetologie_endocrinologie', 'Diabétologie endocrinologie'),
+        ('gastro_enterologie_hepatologie', 'Gastro-entérologie et hépatologie'),
+        ('obstetrique_gynecologie', 'Obstétrique et gynécologie'),
+        ('hematologie', 'Hématologie'),
+        ('immunologie', 'Immunologie'),
+        ('maladies_infectieuses', 'Maladies infectieuses'),
+        ('medecine_travail', 'Médecine du travail'),
+        ('medecine_interne', 'Médecine interne'),
+        ('medecine_generale', 'Médecine générale'),
+        ('nephrologie', 'Néphrologie'),
+        ('oncologie', 'Oncologie'),
+        ('ophtalmologie', 'Ophtalmologie'),
+        ('orl', 'ORL'),
+        ('professions_sante_alliees', 'Professions de santé alliées'),
+        ('pediatrie', 'Pédiatrie'),
+        ('pneumologie', 'Pneumologie'),
+        ('pharmacie_hospitaliere', 'Pharmacie hospitalière'),
+        ('pharmacien_officine', 'Pharmacien d\'officine'),
+        ('medecine_soins_intensifs', 'Médecine de soins intensifs'),
+        ('psychiatrie', 'Psychiatrie'),
+        ('radiologie', 'Radiologie'),
+        ('rhumatologie', 'Rhumatologie'),
+        ('urologie', 'Urologie'),
+        ('chirurgie_dentaire', 'Chirurgie dentaire'),
+        ('chirurgie_pediatrique', 'Chirurgie pédiatrique'),
+    ]
+    
+    DOMAINE_COMMUNICATION_CHOICES = [
+        ('rhinologie', 'Rhinologie'),
+        ('pathologie_cervico_facial', 'Pathologie cervico-facial'),
+        ('thyroide_parathyroide', 'Thyroïde et parathyroïde'),
+        ('orl_pediatrique', 'ORL pédiatrique'),
+        ('laryngologie_trachee', 'Laryngologie trachée'),
+        ('otologie', 'Otologie'),
+        ('cancerologie', 'Cancérologie'),
+        ('divers', 'Divers'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    original_submission = models.OneToOneField(
+        EPosterSubmission,
+        on_delete=models.CASCADE,
+        related_name='final_submission',
+        verbose_name="Soumission originale"
+    )
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='eposter_final_submissions')
+    
+    # Form fields
+    nom = models.CharField(max_length=100, verbose_name="Nom")
+    email = models.EmailField(verbose_name="Email")
+    telephone = models.CharField(max_length=20, verbose_name="Téléphone")
+    specialite = models.CharField(max_length=100, choices=SPECIALITE_CHOICES, verbose_name="Spécialité")
+    domaine_communication = models.CharField(
+        max_length=100, 
+        choices=DOMAINE_COMMUNICATION_CHOICES, 
+        verbose_name="Domaine de communication"
+    )
+    poster_number = models.CharField(max_length=50, verbose_name="Poster N° (Code)")
+    titre = models.CharField(max_length=500, verbose_name="Titre")
+    auteurs = models.TextField(verbose_name="Auteurs")
+    co_auteurs = models.TextField(blank=True, verbose_name="Co-auteurs")
+    
+    # PDF file
+    abstract_file = models.FileField(
+        upload_to='eposters/final_submissions/',
+        verbose_name="Fichier Abstract (PDF)"
+    )
+    
+    # Metadata
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    
+    # Timestamps
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-submitted_at']
+        verbose_name = 'ePoster Final Submission'
+        verbose_name_plural = 'ePoster Final Submissions'
+        indexes = [
+            models.Index(fields=['event', '-submitted_at']),
+            models.Index(fields=['poster_number']),
+        ]
+    
+    def __str__(self):
+        return f"{self.poster_number} - {self.titre[:50]}..."
 
 
 class EPosterValidation(models.Model):

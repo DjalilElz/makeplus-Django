@@ -1,0 +1,164 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}Soumission Finale ePoster - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">📄 Soumission Finale ePoster</h3>
+                    <p class="mb-0">{{ event.name }}</p>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <strong>ℹ️ Information:</strong> Veuillez remplir ce formulaire avec le code ePoster que vous avez reçu par email après validation de votre première soumission.
+                    </div>
+
+                    <form id="finalSubmissionForm" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Code ePoster -->
+                        <div class="mb-3">
+                            <label for="poster_number" class="form-label">Code ePoster <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="poster_number" name="poster_number" required 
+                                   placeholder="Ex: EPOSTER-ABC12345-001">
+                            <small class="form-text text-muted">Le code que vous avez reçu par email</small>
+                        </div>
+
+                        <!-- Nom -->
+                        <div class="mb-3">
+                            <label for="nom" class="form-label">Nom <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="nom" name="nom" required>
+                        </div>
+
+                        <!-- Email -->
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+
+                        <!-- Téléphone -->
+                        <div class="mb-3">
+                            <label for="telephone" class="form-label">Téléphone <span class="text-danger">*</span></label>
+                            <input type="tel" class="form-control" id="telephone" name="telephone" required>
+                        </div>
+
+                        <!-- Spécialité -->
+                        <div class="mb-3">
+                            <label for="specialite" class="form-label">Spécialité <span class="text-danger">*</span></label>
+                            <select class="form-select" id="specialite" name="specialite" required>
+                                <option value="">-- Sélectionnez --</option>
+                                {% for value, label in specialite_choices %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Domaine de communication -->
+                        <div class="mb-3">
+                            <label for="domaine_communication" class="form-label">Domaine de communication <span class="text-danger">*</span></label>
+                            <select class="form-select" id="domaine_communication" name="domaine_communication" required>
+                                <option value="">-- Sélectionnez --</option>
+                                {% for value, label in domaine_choices %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Titre -->
+                        <div class="mb-3">
+                            <label for="titre" class="form-label">Titre <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="titre" name="titre" required>
+                        </div>
+
+                        <!-- Auteurs -->
+                        <div class="mb-3">
+                            <label for="auteurs" class="form-label">Auteurs <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="auteurs" name="auteurs" rows="3" required></textarea>
+                        </div>
+
+                        <!-- Co-auteurs -->
+                        <div class="mb-3">
+                            <label for="co_auteurs" class="form-label">Co-auteurs</label>
+                            <textarea class="form-control" id="co_auteurs" name="co_auteurs" rows="3"></textarea>
+                        </div>
+
+                        <!-- Abstract PDF -->
+                        <div class="mb-3">
+                            <label for="abstract_file" class="form-label">Fichier Abstract (PDF) <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="abstract_file" name="abstract_file" accept=".pdf" required>
+                            <small class="form-text text-muted">Format PDF uniquement</small>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                <i class="fas fa-paper-plane"></i> Soumettre
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Success Message -->
+                    <div id="successMessage" class="alert alert-success mt-3" style="display: none;">
+                        <h5>✅ Soumission réussie!</h5>
+                        <p>Votre soumission finale a été enregistrée avec succès.</p>
+                    </div>
+
+                    <!-- Error Message -->
+                    <div id="errorMessage" class="alert alert-danger mt-3" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('finalSubmissionForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const submitBtn = document.getElementById('submitBtn');
+    const errorMessage = document.getElementById('errorMessage');
+    const successMessage = document.getElementById('successMessage');
+    
+    // Hide messages
+    errorMessage.style.display = 'none';
+    successMessage.style.display = 'none';
+    
+    // Disable submit button
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi en cours...';
+    
+    try {
+        const formData = new FormData(this);
+        
+        const response = await fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            successMessage.style.display = 'block';
+            this.reset();
+            // Scroll to success message
+            successMessage.scrollIntoView({ behavior: 'smooth' });
+        } else {
+            errorMessage.textContent = data.error || 'Une erreur est survenue';
+            errorMessage.style.display = 'block';
+            errorMessage.scrollIntoView({ behavior: 'smooth' });
+        }
+    } catch (error) {
+        errorMessage.textContent = 'Erreur de connexion. Veuillez réessayer.';
+        errorMessage.style.display = 'block';
+        errorMessage.scrollIntoView({ behavior: 'smooth' });
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Soumettre';
+    }
+});
+</script>
+{% endblock %}

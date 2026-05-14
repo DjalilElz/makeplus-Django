@@ -353,6 +353,7 @@ def eposter_set_status(request, event_id, submission_id):
 def send_decision_email(submission):
     """Helper to send acceptance/rejection email using Brevo API"""
     from .email_sender import send_email
+    from django.conf import settings
     
     try:
         template_type = 'accepted' if submission.status == 'accepted' else 'rejected'
@@ -366,6 +367,17 @@ def send_decision_email(submission):
             print(f"No email template found for type '{template_type}' and event '{submission.event.name}'")
             return False
         
+        # Generate eposter code if accepted and not already generated
+        if submission.status == 'accepted' and not submission.eposter_code:
+            submission.generate_eposter_code()
+            submission.save(update_fields=['eposter_code'])
+        
+        # Build final submission URL
+        final_submission_url = ''
+        if submission.status == 'accepted':
+            base_url = settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://makeplus-platform.onrender.com'
+            final_submission_url = f"{base_url}/dashboard/eposter/final-submission/{submission.event.id}/"
+        
         context = {
             'nom': submission.nom,
             'prenom': submission.prenom,
@@ -374,6 +386,8 @@ def send_decision_email(submission):
             'event_location': submission.event.location or '',
             'event_start_date': submission.event.start_date.strftime('%d/%m/%Y') if submission.event.start_date else '',
             'event_end_date': submission.event.end_date.strftime('%d/%m/%Y') if submission.event.end_date else '',
+            'eposter_code': submission.eposter_code if submission.status == 'accepted' else '',
+            'final_submission_url': final_submission_url,
         }
         
         subject = Template(template.subject).render(Context(context))
@@ -381,6 +395,9 @@ def send_decision_email(submission):
         
         print(f"Sending {template_type} email to {submission.email} via Brevo API")
         print(f"Subject: {subject}")
+        if submission.status == 'accepted':
+            print(f"Eposter Code: {submission.eposter_code}")
+            print(f"Final Submission URL: {final_submission_url}")
         
         # Use Brevo API for sending
         success, error, message_id = send_email(
@@ -411,8 +428,6 @@ def send_decision_email(submission):
         import traceback
         traceback.print_exc()
         return False
-    except Exception as e:
-        print(f"Error sending email: {e}")
 
 
 @login_required

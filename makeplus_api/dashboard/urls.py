@@ -8,6 +8,7 @@ from . import views_email
 from . import views_stats
 from . import views_eposter_dashboard
 from . import views_eposter_management
+from . import views_eposter_final
 
 app_name = 'dashboard'
 
@@ -157,4 +158,9 @@ urlpatterns = [
     path('events/<uuid:event_id>/eposter/email-templates/<uuid:template_id>/edit/', views_eposter_dashboard.eposter_email_template_edit, name='eposter_email_template_edit'),
     path('events/<uuid:event_id>/eposter/email-templates/<uuid:template_id>/delete/', views_eposter_dashboard.eposter_email_template_delete, name='eposter_email_template_delete'),
     path('events/<uuid:event_id>/eposter/export/', views_eposter_dashboard.eposter_export_csv, name='eposter_export_csv'),
+    
+    # ePoster Final Submission (Public - No Login Required)
+    path('eposter/final-submission/<uuid:event_id>/', views_eposter_final.eposter_final_submission_form, name='eposter_final_submission_form'),
+    path('eposter/gallery/<uuid:event_id>/', views_eposter_final.eposter_gallery, name='eposter_gallery'),
+    path('eposter/view/<uuid:submission_id>/', views_eposter_final.eposter_view_pdf, name='eposter_view_pdf'),
 ]
