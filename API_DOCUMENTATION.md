@@ -1,4 +1,10 @@
-# Mobile App API Specification
+# 📚 API DOCUMENTATION
+
+> **Purpose:** Complete API reference for the Mobile App  
+> **Base URL:** `https://makeplus-platform.onrender.com`  
+> **Last Updated:** May 14, 2026
+
+---
 
 ## 🎭 User Roles (IMPORTANT)
 

@@ -1,13 +1,21 @@
-# Message to Mobile App Developer
+# 📋 CHANGELOG FOR FRONTEND DEVELOPER
+
+> **Purpose:** This document tracks all backend changes, new features, and API updates that affect the mobile app.  
+> **When to use:** Check this file before each frontend update to stay synchronized with backend changes.  
+> **Last Updated:** May 14, 2026
+
+---
 
 ## 🚨 MAJOR UPDATE: New Sign Up & Authentication Flow
 
 **Date:** April 17, 2026
 
-**Latest Update (April 30, 2026):** 
+**Latest Update (May 14, 2026):** 
 - ✅ Fixed room assignment API - Room managers can now get their assigned room
 - ✅ Added session swap functionality - Room managers can swap times between two sessions
 - ✅ Fixed exposant APIs - Booth visit tracking now working correctly
+- ✅ **NEW:** File storage now uses cPanel - all uploaded images/PDFs persist across deployments
+- ✅ **NEW:** ePoster code unique constraint fixed - duplicate submission errors resolved
 - ✅ **FIXED:** Exposant scan endpoint database constraint - `notes` field now allows NULL values
 - ⚠️ **CRITICAL URL FIX:** Use `/api/rooms/{room_id}/` NOT `/api/events/{event_id}/rooms/{room_id}/`
 - ⚠️ **CRITICAL BASE URL:** Use `https://makeplus-platform.onrender.com` NOT `https://gcp-us-west1-1.origin.onrender.com`
