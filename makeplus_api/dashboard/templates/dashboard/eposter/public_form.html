@@ -74,6 +74,21 @@
             margin: 0 auto;
         }
         
+        .event-logo {
+            display: flex;
+            justify-content: center;
+            animation: fadeInDown 0.6s ease;
+        }
+        
+        .event-logo img {
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+            transition: transform 0.3s ease;
+        }
+        
+        .event-logo img:hover {
+            transform: scale(1.05);
+        }
+        
         .event-eyebrow {
             font-size: 0.75rem;
             font-weight: 500;
@@ -407,6 +422,11 @@
                 padding: 40px 20px 60px;
             }
             
+            .event-logo img {
+                max-height: 80px !important;
+                max-width: 200px !important;
+            }
+            
             .event-title {
                 font-size: 1.8rem;
             }
@@ -512,6 +532,17 @@
                 transform: translateY(0);
             }
         }
+        
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
 <body>
@@ -519,6 +550,11 @@
     <!-- Elegant Banner -->
     <div class="elegant-banner">
         <div class="banner-content">
+            {% if event.logo %}
+            <div class="event-logo mb-4">
+                <img src="{{ event.logo.url }}" alt="{{ event.name }} Logo" style="max-height: 100px; max-width: 250px; object-fit: contain;">
+            </div>
+            {% endif %}
             <div class="event-eyebrow">
                 SCIENTIFIC CONTRIBUTIONS PLATFORM
             </div>
