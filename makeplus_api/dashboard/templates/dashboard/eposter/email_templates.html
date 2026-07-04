@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}Templates Email ePoster - {{ event.name }}{% endblock %}
+{% block title %}Templates Email Contributions - {{ event.name }}{% endblock %}
 
 {% block extra_head %}
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -15,11 +15,11 @@
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_dashboard' event.id %}">ePoster</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_dashboard' event.id %}">Contributions</a></li>
                     <li class="breadcrumb-item active">Templates Email</li>
                 </ol>
             </nav>
-            <h1 class="h3 mb-0">Templates d'emails ePoster</h1>
+            <h1 class="h3 mb-0">Templates d'emails Contributions Scientifiques</h1>
             <p class="text-muted mb-0">{{ event.name }}</p>
         </div>
     </div>

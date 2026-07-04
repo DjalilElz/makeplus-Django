@@ -135,32 +135,32 @@ urlpatterns = [
     # API: Get event registration fields for campaign variables
     path('api/events/<uuid:event_id>/registration-fields/', views_email.get_event_registration_fields, name='api_event_registration_fields'),
     
-    # ePoster Management - Central Hub
+    # Scientific Contributions Management - Central Hub
+    path('contributions/', views_eposter_management.eposter_management_home, name='contributions_management_home'),
+    path('contributions/create/<uuid:event_id>/', views_eposter_management.create_form_for_event, name='contributions_create_form_for_event'),
+    path('contributions/<uuid:event_id>/enable/', views_eposter_management.eposter_enable_for_event, name='contributions_enable_for_event'),
+    path('contributions/<uuid:event_id>/toggle/', views_eposter_management.eposter_form_toggle, name='contributions_form_toggle'),
+    path('contributions/copy/<uuid:source_event_id>/<uuid:target_event_id>/', views_eposter_management.eposter_copy_settings, name='contributions_copy_settings'),
+    
+    # Scientific Contributions Management - Event Specific
+    path('events/<uuid:event_id>/contributions/', views_eposter_dashboard.eposter_dashboard, name='contributions_dashboard'),
+    path('events/<uuid:event_id>/contributions/submissions/', views_eposter_dashboard.eposter_submissions_list, name='contributions_submissions_list'),
+    path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/', views_eposter_dashboard.eposter_submission_detail, name='contributions_submission_detail'),
+    path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/validate/', views_eposter_dashboard.eposter_validate_submission, name='contributions_validate_submission'),
+    path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/set-status/', views_eposter_dashboard.eposter_set_status, name='contributions_set_status'),
+    path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/realtime/', views_eposter_dashboard.eposter_realtime_status, name='contributions_realtime_status'),
+    path('events/<uuid:event_id>/contributions/email-templates/', views_eposter_dashboard.eposter_email_templates, name='contributions_email_templates'),
+    path('events/<uuid:event_id>/contributions/email-templates/create/', views_eposter_dashboard.eposter_email_template_create, name='contributions_email_template_create'),
+    path('events/<uuid:event_id>/contributions/email-templates/<uuid:template_id>/edit/', views_eposter_dashboard.eposter_email_template_edit, name='contributions_email_template_edit'),
+    path('events/<uuid:event_id>/contributions/email-templates/<uuid:template_id>/delete/', views_eposter_dashboard.eposter_email_template_delete, name='contributions_email_template_delete'),
+    path('events/<uuid:event_id>/contributions/export/', views_eposter_dashboard.eposter_export_csv, name='contributions_export_csv'),
+    
+    # Scientific Contributions Final Submission (Public - No Login Required)
+    path('contributions/final-submission/<uuid:event_id>/', views_eposter_final.eposter_final_submission_form, name='contributions_final_submission_form'),
+    path('contributions/gallery/<uuid:event_id>/', views_eposter_final.eposter_gallery, name='contributions_gallery'),
+    path('contributions/view/<uuid:submission_id>/', views_eposter_final.eposter_view_pdf, name='contributions_view_pdf'),
+    
+    # Legacy URLs for backward compatibility
     path('eposter/', views_eposter_management.eposter_management_home, name='eposter_management_home'),
-    path('eposter/create/<uuid:event_id>/', views_eposter_management.create_form_for_event, name='create_form_for_event'),
-    path('eposter/<uuid:event_id>/enable/', views_eposter_management.eposter_enable_for_event, name='eposter_enable_for_event'),
-    path('eposter/<uuid:event_id>/toggle/', views_eposter_management.eposter_form_toggle, name='eposter_form_toggle'),
-    path('eposter/copy/<uuid:source_event_id>/<uuid:target_event_id>/', views_eposter_management.eposter_copy_settings, name='eposter_copy_settings'),
-    
-    # ePoster Management - Event Specific
     path('events/<uuid:event_id>/eposter/', views_eposter_dashboard.eposter_dashboard, name='eposter_dashboard'),
-    path('events/<uuid:event_id>/eposter/submissions/', views_eposter_dashboard.eposter_submissions_list, name='eposter_submissions_list'),
-    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/', views_eposter_dashboard.eposter_submission_detail, name='eposter_submission_detail'),
-    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/validate/', views_eposter_dashboard.eposter_validate_submission, name='eposter_validate_submission'),
-    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/set-status/', views_eposter_dashboard.eposter_set_status, name='eposter_set_status'),
-    path('events/<uuid:event_id>/eposter/submissions/<uuid:submission_id>/realtime/', views_eposter_dashboard.eposter_realtime_status, name='eposter_realtime_status'),
-    # Committee management removed - all committee members created in step 4 have equal access
-    # path('events/<uuid:event_id>/eposter/committee/', views_eposter_dashboard.eposter_committee_list, name='eposter_committee_list'),
-    # path('events/<uuid:event_id>/eposter/committee/add/', views_eposter_dashboard.eposter_committee_add, name='eposter_committee_add'),
-    # path('events/<uuid:event_id>/eposter/committee/<uuid:member_id>/remove/', views_eposter_dashboard.eposter_committee_remove, name='eposter_committee_remove'),
-    path('events/<uuid:event_id>/eposter/email-templates/', views_eposter_dashboard.eposter_email_templates, name='eposter_email_templates'),
-    path('events/<uuid:event_id>/eposter/email-templates/create/', views_eposter_dashboard.eposter_email_template_create, name='eposter_email_template_create'),
-    path('events/<uuid:event_id>/eposter/email-templates/<uuid:template_id>/edit/', views_eposter_dashboard.eposter_email_template_edit, name='eposter_email_template_edit'),
-    path('events/<uuid:event_id>/eposter/email-templates/<uuid:template_id>/delete/', views_eposter_dashboard.eposter_email_template_delete, name='eposter_email_template_delete'),
-    path('events/<uuid:event_id>/eposter/export/', views_eposter_dashboard.eposter_export_csv, name='eposter_export_csv'),
-    
-    # ePoster Final Submission (Public - No Login Required)
-    path('eposter/final-submission/<uuid:event_id>/', views_eposter_final.eposter_final_submission_form, name='eposter_final_submission_form'),
-    path('eposter/gallery/<uuid:event_id>/', views_eposter_final.eposter_gallery, name='eposter_gallery'),
-    path('eposter/view/<uuid:submission_id>/', views_eposter_final.eposter_view_pdf, name='eposter_view_pdf'),
 ]

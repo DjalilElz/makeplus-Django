@@ -282,8 +282,8 @@
                 </a>
             </li>
             <li class="sidebar-nav-item">
-                <a href="{% url 'dashboard:eposter_management_home' %}" class="sidebar-nav-link {% if 'eposter' in request.resolver_match.url_name %}active{% endif %}">
-                    <i class="bi bi-file-earmark-text"></i> Call for Communicants
+                <a href="{% url 'dashboard:contributions_management_home' %}" class="sidebar-nav-link {% if 'contributions' in request.resolver_match.url_name or 'eposter' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-file-earmark-text"></i> Contributions Scientifiques
                 </a>
             </li>
             
@@ -317,7 +317,7 @@
         </ul>
         {% else %}
         <!-- Committee Member Sidebar (Limited Access) -->
-        <a href="{% url 'dashboard:eposter_management_home' %}" class="sidebar-brand">
+        <a href="{% url 'dashboard:contributions_management_home' %}" class="sidebar-brand">
             <img src="{% static 'dashboard/images/Makeplus Full logo.svg' %}" alt="MakePlus Logo">
         </a>
         
@@ -338,7 +338,7 @@
         
         <ul class="sidebar-nav">
             <li class="sidebar-nav-item">
-                <a href="{% url 'dashboard:eposter_management_home' %}" class="sidebar-nav-link {% if 'eposter_management' in request.resolver_match.url_name %}active{% endif %}">
+                <a href="{% url 'dashboard:contributions_management_home' %}" class="sidebar-nav-link {% if 'contributions_management' in request.resolver_match.url_name or 'eposter_management' in request.resolver_match.url_name %}active{% endif %}">
                     <i class="bi bi-house-door"></i> My Events
                 </a>
             </li>
