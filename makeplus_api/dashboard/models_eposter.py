@@ -1,5 +1,5 @@
 """
-Call for Communications Models - Scientific Committee Validation System
+Scientific Contributions Models - Committee Validation System
 Supports: E-Poster, Communication Orale, Table Ronde, Atelier
 """
 from django.db import models
@@ -8,9 +8,9 @@ from events.models import Event
 import uuid
 
 
-class EPosterSubmission(models.Model):
+class ScientificContributionSubmission(models.Model):
     """
-    Communication Submission Model
+    Scientific Contribution Submission Model
     Stores all submission data from participants for:
     - E-Poster (requires final submission with code)
     - Communication Orale (requires final submission with code)
@@ -49,7 +49,7 @@ class EPosterSubmission(models.Model):
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='eposter_submissions')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='contribution_submissions')
     
     # --- PERSONAL INFORMATION ---
     nom = models.CharField(max_length=100, verbose_name="Nom")
@@ -86,13 +86,13 @@ class EPosterSubmission(models.Model):
     
     # --- OPTIONAL ATTACHMENTS ---
     fichier_resume = models.FileField(
-        upload_to='eposters/resumes/', 
+        upload_to='contributions/resumes/', 
         blank=True, 
         null=True, 
         verbose_name="Fichier résumé (optionnel)"
     )
     fichier_poster = models.FileField(
-        upload_to='eposters/posters/', 
+        upload_to='contributions/posters/', 
         blank=True, 
         null=True, 
         verbose_name="Fichier poster (optionnel)"
@@ -119,9 +119,9 @@ class EPosterSubmission(models.Model):
     acceptance_email_sent = models.BooleanField(default=False)
     rejection_email_sent = models.BooleanField(default=False)
     
-    # Eposter code for final submission (generated when accepted)
+    # Code for final submission (generated when accepted)
     # Only for e_poster and communication_orale types
-    eposter_code = models.CharField(max_length=50, blank=True, null=True, unique=True, verbose_name="Code de Communication")
+    contribution_code = models.CharField(max_length=50, blank=True, null=True, unique=True, verbose_name="Code de Contribution", db_column='eposter_code')
     
     # Metadata
     ip_address = models.GenericIPAddressField(null=True, blank=True)
@@ -132,9 +132,10 @@ class EPosterSubmission(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
+        db_table = 'dashboard_epostersubmission'  # Keep existing table name for data preservation
         ordering = ['-submitted_at']
-        verbose_name = 'Communication Submission'
-        verbose_name_plural = 'Communication Submissions'
+        verbose_name = 'Scientific Contribution Submission'
+        verbose_name_plural = 'Scientific Contribution Submissions'
         indexes = [
             models.Index(fields=['event', 'status', '-submitted_at']),
             models.Index(fields=['email']),
@@ -157,7 +158,7 @@ class EPosterSubmission(models.Model):
     
     def get_pending_validations_count(self):
         """Get count of committee members who haven't voted yet"""
-        total_committee = self.event.eposter_committee_members.filter(is_active=True).count()
+        total_committee = self.event.contribution_committee_members.filter(is_active=True).count()
         voted = self.validations.count()
         return total_committee - voted
     
@@ -175,14 +176,14 @@ class EPosterSubmission(models.Model):
         # If enough approvals, mark as accepted
         if approvals >= self.validations_required:
             self.status = 'accepted'
-            # Generate eposter code if not already generated
-            if not self.eposter_code:
-                self.generate_eposter_code()
-            self.save(update_fields=['status', 'eposter_code', 'updated_at'])
+            # Generate contribution code if not already generated
+            if not self.contribution_code:
+                self.generate_contribution_code()
+            self.save(update_fields=['status', 'contribution_code', 'updated_at'])
             return True
         
         # If more rejections than possible remaining approvals, reject
-        total_committee = self.event.eposter_committee_members.filter(is_active=True).count()
+        total_committee = self.event.contribution_committee_members.filter(is_active=True).count()
         remaining_votes = total_committee - (approvals + rejections)
         if approvals + remaining_votes < self.validations_required:
             self.status = 'rejected'
@@ -191,7 +192,7 @@ class EPosterSubmission(models.Model):
         
         return False
     
-    def generate_eposter_code(self):
+    def generate_contribution_code(self):
         """
         Generate unique code for this event based on submission type.
         Only e_poster and communication_orale get codes (for final submission).
@@ -210,22 +211,22 @@ class EPosterSubmission(models.Model):
             return None
         
         # Get count of accepted submissions of this type for this event
-        count = EPosterSubmission.objects.filter(
+        count = ScientificContributionSubmission.objects.filter(
             event=self.event,
             type_participation=self.type_participation,
             status='accepted'
-        ).exclude(eposter_code='').count() + 1
+        ).exclude(contribution_code='').count() + 1
         
         # Format: {PREFIX}-{EVENT_ID_SHORT}-{NUMBER}
         event_short = str(self.event.id)[:8].upper()
         code = f"{prefix}-{event_short}-{count:03d}"
         
         # Ensure uniqueness
-        while EPosterSubmission.objects.filter(eposter_code=code).exists():
+        while ScientificContributionSubmission.objects.filter(contribution_code=code).exists():
             count += 1
             code = f"{prefix}-{event_short}-{count:03d}"
         
-        self.eposter_code = code
+        self.contribution_code = code
         return code
     
     def requires_final_submission(self):
@@ -235,11 +236,11 @@ class EPosterSubmission(models.Model):
 
 
 
-class EPosterFinalSubmission(models.Model):
+class ScientificContributionFinalSubmission(models.Model):
     """
-    Final Communication Submission Model
+    Final Scientific Contribution Submission Model
     Only for E-Poster and Communication Orale types (after validation)
-    Submitted by users who received validation and communication code
+    Submitted by users who received validation and contribution code
     """
     
     SPECIALITE_CHOICES = [
@@ -289,12 +290,12 @@ class EPosterFinalSubmission(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     original_submission = models.OneToOneField(
-        EPosterSubmission,
+        'ScientificContributionSubmission',
         on_delete=models.CASCADE,
         related_name='final_submission',
         verbose_name="Soumission originale"
     )
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='eposter_final_submissions')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='contribution_final_submissions')
     
     # Form fields
     nom = models.CharField(max_length=100, verbose_name="Nom")
@@ -306,14 +307,14 @@ class EPosterFinalSubmission(models.Model):
         choices=DOMAINE_COMMUNICATION_CHOICES, 
         verbose_name="Domaine de communication"
     )
-    poster_number = models.CharField(max_length=50, verbose_name="Numéro de Communication (Code)")
+    contribution_number = models.CharField(max_length=50, verbose_name="Numéro de Contribution (Code)")
     titre = models.CharField(max_length=500, verbose_name="Titre")
     auteurs = models.TextField(verbose_name="Auteurs")
     co_auteurs = models.TextField(blank=True, verbose_name="Co-auteurs")
     
     # PDF file
     abstract_file = models.FileField(
-        upload_to='eposters/final_submissions/',
+        upload_to='contributions/final_submissions/',
         verbose_name="Fichier Abstract (PDF)"
     )
     
@@ -326,33 +327,34 @@ class EPosterFinalSubmission(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
+        db_table = 'dashboard_eposterfinalsubmission'  # Keep existing table name
         ordering = ['-submitted_at']
-        verbose_name = 'Communication Final Submission'
-        verbose_name_plural = 'Communication Final Submissions'
+        verbose_name = 'Scientific Contribution Final Submission'
+        verbose_name_plural = 'Scientific Contribution Final Submissions'
         indexes = [
             models.Index(fields=['event', '-submitted_at']),
-            models.Index(fields=['poster_number']),
+            models.Index(fields=['contribution_number']),
         ]
     
     def __str__(self):
-        return f"{self.poster_number} - {self.titre[:50]}..."
+        return f"{self.contribution_number} - {self.titre[:50]}..."
 
 
-class EPosterValidation(models.Model):
+class ScientificContributionValidation(models.Model):
     """
     Individual validation by a committee member
     Supports real-time tracking of all committee votes
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     submission = models.ForeignKey(
-        EPosterSubmission, 
+        'ScientificContributionSubmission', 
         on_delete=models.CASCADE, 
         related_name='validations'
     )
     committee_member = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
-        related_name='eposter_validations'
+        related_name='contribution_validations'
     )
     
     # Vote
@@ -374,10 +376,11 @@ class EPosterValidation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
+        db_table = 'dashboard_epostervalidation'  # Keep existing table name
         unique_together = ('submission', 'committee_member')
         ordering = ['-validated_at']
-        verbose_name = 'Communication Validation'
-        verbose_name_plural = 'Communication Validations'
+        verbose_name = 'Scientific Contribution Validation'
+        verbose_name_plural = 'Scientific Contribution Validations'
         indexes = [
             models.Index(fields=['submission', 'is_approved']),
             models.Index(fields=['committee_member', '-validated_at']),
@@ -388,20 +391,20 @@ class EPosterValidation(models.Model):
         return f"{status} {self.submission.titre_travail[:30]}... by {self.committee_member.username}"
 
 
-class EPosterCommitteeMember(models.Model):
+class ScientificContributionCommitteeMember(models.Model):
     """
-    Scientific Committee Member Assignment for ePoster Review
+    Scientific Committee Member Assignment for Contribution Review
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey(
         Event, 
         on_delete=models.CASCADE, 
-        related_name='eposter_committee_members'
+        related_name='contribution_committee_members'
     )
     user = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
-        related_name='eposter_committee_memberships'
+        related_name='contribution_committee_memberships'
     )
     
     # Role in committee
@@ -424,41 +427,42 @@ class EPosterCommitteeMember(models.Model):
         User, 
         on_delete=models.SET_NULL, 
         null=True, 
-        related_name='eposter_committee_assignments_made'
+        related_name='contribution_committee_assignments_made'
     )
     
     class Meta:
+        db_table = 'dashboard_epostercommitteemember'  # Keep existing table name
         unique_together = ('event', 'user')
         ordering = ['-assigned_at']
-        verbose_name = 'Communication Committee Member'
-        verbose_name_plural = 'Communication Committee Members'
+        verbose_name = 'Scientific Contribution Committee Member'
+        verbose_name_plural = 'Scientific Contribution Committee Members'
     
     def __str__(self):
         return f"{self.user.get_full_name() or self.user.username} - {self.event.name} ({self.get_role_display()})"
     
     def get_validations_count(self):
         """Get total validations made by this member for this event"""
-        return EPosterValidation.objects.filter(
+        return ScientificContributionValidation.objects.filter(
             committee_member=self.user,
             submission__event=self.event
         ).count()
     
     def get_pending_submissions(self):
         """Get submissions this member hasn't reviewed yet"""
-        reviewed_ids = EPosterValidation.objects.filter(
+        reviewed_ids = ScientificContributionValidation.objects.filter(
             committee_member=self.user,
             submission__event=self.event
         ).values_list('submission_id', flat=True)
         
-        return EPosterSubmission.objects.filter(
+        return ScientificContributionSubmission.objects.filter(
             event=self.event,
             status='pending'
         ).exclude(id__in=reviewed_ids)
 
 
-class EPosterEmailTemplate(models.Model):
+class ScientificContributionEmailTemplate(models.Model):
     """
-    Email templates for ePoster notifications
+    Email templates for Scientific Contribution notifications
     """
     TYPE_CHOICES = [
         ('accepted', 'Acceptation'),
@@ -469,12 +473,12 @@ class EPosterEmailTemplate(models.Model):
     event = models.ForeignKey(
         Event, 
         on_delete=models.CASCADE, 
-        related_name='eposter_email_templates'
+        related_name='contribution_email_templates'
     )
     
     template_type = models.CharField(max_length=30, choices=TYPE_CHOICES)
     subject = models.CharField(max_length=300)
-    body_html = models.TextField(help_text="HTML content with placeholders: {{nom}}, {{prenom}}, {{titre}}, {{event_name}}, {{event_location}}, {{event_start_date}}, {{event_end_date}}")
+    body_html = models.TextField(help_text="HTML content with placeholders: {{nom}}, {{prenom}}, {{titre}}, {{event_name}}, {{event_location}}, {{event_start_date}}, {{event_end_date}}, {{contribution_code}}, {{final_submission_url}}, {{type_participation}}, {{show_final_submission}}")
     body_text = models.TextField(blank=True, help_text="Plain text version (optional)")
     design_json = models.JSONField(default=dict, blank=True, help_text="Unlayer editor design JSON")
     
@@ -485,10 +489,11 @@ class EPosterEmailTemplate(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     
     class Meta:
+        db_table = 'dashboard_eposteremailtemplate'  # Keep existing table name
         unique_together = ('event', 'template_type')
         ordering = ['template_type']
-        verbose_name = 'Communication Email Template'
-        verbose_name_plural = 'Communication Email Templates'
+        verbose_name = 'Scientific Contribution Email Template'
+        verbose_name_plural = 'Scientific Contribution Email Templates'
     
     def __str__(self):
         return f"{self.event.name} - {self.get_template_type_display()}"
@@ -541,10 +546,18 @@ class EventFormConfiguration(models.Model):
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-@receiver(post_save, sender=EPosterValidation)
+@receiver(post_save, sender=ScientificContributionValidation)
 def check_submission_status_after_validation(sender, instance, created, **kwargs):
     """
     After each validation, check if the submission status should be updated
     """
     if created:
         instance.submission.check_and_update_status()
+
+
+# Legacy aliases for backward compatibility
+EPosterSubmission = ScientificContributionSubmission
+EPosterFinalSubmission = ScientificContributionFinalSubmission
+EPosterValidation = ScientificContributionValidation
+EPosterCommitteeMember = ScientificContributionCommitteeMember
+EPosterEmailTemplate = ScientificContributionEmailTemplate

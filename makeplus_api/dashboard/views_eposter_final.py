@@ -55,7 +55,7 @@ def eposter_final_submission_form(request, event_id):
             # Verify eposter code exists and is accepted
             try:
                 original_submission = EPosterSubmission.objects.get(
-                    eposter_code=poster_number,
+                    contribution_code=poster_number,
                     event=event,
                     status='accepted'
                 )
@@ -88,7 +88,7 @@ def eposter_final_submission_form(request, event_id):
                 telephone=telephone,
                 specialite=specialite,
                 domaine_communication=domaine_communication,
-                poster_number=poster_number,
+                contribution_number=poster_number,
                 titre=titre,
                 auteurs=auteurs,
                 co_auteurs=co_auteurs,
@@ -153,7 +153,7 @@ def eposter_view_pdf(request, submission_id):
     )
     
     # Set filename for download
-    filename = f"eposter_{final_submission.poster_number}.pdf"
+    filename = f"contribution_{final_submission.contribution_number}.pdf"
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     
     return response

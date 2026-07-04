@@ -367,12 +367,12 @@ def send_decision_email(submission):
             print(f"No email template found for type '{template_type}' and event '{submission.event.name}'")
             return False
         
-        # Generate eposter code if accepted and not already generated
+        # Generate contribution code if accepted and not already generated
         # Only for e_poster and communication_orale types
-        if submission.status == 'accepted' and not submission.eposter_code:
+        if submission.status == 'accepted' and not submission.contribution_code:
             if submission.requires_final_submission():
-                submission.generate_eposter_code()
-                submission.save(update_fields=['eposter_code'])
+                submission.generate_contribution_code()
+                submission.save(update_fields=['contribution_code'])
         
         # Build final submission URL (only for types that require final submission)
         final_submission_url = ''
@@ -390,7 +390,7 @@ def send_decision_email(submission):
             'event_location': submission.event.location or '',
             'event_start_date': submission.event.start_date.strftime('%d/%m/%Y') if submission.event.start_date else '',
             'event_end_date': submission.event.end_date.strftime('%d/%m/%Y') if submission.event.end_date else '',
-            'eposter_code': submission.eposter_code if (submission.status == 'accepted' and show_final_submission) else '',
+            'contribution_code': submission.contribution_code if (submission.status == 'accepted' and show_final_submission) else '',
             'final_submission_url': final_submission_url if show_final_submission else '',
             'type_participation': submission.get_type_participation_display(),
             'show_final_submission': show_final_submission,
@@ -402,7 +402,7 @@ def send_decision_email(submission):
         print(f"Sending {template_type} email to {submission.email} via Brevo API")
         print(f"Subject: {subject}")
         if submission.status == 'accepted':
-            print(f"Eposter Code: {submission.eposter_code}")
+            print(f"Contribution Code: {submission.contribution_code}")
             print(f"Final Submission URL: {final_submission_url}")
         
         # Use Brevo API for sending
