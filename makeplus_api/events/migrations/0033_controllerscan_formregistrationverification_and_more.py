@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('dashboard', '0019_eposterfinalsubmission_and_more'),
+        ('dashboard', '0018_update_communication_types'),
         ('events', '0032_alter_exposantscan_notes'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
