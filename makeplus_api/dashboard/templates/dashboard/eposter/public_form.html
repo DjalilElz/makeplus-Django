@@ -74,13 +74,36 @@
             margin: 0 auto;
         }
         
-        .event-logo {
+        .event-eyebrow {
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--gold-tan);
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        
+        /* Logo and Title Row */
+        .logo-title-row {
             display: flex;
-            justify-content: center;
-            animation: fadeInDown 0.6s ease;
+            align-items: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .event-logo {
+            flex-shrink: 0;
+            animation: fadeInLeft 0.6s ease;
         }
         
         .event-logo img {
+            max-height: 120px;
+            max-width: 300px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
             filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
             transition: transform 0.3s ease;
         }
@@ -89,21 +112,18 @@
             transform: scale(1.05);
         }
         
-        .event-eyebrow {
-            font-size: 0.75rem;
-            font-weight: 500;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            color: var(--gold-tan);
-            margin-bottom: 15px;
+        .event-title-wrapper {
+            flex: 1;
+            min-width: 250px;
+            animation: fadeInRight 0.6s ease;
         }
         
         .event-title {
             font-family: var(--font-serif);
-            font-size: 2.5rem;
+            font-size: 2.8rem;
             font-weight: 700;
             line-height: 1.2;
-            margin-bottom: 10px;
+            margin: 0;
             color: var(--pure-white);
         }
         
@@ -422,13 +442,29 @@
                 padding: 40px 20px 60px;
             }
             
+            .event-eyebrow {
+                font-size: 0.85rem;
+                letter-spacing: 0.15em;
+            }
+            
+            .logo-title-row {
+                flex-direction: column;
+                align-items: center;
+                gap: 20px;
+                text-align: center;
+            }
+            
             .event-logo img {
-                max-height: 80px !important;
-                max-width: 200px !important;
+                max-height: 90px !important;
+                max-width: 220px !important;
+            }
+            
+            .event-title-wrapper {
+                text-align: center;
             }
             
             .event-title {
-                font-size: 1.8rem;
+                font-size: 2rem;
             }
             
             .event-code {
@@ -543,6 +579,28 @@
                 transform: translateY(0);
             }
         }
+        
+        @keyframes fadeInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        @keyframes fadeInRight {
+            from {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
     </style>
 </head>
 <body>
@@ -550,17 +608,24 @@
     <!-- Elegant Banner -->
     <div class="elegant-banner">
         <div class="banner-content">
-            {% if event.logo %}
-            <div class="event-logo mb-4">
-                <img src="{{ event.logo.url }}" alt="{{ event.name }} Logo" style="max-height: 100px; max-width: 250px; object-fit: contain;">
-            </div>
-            {% endif %}
             <div class="event-eyebrow">
                 SCIENTIFIC CONTRIBUTIONS PLATFORM
             </div>
-            <h1 class="event-title">
-                {{ event.name }}
-            </h1>
+            
+            <!-- Logo and Event Name Row -->
+            <div class="logo-title-row">
+                {% if event.logo %}
+                <div class="event-logo">
+                    <img src="{{ event.logo.url }}" alt="{{ event.name }} Logo">
+                </div>
+                {% endif %}
+                <div class="event-title-wrapper">
+                    <h1 class="event-title">
+                        {{ event.name }}
+                    </h1>
+                </div>
+            </div>
+            
             <p class="event-subtitle">
                 Submit your scientific work for evaluation by our expert committee. 
                 Share your research, innovations, and discoveries with the scientific community.
