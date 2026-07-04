@@ -58,11 +58,24 @@ class Migration(migrations.Migration):
         # Create indexes if they don't exist
         migrations.RunSQL(
             sql="""
-                CREATE INDEX IF NOT EXISTS dashboard_e_event_i_418864_idx 
-                ON dashboard_eposterfinalsubmission (event_id, submitted_at DESC);
-                
-                CREATE INDEX IF NOT EXISTS dashboard_e_poster__f44ff8_idx 
-                ON dashboard_eposterfinalsubmission (poster_number);
+                DO $$
+                BEGIN
+                    -- Only create indexes if the table and column exist
+                    IF EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_name = 'dashboard_eposterfinalsubmission'
+                    ) AND EXISTS (
+                        SELECT FROM information_schema.columns 
+                        WHERE table_name = 'dashboard_eposterfinalsubmission' 
+                        AND column_name = 'poster_number'
+                    ) THEN
+                        CREATE INDEX IF NOT EXISTS dashboard_e_event_i_418864_idx 
+                        ON dashboard_eposterfinalsubmission (event_id, submitted_at DESC);
+                        
+                        CREATE INDEX IF NOT EXISTS dashboard_e_poster__f44ff8_idx 
+                        ON dashboard_eposterfinalsubmission (poster_number);
+                    END IF;
+                END $$;
             """,
             reverse_sql="""
                 DROP INDEX IF EXISTS dashboard_e_event_i_418864_idx;
