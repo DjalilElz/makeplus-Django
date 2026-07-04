@@ -100,7 +100,7 @@ def create_form_for_event(request, event_id):
                 f'Call for Communicants form created for "{event.name}". '
                 f'Public URL: /contributions/{event.id}/'
             )
-            return redirect('dashboard:eposter_dashboard', event_id=event.id)
+            return redirect('dashboard:contributions_dashboard', event_id=event.id)
         else:
             messages.success(
                 request, 
@@ -198,7 +198,7 @@ def eposter_form_toggle(request, event_id):
     Toggle Call for Communicants form active/inactive status
     """
     if request.method != 'POST':
-        return redirect('dashboard:eposter_management_home')
+        return redirect('dashboard:contributions_management_home')
     
     event = get_object_or_404(Event, id=event_id)
     
