@@ -1,5 +1,6 @@
 """
-ePoster Models for Scientific Committee Validation System
+Call for Communications Models - Scientific Committee Validation System
+Supports: E-Poster, Communication Orale, Table Ronde, Atelier
 """
 from django.db import models
 from django.contrib.auth.models import User
@@ -9,15 +10,20 @@ import uuid
 
 class EPosterSubmission(models.Model):
     """
-    ePoster Submission Model
-    Stores all submission data from participants
+    Communication Submission Model
+    Stores all submission data from participants for:
+    - E-Poster (requires final submission with code)
+    - Communication Orale (requires final submission with code)
+    - Table Ronde (no final submission)
+    - Atelier (no final submission)
     """
     
     # Choices for various fields
     TYPE_PARTICIPATION_CHOICES = [
-        ('communication_orale', 'Communication Orale'),
-        ('poster', 'Poster'),
         ('e_poster', 'E-Poster'),
+        ('communication_orale', 'Communication Orale'),
+        ('table_ronde', 'Table Ronde'),
+        ('atelier', 'Atelier'),
     ]
     
     GENRE_CHOICES = [
@@ -114,7 +120,8 @@ class EPosterSubmission(models.Model):
     rejection_email_sent = models.BooleanField(default=False)
     
     # Eposter code for final submission (generated when accepted)
-    eposter_code = models.CharField(max_length=50, blank=True, null=True, unique=True, verbose_name="Code ePoster")
+    # Only for e_poster and communication_orale types
+    eposter_code = models.CharField(max_length=50, blank=True, null=True, unique=True, verbose_name="Code de Communication")
     
     # Metadata
     ip_address = models.GenericIPAddressField(null=True, blank=True)
@@ -126,8 +133,8 @@ class EPosterSubmission(models.Model):
     
     class Meta:
         ordering = ['-submitted_at']
-        verbose_name = 'ePoster Submission'
-        verbose_name_plural = 'ePoster Submissions'
+        verbose_name = 'Communication Submission'
+        verbose_name_plural = 'Communication Submissions'
         indexes = [
             models.Index(fields=['event', 'status', '-submitted_at']),
             models.Index(fields=['email']),
@@ -185,35 +192,54 @@ class EPosterSubmission(models.Model):
         return False
     
     def generate_eposter_code(self):
-        """Generate unique eposter code for this event"""
-        import random
-        import string
+        """
+        Generate unique code for this event based on submission type.
+        Only e_poster and communication_orale get codes (for final submission).
+        Table_ronde and atelier do NOT get codes.
+        """
+        # Only generate codes for types that have final submission
+        if self.type_participation not in ['e_poster', 'communication_orale']:
+            return None
         
-        # Get count of accepted submissions for this event
+        # Separate number sequences for each type
+        if self.type_participation == 'e_poster':
+            prefix = 'EPOSTER'
+        elif self.type_participation == 'communication_orale':
+            prefix = 'COMORAL'
+        else:
+            return None
+        
+        # Get count of accepted submissions of this type for this event
         count = EPosterSubmission.objects.filter(
             event=self.event,
+            type_participation=self.type_participation,
             status='accepted'
         ).exclude(eposter_code='').count() + 1
         
-        # Format: EPOSTER-{EVENT_ID_SHORT}-{NUMBER}
+        # Format: {PREFIX}-{EVENT_ID_SHORT}-{NUMBER}
         event_short = str(self.event.id)[:8].upper()
-        code = f"EPOSTER-{event_short}-{count:03d}"
+        code = f"{prefix}-{event_short}-{count:03d}"
         
         # Ensure uniqueness
         while EPosterSubmission.objects.filter(eposter_code=code).exists():
             count += 1
-            code = f"EPOSTER-{event_short}-{count:03d}"
+            code = f"{prefix}-{event_short}-{count:03d}"
         
         self.eposter_code = code
         return code
+    
+    def requires_final_submission(self):
+        """Check if this submission type requires a final submission"""
+        return self.type_participation in ['e_poster', 'communication_orale']
 
 
 
 
 class EPosterFinalSubmission(models.Model):
     """
-    Final ePoster Submission Model
-    Submitted by users who received validation and eposter code
+    Final Communication Submission Model
+    Only for E-Poster and Communication Orale types (after validation)
+    Submitted by users who received validation and communication code
     """
     
     SPECIALITE_CHOICES = [
@@ -280,7 +306,7 @@ class EPosterFinalSubmission(models.Model):
         choices=DOMAINE_COMMUNICATION_CHOICES, 
         verbose_name="Domaine de communication"
     )
-    poster_number = models.CharField(max_length=50, verbose_name="Poster N° (Code)")
+    poster_number = models.CharField(max_length=50, verbose_name="Numéro de Communication (Code)")
     titre = models.CharField(max_length=500, verbose_name="Titre")
     auteurs = models.TextField(verbose_name="Auteurs")
     co_auteurs = models.TextField(blank=True, verbose_name="Co-auteurs")
@@ -301,8 +327,8 @@ class EPosterFinalSubmission(models.Model):
     
     class Meta:
         ordering = ['-submitted_at']
-        verbose_name = 'ePoster Final Submission'
-        verbose_name_plural = 'ePoster Final Submissions'
+        verbose_name = 'Communication Final Submission'
+        verbose_name_plural = 'Communication Final Submissions'
         indexes = [
             models.Index(fields=['event', '-submitted_at']),
             models.Index(fields=['poster_number']),
@@ -350,8 +376,8 @@ class EPosterValidation(models.Model):
     class Meta:
         unique_together = ('submission', 'committee_member')
         ordering = ['-validated_at']
-        verbose_name = 'ePoster Validation'
-        verbose_name_plural = 'ePoster Validations'
+        verbose_name = 'Communication Validation'
+        verbose_name_plural = 'Communication Validations'
         indexes = [
             models.Index(fields=['submission', 'is_approved']),
             models.Index(fields=['committee_member', '-validated_at']),
@@ -404,8 +430,8 @@ class EPosterCommitteeMember(models.Model):
     class Meta:
         unique_together = ('event', 'user')
         ordering = ['-assigned_at']
-        verbose_name = 'ePoster Committee Member'
-        verbose_name_plural = 'ePoster Committee Members'
+        verbose_name = 'Communication Committee Member'
+        verbose_name_plural = 'Communication Committee Members'
     
     def __str__(self):
         return f"{self.user.get_full_name() or self.user.username} - {self.event.name} ({self.get_role_display()})"
@@ -461,8 +487,8 @@ class EPosterEmailTemplate(models.Model):
     class Meta:
         unique_together = ('event', 'template_type')
         ordering = ['template_type']
-        verbose_name = 'ePoster Email Template'
-        verbose_name_plural = 'ePoster Email Templates'
+        verbose_name = 'Communication Email Template'
+        verbose_name_plural = 'Communication Email Templates'
     
     def __str__(self):
         return f"{self.event.name} - {self.get_template_type_display()}"

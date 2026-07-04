@@ -368,15 +368,19 @@ def send_decision_email(submission):
             return False
         
         # Generate eposter code if accepted and not already generated
+        # Only for e_poster and communication_orale types
         if submission.status == 'accepted' and not submission.eposter_code:
-            submission.generate_eposter_code()
-            submission.save(update_fields=['eposter_code'])
+            if submission.requires_final_submission():
+                submission.generate_eposter_code()
+                submission.save(update_fields=['eposter_code'])
         
-        # Build final submission URL
+        # Build final submission URL (only for types that require final submission)
         final_submission_url = ''
-        if submission.status == 'accepted':
+        show_final_submission = False
+        if submission.status == 'accepted' and submission.requires_final_submission():
+            show_final_submission = True
             base_url = settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://makeplus-platform.onrender.com'
-            final_submission_url = f"{base_url}/dashboard/eposter/final-submission/{submission.event.id}/"
+            final_submission_url = f"{base_url}/dashboard/communications/final-submission/{submission.event.id}/"
         
         context = {
             'nom': submission.nom,
@@ -386,8 +390,10 @@ def send_decision_email(submission):
             'event_location': submission.event.location or '',
             'event_start_date': submission.event.start_date.strftime('%d/%m/%Y') if submission.event.start_date else '',
             'event_end_date': submission.event.end_date.strftime('%d/%m/%Y') if submission.event.end_date else '',
-            'eposter_code': submission.eposter_code if submission.status == 'accepted' else '',
-            'final_submission_url': final_submission_url,
+            'eposter_code': submission.eposter_code if (submission.status == 'accepted' and show_final_submission) else '',
+            'final_submission_url': final_submission_url if show_final_submission else '',
+            'type_participation': submission.get_type_participation_display(),
+            'show_final_submission': show_final_submission,
         }
         
         subject = Template(template.subject).render(Context(context))
