@@ -307,7 +307,7 @@ class ScientificContributionFinalSubmission(models.Model):
         choices=DOMAINE_COMMUNICATION_CHOICES, 
         verbose_name="Domaine de communication"
     )
-    contribution_number = models.CharField(max_length=50, verbose_name="Numéro de Contribution (Code)")
+    contribution_number = models.CharField(max_length=50, verbose_name="Numéro de Contribution (Code)", db_column='poster_number')
     titre = models.CharField(max_length=500, verbose_name="Titre")
     auteurs = models.TextField(verbose_name="Auteurs")
     co_auteurs = models.TextField(blank=True, verbose_name="Co-auteurs")
