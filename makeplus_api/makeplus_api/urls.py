@@ -57,8 +57,10 @@ urlpatterns = [
     # Public Forms
     path('forms/<slug:slug>/', public_form_view, name='public_form'),
     
-    # Public ePoster Submission Form
-    path('eposter/<uuid:event_id>/', public_eposter_form_view, name='public_eposter_form'),
+    # Public Scientific Contribution Submission Form
+    path('contributions/<uuid:event_id>/', public_eposter_form_view, name='public_contribution_form'),
+    # Legacy URL redirect
+    path('eposter/<uuid:event_id>/', public_eposter_form_view, name='public_eposter_form'),  # Backward compatibility
     
     # ePoster API
     path('api/eposter/', include('dashboard.urls_eposter')),

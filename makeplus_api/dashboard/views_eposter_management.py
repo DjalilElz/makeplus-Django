@@ -98,7 +98,7 @@ def create_form_for_event(request, event_id):
             messages.success(
                 request, 
                 f'Call for Communicants form created for "{event.name}". '
-                f'Public URL: /eposter/{event.id}/'
+                f'Public URL: /contributions/{event.id}/'
             )
             return redirect('dashboard:eposter_dashboard', event_id=event.id)
         else:
@@ -141,7 +141,7 @@ def eposter_enable_for_event(request, event_id):
         messages.success(
             request, 
             f'Call for Communicants enabled for "{event.name}". '
-            f'Public URL: /eposter/{event.id}/'
+            f'Public URL: /contributions/{event.id}/'
         )
         return redirect('dashboard:eposter_dashboard', event_id=event.id)
     
