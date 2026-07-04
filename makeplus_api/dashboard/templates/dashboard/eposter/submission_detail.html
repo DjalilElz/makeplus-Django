@@ -9,8 +9,8 @@
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_dashboard' event.id %}">ePoster</a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_submissions_list' event.id %}">Soumissions</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_dashboard' event.id %}">Scientific Contributions</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_submissions_list' event.id %}">Soumissions</a></li>
                     <li class="breadcrumb-item active">Détail</li>
                 </ol>
             </nav>
@@ -24,7 +24,7 @@
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li>
-                        <form method="post" action="{% url 'dashboard:eposter_set_status' event.id submission.id %}" class="px-3">
+                        <form method="post" action="{% url 'dashboard:contributions_set_status' event.id submission.id %}" class="px-3">
                             {% csrf_token %}
                             <input type="hidden" name="status" value="accepted">
                             <button type="submit" class="dropdown-item text-success">
@@ -247,7 +247,7 @@
 <div class="modal fade" id="rejectModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" action="{% url 'dashboard:eposter_set_status' event.id submission.id %}">
+            <form method="post" action="{% url 'dashboard:contributions_set_status' event.id submission.id %}">
                 {% csrf_token %}
                 <input type="hidden" name="status" value="rejected">
                 

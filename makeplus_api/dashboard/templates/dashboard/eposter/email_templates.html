@@ -77,11 +77,11 @@
                                     </td>
                                     <td>{{ template.updated_at|date:"d/m/Y H:i" }}</td>
                                     <td>
-                                        <a href="{% url 'dashboard:eposter_email_template_edit' event.id template.id %}" 
+                                        <a href="{% url 'dashboard:contributions_email_template_edit' event.id template.id %}" 
                                            class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <a href="{% url 'dashboard:eposter_email_template_delete' event.id template.id %}" 
+                                        <a href="{% url 'dashboard:contributions_email_template_delete' event.id template.id %}" 
                                            class="btn btn-sm btn-outline-danger"
                                            onclick="return confirm('Supprimer ce template?')">
                                             <i class="bi bi-trash"></i>
@@ -116,7 +116,7 @@
                     {% if missing_types %}
                         <p class="text-muted mb-3">Templates manquants:</p>
                         {% for type_value, type_label in missing_types %}
-                        <a href="{% url 'dashboard:eposter_email_template_create' event.id %}?type={{ type_value }}" 
+                        <a href="{% url 'dashboard:contributions_email_template_create' event.id %}?type={{ type_value }}" 
                            class="btn btn-outline-primary w-100 mb-2">
                             <i class="bi bi-plus me-1"></i> {{ type_label }}
                         </a>

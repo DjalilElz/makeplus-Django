@@ -1,16 +1,16 @@
 {% extends 'dashboard/base.html' %}
 {% load form_filters %}
 
-{% block page_title %}Call for Communicants{% endblock %}
+{% block page_title %}Scientific Contributions{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="mb-1">📄 Call for Communicants</h2>
+            <h2 class="mb-1">📄 Scientific Contributions</h2>
             <p class="text-muted mb-0">
-                Manage Call for Communicants forms for your events
+                Manage Scientific Contribution forms for your events
             </p>
         </div>
         {% if user.is_staff or user.is_superuser %}
@@ -121,7 +121,7 @@
                         <div class="input-group input-group-sm">
                             <input type="text" 
                                    class="form-control" 
-                                   value="{{ request.scheme }}://{{ request.get_host }}/eposter/{{ event.id }}/" 
+                                   value="{{ request.scheme }}://{{ request.get_host }}/contributions/{{ event.id }}/" 
                                    id="url-{{ event.id }}"
                                    readonly>
                             <button class="btn btn-outline-secondary" 
@@ -157,7 +157,7 @@
                         {% if is_admin %}
                             <!-- Toggle Form Status Button -->
                             {% with config=form_configs|lookup:event.id %}
-                                <form method="post" action="{% url 'dashboard:eposter_form_toggle' event.id %}" style="display: inline;">
+                                <form method="post" action="{% url 'dashboard:contributions_form_toggle' event.id %}" style="display: inline;">
                                     {% csrf_token %}
                                     {% if config.is_active %}
                                         <button type="submit" class="btn btn-warning btn-sm w-100">
@@ -172,7 +172,7 @@
                             {% endwith %}
                             
                             <!-- Always show dashboard link -->
-                            <a href="{% url 'dashboard:eposter_dashboard' event.id %}" 
+                            <a href="{% url 'dashboard:contributions_dashboard' event.id %}" 
                                class="btn btn-primary btn-sm">
                                 <i class="bi bi-speedometer2"></i> Manage Submissions
                             </a>
@@ -180,7 +180,7 @@
                         
                         {% if is_admin or event.id in user_committee_events %}
                             {% if event.total_submissions > 0 %}
-                                <a href="{% url 'dashboard:eposter_submissions_list' event.id %}" 
+                                <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" 
                                    class="btn btn-outline-success btn-sm">
                                     <i class="bi bi-list-check"></i> 
                                     View Submissions ({{ event.total_submissions }})
@@ -191,7 +191,7 @@
                         {% if is_admin %}
                         <div class="btn-group" role="group">
                             <!-- Committee management removed - members added in event creation step 4 -->
-                            <a href="{% url 'dashboard:eposter_email_templates' event.id %}" 
+                            <a href="{% url 'dashboard:contributions_email_templates' event.id %}" 
                                class="btn btn-outline-secondary btn-sm">
                                 <i class="bi bi-envelope"></i> Emails
                             </a>

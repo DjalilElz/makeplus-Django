@@ -59,8 +59,8 @@
             <div>
                 <nav aria-label="breadcrumb" class="mb-2">
                     <ol class="breadcrumb mb-0">
-                        <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_dashboard' event.id %}">ePoster</a></li>
-                        <li class="breadcrumb-item"><a href="{% url 'dashboard:eposter_email_templates' event.id %}">Templates</a></li>
+                        <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_dashboard' event.id %}">Scientific Contributions</a></li>
+                        <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_email_templates' event.id %}">Templates</a></li>
                         <li class="breadcrumb-item active">{% if template %}Modifier{% else %}Créer{% endif %}</li>
                     </ol>
                 </nav>
