@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('dashboard', '0021_alter_template_type_max_length'),
+        ('dashboard', '0021_alter_eposteremailtemplate_type_length'),
         ('events', '0032_alter_exposantscan_notes'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
