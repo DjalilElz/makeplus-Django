@@ -147,6 +147,16 @@
                         {% endverbatim %}
                     </div>
                     
+                    <h6 class="small fw-bold text-warning mb-2">Décision & Numéro</h6>
+                    <div class="mb-3">
+                        {% verbatim %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{remarque}}">{{remarque}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{contribution_number}}">{{contribution_number}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{eposter_number}}">{{eposter_number}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{communication_number}}">{{communication_number}}</button>
+                        {% endverbatim %}
+                    </div>
+                    
                 </div>
             </div>
             
@@ -276,6 +286,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 name: "Date de fin",
                 value: "{{event_end_date}}",
                 sample: "17/06/2027"
+            },
+            remarque: {
+                name: "Remarque du comité",
+                value: "{{remarque}}",
+                sample: "Votre travail est excellent et bien structuré."
+            },
+            contribution_number: {
+                name: "Numéro de contribution",
+                value: "{{contribution_number}}",
+                sample: "EPOSTER-EVENT-001"
+            },
+            eposter_number: {
+                name: "Numéro E-Poster",
+                value: "{{eposter_number}}",
+                sample: "001"
+            },
+            communication_number: {
+                name: "Numéro Communication",
+                value: "{{communication_number}}",
+                sample: "001"
             }
         }
     });
@@ -320,6 +350,10 @@ document.addEventListener('DOMContentLoaded', function() {
             previewHtml = previewHtml.replace(/\{\{event_location\}\}/g, 'Centre International de Conférences, Alger');
             previewHtml = previewHtml.replace(/\{\{event_start_date\}\}/g, '15/06/2027');
             previewHtml = previewHtml.replace(/\{\{event_end_date\}\}/g, '17/06/2027');
+            previewHtml = previewHtml.replace(/\{\{remarque\}\}/g, 'Votre travail est excellent et bien structuré.');
+            previewHtml = previewHtml.replace(/\{\{contribution_number\}\}/g, 'EPOSTER-EVENT-001');
+            previewHtml = previewHtml.replace(/\{\{eposter_number\}\}/g, '001');
+            previewHtml = previewHtml.replace(/\{\{communication_number\}\}/g, '001');
             
             // Load HTML into iframe
             previewFrame.srcdoc = previewHtml;

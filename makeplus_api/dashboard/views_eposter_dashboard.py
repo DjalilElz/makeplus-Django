@@ -380,7 +380,29 @@ def send_decision_email(submission):
         if submission.status == 'accepted' and submission.requires_final_submission():
             show_final_submission = True
             base_url = settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://makeplus-platform.onrender.com'
-            final_submission_url = f"{base_url}/dashboard/communications/final-submission/{submission.event.id}/"
+            final_submission_url = f"{base_url}/dashboard/contributions/final-submission/{submission.event.id}/"
+        
+        # Get committee member's remarks/comments from the validation
+        remarque = ''
+        if submission.final_decision_by:
+            validation = EPosterValidation.objects.filter(
+                submission=submission,
+                committee_member=submission.final_decision_by
+            ).first()
+            if validation and validation.comments:
+                remarque = validation.comments
+        
+        # Get contribution number (for e-poster and communication orale only)
+        contribution_number = ''
+        eposter_number = ''
+        communication_number = ''
+        if submission.contribution_code:
+            contribution_number = submission.contribution_code
+            # Extract just the number part
+            if 'EPOSTER-' in submission.contribution_code:
+                eposter_number = submission.contribution_code.split('-')[-1]
+            elif 'COMORAL-' in submission.contribution_code:
+                communication_number = submission.contribution_code.split('-')[-1]
         
         context = {
             'nom': submission.nom,
@@ -391,6 +413,10 @@ def send_decision_email(submission):
             'event_start_date': submission.event.start_date.strftime('%d/%m/%Y') if submission.event.start_date else '',
             'event_end_date': submission.event.end_date.strftime('%d/%m/%Y') if submission.event.end_date else '',
             'contribution_code': submission.contribution_code if (submission.status == 'accepted' and show_final_submission) else '',
+            'contribution_number': contribution_number,
+            'eposter_number': eposter_number,
+            'communication_number': communication_number,
+            'remarque': remarque,
             'final_submission_url': final_submission_url if show_final_submission else '',
             'type_participation': submission.get_type_participation_display(),
             'show_final_submission': show_final_submission,
