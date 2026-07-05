@@ -2,6 +2,11 @@
 from django.db import migrations
 
 
+def do_nothing(apps, schema_editor):
+    """No-op function for state tracking"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -9,8 +14,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Use RunSQL for actual database change (bypasses Django ORM)
         migrations.RunSQL(
-            # PostgreSQL - alter foreign key constraint to allow NULL
             sql="""
                 ALTER TABLE dashboard_eposterfinalsubmission 
                 ALTER COLUMN original_submission_id DROP NOT NULL;
@@ -20,4 +25,6 @@ class Migration(migrations.Migration):
                 ALTER COLUMN original_submission_id SET NOT NULL;
             """,
         ),
+        # Use RunPython no-op to prevent Django from trying to track model state
+        migrations.RunPython(do_nothing, reverse_code=do_nothing),
     ]
