@@ -383,7 +383,14 @@ def send_decision_email(submission):
         if submission.status == 'accepted' and submission.requires_final_submission():
             show_final_submission = True
             base_url = settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://makeplus-platform.onrender.com'
-            final_submission_url = f"{base_url}/contributions/final-submission/{submission.event.id}/"
+            
+            # Generate URL based on submission type
+            if submission.type_participation == 'e_poster':
+                final_submission_url = f"{base_url}/contributions/final-submission/eposter/{submission.event.id}/"
+            elif submission.type_participation == 'communication_orale':
+                final_submission_url = f"{base_url}/contributions/final-submission/communication/{submission.event.id}/"
+            else:
+                final_submission_url = ''
         
         # Get committee member's remarks/comments from the validation
         remarque = ''
