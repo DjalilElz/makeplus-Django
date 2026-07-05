@@ -155,11 +155,6 @@ urlpatterns = [
     path('events/<uuid:event_id>/contributions/email-templates/<uuid:template_id>/delete/', views_eposter_dashboard.eposter_email_template_delete, name='contributions_email_template_delete'),
     path('events/<uuid:event_id>/contributions/export/', views_eposter_dashboard.eposter_export_csv, name='contributions_export_csv'),
     
-    # Scientific Contributions Final Submission (Public - No Login Required)
-    path('contributions/final-submission/<uuid:event_id>/', views_eposter_final.eposter_final_submission_form, name='contributions_final_submission_form'),
-    path('contributions/gallery/<uuid:event_id>/', views_eposter_final.eposter_gallery, name='contributions_gallery'),
-    path('contributions/view/<uuid:submission_id>/', views_eposter_final.eposter_view_pdf, name='contributions_view_pdf'),
-    
     # Legacy URLs for backward compatibility
     path('eposter/', views_eposter_management.eposter_management_home, name='eposter_management_home'),
     path('events/<uuid:event_id>/eposter/', views_eposter_dashboard.eposter_dashboard, name='eposter_dashboard'),
