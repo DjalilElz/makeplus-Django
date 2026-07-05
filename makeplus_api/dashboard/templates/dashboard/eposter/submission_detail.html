@@ -223,7 +223,9 @@
                 </div>
                 <div class="card-body">
                     <p class="mb-1"><strong>{{ submission.prenom }} {{ submission.nom }}</strong></p>
+                    {% if submission.genre %}
                     <p class="mb-1 text-muted">{{ submission.get_genre_display }}</p>
+                    {% endif %}
                     <p class="mb-1">
                         <i class="bi bi-envelope me-1"></i>
                         <a href="mailto:{{ submission.email }}">{{ submission.email }}</a>
