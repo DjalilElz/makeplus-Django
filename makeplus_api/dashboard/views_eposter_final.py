@@ -75,27 +75,48 @@ def handle_final_submission(request, event, expected_type):
         # Get form data
         contribution_number = request.POST.get('contribution_number', '').strip()
         nom = request.POST.get('nom', '').strip()
+        prenom = request.POST.get('prenom', '').strip()
         email = request.POST.get('email', '').strip()
         telephone = request.POST.get('telephone', '').strip()
-        specialite = request.POST.get('specialite', '')
-        domaine_communication = request.POST.get('domaine_communication', '')
+        grade = request.POST.get('grade', '')
+        grade_autre = request.POST.get('grade_autre', '').strip()
+        service = request.POST.get('service', '').strip()
+        etablissement = request.POST.get('etablissement', '').strip()
+        wilaya = request.POST.get('wilaya', '').strip()
+        theme = request.POST.get('theme', '').strip()
         titre = request.POST.get('titre', '').strip()
-        auteurs = request.POST.get('auteurs', '').strip()
-        co_auteurs = request.POST.get('co_auteurs', '').strip()
+        auteurs_json = request.POST.get('auteurs', '[]')
         abstract_file = request.FILES.get('abstract_file')
         
+        # Parse co-authors
+        import json
+        try:
+            co_authors_list = json.loads(auteurs_json)
+            # Format co-authors as text
+            co_auteurs = '\n'.join([f"{a.get('prenom', '')} {a.get('nom', '')} - {a.get('affiliation', '')}".strip() 
+                                   for a in co_authors_list if a.get('nom') and a.get('prenom')])
+        except:
+            co_auteurs = ''
+        
+        # Main author info
+        auteurs = f"{prenom} {nom}"
+        
+        # For specialite and domaine, use grade and theme as substitutes
+        specialite = grade if grade != 'autre' else grade_autre
+        domaine_communication = theme if theme else 'divers'
+        
         # Validate required fields
-        if not all([contribution_number, nom, email, telephone, specialite, domaine_communication, titre, auteurs, abstract_file]):
+        if not all([contribution_number, nom, prenom, email, telephone, grade, service, etablissement, wilaya, titre, abstract_file]):
             return JsonResponse({
                 'success': False,
-                'error': 'Tous les champs obligatoires doivent être remplis'
+                'error': 'All required fields must be filled'
             }, status=400)
         
         # Validate file type (PDF only)
         if not abstract_file.name.lower().endswith('.pdf'):
             return JsonResponse({
                 'success': False,
-                'error': 'Le fichier doit être au format PDF'
+                'error': 'File must be in PDF format'
             }, status=400)
         
         # Check if contribution code exists in original submissions

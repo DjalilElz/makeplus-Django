@@ -805,18 +805,23 @@
                                 
                                 <div class="row g-4">
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Nom</label>
+                                        <label class="form-label required-field">Last Name</label>
                                         <input type="text" name="nom" class="form-control" required 
-                                               placeholder="Votre nom">
+                                               placeholder="Enter your last name">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Email</label>
+                                        <label class="form-label required-field">First Name</label>
+                                        <input type="text" name="prenom" class="form-control" required
+                                               placeholder="Enter your first name">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Email Address</label>
                                         <input type="email" name="email" class="form-control" required
-                                               placeholder="votre.email@example.com">
-                                        <small class="text-muted">Utilisez le même email que votre soumission initiale</small>
+                                               placeholder="your.email@example.com">
+                                        <small class="text-muted">Use the same email as your initial submission</small>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Téléphone</label>
+                                        <label class="form-label required-field">Phone Number</label>
                                         <div class="phone-input-group">
                                             <input type="tel" 
                                                    id="telephone" 
@@ -826,21 +831,54 @@
                                                    placeholder="555 123 456">
                                         </div>
                                         <input type="hidden" name="full_telephone" id="full-telephone">
+                                        <input type="hidden" name="country_code" id="country-code">
+                                    </div>
+                                </div>
+                                
+                                <h2 class="section-title mt-5">
+                                    <i class="bi bi-briefcase"></i>
+                                    Professional Information
+                                </h2>
+                                
+                                <div class="row g-4">
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Academic Grade</label>
+                                        <select name="grade" class="form-select" required id="grade-select">
+                                            <option value="">Select...</option>
+                                            <option value="professeur">Professor</option>
+                                            <option value="maitre_de_conference">Associate Professor</option>
+                                            <option value="maitre_assistant">Assistant Professor</option>
+                                            <option value="specialiste">Specialist</option>
+                                            <option value="resident">Resident</option>
+                                            <option value="doctorant">PhD Student</option>
+                                            <option value="autre">Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6" id="grade-autre-container" style="display: none;">
+                                        <label class="form-label">Specify Grade</label>
+                                        <input type="text" name="grade_autre" class="form-control"
+                                               placeholder="Please specify">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Spécialité</label>
-                                        <select name="specialite" class="form-select" required>
-                                            <option value="">Sélectionner...</option>
-                                            {% for value, label in specialite_choices %}
-                                            <option value="{{ value }}">{{ label }}</option>
-                                            {% endfor %}
-                                        </select>
+                                        <label class="form-label required-field">Department</label>
+                                        <input type="text" name="service" class="form-control" required
+                                               placeholder="Your department">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">Institution</label>
+                                        <input type="text" name="etablissement" class="form-control" required
+                                               placeholder="Your institution">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required-field">City/Province</label>
+                                        <input type="text" name="wilaya" class="form-control" required
+                                               placeholder="Your city">
                                     </div>
                                 </div>
                                 
                                 <div class="d-flex justify-content-end mt-5">
                                     <button type="button" class="btn btn-primary next-step">
-                                        Étape Suivante <i class="bi bi-arrow-right ms-2"></i>
+                                        Next Step <i class="bi bi-arrow-right ms-2"></i>
                                     </button>
                                 </div>
                             </div>
@@ -854,46 +892,42 @@
                                 
                                 <div class="row g-4">
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Domaine de Communication</label>
-                                        <select name="domaine_communication" class="form-select" required>
-                                            <option value="">Sélectionner...</option>
-                                            {% for value, label in domaine_choices %}
-                                            <option value="{{ value }}">{{ label }}</option>
-                                            {% endfor %}
-                                        </select>
+                                        <label class="form-label">Theme/Topic</label>
+                                        <input type="text" name="theme" class="form-control"
+                                               placeholder="e.g., Cardiology, Oncology, Dermatology...">
+                                        <small class="text-muted">Optional</small>
                                     </div>
                                     <div class="col-12">
-                                        <label class="form-label required-field">Titre du Travail</label>
+                                        <label class="form-label required-field">Title of Work</label>
                                         <input type="text" name="titre" class="form-control" required
-                                               placeholder="Entrez le titre complet de votre travail">
+                                               placeholder="Enter the complete title of your work">
                                     </div>
                                 </div>
                                 
                                 <h2 class="section-title mt-5">
                                     <i class="bi bi-people-fill"></i>
-                                    Auteurs
+                                    Authors & Co-Authors
                                 </h2>
                                 
-                                <div class="row g-4">
-                                    <div class="col-12">
-                                        <label class="form-label required-field">Auteurs Principaux</label>
-                                        <textarea name="auteurs" class="form-control" rows="3" required
-                                                  placeholder="Nom et prénom des auteurs principaux (un par ligne)"></textarea>
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label">Co-Auteurs</label>
-                                        <textarea name="co_auteurs" class="form-control" rows="3"
-                                                  placeholder="Nom et prénom des co-auteurs (optionnel, un par ligne)"></textarea>
-                                        <small class="text-muted">Optionnel</small>
-                                    </div>
+                                <div class="alert" style="background: var(--warm-white); border: 2px solid var(--light-gold); border-radius: 12px;">
+                                    <i class="bi bi-info-circle me-2" style="color: var(--gold-tan);"></i>
+                                    <span style="color: var(--deep-purple);">The main author is already registered above. Add co-authors below if applicable.</span>
                                 </div>
+                                
+                                <div id="authors-container">
+                                    <!-- Co-authors will be added here -->
+                                </div>
+                                
+                                <button type="button" class="btn btn-outline-primary mb-4" id="add-author">
+                                    <i class="bi bi-plus-circle me-2"></i> Add Co-Author
+                                </button>
                                 
                                 <div class="d-flex justify-content-between mt-5">
                                     <button type="button" class="btn btn-outline-secondary prev-step">
-                                        <i class="bi bi-arrow-left me-2"></i> Précédent
+                                        <i class="bi bi-arrow-left me-2"></i> Previous
                                     </button>
                                     <button type="button" class="btn btn-primary next-step">
-                                        Étape Suivante <i class="bi bi-arrow-right ms-2"></i>
+                                        Next Step <i class="bi bi-arrow-right ms-2"></i>
                                     </button>
                                 </div>
                             </div>
@@ -902,47 +936,52 @@
                             <div class="form-step d-none" id="step-3">
                                 <h2 class="section-title">
                                     <i class="bi bi-cloud-upload"></i>
-                                    {{ file_label }}
+                                    Final File Upload
                                 </h2>
                                 
                                 <div class="alert" style="background: var(--warm-white); border: 2px solid var(--light-gold); border-radius: 12px; margin-bottom: 30px;">
                                     <i class="bi bi-info-circle me-2" style="color: var(--gold-tan);"></i>
                                     <span style="color: var(--deep-purple);">
-                                        Veuillez télécharger votre fichier final au format PDF uniquement.
                                         {% if submission_type == 'e_poster' %}
-                                        Le fichier doit contenir votre e-poster complet et finalisé.
+                                        Upload your final version of the E-Poster in PDF format.
                                         {% else %}
-                                        Le fichier doit contenir votre présentation complète et finalisée.
+                                        Upload your final version of the Communication Orale presentation in PDF format.
                                         {% endif %}
                                     </span>
                                 </div>
                                 
                                 <div class="row g-4">
                                     <div class="col-12">
-                                        <label class="form-label required-field">{{ file_label }}</label>
+                                        <label class="form-label required-field">
+                                            {% if submission_type == 'e_poster' %}
+                                            Upload Your Final E-Poster (PDF)
+                                            {% else %}
+                                            Upload Your Final Communication Orale Presentation (PDF)
+                                            {% endif %}
+                                        </label>
                                         <input type="file" name="abstract_file" class="form-control" accept=".pdf" required>
-                                        <small class="text-muted">Format accepté: PDF uniquement (Max 10MB)</small>
+                                        <small class="text-muted">Accepted format: PDF only (Max 10MB)</small>
                                     </div>
                                 </div>
                                 
                                 <div class="alert alert-info mt-4" style="background: rgba(42, 31, 107, 0.05); border: 2px solid var(--lavender-light); border-radius: 12px;">
                                     <h6 style="color: var(--deep-purple); font-weight: 600;">
-                                        <i class="bi bi-check-circle me-2"></i>Avant de soumettre, vérifiez:
+                                        <i class="bi bi-check-circle me-2"></i>Before submitting, verify:
                                     </h6>
                                     <ul class="mb-0" style="color: var(--deep-purple);">
-                                        <li>Toutes les informations sont correctes</li>
-                                        <li>Le fichier PDF est complet et lisible</li>
-                                        <li>Le titre correspond à votre travail</li>
-                                        <li>Les auteurs sont correctement listés</li>
+                                        <li>All information is correct</li>
+                                        <li>The PDF file is complete and readable</li>
+                                        <li>The title matches your work</li>
+                                        <li>The authors are correctly listed</li>
                                     </ul>
                                 </div>
                                 
                                 <div class="d-flex justify-content-between mt-5">
                                     <button type="button" class="btn btn-outline-secondary prev-step">
-                                        <i class="bi bi-arrow-left me-2"></i> Précédent
+                                        <i class="bi bi-arrow-left me-2"></i> Previous
                                     </button>
                                     <button type="submit" class="btn btn-primary btn-lg">
-                                        <i class="bi bi-send me-2"></i> Soumettre la Version Finale
+                                        <i class="bi bi-send me-2"></i> Submit Final Version
                                     </button>
                                 </div>
                             </div>
@@ -1204,20 +1243,91 @@
                 });
             });
             
+            // Grade "autre" field
+            document.getElementById('grade-select').addEventListener('change', function() {
+                const container = document.getElementById('grade-autre-container');
+                if (this.value === 'autre') {
+                    container.style.display = 'block';
+                } else {
+                    container.style.display = 'none';
+                }
+            });
+            
+            // Add co-author
+            let authorCount = 0;
+            document.getElementById('add-author').addEventListener('click', function() {
+                authorCount++;
+                const container = document.getElementById('authors-container');
+                const authorDiv = document.createElement('div');
+                authorDiv.className = 'author-card';
+                authorDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <strong style="color: var(--deep-purple); font-size: 1rem;">
+                            <i class="bi bi-person me-2"></i>Co-Author ${authorCount}
+                        </strong>
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-author">
+                            <i class="bi bi-trash"></i> Remove
+                        </button>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control author-nom" placeholder="Last Name">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control author-prenom" placeholder="First Name">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control author-affiliation" placeholder="Institution">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(authorDiv);
+                
+                // Animate in
+                authorDiv.style.opacity = '0';
+                authorDiv.style.transform = 'translateY(-10px)';
+                setTimeout(() => {
+                    authorDiv.style.transition = 'all 0.3s ease';
+                    authorDiv.style.opacity = '1';
+                    authorDiv.style.transform = 'translateY(0)';
+                }, 10);
+                
+                // Remove author handler
+                authorDiv.querySelector('.remove-author').addEventListener('click', function() {
+                    authorDiv.style.opacity = '0';
+                    authorDiv.style.transform = 'translateY(-10px)';
+                    setTimeout(() => {
+                        authorDiv.remove();
+                    }, 300);
+                });
+            });
+            
             // Form submission
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
                 // Validate and update full phone number
                 if (!iti.isValidNumber()) {
-                    alert('Veuillez entrer un numéro de téléphone valide.');
+                    alert('Please enter a valid phone number.');
                     phoneInput.focus();
                     return;
                 }
                 updateFullPhone();
                 
+                // Collect co-authors
+                const authors = [];
+                document.querySelectorAll('.author-card').forEach(card => {
+                    const nom = card.querySelector('.author-nom').value;
+                    const prenom = card.querySelector('.author-prenom').value;
+                    const affiliation = card.querySelector('.author-affiliation').value;
+                    if (nom && prenom) {
+                        authors.push({ nom, prenom, affiliation });
+                    }
+                });
+                
                 // Create FormData
                 const formData = new FormData(form);
+                formData.set('auteurs', JSON.stringify(authors));
                 
                 // Use the combined phone number (international format)
                 const fullPhone = document.getElementById('full-telephone').value;
@@ -1229,7 +1339,7 @@
                 const submitBtn = form.querySelector('button[type="submit"]');
                 const originalHTML = submitBtn.innerHTML;
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Envoi en cours...';
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Submitting...';
                 
                 // Submit to current URL (POST to same endpoint)
                 fetch(window.location.href, {
@@ -1247,14 +1357,14 @@
                         document.getElementById('success-message').classList.remove('d-none');
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                     } else {
-                        alert(data.error || 'Une erreur est survenue. Veuillez réessayer.');
+                        alert(data.error || 'An error occurred. Please try again.');
                         submitBtn.disabled = false;
                         submitBtn.innerHTML = originalHTML;
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Erreur de connexion. Veuillez vérifier votre connexion internet et réessayer.');
+                    alert('Connection error. Please check your internet and try again.');
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalHTML;
                 });
