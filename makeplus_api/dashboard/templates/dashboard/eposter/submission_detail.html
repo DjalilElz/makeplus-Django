@@ -291,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const formData = new FormData(form);
             
-            fetch('{% url "dashboard:eposter_validate_submission" event.id submission.id %}', {
+            fetch('{% url "dashboard:contributions_validate_submission" event.id submission.id %}', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -306,7 +306,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Force reload by adding timestamp to URL
                     const timestamp = new Date().getTime();
-                    window.location.href = '{% url "dashboard:eposter_submissions_list" event.id %}?_=' + timestamp;
+                    window.location.href = '{% url "dashboard:contributions_submissions_list" event.id %}?_=' + timestamp;
                 } else {
                     if (window.ButtonStateManager && submitBtn) {
                         window.ButtonStateManager.resetButton(submitBtn);
