@@ -157,6 +157,7 @@ urlpatterns = [
     
     # Scientific Contributions Final Submission (Public - No Login Required)
     path('contributions/final-submission/<uuid:event_id>/', views_eposter_final.eposter_final_submission_form, name='contributions_final_submission_form'),
+    path('events/<uuid:event_id>/contributions/final-submission/', views_eposter_final.eposter_final_submission_form, name='contributions_final_submission_form_alt'),
     path('contributions/gallery/<uuid:event_id>/', views_eposter_final.eposter_gallery, name='contributions_gallery'),
     path('contributions/view/<uuid:submission_id>/', views_eposter_final.eposter_view_pdf, name='contributions_view_pdf'),
     
