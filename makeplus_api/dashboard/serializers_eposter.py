@@ -87,6 +87,7 @@ class EPosterSubmissionSerializer(serializers.ModelSerializer):
 class EPosterSubmissionCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating ePoster submissions (public form)"""
     auteurs = serializers.JSONField(required=False, default=list)
+    genre = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     
     class Meta:
         model = EPosterSubmission

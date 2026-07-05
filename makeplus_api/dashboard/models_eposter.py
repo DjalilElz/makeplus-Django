@@ -56,7 +56,7 @@ class ScientificContributionSubmission(models.Model):
     prenom = models.CharField(max_length=100, verbose_name="Prénom")
     email = models.EmailField(verbose_name="Email")
     telephone = models.CharField(max_length=20, verbose_name="Téléphone")
-    genre = models.CharField(max_length=10, choices=GENRE_CHOICES, verbose_name="Genre")
+    genre = models.CharField(max_length=10, choices=GENRE_CHOICES, verbose_name="Genre", blank=True, null=True)
     
     # --- PROFESSIONAL INFORMATION ---
     grade = models.CharField(max_length=50, choices=GRADE_CHOICES, verbose_name="Grade")
