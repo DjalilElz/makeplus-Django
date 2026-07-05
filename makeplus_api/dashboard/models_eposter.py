@@ -293,7 +293,9 @@ class ScientificContributionFinalSubmission(models.Model):
         'ScientificContributionSubmission',
         on_delete=models.CASCADE,
         related_name='final_submission',
-        verbose_name="Soumission originale"
+        verbose_name="Soumission originale",
+        null=True,
+        blank=True
     )
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='contribution_final_submissions')
     

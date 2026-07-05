@@ -16,8 +16,12 @@ import os
 @csrf_exempt
 def eposter_final_submission_form(request, event_id):
     """
-    Display and handle final eposter submission form
-    No login required - uses eposter code for verification
+    Display and handle final contribution submission form
+    No login required - uses contribution code for verification
+    
+    Two cases:
+    1. User with original submission + email match → Update/link to original
+    2. User without original submission → Create standalone final submission
     """
     event = get_object_or_404(Event, id=event_id)
     
@@ -34,7 +38,7 @@ def eposter_final_submission_form(request, event_id):
         # Handle form submission
         try:
             # Get form data
-            poster_number = request.POST.get('poster_number', '').strip()
+            contribution_number = request.POST.get('contribution_number', '').strip()
             nom = request.POST.get('nom', '').strip()
             email = request.POST.get('email', '').strip()
             telephone = request.POST.get('telephone', '').strip()
@@ -46,30 +50,10 @@ def eposter_final_submission_form(request, event_id):
             abstract_file = request.FILES.get('abstract_file')
             
             # Validate required fields
-            if not all([poster_number, nom, email, telephone, specialite, domaine_communication, titre, auteurs, abstract_file]):
+            if not all([contribution_number, nom, email, telephone, specialite, domaine_communication, titre, auteurs, abstract_file]):
                 return JsonResponse({
                     'success': False,
                     'error': 'Tous les champs obligatoires doivent être remplis'
-                }, status=400)
-            
-            # Verify eposter code exists and is accepted
-            try:
-                original_submission = EPosterSubmission.objects.get(
-                    contribution_code=poster_number,
-                    event=event,
-                    status='accepted'
-                )
-            except EPosterSubmission.DoesNotExist:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Code ePoster invalide ou non validé pour cet événement'
-                }, status=400)
-            
-            # Check if final submission already exists
-            if hasattr(original_submission, 'final_submission'):
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Une soumission finale a déjà été effectuée avec ce code'
                 }, status=400)
             
             # Validate file type (PDF only)
@@ -79,27 +63,108 @@ def eposter_final_submission_form(request, event_id):
                     'error': 'Le fichier doit être au format PDF'
                 }, status=400)
             
-            # Create final submission
-            final_submission = EPosterFinalSubmission.objects.create(
-                original_submission=original_submission,
-                event=event,
-                nom=nom,
-                email=email,
-                telephone=telephone,
-                specialite=specialite,
-                domaine_communication=domaine_communication,
-                contribution_number=poster_number,
-                titre=titre,
-                auteurs=auteurs,
-                co_auteurs=co_auteurs,
-                abstract_file=abstract_file,
-                ip_address=request.META.get('REMOTE_ADDR'),
-                user_agent=request.META.get('HTTP_USER_AGENT', '')
-            )
+            # Check if contribution code exists in original submissions
+            original_submission = EPosterSubmission.objects.filter(
+                contribution_code=contribution_number,
+                event=event
+            ).first()
+            
+            if original_submission:
+                # Case 1: Original submission exists
+                # Validate email matches
+                if original_submission.email != email:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'L\'email ne correspond pas à la soumission originale. Veuillez utiliser l\'email avec lequel vous avez soumis initialement.'
+                    }, status=400)
+                
+                # Email matches - proceed with update/create
+                # Check if final submission already exists for this original submission
+                final_submission = EPosterFinalSubmission.objects.filter(
+                    original_submission=original_submission
+                ).first()
+                
+                if final_submission:
+                    # Update existing final submission - override changed fields
+                    final_submission.nom = nom
+                    final_submission.email = email
+                    final_submission.telephone = telephone
+                    final_submission.specialite = specialite
+                    final_submission.domaine_communication = domaine_communication
+                    final_submission.titre = titre
+                    final_submission.auteurs = auteurs
+                    final_submission.co_auteurs = co_auteurs
+                    final_submission.abstract_file = abstract_file
+                    final_submission.ip_address = request.META.get('REMOTE_ADDR')
+                    final_submission.user_agent = request.META.get('HTTP_USER_AGENT', '')
+                    final_submission.save()
+                    
+                    message = 'Soumission finale mise à jour avec succès'
+                else:
+                    # Create new final submission linked to original
+                    final_submission = EPosterFinalSubmission.objects.create(
+                        original_submission=original_submission,
+                        event=event,
+                        nom=nom,
+                        email=email,
+                        telephone=telephone,
+                        specialite=specialite,
+                        domaine_communication=domaine_communication,
+                        contribution_number=contribution_number,
+                        titre=titre,
+                        auteurs=auteurs,
+                        co_auteurs=co_auteurs,
+                        abstract_file=abstract_file,
+                        ip_address=request.META.get('REMOTE_ADDR'),
+                        user_agent=request.META.get('HTTP_USER_AGENT', '')
+                    )
+                    
+                    message = 'Soumission finale enregistrée avec succès'
+                
+            else:
+                # Case 2: No original submission - create standalone final submission
+                # Check if contribution code format is valid
+                if not (contribution_number.startswith('EPOSTER-') or contribution_number.startswith('COMORAL-')):
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Format du numéro de contribution invalide. Il doit commencer par EPOSTER- ou COMORAL-'
+                    }, status=400)
+                
+                # Check if this contribution number is already used in final submissions
+                existing_final = EPosterFinalSubmission.objects.filter(
+                    contribution_number=contribution_number,
+                    event=event
+                ).first()
+                
+                if existing_final:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Ce numéro de contribution a déjà été utilisé pour une soumission finale'
+                    }, status=400)
+                
+                # Create standalone final submission
+                final_submission = EPosterFinalSubmission.objects.create(
+                    original_submission=None,  # No link to original
+                    event=event,
+                    nom=nom,
+                    email=email,
+                    telephone=telephone,
+                    specialite=specialite,
+                    domaine_communication=domaine_communication,
+                    contribution_number=contribution_number,
+                    titre=titre,
+                    auteurs=auteurs,
+                    co_auteurs=co_auteurs,
+                    abstract_file=abstract_file,
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                    user_agent=request.META.get('HTTP_USER_AGENT', '')
+                )
+                
+                message = 'Soumission finale enregistrée avec succès'
             
             return JsonResponse({
                 'success': True,
-                'message': 'Soumission finale enregistrée avec succès',
+                'message': message,
                 'submission_id': str(final_submission.id)
             })
             

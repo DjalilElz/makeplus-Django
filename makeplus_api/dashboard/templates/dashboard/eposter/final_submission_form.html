@@ -20,11 +20,11 @@
                     <form id="finalSubmissionForm" enctype="multipart/form-data">
                         {% csrf_token %}
                         
-                        <!-- Code ePoster -->
+                        <!-- Numéro de Contribution -->
                         <div class="mb-3">
-                            <label for="poster_number" class="form-label">Code ePoster <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="poster_number" name="poster_number" required 
-                                   placeholder="Ex: EPOSTER-ABC12345-001">
+                            <label for="contribution_number" class="form-label">Numéro de Contribution <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="contribution_number" name="contribution_number" required 
+                                   placeholder="Ex: EPOSTER-1876634C-001 ou COMORAL-1876634C-001">
                             <small class="form-text text-muted">Le code que vous avez reçu par email</small>
                         </div>
 
