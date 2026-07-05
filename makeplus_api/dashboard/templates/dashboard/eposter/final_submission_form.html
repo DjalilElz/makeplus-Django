@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     
     <!-- International Telephone Input -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/css/intlTelInput.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@18.2.1/build/css/intlTelInput.css">
     
     <!-- Google Fonts - Serif for elegance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1024,42 +1024,67 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- International Telephone Input -->
-    <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/js/intlTelInput.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@18.2.1/build/js/intlTelInput.min.js"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             let currentStep = 1;
             const totalSteps = 3;
             const form = document.getElementById('final-submission-form');
+            let iti; // Declare iti in outer scope
             
             // Initialize International Phone Input
             const phoneInput = document.querySelector("#telephone");
-            const iti = window.intlTelInput(phoneInput, {
-                initialCountry: "dz", // Algeria as default
-                preferredCountries: ["dz", "eg", "ma", "tn", "sa", "ae", "fr"],
-                separateDialCode: true,
-                nationalMode: true,
-                autoPlaceholder: "aggressive",
-                formatOnDisplay: true,
-                utilsScript: "https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/js/utils.js",
-                searchPlaceholder: "Search country...",
-                i18n: {
-                    searchPlaceholder: "Search country..."
-                }
-            });
             
-            // Update full phone number on change
-            function updateFullPhone() {
-                if (iti && phoneInput.value) {
-                    const fullNumber = iti.getNumber();
-                    const countryData = iti.getSelectedCountryData();
-                    document.getElementById('full-telephone').value = fullNumber;
-                    document.getElementById('country-code').value = '+' + countryData.dialCode;
-                }
+            // Check if intlTelInput is available
+            if (typeof window.intlTelInput === 'undefined') {
+                console.error('intlTelInput library not loaded!');
+                // Fallback: load the library and try again
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/intl-tel-input@18.2.1/build/js/intlTelInput.min.js';
+                script.onload = function() {
+                    initPhoneInput();
+                };
+                document.head.appendChild(script);
+            } else {
+                initPhoneInput();
             }
             
-            phoneInput.addEventListener('input', updateFullPhone);
-            phoneInput.addEventListener('countrychange', updateFullPhone);
+            function initPhoneInput() {
+                if (!phoneInput) {
+                    console.error('Phone input element not found!');
+                    return;
+                }
+                
+                iti = window.intlTelInput(phoneInput, {
+                    initialCountry: "dz", // Algeria as default
+                    preferredCountries: ["dz", "eg", "ma", "tn", "sa", "ae", "fr"],
+                    separateDialCode: true,
+                    nationalMode: true,
+                    autoPlaceholder: "aggressive",
+                    formatOnDisplay: true,
+                    utilsScript: "https://cdn.jsdelivr.net/npm/intl-tel-input@18.2.1/build/js/utils.js",
+                    searchPlaceholder: "Search country...",
+                    i18n: {
+                        searchPlaceholder: "Search country..."
+                    }
+                });
+                
+                console.log('Phone input initialized:', iti);
+            
+                // Update full phone number on change
+                function updateFullPhone() {
+                    if (iti && phoneInput.value) {
+                        const fullNumber = iti.getNumber();
+                        const countryData = iti.getSelectedCountryData();
+                        document.getElementById('full-telephone').value = fullNumber;
+                        document.getElementById('country-code').value = '+' + countryData.dialCode;
+                    }
+                }
+                
+                phoneInput.addEventListener('input', updateFullPhone);
+                phoneInput.addEventListener('countrychange', updateFullPhone);
+            }
             
             // Update step display
             function updateStepDisplay() {
