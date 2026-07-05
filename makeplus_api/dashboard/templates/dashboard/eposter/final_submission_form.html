@@ -365,6 +365,7 @@
         
         .iti {
             width: 100%;
+            display: block;
         }
         
         .iti__flag-container {
@@ -373,6 +374,7 @@
             bottom: 0;
             left: 0;
             padding: 12px 10px;
+            z-index: 1;
         }
         
         .iti__selected-flag {
@@ -381,10 +383,22 @@
             background: var(--warm-white);
             border-right: 2px solid #E9ECEF;
             transition: all 0.2s ease;
+            height: 100%;
+            display: flex;
+            align-items: center;
         }
         
         .iti__selected-flag:hover {
             background: rgba(75, 59, 158, 0.05);
+        }
+        
+        .iti__arrow {
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 4px solid var(--deep-purple);
+            height: 0;
+            width: 0;
+            margin-left: 6px;
         }
         
         .iti__country-list {
@@ -393,6 +407,7 @@
             border: 2px solid var(--light-gold);
             max-height: 250px;
             margin-top: 5px;
+            z-index: 1000;
         }
         
         .iti__search-input {
