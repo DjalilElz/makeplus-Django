@@ -1,6 +1,5 @@
 # Migration to make original_submission optional in final submission
-from django.db import migrations, models
-import django.db.models.deletion
+from django.db import migrations
 
 
 class Migration(migrations.Migration):
@@ -10,16 +9,15 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterField(
-            model_name='eposterfinalsubmission',
-            name='original_submission',
-            field=models.OneToOneField(
-                blank=True,
-                null=True,
-                on_delete=django.db.models.deletion.CASCADE,
-                related_name='final_submission',
-                to='dashboard.epostersubmission',
-                verbose_name='Soumission originale'
-            ),
+        migrations.RunSQL(
+            # PostgreSQL - alter foreign key constraint to allow NULL
+            sql="""
+                ALTER TABLE dashboard_eposterfinalsubmission 
+                ALTER COLUMN original_submission_id DROP NOT NULL;
+            """,
+            reverse_sql="""
+                ALTER TABLE dashboard_eposterfinalsubmission 
+                ALTER COLUMN original_submission_id SET NOT NULL;
+            """,
         ),
     ]
