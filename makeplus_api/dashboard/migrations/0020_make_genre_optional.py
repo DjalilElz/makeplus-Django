@@ -10,9 +10,17 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterField(
-            model_name='scientificcontributionsubmission',
-            name='genre',
-            field=models.CharField(blank=True, choices=[('homme', 'Homme'), ('femme', 'Femme')], max_length=10, null=True, verbose_name='Genre'),
+        # Use RunSQL to alter the field directly on the existing table
+        migrations.RunSQL(
+            # Forward migration - make genre nullable
+            sql="""
+                ALTER TABLE dashboard_epostersubmission 
+                ALTER COLUMN genre DROP NOT NULL;
+            """,
+            # Reverse migration - make genre required again
+            reverse_sql="""
+                ALTER TABLE dashboard_epostersubmission 
+                ALTER COLUMN genre SET NOT NULL;
+            """
         ),
     ]
