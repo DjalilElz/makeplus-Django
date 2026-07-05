@@ -148,12 +148,13 @@
                     </div>
                     
                     <h6 class="small fw-bold text-warning mb-2">Décision & Numéro</h6>
-                    <div class="mb-3">
+                    <div class="mb-3" id="variableButtons">
                         {% verbatim %}
-                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{remarque}}">{{remarque}}</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{contribution_number}}">{{contribution_number}}</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{eposter_number}}">{{eposter_number}}</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{communication_number}}">{{communication_number}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn common-var" data-var="{{remarque}}">{{remarque}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn eposter-var" data-var="{{eposter_number}}" style="display: none;">{{eposter_number}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn communication-var" data-var="{{communication_number}}" style="display: none;">{{communication_number}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn eposter-var communication-var" data-var="{{contribution_number}}" style="display: none;">{{contribution_number}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn eposter-var communication-var" data-var="{{final_submission_url}}" style="display: none;">{{final_submission_url}}</button>
                         {% endverbatim %}
                     </div>
                     
@@ -225,33 +226,43 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize preview modal
     previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
     
-    // Initialize Unlayer Email Editor
-    emailEditor = unlayer.createEditor({
-        id: 'email-editor-container',
-        projectId: 1234,
-        displayMode: 'email',
-        appearance: {
-            theme: 'light',
-            panels: {
-                tools: {
-                    dock: 'left'
-                }
-            }
-        },
-        features: {
-            preview: true,
-            imageEditor: true,
-            textEditor: {
-                tables: true,
-                emojis: true
-            }
-        },
-        tools: {
-            form: {
-                enabled: false
-            }
-        },
-        mergeTags: {
+    // Get template type from form or data attribute
+    let currentTemplateType = '{{ template.template_type|default:template_type }}';
+    
+    // Function to update variable visibility based on template type
+    function updateVariableVisibility(templateType) {
+        currentTemplateType = templateType;
+        
+        // Hide all type-specific variables first
+        document.querySelectorAll('.eposter-var').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.communication-var').forEach(el => el.style.display = 'none');
+        
+        // Show variables based on template type
+        if (templateType === 'e_poster_accepted') {
+            document.querySelectorAll('.eposter-var').forEach(el => el.style.display = 'block');
+        } else if (templateType === 'communication_orale_accepted') {
+            document.querySelectorAll('.communication-var').forEach(el => el.style.display = 'block');
+        }
+        // For rejected templates and other types (table_ronde, atelier), only show common variables
+    }
+    
+    // Listen for template type changes (only in create mode)
+    const templateTypeSelect = document.getElementById('template_type');
+    if (templateTypeSelect) {
+        templateTypeSelect.addEventListener('change', function() {
+            updateVariableVisibility(this.value);
+        });
+        // Initial visibility update
+        updateVariableVisibility(templateTypeSelect.value);
+    } else {
+        // In edit mode, use the current template type
+        updateVariableVisibility(currentTemplateType);
+    }
+    
+    // Function to get mergeTags based on template type
+    function getMergeTags(templateType) {
+        // Common merge tags for all templates
+        const commonTags = {
             prenom: {
                 name: "Prénom",
                 value: "{{prenom}}",
@@ -291,23 +302,74 @@ document.addEventListener('DOMContentLoaded', function() {
                 name: "Remarque du comité",
                 value: "{{remarque}}",
                 sample: "Votre travail est excellent et bien structuré."
-            },
-            contribution_number: {
-                name: "Numéro de contribution",
-                value: "{{contribution_number}}",
-                sample: "EPOSTER-EVENT-001"
-            },
-            eposter_number: {
+            }
+        };
+        
+        // Add type-specific tags
+        if (templateType === 'e_poster_accepted') {
+            commonTags.eposter_number = {
                 name: "Numéro E-Poster",
                 value: "{{eposter_number}}",
                 sample: "001"
-            },
-            communication_number: {
+            };
+            commonTags.contribution_number = {
+                name: "Numéro de contribution complet",
+                value: "{{contribution_number}}",
+                sample: "EPOSTER-EVENT-001"
+            };
+            commonTags.final_submission_url = {
+                name: "URL soumission finale",
+                value: "{{final_submission_url}}",
+                sample: "https://makeplus-platform.onrender.com/dashboard/contributions/final-submission/..."
+            };
+        } else if (templateType === 'communication_orale_accepted') {
+            commonTags.communication_number = {
                 name: "Numéro Communication",
                 value: "{{communication_number}}",
                 sample: "001"
-            }
+            };
+            commonTags.contribution_number = {
+                name: "Numéro de contribution complet",
+                value: "{{contribution_number}}",
+                sample: "COMORAL-EVENT-001"
+            };
+            commonTags.final_submission_url = {
+                name: "URL soumission finale",
+                value: "{{final_submission_url}}",
+                sample: "https://makeplus-platform.onrender.com/dashboard/contributions/final-submission/..."
+            };
         }
+        
+        return commonTags;
+    }
+    
+    // Initialize Unlayer Email Editor
+    emailEditor = unlayer.createEditor({
+        id: 'email-editor-container',
+        projectId: 1234,
+        displayMode: 'email',
+        appearance: {
+            theme: 'light',
+            panels: {
+                tools: {
+                    dock: 'left'
+                }
+            }
+        },
+        features: {
+            preview: true,
+            imageEditor: true,
+            textEditor: {
+                tables: true,
+                emojis: true
+            }
+        },
+        tools: {
+            form: {
+                enabled: false
+            }
+        },
+        mergeTags: getMergeTags(currentTemplateType)
     });
 
     // Editor ready event
@@ -354,6 +416,7 @@ document.addEventListener('DOMContentLoaded', function() {
             previewHtml = previewHtml.replace(/\{\{contribution_number\}\}/g, 'EPOSTER-EVENT-001');
             previewHtml = previewHtml.replace(/\{\{eposter_number\}\}/g, '001');
             previewHtml = previewHtml.replace(/\{\{communication_number\}\}/g, '001');
+            previewHtml = previewHtml.replace(/\{\{final_submission_url\}\}/g, 'https://makeplus-platform.onrender.com/dashboard/contributions/final-submission/...');
             
             // Load HTML into iframe
             previewFrame.srcdoc = previewHtml;

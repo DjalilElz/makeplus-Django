@@ -463,10 +463,17 @@ class ScientificContributionCommitteeMember(models.Model):
 class ScientificContributionEmailTemplate(models.Model):
     """
     Email templates for Scientific Contribution notifications
+    8 template types: 4 submission types × 2 decisions (accepted/rejected)
     """
     TYPE_CHOICES = [
-        ('accepted', 'Acceptation'),
-        ('rejected', 'Rejet'),
+        ('e_poster_accepted', 'E-Poster - Acceptation'),
+        ('e_poster_rejected', 'E-Poster - Rejet'),
+        ('communication_orale_accepted', 'Communication Orale - Acceptation'),
+        ('communication_orale_rejected', 'Communication Orale - Rejet'),
+        ('table_ronde_accepted', 'Table Ronde - Acceptation'),
+        ('table_ronde_rejected', 'Table Ronde - Rejet'),
+        ('atelier_accepted', 'Atelier - Acceptation'),
+        ('atelier_rejected', 'Atelier - Rejet'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -476,7 +483,7 @@ class ScientificContributionEmailTemplate(models.Model):
         related_name='contribution_email_templates'
     )
     
-    template_type = models.CharField(max_length=30, choices=TYPE_CHOICES)
+    template_type = models.CharField(max_length=35, choices=TYPE_CHOICES)
     subject = models.CharField(max_length=300)
     body_html = models.TextField(help_text="HTML content with placeholders: {{nom}}, {{prenom}}, {{titre}}, {{event_name}}, {{event_location}}, {{event_start_date}}, {{event_end_date}}, {{contribution_code}}, {{final_submission_url}}, {{type_participation}}, {{show_final_submission}}")
     body_text = models.TextField(blank=True, help_text="Plain text version (optional)")

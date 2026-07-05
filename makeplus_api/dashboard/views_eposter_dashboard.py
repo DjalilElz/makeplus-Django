@@ -356,7 +356,10 @@ def send_decision_email(submission):
     from django.conf import settings
     
     try:
-        template_type = 'accepted' if submission.status == 'accepted' else 'rejected'
+        # Determine template type based on submission type and decision
+        decision = 'accepted' if submission.status == 'accepted' else 'rejected'
+        template_type = f"{submission.type_participation}_{decision}"
+        
         template = EPosterEmailTemplate.objects.filter(
             event=submission.event,
             template_type=template_type,
@@ -699,11 +702,19 @@ def eposter_email_template_create(request, event_id):
         }
     }
     
+    # Determine which variables to show based on template type
+    show_eposter_vars = template_type == 'e_poster_accepted'
+    show_communication_vars = template_type == 'communication_orale_accepted'
+    show_final_submission = template_type in ['e_poster_accepted', 'communication_orale_accepted']
+    
     context = {
         'event': event,
         'template_type': template_type,
         'type_choices': EPosterEmailTemplate.TYPE_CHOICES,
         'defaults': defaults.get(template_type, {'subject': '', 'body_html': ''}),
+        'show_eposter_vars': show_eposter_vars,
+        'show_communication_vars': show_communication_vars,
+        'show_final_submission': show_final_submission,
     }
     
     return render(request, 'dashboard/eposter/email_template_form_unlayer.html', context)
@@ -734,11 +745,19 @@ def eposter_email_template_edit(request, event_id, template_id):
         messages.success(request, 'Template mis à jour')
         return redirect('dashboard:contributions_email_templates', event_id=event_id)
     
+    # Determine which variables to show based on template type
+    show_eposter_vars = template.template_type == 'e_poster_accepted'
+    show_communication_vars = template.template_type == 'communication_orale_accepted'
+    show_final_submission = template.template_type in ['e_poster_accepted', 'communication_orale_accepted']
+    
     context = {
         'event': event,
         'template': template,
         'type_choices': EPosterEmailTemplate.TYPE_CHOICES,
         'defaults': {'subject': '', 'body_html': ''},  # Empty defaults for edit mode
+        'show_eposter_vars': show_eposter_vars,
+        'show_communication_vars': show_communication_vars,
+        'show_final_submission': show_final_submission,
     }
     
     return render(request, 'dashboard/eposter/email_template_form_unlayer.html', context)
