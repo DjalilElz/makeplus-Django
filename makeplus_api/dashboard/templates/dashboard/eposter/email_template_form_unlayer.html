@@ -151,10 +151,8 @@
                     <div class="mb-3" id="variableButtons">
                         {% verbatim %}
                         <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn common-var" data-var="{{remarque}}">{{remarque}}</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn eposter-var" data-var="{{eposter_number}}" style="display: none;">{{eposter_number}}</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn communication-var" data-var="{{communication_number}}" style="display: none;">{{communication_number}}</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn eposter-var communication-var" data-var="{{contribution_number}}" style="display: none;">{{contribution_number}}</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn eposter-var communication-var" data-var="{{final_submission_url}}" style="display: none;">{{final_submission_url}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn contribution-var" data-var="{{contribution_number}}" style="display: none;">{{contribution_number}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn contribution-var" data-var="{{final_submission_url}}" style="display: none;">{{final_submission_url}}</button>
                         {% endverbatim %}
                     </div>
                     
@@ -234,14 +232,11 @@ document.addEventListener('DOMContentLoaded', function() {
         currentTemplateType = templateType;
         
         // Hide all type-specific variables first
-        document.querySelectorAll('.eposter-var').forEach(el => el.style.display = 'none');
-        document.querySelectorAll('.communication-var').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.contribution-var').forEach(el => el.style.display = 'none');
         
-        // Show variables based on template type
-        if (templateType === 'e_poster_accepted') {
-            document.querySelectorAll('.eposter-var').forEach(el => el.style.display = 'block');
-        } else if (templateType === 'communication_orale_accepted') {
-            document.querySelectorAll('.communication-var').forEach(el => el.style.display = 'block');
+        // Show variables based on template type (only for accepted e_poster and communication_orale)
+        if (templateType === 'e_poster_accepted' || templateType === 'communication_orale_accepted') {
+            document.querySelectorAll('.contribution-var').forEach(el => el.style.display = 'block');
         }
         // For rejected templates and other types (table_ronde, atelier), only show common variables
     }
@@ -305,33 +300,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         };
         
-        // Add type-specific tags
-        if (templateType === 'e_poster_accepted') {
-            commonTags.eposter_number = {
-                name: "Numéro E-Poster",
-                value: "{{eposter_number}}",
-                sample: "001"
-            };
+        // Add contribution-specific tags for accepted e_poster and communication_orale
+        if (templateType === 'e_poster_accepted' || templateType === 'communication_orale_accepted') {
             commonTags.contribution_number = {
-                name: "Numéro de contribution complet",
+                name: "Numéro de contribution",
                 value: "{{contribution_number}}",
-                sample: "EPOSTER-EVENT-001"
-            };
-            commonTags.final_submission_url = {
-                name: "URL soumission finale",
-                value: "{{final_submission_url}}",
-                sample: "https://makeplus-platform.onrender.com/dashboard/contributions/final-submission/..."
-            };
-        } else if (templateType === 'communication_orale_accepted') {
-            commonTags.communication_number = {
-                name: "Numéro Communication",
-                value: "{{communication_number}}",
-                sample: "001"
-            };
-            commonTags.contribution_number = {
-                name: "Numéro de contribution complet",
-                value: "{{contribution_number}}",
-                sample: "COMORAL-EVENT-001"
+                sample: "EPOSTER-1876634C-001"
             };
             commonTags.final_submission_url = {
                 name: "URL soumission finale",
@@ -413,9 +387,7 @@ document.addEventListener('DOMContentLoaded', function() {
             previewHtml = previewHtml.replace(/\{\{event_start_date\}\}/g, '15/06/2027');
             previewHtml = previewHtml.replace(/\{\{event_end_date\}\}/g, '17/06/2027');
             previewHtml = previewHtml.replace(/\{\{remarque\}\}/g, 'Votre travail est excellent et bien structuré.');
-            previewHtml = previewHtml.replace(/\{\{contribution_number\}\}/g, 'EPOSTER-EVENT-001');
-            previewHtml = previewHtml.replace(/\{\{eposter_number\}\}/g, '001');
-            previewHtml = previewHtml.replace(/\{\{communication_number\}\}/g, '001');
+            previewHtml = previewHtml.replace(/\{\{contribution_number\}\}/g, 'EPOSTER-1876634C-001');
             previewHtml = previewHtml.replace(/\{\{final_submission_url\}\}/g, 'https://makeplus-platform.onrender.com/dashboard/contributions/final-submission/...');
             
             // Load HTML into iframe

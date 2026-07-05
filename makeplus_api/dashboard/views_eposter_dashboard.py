@@ -396,16 +396,7 @@ def send_decision_email(submission):
                 remarque = validation.comments
         
         # Get contribution number (for e-poster and communication orale only)
-        contribution_number = ''
-        eposter_number = ''
-        communication_number = ''
-        if submission.contribution_code:
-            contribution_number = submission.contribution_code
-            # Extract just the number part
-            if 'EPOSTER-' in submission.contribution_code:
-                eposter_number = submission.contribution_code.split('-')[-1]
-            elif 'COMORAL-' in submission.contribution_code:
-                communication_number = submission.contribution_code.split('-')[-1]
+        contribution_number = submission.contribution_code if submission.contribution_code else ''
         
         context = {
             'nom': submission.nom,
@@ -415,10 +406,7 @@ def send_decision_email(submission):
             'event_location': submission.event.location or '',
             'event_start_date': submission.event.start_date.strftime('%d/%m/%Y') if submission.event.start_date else '',
             'event_end_date': submission.event.end_date.strftime('%d/%m/%Y') if submission.event.end_date else '',
-            'contribution_code': submission.contribution_code if (submission.status == 'accepted' and show_final_submission) else '',
             'contribution_number': contribution_number,
-            'eposter_number': eposter_number,
-            'communication_number': communication_number,
             'remarque': remarque,
             'final_submission_url': final_submission_url if show_final_submission else '',
             'type_participation': submission.get_type_participation_display(),
@@ -703,8 +691,7 @@ def eposter_email_template_create(request, event_id):
     }
     
     # Determine which variables to show based on template type
-    show_eposter_vars = template_type == 'e_poster_accepted'
-    show_communication_vars = template_type == 'communication_orale_accepted'
+    show_contribution_number = template_type in ['e_poster_accepted', 'communication_orale_accepted']
     show_final_submission = template_type in ['e_poster_accepted', 'communication_orale_accepted']
     
     context = {
@@ -712,8 +699,7 @@ def eposter_email_template_create(request, event_id):
         'template_type': template_type,
         'type_choices': EPosterEmailTemplate.TYPE_CHOICES,
         'defaults': defaults.get(template_type, {'subject': '', 'body_html': ''}),
-        'show_eposter_vars': show_eposter_vars,
-        'show_communication_vars': show_communication_vars,
+        'show_contribution_number': show_contribution_number,
         'show_final_submission': show_final_submission,
     }
     
@@ -746,8 +732,7 @@ def eposter_email_template_edit(request, event_id, template_id):
         return redirect('dashboard:contributions_email_templates', event_id=event_id)
     
     # Determine which variables to show based on template type
-    show_eposter_vars = template.template_type == 'e_poster_accepted'
-    show_communication_vars = template.template_type == 'communication_orale_accepted'
+    show_contribution_number = template.template_type in ['e_poster_accepted', 'communication_orale_accepted']
     show_final_submission = template.template_type in ['e_poster_accepted', 'communication_orale_accepted']
     
     context = {
@@ -755,8 +740,7 @@ def eposter_email_template_edit(request, event_id, template_id):
         'template': template,
         'type_choices': EPosterEmailTemplate.TYPE_CHOICES,
         'defaults': {'subject': '', 'body_html': ''},  # Empty defaults for edit mode
-        'show_eposter_vars': show_eposter_vars,
-        'show_communication_vars': show_communication_vars,
+        'show_contribution_number': show_contribution_number,
         'show_final_submission': show_final_submission,
     }
     
