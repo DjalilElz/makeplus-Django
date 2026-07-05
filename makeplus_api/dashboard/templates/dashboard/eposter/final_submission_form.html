@@ -1037,7 +1037,9 @@
             function updateFullPhone() {
                 if (iti && phoneInput.value) {
                     const fullNumber = iti.getNumber();
+                    const countryData = iti.getSelectedCountryData();
                     document.getElementById('full-telephone').value = fullNumber;
+                    document.getElementById('country-code').value = '+' + countryData.dialCode;
                 }
             }
             
@@ -1331,9 +1333,7 @@
                 
                 // Use the combined phone number (international format)
                 const fullPhone = document.getElementById('full-telephone').value;
-                if (fullPhone) {
-                    formData.set('telephone', fullPhone);
-                }
+                formData.set('telephone', fullPhone);
                 
                 // Submit
                 const submitBtn = form.querySelector('button[type="submit"]');
