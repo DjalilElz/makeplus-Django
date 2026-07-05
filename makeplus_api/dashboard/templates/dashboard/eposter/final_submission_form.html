@@ -1,164 +1,435 @@
-{% extends 'dashboard/base.html' %}
-{% load static %}
-
-{% block title %}Soumission Finale ePoster - {{ event.name }}{% endblock %}
-
-{% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-10">
-            <div class="card shadow">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="mb-0">📄 Soumission Finale ePoster</h3>
-                    <p class="mb-0">{{ event.name }}</p>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Submission - {{ event.name }}</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <!-- International Telephone Input -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/css/intlTelInput.css">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --deep-purple: #2A1F6B;
+            --mid-purple: #4B3B9E;
+            --light-purple: #5A4AAE;
+            --gold-tan: #C9A876;
+            --light-gold: #D9BBA3;
+            --lavender-light: #D8D3F0;
+            --lavender-grey: #B8B0DC;
+            --cream-bg: #FAF5F0;
+            --warm-white: #F9F4EF;
+            --pure-white: #FFFFFF;
+            --font-serif: 'Playfair Display', serif;
+            --font-sans: 'Inter', sans-serif;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background-color: var(--cream-bg);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+        }
+        
+        /* Elegant Banner */
+        .elegant-banner {
+            background: radial-gradient(circle at 70% 30%, var(--mid-purple) 0%, var(--deep-purple) 60%, #241A5E 100%);
+            color: var(--pure-white);
+            padding: 60px 20px 80px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .elegant-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(75, 59, 158, 0.3) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        
+        .banner-content {
+            position: relative;
+            z-index: 2;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .event-eyebrow {
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--gold-tan);
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        
+        .logo-title-row {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .event-logo img {
+            max-height: 120px;
+            max-width: 300px;
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+        }
+        
+        .event-title {
+            font-family: var(--font-serif);
+            font-size: 2.8rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin: 0;
+            color: var(--pure-white);
+            text-align: center;
+        }
+        
+        /* Form Container */
+        .form-container {
+            max-width: 900px;
+            margin: -60px auto 60px;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .form-card {
+            background: var(--pure-white);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(42, 31, 107, 0.15);
+            padding: 50px;
+        }
+        
+        .form-title {
+            font-family: var(--font-serif);
+            font-size: 2rem;
+            color: var(--deep-purple);
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .form-subtitle {
+            color: var(--lavender-grey);
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
+        }
+        
+        .info-alert {
+            background: linear-gradient(135deg, var(--lavender-light), var(--warm-white));
+            border-left: 4px solid var(--deep-purple);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            color: var(--deep-purple);
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+        
+        .form-control, .form-select {
+            border: 2px solid #E8E4F0;
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--light-purple);
+            box-shadow: 0 0 0 0.2rem rgba(75, 59, 158, 0.15);
+        }
+        
+        .required-mark {
+            color: #dc3545;
+        }
+        
+        .btn-submit {
+            background: linear-gradient(135deg, var(--mid-purple), var(--deep-purple));
+            color: white;
+            border: none;
+            padding: 16px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 50px;
+            width: 100%;
+            transition: all 0.3s ease;
+            margin-top: 30px;
+        }
+        
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(42, 31, 107, 0.3);
+        }
+        
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        /* International Phone Input */
+        .iti {
+            width: 100%;
+        }
+        
+        .iti__flag-container {
+            border-radius: 10px 0 0 10px;
+        }
+        
+        #telephone {
+            padding-left: 52px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .form-card {
+                padding: 30px 20px;
+            }
+            
+            .event-title {
+                font-size: 2rem;
+            }
+            
+            .form-title {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Elegant Banner -->
+    <div class="elegant-banner">
+        <div class="banner-content">
+            <div class="event-eyebrow">SCIENTIFIC CONTRIBUTIONS PLATFORM</div>
+            
+            <div class="logo-title-row">
+                {% if event.logo %}
+                <div class="event-logo">
+                    <img src="{{ event.logo.url }}" alt="{{ event.name }} Logo">
                 </div>
-                <div class="card-body">
-                    <div class="alert alert-info">
-                        <strong>ℹ️ Information:</strong> Veuillez remplir ce formulaire avec le code ePoster que vous avez reçu par email après validation de votre première soumission.
-                    </div>
-
-                    <form id="finalSubmissionForm" enctype="multipart/form-data">
-                        {% csrf_token %}
-                        
-                        <!-- Numéro de Contribution -->
-                        <div class="mb-3">
-                            <label for="contribution_number" class="form-label">Numéro de Contribution <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="contribution_number" name="contribution_number" required 
-                                   placeholder="Ex: EPOSTER-1876634C-001 ou COMORAL-1876634C-001">
-                            <small class="form-text text-muted">Le code que vous avez reçu par email</small>
-                        </div>
-
-                        <!-- Nom -->
-                        <div class="mb-3">
-                            <label for="nom" class="form-label">Nom <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="nom" name="nom" required>
-                        </div>
-
-                        <!-- Email -->
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" id="email" name="email" required>
-                        </div>
-
-                        <!-- Téléphone -->
-                        <div class="mb-3">
-                            <label for="telephone" class="form-label">Téléphone <span class="text-danger">*</span></label>
-                            <input type="tel" class="form-control" id="telephone" name="telephone" required>
-                        </div>
-
-                        <!-- Spécialité -->
-                        <div class="mb-3">
-                            <label for="specialite" class="form-label">Spécialité <span class="text-danger">*</span></label>
-                            <select class="form-select" id="specialite" name="specialite" required>
-                                <option value="">-- Sélectionnez --</option>
-                                {% for value, label in specialite_choices %}
-                                <option value="{{ value }}">{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <!-- Domaine de communication -->
-                        <div class="mb-3">
-                            <label for="domaine_communication" class="form-label">Domaine de communication <span class="text-danger">*</span></label>
-                            <select class="form-select" id="domaine_communication" name="domaine_communication" required>
-                                <option value="">-- Sélectionnez --</option>
-                                {% for value, label in domaine_choices %}
-                                <option value="{{ value }}">{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <!-- Titre -->
-                        <div class="mb-3">
-                            <label for="titre" class="form-label">Titre <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="titre" name="titre" required>
-                        </div>
-
-                        <!-- Auteurs -->
-                        <div class="mb-3">
-                            <label for="auteurs" class="form-label">Auteurs <span class="text-danger">*</span></label>
-                            <textarea class="form-control" id="auteurs" name="auteurs" rows="3" required></textarea>
-                        </div>
-
-                        <!-- Co-auteurs -->
-                        <div class="mb-3">
-                            <label for="co_auteurs" class="form-label">Co-auteurs</label>
-                            <textarea class="form-control" id="co_auteurs" name="co_auteurs" rows="3"></textarea>
-                        </div>
-
-                        <!-- Abstract PDF -->
-                        <div class="mb-3">
-                            <label for="abstract_file" class="form-label">Fichier Abstract (PDF) <span class="text-danger">*</span></label>
-                            <input type="file" class="form-control" id="abstract_file" name="abstract_file" accept=".pdf" required>
-                            <small class="form-text text-muted">Format PDF uniquement</small>
-                        </div>
-
-                        <!-- Submit Button -->
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
-                                <i class="fas fa-paper-plane"></i> Soumettre
-                            </button>
-                        </div>
-                    </form>
-
-                    <!-- Success Message -->
-                    <div id="successMessage" class="alert alert-success mt-3" style="display: none;">
-                        <h5>✅ Soumission réussie!</h5>
-                        <p>Votre soumission finale a été enregistrée avec succès.</p>
-                    </div>
-
-                    <!-- Error Message -->
-                    <div id="errorMessage" class="alert alert-danger mt-3" style="display: none;"></div>
+                {% endif %}
+                <div class="event-title-wrapper">
+                    <h1 class="event-title">{{ event.name }}</h1>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-document.getElementById('finalSubmissionForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
+    <!-- Form Container -->
+    <div class="form-container">
+        <div class="form-card">
+            <h2 class="form-title">📄 Final Submission</h2>
+            <p class="form-subtitle">Submit your final contribution with your contribution number</p>
+            
+            <div class="info-alert">
+                <i class="bi bi-info-circle"></i>
+                <strong>Information:</strong> Please fill in this form with the contribution number you received by email after your submission was accepted.
+            </div>
+
+            <form id="finalSubmissionForm" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <!-- Contribution Number -->
+                <div class="mb-4">
+                    <label for="contribution_number" class="form-label">
+                        Contribution Number <span class="required-mark">*</span>
+                    </label>
+                    <input type="text" 
+                           class="form-control" 
+                           id="contribution_number" 
+                           name="contribution_number" 
+                           required 
+                           placeholder="Example: EPOSTER-1876634C-001 or COMORAL-1876634C-001">
+                    <small class="text-muted">The code you received in your acceptance email</small>
+                </div>
+
+                <!-- Name -->
+                <div class="mb-4">
+                    <label for="nom" class="form-label">
+                        Last Name <span class="required-mark">*</span>
+                    </label>
+                    <input type="text" class="form-control" id="nom" name="nom" required>
+                </div>
+
+                <!-- Email -->
+                <div class="mb-4">
+                    <label for="email" class="form-label">
+                        Email <span class="required-mark">*</span>
+                    </label>
+                    <input type="email" class="form-control" id="email" name="email" required>
+                    <small class="text-muted">Use the same email as your initial submission</small>
+                </div>
+
+                <!-- Phone -->
+                <div class="mb-4">
+                    <label for="telephone" class="form-label">
+                        Phone Number <span class="required-mark">*</span>
+                    </label>
+                    <input type="tel" class="form-control" id="telephone" name="telephone" required>
+                </div>
+
+                <!-- Specialty -->
+                <div class="mb-4">
+                    <label for="specialite" class="form-label">
+                        Specialty <span class="required-mark">*</span>
+                    </label>
+                    <select class="form-select" id="specialite" name="specialite" required>
+                        <option value="">-- Select --</option>
+                        {% for value, label in specialite_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Domain -->
+                <div class="mb-4">
+                    <label for="domaine_communication" class="form-label">
+                        Communication Domain <span class="required-mark">*</span>
+                    </label>
+                    <select class="form-select" id="domaine_communication" name="domaine_communication" required>
+                        <option value="">-- Select --</option>
+                        {% for value, label in domaine_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Title -->
+                <div class="mb-4">
+                    <label for="titre" class="form-label">
+                        Title <span class="required-mark">*</span>
+                    </label>
+                    <input type="text" class="form-control" id="titre" name="titre" required>
+                </div>
+
+                <!-- Authors -->
+                <div class="mb-4">
+                    <label for="auteurs" class="form-label">
+                        Authors <span class="required-mark">*</span>
+                    </label>
+                    <textarea class="form-control" id="auteurs" name="auteurs" rows="3" required></textarea>
+                </div>
+
+                <!-- Co-Authors -->
+                <div class="mb-4">
+                    <label for="co_auteurs" class="form-label">
+                        Co-Authors
+                    </label>
+                    <textarea class="form-control" id="co_auteurs" name="co_auteurs" rows="3"></textarea>
+                </div>
+
+                <!-- PDF File -->
+                <div class="mb-4">
+                    <label for="abstract_file" class="form-label">
+                        Abstract File (PDF) <span class="required-mark">*</span>
+                    </label>
+                    <input type="file" class="form-control" id="abstract_file" name="abstract_file" accept=".pdf" required>
+                    <small class="text-muted">PDF format only</small>
+                </div>
+
+                <button type="submit" class="btn-submit" id="submitBtn">
+                    <i class="bi bi-check-circle"></i> Submit Final Contribution
+                </button>
+            </form>
+
+            <div id="successMessage" class="alert alert-success mt-4" style="display: none;">
+                <i class="bi bi-check-circle-fill"></i> Your final submission has been successfully submitted!
+            </div>
+
+            <div id="errorMessage" class="alert alert-danger mt-4" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    const submitBtn = document.getElementById('submitBtn');
-    const errorMessage = document.getElementById('errorMessage');
-    const successMessage = document.getElementById('successMessage');
+    <!-- International Telephone Input -->
+    <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/js/intlTelInput.min.js"></script>
     
-    // Hide messages
-    errorMessage.style.display = 'none';
-    successMessage.style.display = 'none';
-    
-    // Disable submit button
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi en cours...';
-    
-    try {
-        const formData = new FormData(this);
-        
-        const response = await fetch(window.location.href, {
-            method: 'POST',
-            body: formData
+    <script>
+        // Initialize International Phone Input
+        const phoneInput = document.querySelector("#telephone");
+        const iti = window.intlTelInput(phoneInput, {
+            initialCountry: "dz",
+            separateDialCode: true,
+            preferredCountries: ["dz", "fr", "us", "gb"],
+            utilsScript: "https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/js/utils.js"
         });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            successMessage.style.display = 'block';
-            this.reset();
-            // Scroll to success message
-            successMessage.scrollIntoView({ behavior: 'smooth' });
-        } else {
-            errorMessage.textContent = data.error || 'Une erreur est survenue';
-            errorMessage.style.display = 'block';
-            errorMessage.scrollIntoView({ behavior: 'smooth' });
-        }
-    } catch (error) {
-        errorMessage.textContent = 'Erreur de connexion. Veuillez réessayer.';
-        errorMessage.style.display = 'block';
-        errorMessage.scrollIntoView({ behavior: 'smooth' });
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Soumettre';
-    }
-});
-</script>
-{% endblock %}
+
+        // Form Submission
+        document.getElementById('finalSubmissionForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const successMessage = document.getElementById('successMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Hide messages
+            successMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+            
+            // Disable button
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+            
+            // Get full phone number
+            const fullPhone = iti.getNumber();
+            document.getElementById('telephone').value = fullPhone;
+            
+            // Prepare form data
+            const formData = new FormData(this);
+            
+            try {
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    successMessage.style.display = 'block';
+                    successMessage.textContent = data.message;
+                    this.reset();
+                    iti.setNumber('');
+                    window.scrollTo({top: 0, behavior: 'smooth'});
+                } else {
+                    errorMessage.style.display = 'block';
+                    errorMessage.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + data.error;
+                }
+            } catch (error) {
+                errorMessage.style.display = 'block';
+                errorMessage.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> An error occurred. Please try again.';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Submit Final Contribution';
+            }
+        });
+    </script>
+</body>
+</html>

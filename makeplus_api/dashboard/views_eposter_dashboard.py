@@ -383,7 +383,7 @@ def send_decision_email(submission):
         if submission.status == 'accepted' and submission.requires_final_submission():
             show_final_submission = True
             base_url = settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://makeplus-platform.onrender.com'
-            final_submission_url = f"{base_url}/dashboard/events/{submission.event.id}/contributions/final-submission/"
+            final_submission_url = f"{base_url}/contributions/final-submission/{submission.event.id}/"
         
         # Get committee member's remarks/comments from the validation
         remarque = ''
