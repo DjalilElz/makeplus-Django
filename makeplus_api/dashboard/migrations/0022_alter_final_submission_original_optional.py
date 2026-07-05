@@ -11,14 +11,14 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterField(
-            model_name='scientificcontributionfinalsubmission',
+            model_name='eposterfinalsubmission',
             name='original_submission',
             field=models.OneToOneField(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name='final_submission',
-                to='dashboard.scientificcontributionsubmission',
+                to='dashboard.epostersubmission',
                 verbose_name='Soumission originale'
             ),
         ),
