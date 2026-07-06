@@ -1054,34 +1054,60 @@
             const totalSteps = 3;
             const form = document.getElementById('final-submission-form');
             
+            console.log('DOM Content Loaded');
+            console.log('Form found:', form);
+            
             // Initialize International Phone Input
             const phoneInput = document.querySelector("#telephone");
-            const iti = window.intlTelInput(phoneInput, {
-                initialCountry: "dz", // Algeria as default
-                preferredCountries: ["dz", "eg", "ma", "tn", "sa", "ae", "fr"],
-                separateDialCode: true,
-                nationalMode: true,
-                autoPlaceholder: "aggressive",
-                formatOnDisplay: true,
-                utilsScript: "https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/js/utils.js",
-                searchPlaceholder: "Search country...",
-                i18n: {
-                    searchPlaceholder: "Search country..."
-                }
-            });
+            console.log('Phone input element:', phoneInput);
+            console.log('Phone input exists:', !!phoneInput);
+            console.log('intlTelInput available:', typeof window.intlTelInput);
             
-            // Update full phone number on change
-            function updateFullPhone() {
-                if (iti && phoneInput.value) {
-                    const fullNumber = iti.getNumber();
-                    const countryData = iti.getSelectedCountryData();
-                    document.getElementById('full-telephone').value = fullNumber;
-                    document.getElementById('country-code').value = '+' + countryData.dialCode;
-                }
+            if (!phoneInput) {
+                console.error('Phone input element #telephone not found!');
+                return;
             }
             
-            phoneInput.addEventListener('input', updateFullPhone);
-            phoneInput.addEventListener('countrychange', updateFullPhone);
+            if (typeof window.intlTelInput === 'undefined') {
+                console.error('intlTelInput library not loaded!');
+                return;
+            }
+            
+            try {
+                const iti = window.intlTelInput(phoneInput, {
+                    initialCountry: "dz", // Algeria as default
+                    preferredCountries: ["dz", "eg", "ma", "tn", "sa", "ae", "fr"],
+                    separateDialCode: true,
+                    nationalMode: true,
+                    autoPlaceholder: "aggressive",
+                    formatOnDisplay: true,
+                    utilsScript: "https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/js/utils.js",
+                    searchPlaceholder: "Search country...",
+                    i18n: {
+                        searchPlaceholder: "Search country..."
+                    }
+                });
+                
+                console.log('intlTelInput initialized successfully:', iti);
+                console.log('Phone input after init:', phoneInput);
+                console.log('Phone input classes:', phoneInput.className);
+                console.log('Phone input parent:', phoneInput.parentElement);
+            
+                // Update full phone number on change
+                function updateFullPhone() {
+                    if (iti && phoneInput.value) {
+                        const fullNumber = iti.getNumber();
+                        const countryData = iti.getSelectedCountryData();
+                        document.getElementById('full-telephone').value = fullNumber;
+                        document.getElementById('country-code').value = '+' + countryData.dialCode;
+                    }
+                }
+                
+                phoneInput.addEventListener('input', updateFullPhone);
+                phoneInput.addEventListener('countrychange', updateFullPhone);
+            } catch (error) {
+                console.error('Error initializing intlTelInput:', error);
+            }
             
             // Update step display
             function updateStepDisplay() {
