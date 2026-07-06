@@ -3,14 +3,15 @@ Views for ePoster and Communication Orale Final Submissions
 Separate views for each submission type
 """
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse, FileResponse, Http404
+from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods, require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
-from django.core.files.storage import default_storage
+from django.views.decorators.cache import never_cache
+from django.core.paginator import Paginator
+from django.db.models import Q
 from django.conf import settings
 from .models_eposter import ScientificContributionSubmission, ScientificContributionFinalSubmission
 from events.models import Event
-import os
 
 
 @require_http_methods(["GET", "POST"])
@@ -224,47 +225,38 @@ def handle_final_submission(request, event, expected_type):
         }, status=500)
 
 
+@never_cache
 @require_GET
-def eposter_gallery(request, event_id):
+def eposter_public_gallery(request, event_id):
     """
-    Display gallery of all final eposter submissions for an event
+    Public gallery of final E-Poster submissions for an event.
+    No login required. Searchable by title or author name.
     """
     event = get_object_or_404(Event, id=event_id)
-    
-    # Get all final submissions for this event
-    final_submissions = ScientificContributionFinalSubmission.objects.filter(
-        event=event
+
+    query = request.GET.get('q', '').strip()
+
+    submissions = ScientificContributionFinalSubmission.objects.filter(
+        event=event,
+        original_submission__type_participation='e_poster'
     ).select_related('original_submission').order_by('-submitted_at')
-    
+
+    if query:
+        submissions = submissions.filter(
+            Q(titre__icontains=query) |
+            Q(auteurs__icontains=query) |
+            Q(nom__icontains=query)
+        )
+
+    paginator = Paginator(submissions, 24)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     context = {
         'event': event,
-        'submissions': final_submissions,
+        'page_obj': page_obj,
+        'submissions': page_obj.object_list,
+        'query': query,
     }
-    
-    return render(request, 'dashboard/eposter/gallery.html', context)
 
-
-@require_GET
-def eposter_view_pdf(request, submission_id):
-    """
-    View or download the PDF file of a final submission
-    """
-    final_submission = get_object_or_404(ScientificContributionFinalSubmission, id=submission_id)
-    
-    # Get the file path
-    file_path = final_submission.abstract_file.path
-    
-    if not os.path.exists(file_path):
-        raise Http404("Fichier PDF introuvable")
-    
-    # Return the PDF file
-    response = FileResponse(
-        open(file_path, 'rb'),
-        content_type='application/pdf'
-    )
-    
-    # Set filename for download
-    filename = f"contribution_{final_submission.contribution_number}.pdf"
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
-    
-    return response
+    return render(request, 'dashboard/eposter/public_gallery.html', context)

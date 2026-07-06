@@ -24,10 +24,6 @@ class Migration(migrations.Migration):
             index=models.Index(fields=['event', 'start_time'], name='session_event_start_idx'),
         ),
         migrations.AddIndex(
-            model_name='usereventassignment',
-            index=models.Index(fields=['event', 'role', 'is_active'], name='assignment_event_role_idx'),
-        ),
-        migrations.AddIndex(
             model_name='roomaccess',
             index=models.Index(fields=['room', 'access_time'], name='roomaccess_room_time_idx'),
         ),

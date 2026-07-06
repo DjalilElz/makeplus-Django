@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galerie des E-Posters - {{ event.name }}</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <!-- Google Fonts - Serif for elegance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* ICC 2026 Inspired Color Palette (matches contribution / final submission forms) */
+            --deep-purple: #2A1F6B;
+            --mid-purple: #4B3B9E;
+            --light-purple: #5A4AAE;
+            --gold-tan: #C9A876;
+            --light-gold: #D9BBA3;
+            --lavender-light: #D8D3F0;
+            --lavender-grey: #B8B0DC;
+            --cream-bg: #FAF5F0;
+            --warm-white: #F9F4EF;
+            --pure-white: #FFFFFF;
+
+            /* Typography */
+            --font-serif: 'Playfair Display', serif;
+            --font-sans: 'Inter', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--cream-bg);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Elegant Banner with Radial Gradient */
+        .elegant-banner {
+            background: radial-gradient(circle at 70% 30%, var(--mid-purple) 0%, var(--deep-purple) 60%, #241A5E 100%);
+            color: var(--pure-white);
+            padding: 60px 20px 80px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .elegant-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(75, 59, 158, 0.3) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+
+        .banner-content {
+            position: relative;
+            z-index: 2;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .event-eyebrow {
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--gold-tan);
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .logo-title-row {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .event-logo {
+            flex-shrink: 0;
+        }
+
+        .event-logo img {
+            max-height: 120px;
+            max-width: 300px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+        }
+
+        .event-title-wrapper {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .event-title {
+            font-family: var(--font-serif);
+            font-size: 2.8rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin: 0;
+            color: var(--pure-white);
+        }
+
+        .event-subtitle {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--lavender-grey);
+            margin-top: 20px;
+            max-width: 800px;
+        }
+
+        /* Search bar sitting on top of the banner, like the form card does */
+        .search-wrapper {
+            max-width: 900px;
+            margin: -40px auto 50px;
+            padding: 0 20px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .search-container {
+            background: var(--pure-white);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(42, 31, 107, 0.15);
+            padding: 30px 35px;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .search-input-group {
+            position: relative;
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .search-input-group i {
+            position: absolute;
+            top: 50%;
+            left: 18px;
+            transform: translateY(-50%);
+            color: var(--gold-tan);
+            font-size: 1.1rem;
+        }
+
+        .search-input {
+            width: 100%;
+            border: 2px solid #E9ECEF;
+            border-radius: 50px;
+            padding: 14px 20px 14px 48px;
+            font-size: 0.95rem;
+            font-family: var(--font-sans);
+            transition: all 0.2s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--mid-purple);
+            box-shadow: 0 0 0 4px rgba(75, 59, 158, 0.1);
+        }
+
+        .search-hint {
+            font-size: 0.82rem;
+            color: #6c757d;
+            margin-top: 10px;
+        }
+
+        /* Buttons (shared language with the submission forms) */
+        .btn-primary {
+            background: var(--deep-purple);
+            border: none;
+            border-radius: 50px;
+            padding: 14px 32px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--pure-white);
+        }
+
+        .btn-primary:hover {
+            background: var(--mid-purple);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(42, 31, 107, 0.3);
+            color: var(--pure-white);
+        }
+
+        .btn-outline-primary {
+            border: 2px solid var(--deep-purple);
+            color: var(--deep-purple);
+            background: transparent;
+            border-radius: 50px;
+            padding: 12px 26px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-outline-primary:hover {
+            background: var(--deep-purple);
+            color: var(--pure-white);
+        }
+
+        /* Gallery Grid */
+        .gallery-wrapper {
+            max-width: 1200px;
+            margin: 0 auto 60px;
+            padding: 0 20px;
+        }
+
+        .results-meta {
+            color: var(--deep-purple);
+            font-weight: 600;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+
+        .poster-card {
+            background: var(--pure-white);
+            border: 2px solid var(--light-gold);
+            border-radius: 18px;
+            overflow: hidden;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.25s ease;
+        }
+
+        .poster-card:hover {
+            border-color: var(--gold-tan);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(42, 31, 107, 0.15);
+        }
+
+        .poster-card-header {
+            background: var(--deep-purple);
+            color: var(--pure-white);
+            padding: 14px 20px;
+            font-family: var(--font-serif);
+            font-weight: 700;
+            font-style: italic;
+            font-size: 1rem;
+        }
+
+        .poster-card-body {
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .poster-title {
+            font-family: var(--font-serif);
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: var(--deep-purple);
+            margin-bottom: 12px;
+            line-height: 1.35;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .poster-author {
+            font-size: 0.9rem;
+            color: #555;
+            margin-bottom: 4px;
+        }
+
+        .poster-author i {
+            color: var(--gold-tan);
+            margin-right: 6px;
+        }
+
+        .poster-date {
+            font-size: 0.8rem;
+            color: #999;
+            margin-top: auto;
+            padding-top: 12px;
+        }
+
+        .poster-card-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--warm-white);
+        }
+
+        .poster-card-footer .btn-outline-primary {
+            width: 100%;
+            padding: 10px 20px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            background: var(--pure-white);
+            border: 2px dashed var(--light-gold);
+            border-radius: 20px;
+            padding: 60px 30px;
+            text-align: center;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            color: var(--gold-tan);
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .empty-state h4 {
+            font-family: var(--font-serif);
+            color: var(--deep-purple);
+            margin-bottom: 10px;
+        }
+
+        /* Pagination */
+        .gallery-pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        .gallery-pagination a, .gallery-pagination span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 42px;
+            height: 42px;
+            padding: 0 8px;
+            border-radius: 50%;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-decoration: none;
+            border: 2px solid #E9ECEF;
+            color: var(--deep-purple);
+            transition: all 0.2s ease;
+        }
+
+        .gallery-pagination a:hover {
+            border-color: var(--mid-purple);
+            background: rgba(75, 59, 158, 0.08);
+        }
+
+        .gallery-pagination .current {
+            background: var(--deep-purple);
+            border-color: var(--deep-purple);
+            color: var(--pure-white);
+        }
+
+        @media (max-width: 768px) {
+            .elegant-banner {
+                padding: 40px 15px 70px;
+            }
+
+            .event-title {
+                font-size: 2rem;
+            }
+
+            .search-wrapper {
+                margin-top: -30px;
+            }
+
+            .search-container {
+                padding: 22px;
+            }
+
+            .search-form {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Elegant Banner -->
+    <div class="elegant-banner">
+        <div class="banner-content">
+            <div class="event-eyebrow">
+                SCIENTIFIC CONTRIBUTIONS PLATFORM
+            </div>
+
+            <div class="logo-title-row">
+                {% if event.logo %}
+                <div class="event-logo">
+                    <img src="{{ event.logo.url }}" alt="{{ event.name }} Logo">
+                </div>
+                {% endif %}
+                <div class="event-title-wrapper">
+                    <h1 class="event-title">
+                        Galerie des E-Posters
+                    </h1>
+                </div>
+            </div>
+
+            <p class="event-subtitle">
+                Parcourez les E-Posters finaux soumis pour {{ event.name }}. Recherchez par titre ou par nom d'auteur.
+            </p>
+        </div>
+    </div>
+
+    <!-- Search -->
+    <div class="search-wrapper">
+        <div class="search-container">
+            <form class="search-form" method="get" action="">
+                <div class="search-input-group">
+                    <i class="bi bi-search"></i>
+                    <input type="text" name="q" class="search-input" placeholder="Rechercher par titre ou par nom d'auteur..." value="{{ query }}">
+                </div>
+                <button type="submit" class="btn-primary">
+                    <i class="bi bi-search"></i> Rechercher
+                </button>
+                {% if query %}
+                <a href="?" class="btn-outline-primary">
+                    <i class="bi bi-x-lg"></i> Effacer
+                </a>
+                {% endif %}
+            </form>
+            {% if query %}
+            <div class="search-hint">
+                Résultats pour « {{ query }} »
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Gallery -->
+    <div class="gallery-wrapper">
+        {% if submissions %}
+            <div class="results-meta">
+                {{ page_obj.paginator.count }} E-Poster{{ page_obj.paginator.count|pluralize }} trouvé{{ page_obj.paginator.count|pluralize }}
+            </div>
+
+            <div class="row g-4">
+                {% for submission in submissions %}
+                <div class="col-sm-6 col-lg-4 col-xl-3">
+                    <div class="poster-card">
+                        <div class="poster-card-header">
+                            {{ submission.contribution_number }}
+                        </div>
+                        <div class="poster-card-body">
+                            <div class="poster-title" title="{{ submission.titre }}">
+                                {{ submission.titre }}
+                            </div>
+                            <div class="poster-author">
+                                <i class="bi bi-person-fill"></i>{{ submission.auteurs }}
+                            </div>
+                            <div class="poster-date">
+                                Soumis le {{ submission.submitted_at|date:"d M Y" }}
+                            </div>
+                        </div>
+                        <div class="poster-card-footer">
+                            <a href="{{ submission.abstract_file.url }}" class="btn-outline-primary" target="_blank" rel="noopener">
+                                <i class="bi bi-file-earmark-pdf"></i> Voir le PDF
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if page_obj.paginator.num_pages > 1 %}
+            <div class="gallery-pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?{% if query %}q={{ query }}&{% endif %}page={{ page_obj.previous_page_number }}"><i class="bi bi-chevron-left"></i></a>
+                {% endif %}
+                {% for num in page_obj.paginator.page_range %}
+                    {% if num == page_obj.number %}
+                        <span class="current">{{ num }}</span>
+                    {% else %}
+                        <a href="?{% if query %}q={{ query }}&{% endif %}page={{ num }}">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+                {% if page_obj.has_next %}
+                    <a href="?{% if query %}q={{ query }}&{% endif %}page={{ page_obj.next_page_number }}"><i class="bi bi-chevron-right"></i></a>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% else %}
+            <div class="empty-state">
+                <i class="bi bi-file-earmark-pdf"></i>
+                <h4>
+                    {% if query %}
+                        Aucun résultat pour « {{ query }} »
+                    {% else %}
+                        Aucun E-Poster pour le moment
+                    {% endif %}
+                </h4>
+                <p>
+                    {% if query %}
+                        Essayez un autre titre ou nom d'auteur.
+                    {% else %}
+                        Les E-Posters apparaîtront ici une fois soumis par les participants.
+                    {% endif %}
+                </p>
+            </div>
+        {% endif %}
+    </div>
+
+</body>
+</html>

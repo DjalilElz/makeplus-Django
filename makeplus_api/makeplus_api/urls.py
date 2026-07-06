@@ -13,7 +13,7 @@ from rest_framework_simplejwt.views import (
 from events.serializers import CustomTokenObtainPairView
 from dashboard.views import public_form_view
 from dashboard.views_eposter_public import public_eposter_form_view
-from dashboard.views_eposter_final import eposter_final_submission_form, communication_orale_final_submission_form
+from dashboard.views_eposter_final import eposter_final_submission_form, communication_orale_final_submission_form, eposter_public_gallery
 
 # Swagger/OpenAPI Schema
 schema_view = get_schema_view(
@@ -66,7 +66,10 @@ urlpatterns = [
     # Public Final Submission Forms (separate for E-Poster and Communication Orale)
     path('contributions/final-submission/eposter/<uuid:event_id>/', eposter_final_submission_form, name='public_final_submission_eposter'),
     path('contributions/final-submission/communication/<uuid:event_id>/', communication_orale_final_submission_form, name='public_final_submission_communication'),
-    
+
+    # Public E-Poster Gallery (final submitted PDFs, searchable by title/author)
+    path('contributions/gallery/<uuid:event_id>/', eposter_public_gallery, name='public_eposter_gallery'),
+
     # ePoster API
     path('api/eposter/', include('dashboard.urls_eposter')),
     

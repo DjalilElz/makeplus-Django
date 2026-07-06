@@ -46,10 +46,6 @@ class Migration(migrations.Migration):
             model_name='usereventassignment',
             name='assignment_event_role_idx',
         ),
-        migrations.RemoveIndex(
-            model_name='usereventassignment',
-            name='assignment_event_role_idx',
-        ),
         migrations.AlterField(
             model_name='usereventassignment',
             name='role',
