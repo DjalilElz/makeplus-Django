@@ -178,6 +178,9 @@ def handle_final_submission(request, event, expected_type):
                 message = 'Soumission finale mise à jour avec succès'
             else:
                 # Create new final submission linked to original
+                print(f"DEBUG: Creating final submission with contribution_number={contribution_number}")
+                print(f"DEBUG: specialite={specialite}, domaine_communication={domaine_communication}")
+                
                 final_submission = ScientificContributionFinalSubmission.objects.create(
                     original_submission=original_submission,
                     event=event,
@@ -195,6 +198,7 @@ def handle_final_submission(request, event, expected_type):
                     user_agent=request.META.get('HTTP_USER_AGENT', '')
                 )
                 
+                print(f"DEBUG: Final submission created successfully with ID: {final_submission.id}")
                 message = 'Soumission finale enregistrée avec succès'
             
         else:
