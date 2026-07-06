@@ -159,6 +159,7 @@ def handle_final_submission(request, event, expected_type):
                 final_submission.telephone = telephone
                 final_submission.specialite = specialite
                 final_submission.domaine_communication = domaine_communication
+                final_submission.contribution_number = contribution_number
                 final_submission.titre = titre
                 final_submission.auteurs = auteurs
                 final_submission.co_auteurs = co_auteurs
@@ -190,51 +191,11 @@ def handle_final_submission(request, event, expected_type):
                 message = 'Soumission finale enregistrée avec succès'
             
         else:
-            # Case 2: No original submission - create standalone final submission
-            # Check if contribution code format is valid
-            valid_prefixes = {
-                'e_poster': 'EPOSTER-',
-                'communication_orale': 'COMORAL-'
-            }
-            expected_prefix = valid_prefixes.get(expected_type)
-            
-            if not contribution_number.startswith(expected_prefix):
-                return JsonResponse({
-                    'success': False,
-                    'error': f'Format du numéro de contribution invalide. Il doit commencer par {expected_prefix}'
-                }, status=400)
-            
-            # Check if this contribution number is already used in final submissions
-            existing_final = ScientificContributionFinalSubmission.objects.filter(
-                contribution_number=contribution_number,
-                event=event
-            ).first()
-            
-            if existing_final:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Ce numéro de contribution a déjà été utilisé pour une soumission finale'
-                }, status=400)
-            
-            # Create standalone final submission
-            final_submission = ScientificContributionFinalSubmission.objects.create(
-                original_submission=None,  # No link to original
-                event=event,
-                nom=nom,
-                email=email,
-                telephone=telephone,
-                specialite=specialite,
-                domaine_communication=domaine_communication,
-                contribution_number=contribution_number,
-                titre=titre,
-                auteurs=auteurs,
-                co_auteurs=co_auteurs,
-                abstract_file=abstract_file,
-                ip_address=request.META.get('REMOTE_ADDR'),
-                user_agent=request.META.get('HTTP_USER_AGENT', '')
-            )
-            
-            message = 'Soumission finale enregistrée avec succès'
+            # Case 2: No original submission found
+            return JsonResponse({
+                'success': False,
+                'error': 'Ce numéro de contribution n\'existe pas dans notre système. Veuillez vérifier le numéro ou contacter l\'organisateur.'
+            }, status=400)
         
         return JsonResponse({
             'success': True,
