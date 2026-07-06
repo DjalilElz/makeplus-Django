@@ -303,13 +303,15 @@ class ScientificContributionFinalSubmission(models.Model):
     nom = models.CharField(max_length=100, verbose_name="Nom")
     email = models.EmailField(verbose_name="Email")
     telephone = models.CharField(max_length=20, verbose_name="Téléphone")
-    specialite = models.CharField(max_length=100, choices=SPECIALITE_CHOICES, verbose_name="Spécialité")
+    specialite = models.CharField(max_length=100, choices=SPECIALITE_CHOICES, verbose_name="Spécialité", blank=True, null=True)
     domaine_communication = models.CharField(
         max_length=100, 
         choices=DOMAINE_COMMUNICATION_CHOICES, 
-        verbose_name="Domaine de communication"
+        verbose_name="Domaine de communication",
+        blank=True,
+        null=True
     )
-    contribution_number = models.CharField(max_length=50, verbose_name="Numéro de Contribution (Code)", db_column='poster_number')
+    contribution_number = models.CharField(max_length=50, verbose_name="Numéro de Contribution (Code)", db_column='poster_number', blank=True, null=True)
     titre = models.CharField(max_length=500, verbose_name="Titre")
     auteurs = models.TextField(verbose_name="Auteurs")
     co_auteurs = models.TextField(blank=True, verbose_name="Co-auteurs")
