@@ -365,8 +365,6 @@
         
         .iti {
             width: 100%;
-            display: block;
-            position: relative;
         }
         
         .iti__flag-container {
@@ -374,8 +372,7 @@
             top: 0;
             bottom: 0;
             left: 0;
-            padding: 0;
-            z-index: 2;
+            padding: 12px 10px;
         }
         
         .iti__selected-flag {
@@ -384,40 +381,10 @@
             background: var(--warm-white);
             border-right: 2px solid #E9ECEF;
             transition: all 0.2s ease;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            position: relative;
-            z-index: 2;
         }
         
         .iti__selected-flag:hover {
             background: rgba(75, 59, 158, 0.05);
-        }
-        
-        .iti__arrow {
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 4px solid var(--deep-purple);
-            height: 0;
-            width: 0;
-            margin-left: 6px;
-        }
-        
-        .iti__flag {
-            width: 20px;
-            height: 15px;
-            box-shadow: 0 0 1px 0 #888;
-            background-image: url("https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/img/flags.png");
-            background-repeat: no-repeat;
-            background-color: #DBDBDB;
-            background-position: 20px 0;
-        }
-        
-        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-            .iti__flag {
-                background-image: url("https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/img/flags@2x.png");
-            }
         }
         
         .iti__country-list {
@@ -426,10 +393,43 @@
             border: 2px solid var(--light-gold);
             max-height: 250px;
             margin-top: 5px;
-            z-index: 1000;
-            position: absolute;
-            list-style: none;
-            padding: 0;
+        }
+        
+        .iti__search-input {
+            border: 2px solid #E9ECEF;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin: 10px;
+            width: calc(100% - 20px) !important;
+            font-family: var(--font-sans);
+        }
+        
+        .iti__search-input:focus {
+            border-color: var(--mid-purple);
+            outline: none;
+        }
+        
+        .iti__country {
+            padding: 10px 15px;
+            transition: all 0.2s ease;
+        }
+        
+        .iti__country:hover {
+            background: rgba(75, 59, 158, 0.08);
+        }
+        
+        .iti__country.iti__highlight {
+            background: var(--deep-purple);
+            color: var(--pure-white);
+        }
+        
+        .iti__dial-code {
+            color: var(--gold-tan);
+            font-weight: 600;
+        }
+        
+        .iti__country.iti__highlight .iti__dial-code {
+            color: var(--pure-white);
         }
         
         .iti__search-input {
