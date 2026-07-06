@@ -366,6 +366,7 @@
         .iti {
             width: 100%;
             display: block;
+            position: relative;
         }
         
         .iti__flag-container {
@@ -373,8 +374,8 @@
             top: 0;
             bottom: 0;
             left: 0;
-            padding: 12px 10px;
-            z-index: 1;
+            padding: 0;
+            z-index: 2;
         }
         
         .iti__selected-flag {
@@ -386,6 +387,8 @@
             height: 100%;
             display: flex;
             align-items: center;
+            position: relative;
+            z-index: 2;
         }
         
         .iti__selected-flag:hover {
@@ -401,6 +404,22 @@
             margin-left: 6px;
         }
         
+        .iti__flag {
+            width: 20px;
+            height: 15px;
+            box-shadow: 0 0 1px 0 #888;
+            background-image: url("https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/img/flags.png");
+            background-repeat: no-repeat;
+            background-color: #DBDBDB;
+            background-position: 20px 0;
+        }
+        
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            .iti__flag {
+                background-image: url("https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/img/flags@2x.png");
+            }
+        }
+        
         .iti__country-list {
             border-radius: 10px;
             box-shadow: 0 10px 30px rgba(42, 31, 107, 0.15);
@@ -408,6 +427,9 @@
             max-height: 250px;
             margin-top: 5px;
             z-index: 1000;
+            position: absolute;
+            list-style: none;
+            padding: 0;
         }
         
         .iti__search-input {
