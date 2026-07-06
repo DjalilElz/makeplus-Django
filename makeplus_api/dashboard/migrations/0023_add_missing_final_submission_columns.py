@@ -21,8 +21,12 @@ class Migration(migrations.Migration):
                         AND column_name = 'specialite'
                     ) THEN
                         ALTER TABLE dashboard_eposterfinalsubmission 
-                        ADD COLUMN specialite VARCHAR(100) NOT NULL DEFAULT '';
+                        ADD COLUMN specialite VARCHAR(100);
                     END IF;
+                    
+                    -- Remove NOT NULL constraint if it exists
+                    ALTER TABLE dashboard_eposterfinalsubmission 
+                    ALTER COLUMN specialite DROP NOT NULL;
                 END $$;
             """,
             reverse_sql="ALTER TABLE dashboard_eposterfinalsubmission DROP COLUMN IF EXISTS specialite;",
@@ -39,8 +43,12 @@ class Migration(migrations.Migration):
                         AND column_name = 'domaine_communication'
                     ) THEN
                         ALTER TABLE dashboard_eposterfinalsubmission 
-                        ADD COLUMN domaine_communication VARCHAR(100) NOT NULL DEFAULT '';
+                        ADD COLUMN domaine_communication VARCHAR(100);
                     END IF;
+                    
+                    -- Remove NOT NULL constraint if it exists
+                    ALTER TABLE dashboard_eposterfinalsubmission 
+                    ALTER COLUMN domaine_communication DROP NOT NULL;
                 END $$;
             """,
             reverse_sql="ALTER TABLE dashboard_eposterfinalsubmission DROP COLUMN IF EXISTS domaine_communication;",
@@ -57,8 +65,12 @@ class Migration(migrations.Migration):
                         AND column_name = 'poster_number'
                     ) THEN
                         ALTER TABLE dashboard_eposterfinalsubmission 
-                        ADD COLUMN poster_number VARCHAR(50) NOT NULL DEFAULT '';
+                        ADD COLUMN poster_number VARCHAR(50);
                     END IF;
+                    
+                    -- Remove NOT NULL constraint if it exists
+                    ALTER TABLE dashboard_eposterfinalsubmission 
+                    ALTER COLUMN poster_number DROP NOT NULL;
                 END $$;
             """,
             reverse_sql="ALTER TABLE dashboard_eposterfinalsubmission DROP COLUMN IF EXISTS poster_number;",

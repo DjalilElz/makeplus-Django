@@ -102,8 +102,15 @@ def handle_final_submission(request, event, expected_type):
         auteurs = f"{prenom} {nom}"
         
         # For specialite and domaine, use grade and theme as substitutes
-        specialite = grade if grade != 'autre' else grade_autre
+        specialite = (grade if grade != 'autre' else grade_autre) or 'non_specifie'
         domaine_communication = theme if theme else 'divers'
+        
+        # Ensure contribution_number is not empty
+        if not contribution_number:
+            return JsonResponse({
+                'success': False,
+                'error': 'Le numéro de contribution est requis'
+            }, status=400)
         
         # Validate required fields
         if not all([contribution_number, nom, prenom, email, telephone, grade, service, etablissement, wilaya, titre, abstract_file]):
