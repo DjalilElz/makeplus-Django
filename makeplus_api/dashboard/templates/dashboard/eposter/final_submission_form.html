@@ -1053,6 +1053,8 @@
             let currentStep = 1;
             const totalSteps = 3;
             const form = document.getElementById('final-submission-form');
+            let iti = null; // Declare in outer scope
+            let updateFullPhone = null; // Declare in outer scope
             
             console.log('DOM Content Loaded');
             console.log('Form found:', form);
@@ -1065,48 +1067,44 @@
             
             if (!phoneInput) {
                 console.error('Phone input element #telephone not found!');
-                return;
-            }
-            
-            if (typeof window.intlTelInput === 'undefined') {
+            } else if (typeof window.intlTelInput === 'undefined') {
                 console.error('intlTelInput library not loaded!');
-                return;
-            }
-            
-            try {
-                const iti = window.intlTelInput(phoneInput, {
-                    initialCountry: "dz", // Algeria as default
-                    preferredCountries: ["dz", "eg", "ma", "tn", "sa", "ae", "fr"],
-                    separateDialCode: true,
-                    nationalMode: true,
-                    autoPlaceholder: "aggressive",
-                    formatOnDisplay: true,
-                    utilsScript: "https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/js/utils.js",
-                    searchPlaceholder: "Search country...",
-                    i18n: {
-                        searchPlaceholder: "Search country..."
-                    }
-                });
+            } else {
+                try {
+                    iti = window.intlTelInput(phoneInput, {
+                        initialCountry: "dz", // Algeria as default
+                        preferredCountries: ["dz", "eg", "ma", "tn", "sa", "ae", "fr"],
+                        separateDialCode: true,
+                        nationalMode: true,
+                        autoPlaceholder: "aggressive",
+                        formatOnDisplay: true,
+                        utilsScript: "https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/js/utils.js",
+                        searchPlaceholder: "Search country...",
+                        i18n: {
+                            searchPlaceholder: "Search country..."
+                        }
+                    });
+                    
+                    console.log('intlTelInput initialized successfully:', iti);
+                    console.log('Phone input after init:', phoneInput);
+                    console.log('Phone input classes:', phoneInput.className);
+                    console.log('Phone input parent:', phoneInput.parentElement);
                 
-                console.log('intlTelInput initialized successfully:', iti);
-                console.log('Phone input after init:', phoneInput);
-                console.log('Phone input classes:', phoneInput.className);
-                console.log('Phone input parent:', phoneInput.parentElement);
-            
-                // Update full phone number on change
-                function updateFullPhone() {
-                    if (iti && phoneInput.value) {
-                        const fullNumber = iti.getNumber();
-                        const countryData = iti.getSelectedCountryData();
-                        document.getElementById('full-telephone').value = fullNumber;
-                        document.getElementById('country-code').value = '+' + countryData.dialCode;
-                    }
+                    // Update full phone number on change
+                    updateFullPhone = function() {
+                        if (iti && phoneInput.value) {
+                            const fullNumber = iti.getNumber();
+                            const countryData = iti.getSelectedCountryData();
+                            document.getElementById('full-telephone').value = fullNumber;
+                            document.getElementById('country-code').value = '+' + countryData.dialCode;
+                        }
+                    };
+                    
+                    phoneInput.addEventListener('input', updateFullPhone);
+                    phoneInput.addEventListener('countrychange', updateFullPhone);
+                } catch (error) {
+                    console.error('Error initializing intlTelInput:', error);
                 }
-                
-                phoneInput.addEventListener('input', updateFullPhone);
-                phoneInput.addEventListener('countrychange', updateFullPhone);
-            } catch (error) {
-                console.error('Error initializing intlTelInput:', error);
             }
             
             // Update step display
@@ -1183,7 +1181,7 @@
                     });
                     
                     // Special validation for phone number in step 1
-                    if (currentStep === 1) {
+                    if (currentStep === 1 && iti) {
                         const phoneValue = phoneInput.value.trim();
                         if (!phoneValue) {
                             valid = false;
@@ -1192,7 +1190,7 @@
                             setTimeout(() => {
                                 phoneInput.style.borderColor = '';
                             }, 2000);
-                        } else if (!iti.isValidNumber()) {
+                        } else if (iti.isValidNumber && !iti.isValidNumber()) {
                             valid = false;
                             phoneInput.classList.add('is-invalid');
                             phoneInput.style.borderColor = '#dc3545';
@@ -1202,24 +1200,7 @@
                             }, 2000);
                         } else {
                             phoneInput.classList.remove('is-invalid');
-                            updateFullPhone(); // Make sure full phone is updated
-                        }
-                    }
-                    
-                    // Special validation for type selection in step 2
-                    if (currentStep === 2) {
-                        const typeInput = document.getElementById('type-participation-input');
-                        if (!typeInput.value) {
-                            valid = false;
-                            document.querySelectorAll('.type-pill').forEach(pill => {
-                                pill.style.borderColor = '#dc3545';
-                            });
-                            setTimeout(() => {
-                                document.querySelectorAll('.type-pill').forEach(pill => {
-                                    pill.style.borderColor = '';
-                                });
-                            }, 2000);
-                            alert('Please select a contribution type');
+                            if (updateFullPhone) updateFullPhone(); // Make sure full phone is updated
                         }
                     }
                     
