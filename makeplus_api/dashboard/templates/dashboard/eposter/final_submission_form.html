@@ -1318,55 +1318,6 @@
                 }
             });
             
-            // Add co-author
-            let authorCount = 0;
-            document.getElementById('add-author').addEventListener('click', function() {
-                authorCount++;
-                const container = document.getElementById('authors-container');
-                const authorDiv = document.createElement('div');
-                authorDiv.className = 'author-card';
-                authorDiv.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <strong style="color: var(--deep-purple); font-size: 1rem;">
-                            <i class="bi bi-person me-2"></i>Co-Author ${authorCount}
-                        </strong>
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-author">
-                            <i class="bi bi-trash"></i> Remove
-                        </button>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <input type="text" class="form-control author-nom" placeholder="Last Name">
-                        </div>
-                        <div class="col-md-4">
-                            <input type="text" class="form-control author-prenom" placeholder="First Name">
-                        </div>
-                        <div class="col-md-4">
-                            <input type="text" class="form-control author-affiliation" placeholder="Institution">
-                        </div>
-                    </div>
-                `;
-                container.appendChild(authorDiv);
-                
-                // Animate in
-                authorDiv.style.opacity = '0';
-                authorDiv.style.transform = 'translateY(-10px)';
-                setTimeout(() => {
-                    authorDiv.style.transition = 'all 0.3s ease';
-                    authorDiv.style.opacity = '1';
-                    authorDiv.style.transform = 'translateY(0)';
-                }, 10);
-                
-                // Remove author handler
-                authorDiv.querySelector('.remove-author').addEventListener('click', function() {
-                    authorDiv.style.opacity = '0';
-                    authorDiv.style.transform = 'translateY(-10px)';
-                    setTimeout(() => {
-                        authorDiv.remove();
-                    }, 300);
-                });
-            });
-            
             // Form submission
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
