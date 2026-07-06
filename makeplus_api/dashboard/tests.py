@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
@@ -97,3 +98,24 @@ class PublicEposterGalleryTests(TestCase):
         url = reverse('public_eposter_gallery', args=[self.event.id])
         response = self.client.get(url, {'q': 'Nonexistent Title XYZ'})
         self.assertContains(response, "Aucun résultat")
+
+
+class EventDetailGalleryLinkTests(TestCase):
+    def setUp(self):
+        self.event = Event.objects.create(
+            name="Test Congress",
+            start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2),
+            location="Algiers",
+        )
+        self.staff_user = User.objects.create_user(
+            username="staffuser", password="testpass123", is_staff=True
+        )
+        self.client.force_login(self.staff_user)
+
+    def test_event_detail_links_to_public_gallery(self):
+        url = reverse('dashboard:event_detail', args=[self.event.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        gallery_url = reverse('public_eposter_gallery', args=[self.event.id])
+        self.assertContains(response, gallery_url)

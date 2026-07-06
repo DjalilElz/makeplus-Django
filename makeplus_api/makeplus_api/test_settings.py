@@ -20,3 +20,14 @@ class DisableMigrations:
 
 
 MIGRATION_MODULES = DisableMigrations()
+
+# Templates that render {% static %} (e.g. dashboard/base.html) need a
+# staticfiles manifest, which only exists after `collectstatic` has run.
+# Tests never run collectstatic, so use plain (non-manifest) static storage
+# here instead. Media storage is untouched.
+STORAGES = {
+    **STORAGES,
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}

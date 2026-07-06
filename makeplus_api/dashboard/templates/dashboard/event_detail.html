@@ -146,7 +146,14 @@
                             <dt class="col-sm-3">Registration Info:</dt>
                             <dd class="col-sm-9">{{ event.registration_description|truncatewords:30 }}</dd>
                             {% endif %}
-                            
+
+                            <dt class="col-sm-3">E-Poster Gallery:</dt>
+                            <dd class="col-sm-9">
+                                <a href="{% url 'public_eposter_gallery' event.id %}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-images"></i> View Public Gallery
+                                </a>
+                            </dd>
+
                             {% if event.logo %}
                             <dt class="col-sm-3">Logo:</dt>
                             <dd class="col-sm-9">
