@@ -9,6 +9,7 @@ from . import views_stats
 from . import views_eposter_dashboard
 from . import views_eposter_management
 from . import views_eposter_final
+from . import views_final_communications
 
 app_name = 'dashboard'
 
@@ -158,4 +159,9 @@ urlpatterns = [
     # Legacy URLs for backward compatibility
     path('eposter/', views_eposter_management.eposter_management_home, name='eposter_management_home'),
     path('events/<uuid:event_id>/eposter/', views_eposter_dashboard.eposter_dashboard, name='eposter_dashboard'),
+
+    # Final Communication Orale submissions (staff + room managers)
+    path('my-final-communications/', views_final_communications.my_final_communications_home, name='my_final_communications_home'),
+    path('events/<uuid:event_id>/final-communications/', views_final_communications.final_communications, name='final_communications'),
+    path('final-communications/<uuid:submission_id>/download/', views_final_communications.download_final_communication, name='download_final_communication'),
 ]

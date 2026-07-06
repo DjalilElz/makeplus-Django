@@ -154,6 +154,13 @@
                                 </a>
                             </dd>
 
+                            <dt class="col-sm-3">Final Communications:</dt>
+                            <dd class="col-sm-9">
+                                <a href="{% url 'dashboard:final_communications' event.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-mic"></i> View Final Communications Orales
+                                </a>
+                            </dd>
+
                             {% if event.logo %}
                             <dt class="col-sm-3">Logo:</dt>
                             <dd class="col-sm-9">
