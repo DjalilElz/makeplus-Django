@@ -104,11 +104,10 @@
             font-style: italic;
             color: var(--dusty-rose);
         }
-        .logo-desc-row {
+        .logo-title-row {
             display: flex;
             align-items: center;
-            gap: 28px;
-            margin-top: 22px;
+            gap: 24px;
             flex-wrap: wrap;
         }
         .event-logo-large img {
@@ -122,8 +121,7 @@
             line-height: 1.6;
             color: var(--lavender);
             max-width: 480px;
-            flex: 1;
-            min-width: 220px;
+            margin-top: 18px;
         }
         .event-info-row {
             display: flex;
@@ -552,19 +550,20 @@
                         <span class="light">Make</span><span class="bold">Plus</span>
                     </div>
                     <div class="event-eyebrow">Inscription</div>
-                    <h1 class="event-title">{{ form_config.name }}</h1>
 
-                    {% if form_config.event.logo or form_config.description %}
-                    <div class="logo-desc-row">
-                        {% if form_config.event and form_config.event.logo %}
+                    {% if form_config.event and form_config.event.logo %}
+                    <div class="logo-title-row">
                         <div class="event-logo-large">
                             <img src="{{ form_config.event.logo.url }}" alt="{{ form_config.event.name }} Logo">
                         </div>
-                        {% endif %}
-                        {% if form_config.description %}
-                        <p class="event-subtitle">{{ form_config.description }}</p>
-                        {% endif %}
+                        <h1 class="event-title">{{ form_config.name }}</h1>
                     </div>
+                    {% else %}
+                    <h1 class="event-title">{{ form_config.name }}</h1>
+                    {% endif %}
+
+                    {% if form_config.description %}
+                    <p class="event-subtitle">{{ form_config.description }}</p>
                     {% endif %}
 
                     {% if form_config.event %}
@@ -804,16 +803,6 @@
                 </script>
             </div>
         {% else %}
-            {% if form_config.banner_image %}
-                <div class="mb-4">
-                    <img src="{{ form_config.banner_image.url }}" alt="Form banner" class="img-fluid" style="width: 100%; height: auto; max-height: 300px; object-fit: cover; border-radius: 14px;">
-                </div>
-            {% elif form_config.event and form_config.event.banner %}
-                <div class="mb-4">
-                    <img src="{{ form_config.event.banner.url }}" alt="Event banner" class="img-fluid" style="width: 100%; height: auto; max-height: 300px; object-fit: cover; border-radius: 14px;">
-                </div>
-            {% endif %}
-
             {% if errors %}
                 <div class="error-message">
                     <i class="bi bi-exclamation-triangle me-2"></i>
