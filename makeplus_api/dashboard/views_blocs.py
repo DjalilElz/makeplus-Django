@@ -2,10 +2,12 @@
 Admin management for registration blocs, items, reductions, and orders.
 Staff-only. Lives as a tab on the event detail page.
 """
+import uuid
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.files.storage import default_storage
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -225,6 +227,20 @@ def registration_order_update(request, order_id):
         messages.error(request, 'Unknown action.')
         return redirect('dashboard:registration_orders', event_id=order.event_id)
 
+    if action == 'approve':
+        from django.contrib.auth.models import User
+        from events.form_validation_service import create_participant_for_event
+
+        user = User.objects.filter(email=order.email).first()
+        if user:
+            create_participant_for_event(user, order.event)
+        else:
+            messages.warning(
+                request,
+                f'Registration approved, but no account was found for {order.email} -- '
+                'the participant role was not granted.'
+            )
+
     order.admin_notes = notes
     order.reviewed_by = request.user
     order.reviewed_at = timezone.now()
@@ -306,16 +322,20 @@ def _client_ip(request):
     return xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
 
 
-def process_paid_registration(request, form_config, form_data, email, full_name, bloc_context):
+def stage_paid_registration(request, form_config, form_data, email, full_name, bloc_context):
     """
-    Handle a paid registration submission (blocs enabled). Creates a
-    FormSubmission + a pending RegistrationOrder with the uploaded receipt.
-    Returns (ok: bool, errors: list). On success the caller shows the
-    success page.
-    """
-    from .models_form import FormSubmission
+    Validate a paid registration submission (blocs enabled) and stage it
+    behind an email verification code -- the same code/expiry mechanism the
+    free flow uses. The receipt is saved to storage right away (it can't
+    ride along in the verification's JSON form_data like the other fields
+    can); its path plus the bloc selections are bundled into form_data so
+    finalize_paid_registration() can build the actual FormSubmission +
+    RegistrationOrder once the code is confirmed.
 
-    event = form_config.event
+    Returns (ok: bool, errors: list, wait_seconds: int or None).
+    """
+    from django.contrib.auth.models import User
+
     config = bloc_context['config']
     errors = []
 
@@ -336,30 +356,81 @@ def process_paid_registration(request, form_config, form_data, email, full_name,
     if not receipt:
         errors.append("Please upload your bank receipt.")
 
+    # Participant creation (on admin approval) needs a linked account,
+    # same rule the free flow enforces.
+    if not email or not User.objects.filter(email=email).exists():
+        errors.append('Please create an account first in the mobile app before registering for events.')
+
     if errors:
-        return False, errors
+        return False, errors, None
+
+    receipt_path = default_storage.save(
+        f'registrations/receipts/{uuid.uuid4().hex}_{receipt.name}', receipt
+    )
+
+    staged_data = dict(form_data)
+    staged_data['__paid_meta__'] = {
+        'selected_item_ids': selected_item_ids,
+        'selected_session_ids': selected_session_ids,
+        'receipt_path': receipt_path,
+        'full_name': full_name,
+    }
+
+    from events.form_validation_service import send_form_validation_code
+
+    success, message, wait_seconds = send_form_validation_code(
+        email=email,
+        form_slug=form_config.slug,
+        form_data=staged_data,
+        ip_address=_client_ip(request),
+        user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
+    )
+    if not success:
+        return False, [message], wait_seconds
+    return True, [], None
+
+
+def finalize_paid_registration(verification, form_config):
+    """
+    Called once the email verification code staged by stage_paid_registration()
+    has been confirmed. Builds the FormSubmission + pending RegistrationOrder
+    from the data stashed on the verification row.
+
+    Returns (ok: bool, message: str).
+    """
+    from .models_form import FormSubmission
+
+    event = form_config.event
+    bloc_context = get_public_bloc_context(event)
+    if not bloc_context:
+        return False, "This event's registration options are no longer available."
+
+    meta = verification.form_data.get('__paid_meta__') or {}
+    receipt_path = meta.get('receipt_path')
+    if not receipt_path:
+        return False, "Missing receipt file. Please submit your registration again."
 
     result = compute_order(
         event=event,
-        config=config,
-        selected_item_ids=selected_item_ids,
-        selected_session_ids=selected_session_ids,
+        config=bloc_context['config'],
+        selected_item_ids=meta.get('selected_item_ids', []),
+        selected_session_ids=meta.get('selected_session_ids', []),
         on_date=timezone.now().date(),
     )
 
     submission = FormSubmission.objects.create(
         form=form_config,
-        data=form_data,
-        email=email or '',
-        ip_address=_client_ip(request),
-        user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
+        data=verification.form_data,
+        email=verification.email or '',
+        ip_address=verification.ip_address,
+        user_agent=verification.user_agent[:1000],
     )
 
     RegistrationOrder.objects.create(
         event=event,
         form_submission=submission,
-        full_name=full_name,
-        email=email or '',
+        full_name=meta.get('full_name', ''),
+        email=verification.email or '',
         items_snapshot=result['snapshot'],
         subtotals=result['subtotals'],
         distinct_blocs_count=result['distinct_blocs_count'],
@@ -368,10 +439,13 @@ def process_paid_registration(request, form_config, form_data, email, full_name,
         blocs_discount_percent=result['blocs_discount_percent'],
         total_discount_percent=result['total_discount_percent'],
         total_after_reduction=result['total_after_reduction'],
-        receipt_file=receipt,
-        ip_address=_client_ip(request),
-        user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
+        receipt_file=receipt_path,
+        ip_address=verification.ip_address,
+        user_agent=verification.user_agent[:1000],
     )
+
+    form_config.increment_submission_count()
+    return True, 'Votre inscription a été enregistrée et est en attente de validation.'
 
     form_config.increment_submission_count()
     return True, []

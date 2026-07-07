@@ -6,7 +6,9 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from events.models import Event, UserEventAssignment
+from unittest.mock import patch
+
+from events.models import Event, UserEventAssignment, FormRegistrationVerification, Participant
 from .models_eposter import ScientificContributionFinalSubmission, ScientificContributionSubmission
 
 
@@ -424,6 +426,7 @@ class BlocsPublicFormTests(TestCase):
             ],
         )
         self.item = BlocItem.objects.create(event=self.event, bloc='status', name='Adherent', price=Decimal('1000'))
+        self.registrant = User.objects.create_user(username='karim', email='k@example.com', password='x')
 
     def _enable_blocs(self):
         EventBlocConfig.objects.create(event=self.event, show_status=True)
@@ -443,7 +446,20 @@ class BlocsPublicFormTests(TestCase):
         self.assertContains(response, "Confirmer l'inscription")
         self.assertContains(response, 'Adherent')
 
-    def test_paid_submission_creates_pending_order(self):
+    def test_paid_submission_requires_existing_account(self):
+        self._enable_blocs()
+        receipt = _Upload('receipt.pdf', b'%PDF-1.4 fake', content_type='application/pdf')
+        response = self.client.post(reverse('public_form', args=[self.form.slug]), {
+            'first_name': 'Nobody', 'last_name': 'X', 'email': 'no-account@example.com',
+            'items_status': str(self.item.id),
+            'accept_conditions': '1',
+            'receipt_file': receipt,
+        })
+        self.assertFalse(FormRegistrationVerification.objects.filter(email='no-account@example.com').exists())
+        self.assertContains(response, 'create an account first')
+
+    @patch.object(FormRegistrationVerification, 'generate_code', return_value='654321')
+    def test_paid_submission_stages_code_then_verify_creates_pending_order(self, _mock_code):
         self._enable_blocs()
         receipt = _Upload('receipt.pdf', b'%PDF-1.4 fake', content_type='application/pdf')
         response = self.client.post(reverse('public_form', args=[self.form.slug]), {
@@ -453,12 +469,22 @@ class BlocsPublicFormTests(TestCase):
             'receipt_file': receipt,
         })
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Check Your Email')
+        # Nothing is created yet -- only staged behind the verification code.
+        self.assertFalse(RegistrationOrder.objects.filter(event=self.event).exists())
+
+        response = self.client.post(reverse('public_form', args=[self.form.slug]), {
+            'email': 'k@example.com', 'verification_code': '654321',
+        })
+        self.assertEqual(response.status_code, 200)
         order = RegistrationOrder.objects.get(event=self.event)
         self.assertEqual(order.status, 'pending')
         self.assertEqual(order.total_after_reduction, Decimal('1000.00'))
         self.assertEqual(order.email, 'k@example.com')
         self.assertTrue(order.receipt_file)
         self.assertTrue(FormSubmission.objects.filter(form=self.form).exists())
+        # No payment has been reviewed yet -- no participant role granted.
+        self.assertFalse(Participant.objects.filter(user=self.registrant).exists())
 
     def test_paid_submission_requires_receipt(self):
         self._enable_blocs()
@@ -535,7 +561,8 @@ class BlocsAdminTests(TestCase):
         self.client.post(reverse('dashboard:bloc_item_delete', args=[item.id]))
         self.assertFalse(BlocItem.objects.filter(id=item.id).exists())
 
-    def test_approve_order(self):
+    def test_approve_order_grants_participant_role(self):
+        registrant = User.objects.create_user(username='karim', email='k@example.com', password='x')
         self.client.force_login(self.admin)
         order = RegistrationOrder.objects.create(
             event=self.event, email='k@example.com', full_name='K',
@@ -547,3 +574,19 @@ class BlocsAdminTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.status, 'approved')
         self.assertEqual(order.reviewed_by, self.admin)
+        self.assertTrue(Participant.objects.filter(user=registrant, role='participant').exists())
+        self.assertTrue(UserEventAssignment.objects.filter(user=registrant, event=self.event, role='participant').exists())
+
+    def test_reject_order_grants_no_participant_role(self):
+        registrant = User.objects.create_user(username='sara', email='sara@example.com', password='x')
+        self.client.force_login(self.admin)
+        order = RegistrationOrder.objects.create(
+            event=self.event, email='sara@example.com', full_name='S',
+            receipt_file=_Upload('r.pdf', b'x', content_type='application/pdf'),
+        )
+        self.client.post(reverse('dashboard:registration_order_update', args=[order.id]), {
+            'action': 'reject', 'admin_notes': 'missing funds',
+        })
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'rejected')
+        self.assertFalse(Participant.objects.filter(user=registrant).exists())

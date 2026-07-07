@@ -98,6 +98,27 @@ def send_form_validation_code(email, form_slug, form_data, ip_address=None, user
         return False, f"Failed to send email: {error}", None
 
 
+def create_participant_for_event(user, event):
+    """
+    Get-or-create the Participant/registration/assignment records that grant
+    a user the 'participant' role for an event. Shared by the free-flow
+    email verification (immediate) and admin approval of paid registrations.
+    """
+    from .models import ParticipantEventRegistration
+
+    participant, _ = Participant.objects.get_or_create(
+        user=user,
+        defaults={
+            'badge_id': UserProfile.get_qr_for_user(user)['badge_id'],
+            'qr_code_data': UserProfile.get_qr_for_user(user),
+            'role': 'participant'
+        }
+    )
+    ParticipantEventRegistration.objects.get_or_create(participant=participant, event=event)
+    UserEventAssignment.objects.get_or_create(user=user, event=event, defaults={'role': 'participant'})
+    return participant
+
+
 def verify_form_registration(email, form_slug, code, ip_address=None, user_agent=''):
     """
     Verify form registration code and create participant record
@@ -142,35 +163,22 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
         is_valid, message = verification.verify_code(code)
         if not is_valid:
             return False, None, message
-        
-        # Check if user already registered for this event
-        if form.event:
-            # Get or create participant profile
-            participant, created = Participant.objects.get_or_create(
-                user=user,
-                defaults={
-                    'badge_id': UserProfile.get_qr_for_user(user)['badge_id'],
-                    'qr_code_data': UserProfile.get_qr_for_user(user),
-                    'role': 'participant'
-                }
-            )
-            
-            # Check if already registered for this event
-            from .models import ParticipantEventRegistration
-            event_registration, reg_created = ParticipantEventRegistration.objects.get_or_create(
-                participant=participant,
-                event=form.event
-            )
-            
-            # Create or update user event assignment
-            UserEventAssignment.objects.get_or_create(
-                user=user,
-                event=form.event,
-                defaults={'role': 'participant'}
-            )
-        else:
-            participant = None
-        
+
+        # Paid (blocs) registrations were staged at submit time -- the
+        # RegistrationOrder is created now, but it stays pending until an
+        # admin approves it, so no participant is created here.
+        if verification.form_data.get('__paid_meta__'):
+            from dashboard.views_blocs import finalize_paid_registration
+            ok, result_message = finalize_paid_registration(verification, form)
+            if not ok:
+                return False, None, result_message
+            verification.mark_as_used(ip_address=ip_address, user_agent=user_agent)
+            return True, None, result_message
+
+        # Free (no-blocs) flow: grant the participant role immediately,
+        # since there's no payment for an admin to review.
+        participant = create_participant_for_event(user, form.event) if form.event else None
+
         # Create form submission
         FormSubmission.objects.create(
             form=form,
@@ -180,31 +188,48 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
             user_agent=user_agent,
             status='approved'
         )
-        
+
         # Increment submission count
         form.increment_submission_count()
-        
+
         # Mark code as used
         verification.mark_as_used(ip_address=ip_address, user_agent=user_agent)
-        
+
         return True, participant, "Registration completed successfully"
-        
+
     except Exception as e:
         return False, None, f"Error completing registration: {str(e)}"
 
 
-def resend_form_validation_code(email, form_slug, form_data, ip_address=None, user_agent=''):
+def resend_form_validation_code(email, form_slug, form_data=None, ip_address=None, user_agent=''):
     """
-    Resend validation code for form registration
-    
+    Resend validation code for form registration.
+
     Args:
         email: User's email
         form_slug: Form slug
-        form_data: Form submission data
+        form_data: Form submission data. Pass explicitly when the caller has
+            it on hand (e.g. the mobile app). If omitted, the data staged by
+            the most recent verification attempt for this email/form is
+            reused -- the public registration page's "Resend Code" button
+            only has the email available, not the original answers/receipt.
         ip_address: IP address of request
         user_agent: User agent string
-    
+
     Returns:
         tuple: (success: bool, message: str, wait_seconds: int or None)
     """
+    if form_data is None:
+        try:
+            form = FormConfiguration.objects.get(slug=form_slug)
+        except FormConfiguration.DoesNotExist:
+            return False, "Form not found", None
+
+        previous = FormRegistrationVerification.objects.filter(
+            email=email, form=form
+        ).order_by('-created_at').first()
+        if not previous:
+            return False, "No previous registration found for this email. Please fill out the form again.", None
+        form_data = previous.form_data
+
     return send_form_validation_code(email, form_slug, form_data, ip_address, user_agent)

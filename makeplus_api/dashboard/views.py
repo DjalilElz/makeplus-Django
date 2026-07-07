@@ -2193,9 +2193,37 @@ def public_form_view(request, slug):
     
     if request.method == 'POST':
         try:
+            # Check if this is a "Resend Code" click. It only carries the
+            # email (no verification_code, no original form fields), so it
+            # must be handled before the field-collection logic below --
+            # otherwise it gets treated as a fresh submission and bounces
+            # the user back to a blank form full of "required" errors.
+            if request.POST.get('resend_code'):
+                email = request.POST.get('email', '').strip().lower()
+                from events.form_validation_service import resend_form_validation_code
+
+                ip_address = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0] if request.META.get('HTTP_X_FORWARDED_FOR') else request.META.get('REMOTE_ADDR')
+                user_agent = request.META.get('HTTP_USER_AGENT', '')
+
+                success, message, wait_seconds = resend_form_validation_code(
+                    email=email,
+                    form_slug=form_config.slug,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                )
+                context = {
+                    'form_config': form_config,
+                    'show_verification': True,
+                    'submitted_email': email,
+                    'message': message if success else None,
+                    'errors': [] if success else [message],
+                    'wait_seconds': wait_seconds,
+                }
+                return render(request, 'dashboard/public_form.html', context)
+
             # Check if this is a verification code submission
             verification_code = request.POST.get('verification_code', '').strip()
-            
+
             if verification_code:
                 # Handle verification code submission
                 email = request.POST.get('email', '').strip().lower()
@@ -2308,10 +2336,12 @@ def public_form_view(request, slug):
                 print(f"WARNING: Event {form_config.event.id} missing start_date")
 
             # --- Paid registration (blocs) flow ---
-            # If the event has visible blocs, this is a paid registration:
-            # create a pending order + receipt directly, skipping the email
-            # code verification used by the free flow.
-            from dashboard.views_blocs import get_public_bloc_context, process_paid_registration
+            # If the event has visible blocs, this is a paid registration.
+            # It goes through the same email verification code as the free
+            # flow; the pending RegistrationOrder is only created once the
+            # code is confirmed (see finalize_paid_registration), and stays
+            # pending until an admin approves/rejects it.
+            from dashboard.views_blocs import get_public_bloc_context, stage_paid_registration
             bloc_context = get_public_bloc_context(form_config.event)
             if bloc_context:
                 if errors:
@@ -2325,15 +2355,15 @@ def public_form_view(request, slug):
                     return render(request, 'dashboard/public_form.html', context)
 
                 full_name = f"{first_name or ''} {last_name or ''}".strip()
-                ok, paid_errors = process_paid_registration(
+                ok, paid_errors, wait_seconds = stage_paid_registration(
                     request, form_config, form_data, email, full_name, bloc_context
                 )
                 if ok:
                     context = {
                         'form_config': form_config,
-                        'success': True,
+                        'show_verification': True,
                         'submitted_email': email,
-                        'message': 'Votre inscription a été enregistrée et est en attente de validation.',
+                        'message': 'Verification code sent to your email',
                     }
                     return render(request, 'dashboard/public_form.html', context)
                 context = {
@@ -2342,6 +2372,7 @@ def public_form_view(request, slug):
                     'errors': paid_errors,
                     'form_data': form_data,
                     'bloc_context': bloc_context,
+                    'wait_seconds': wait_seconds,
                 }
                 return render(request, 'dashboard/public_form.html', context)
             # --- End paid flow; below is the free (email-verification) flow ---
