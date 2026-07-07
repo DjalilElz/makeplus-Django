@@ -63,22 +63,16 @@
             max-width: 1100px;
             margin: 0 auto;
         }
-        .logo-title-row {
+        .banner-top-row {
             display: flex;
-            align-items: center;
-            gap: 18px;
-            margin-bottom: 34px;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 40px;
             flex-wrap: wrap;
         }
-        .event-logo img {
-            max-height: 54px;
-            max-width: 200px;
-            object-fit: contain;
-        }
-        .brand-divider {
-            width: 1px;
-            height: 40px;
-            background: rgba(255, 255, 255, 0.3);
+        .banner-main {
+            flex: 1;
+            min-width: 280px;
         }
         .brand-name {
             font-family: var(--font-sans);
@@ -86,9 +80,10 @@
             letter-spacing: 0.16em;
             text-transform: uppercase;
             line-height: 1.5;
+            margin-bottom: 18px;
         }
-        .brand-name .light { font-weight: 300; display: block; opacity: 0.85; }
-        .brand-name .bold { font-weight: 700; display: block; }
+        .brand-name .light { font-weight: 300; opacity: 0.85; }
+        .brand-name .bold { font-weight: 700; }
 
         .event-eyebrow {
             font-size: 0.8rem;
@@ -109,16 +104,30 @@
             font-style: italic;
             color: var(--dusty-rose);
         }
+        .logo-desc-row {
+            display: flex;
+            align-items: center;
+            gap: 28px;
+            margin-top: 22px;
+            flex-wrap: wrap;
+        }
+        .event-logo-large img {
+            max-height: 120px;
+            max-width: 320px;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
+        }
         .event-subtitle {
             font-size: 1rem;
             line-height: 1.6;
             color: var(--lavender);
-            margin-top: 16px;
-            max-width: 520px;
+            max-width: 480px;
+            flex: 1;
+            min-width: 220px;
         }
         .event-info-row {
             display: flex;
-            gap: 44px;
+            gap: 36px;
             margin-top: 30px;
             flex-wrap: wrap;
         }
@@ -135,6 +144,29 @@
             font-weight: 700;
             color: #fff;
         }
+
+        /* Countdown, relocated to the side of the header banner */
+        .banner-countdown-side {
+            flex-shrink: 0;
+            text-align: center;
+        }
+        .banner-countdown-side .countdown-title {
+            font-family: var(--font-sans);
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--dusty-rose);
+        }
+        .banner-countdown-side .countdown-item {
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: none;
+            padding: 0.7rem 1rem;
+            min-width: 60px;
+        }
+        .banner-countdown-side .countdown-value { color: #fff; font-size: 1.5rem; }
+        .banner-countdown-side .countdown-label { color: rgba(255, 255, 255, 0.7); }
+        .banner-countdown-side .countdown-separator { color: var(--dusty-rose); font-size: 1.5rem; }
 
         /* ============ Layout ============ */
         .page-wrapper {
@@ -478,13 +510,6 @@
             margin-bottom: 1.25rem;
             color: #842029;
         }
-        .countdown-container {
-            background: var(--cream);
-            border: 1px solid var(--border-light);
-            border-radius: 14px;
-            padding: 1.5rem;
-            text-align: center;
-        }
         .countdown-title { font-family: var(--font-serif); color: #2c2c2c; }
         .countdown-timer { display: flex; justify-content: center; align-items: center; gap: 0.5rem; }
         .countdown-item {
@@ -505,6 +530,9 @@
             .event-title { font-size: 1.9rem; }
             .form-card { padding: 26px 20px; }
             .page-wrapper { padding: 24px 15px 60px; }
+            .banner-top-row { flex-direction: column; }
+            .banner-countdown-side { align-self: stretch; }
+            .event-logo-large img { max-height: 90px; }
         }
         @media (max-width: 576px) {
             .countdown-item { min-width: 60px; padding: 0.75rem 1rem; }
@@ -518,39 +546,78 @@
     <!-- ============ 1. TOP BANNER ============ -->
     <div class="elegant-banner">
         <div class="banner-content">
-            <div class="logo-title-row">
-                {% if form_config.event and form_config.event.logo %}
-                <div class="event-logo">
-                    <img src="{{ form_config.event.logo.url }}" alt="{{ form_config.event.name }} Logo">
+            <div class="banner-top-row">
+                <div class="banner-main">
+                    <div class="brand-name">
+                        <span class="light">Make</span><span class="bold">Plus</span>
+                    </div>
+                    <div class="event-eyebrow">Inscription</div>
+                    <h1 class="event-title">{{ form_config.name }}</h1>
+
+                    {% if form_config.event.logo or form_config.description %}
+                    <div class="logo-desc-row">
+                        {% if form_config.event and form_config.event.logo %}
+                        <div class="event-logo-large">
+                            <img src="{{ form_config.event.logo.url }}" alt="{{ form_config.event.name }} Logo">
+                        </div>
+                        {% endif %}
+                        {% if form_config.description %}
+                        <p class="event-subtitle">{{ form_config.description }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if form_config.event %}
+                    <div class="event-info-row">
+                        <div class="event-info-item">
+                            <div class="event-info-label">Start Date</div>
+                            <div class="event-info-value">{{ form_config.event.start_date|date:"d M Y" }}</div>
+                        </div>
+                        <div class="event-info-item">
+                            <div class="event-info-label">End Date</div>
+                            <div class="event-info-value">{{ form_config.event.end_date|date:"d M Y" }}</div>
+                        </div>
+                        <div class="event-info-item">
+                            <div class="event-info-label">Location</div>
+                            <div class="event-info-value">{{ form_config.event.location|default:"—" }}</div>
+                        </div>
+                        <div class="event-info-item">
+                            <div class="event-info-label">Currency</div>
+                            <div class="event-info-value">DZD</div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
-                <div class="brand-divider"></div>
+
+                {% if not success and not form_closed and not show_verification and form_config.countdown_enabled and form_config.countdown_date %}
+                <div class="banner-countdown-side">
+                    <h5 class="countdown-title mb-2">
+                        <i class="bi bi-alarm me-1"></i>{{ form_config.countdown_title }}
+                    </h5>
+                    <div class="countdown-timer" id="countdown">
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="days">00</span>
+                            <span class="countdown-label">Days</span>
+                        </div>
+                        <div class="countdown-separator">:</div>
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="hours">00</span>
+                            <span class="countdown-label">Hours</span>
+                        </div>
+                        <div class="countdown-separator">:</div>
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="minutes">00</span>
+                            <span class="countdown-label">Minutes</span>
+                        </div>
+                        <div class="countdown-separator">:</div>
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="seconds">00</span>
+                            <span class="countdown-label">Seconds</span>
+                        </div>
+                    </div>
+                </div>
                 {% endif %}
-                <div class="brand-name">
-                    <span class="light">Make</span>
-                    <span class="bold">Plus</span>
-                </div>
             </div>
-            <div class="event-eyebrow">Inscription</div>
-            <h1 class="event-title">{{ form_config.name }}</h1>
-            {% if form_config.description %}
-            <p class="event-subtitle">{{ form_config.description }}</p>
-            {% endif %}
-            {% if form_config.event %}
-            <div class="event-info-row">
-                <div class="event-info-item">
-                    <div class="event-info-label">Dates</div>
-                    <div class="event-info-value">{{ form_config.event.start_date|date:"d M Y" }} – {{ form_config.event.end_date|date:"d M Y" }}</div>
-                </div>
-                <div class="event-info-item">
-                    <div class="event-info-label">Location</div>
-                    <div class="event-info-value">{{ form_config.event.location|default:"—" }}</div>
-                </div>
-                <div class="event-info-item">
-                    <div class="event-info-label">Currency</div>
-                    <div class="event-info-value">DZD</div>
-                </div>
-            </div>
-            {% endif %}
         </div>
     </div>
 
@@ -744,35 +811,6 @@
             {% elif form_config.event and form_config.event.banner %}
                 <div class="mb-4">
                     <img src="{{ form_config.event.banner.url }}" alt="Event banner" class="img-fluid" style="width: 100%; height: auto; max-height: 300px; object-fit: cover; border-radius: 14px;">
-                </div>
-            {% endif %}
-
-            {% if form_config.countdown_enabled and form_config.countdown_date %}
-                <div class="countdown-container mb-4">
-                    <h5 class="countdown-title text-center mb-3">
-                        <i class="bi bi-alarm me-2"></i>{{ form_config.countdown_title }}
-                    </h5>
-                    <div class="countdown-timer" id="countdown">
-                        <div class="countdown-item">
-                            <span class="countdown-value" id="days">00</span>
-                            <span class="countdown-label">Days</span>
-                        </div>
-                        <div class="countdown-separator">:</div>
-                        <div class="countdown-item">
-                            <span class="countdown-value" id="hours">00</span>
-                            <span class="countdown-label">Hours</span>
-                        </div>
-                        <div class="countdown-separator">:</div>
-                        <div class="countdown-item">
-                            <span class="countdown-value" id="minutes">00</span>
-                            <span class="countdown-label">Minutes</span>
-                        </div>
-                        <div class="countdown-separator">:</div>
-                        <div class="countdown-item">
-                            <span class="countdown-value" id="seconds">00</span>
-                            <span class="countdown-label">Seconds</span>
-                        </div>
-                    </div>
                 </div>
             {% endif %}
 
