@@ -1,0 +1,124 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Submitted Registrations - {{ event.name }}{% endblock %}
+{% block page_title %}Submitted Registrations{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-0">{{ event.name }}</h4>
+            <small class="text-muted">Paid registrations awaiting review</small>
+        </div>
+        <a href="{% url 'dashboard:blocs_config' event.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Configuration
+        </a>
+    </div>
+
+    <form method="get" class="row g-2 mb-4">
+        <div class="col-md-6">
+            <input type="text" name="q" class="form-control" placeholder="Search by name or email..." value="{{ query }}">
+        </div>
+        <div class="col-md-3">
+            <select name="status" class="form-select">
+                <option value="">All statuses</option>
+                <option value="pending" {% if status == 'pending' %}selected{% endif %}>Pending</option>
+                <option value="approved" {% if status == 'approved' %}selected{% endif %}>Approved</option>
+                <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Rejected</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel"></i> Filter</button>
+        </div>
+    </form>
+
+    <div class="stat-card">
+        {% if orders %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Name</th><th>Email</th><th>Total (DZD)</th><th>Discount</th>
+                        <th>Receipt</th><th>Status</th><th>Submitted</th><th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td>{{ order.full_name|default:"—" }}</td>
+                        <td>{{ order.email|default:"—" }}</td>
+                        <td>
+                            <strong>{{ order.total_after_reduction }}</strong>
+                            {% if order.total_discount_percent > 0 %}
+                            <br><small class="text-muted"><s>{{ order.total_before_reduction }}</s></small>
+                            {% endif %}
+                        </td>
+                        <td>{% if order.total_discount_percent > 0 %}{{ order.total_discount_percent }}%{% else %}—{% endif %}</td>
+                        <td>
+                            {% if order.receipt_file %}
+                            <a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-arrow-down"></i> View</a>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if order.status == 'pending' %}<span class="badge bg-warning text-dark">Pending</span>
+                            {% elif order.status == 'approved' %}<span class="badge bg-success">Approved</span>
+                            {% else %}<span class="badge bg-danger">Rejected</span>{% endif %}
+                        </td>
+                        <td><small>{{ order.created_at|date:"M d, Y H:i" }}</small></td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#order-{{ order.id }}">
+                                <i class="bi bi-eye"></i> Review
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4 mb-0">No registrations found.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Review modals -->
+{% for order in orders %}
+<div class="modal fade" id="order-{{ order.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ order.full_name|default:order.email }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Email:</strong> {{ order.email|default:"—" }}</p>
+                <h6>Selected items</h6>
+                <ul>
+                    {% for it in order.items_snapshot %}
+                    <li>[{{ it.bloc }}] {{ it.name }} — {{ it.price }} DZD</li>
+                    {% empty %}
+                    <li class="text-muted">None</li>
+                    {% endfor %}
+                </ul>
+                <p class="mb-1">Total before reduction: <strong>{{ order.total_before_reduction }} DZD</strong></p>
+                <p class="mb-1">Discount: period {{ order.period_discount_percent }}% + blocs {{ order.blocs_discount_percent }}% = <strong>{{ order.total_discount_percent }}%</strong></p>
+                <p class="mb-3">Total to pay: <strong>{{ order.total_after_reduction }} DZD</strong></p>
+                {% if order.receipt_file %}
+                <p><a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark"></i> Open bank receipt</a></p>
+                {% endif %}
+
+                <form method="post" action="{% url 'dashboard:registration_order_update' order.id %}">
+                    {% csrf_token %}
+                    <label class="form-label">Admin notes</label>
+                    <textarea name="admin_notes" class="form-control mb-3" rows="2">{{ order.admin_notes }}</textarea>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="action" value="approve" class="btn btn-success"><i class="bi bi-check-lg"></i> Approve</button>
+                        <button type="submit" name="action" value="reject" class="btn btn-danger"><i class="bi bi-x-lg"></i> Reject</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

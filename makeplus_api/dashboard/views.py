@@ -2306,7 +2306,46 @@ def public_form_view(request, slug):
             elif not form_config.event.start_date:
                 errors.append('Event configuration is incomplete (missing start date).')
                 print(f"WARNING: Event {form_config.event.id} missing start_date")
-            
+
+            # --- Paid registration (blocs) flow ---
+            # If the event has visible blocs, this is a paid registration:
+            # create a pending order + receipt directly, skipping the email
+            # code verification used by the free flow.
+            from dashboard.views_blocs import get_public_bloc_context, process_paid_registration
+            bloc_context = get_public_bloc_context(form_config.event)
+            if bloc_context:
+                if errors:
+                    context = {
+                        'form_config': form_config,
+                        'fields': form_config.fields_config,
+                        'errors': errors,
+                        'form_data': form_data,
+                        'bloc_context': bloc_context,
+                    }
+                    return render(request, 'dashboard/public_form.html', context)
+
+                full_name = f"{first_name or ''} {last_name or ''}".strip()
+                ok, paid_errors = process_paid_registration(
+                    request, form_config, form_data, email, full_name, bloc_context
+                )
+                if ok:
+                    context = {
+                        'form_config': form_config,
+                        'success': True,
+                        'submitted_email': email,
+                        'message': 'Votre inscription a été enregistrée et est en attente de validation.',
+                    }
+                    return render(request, 'dashboard/public_form.html', context)
+                context = {
+                    'form_config': form_config,
+                    'fields': form_config.fields_config,
+                    'errors': paid_errors,
+                    'form_data': form_data,
+                    'bloc_context': bloc_context,
+                }
+                return render(request, 'dashboard/public_form.html', context)
+            # --- End paid flow; below is the free (email-verification) flow ---
+
             # Check if user exists
             from django.contrib.auth.models import User
             user_exists = User.objects.filter(email=email).exists() if email else False
@@ -2381,10 +2420,12 @@ def public_form_view(request, slug):
             return render(request, 'dashboard/public_form.html', context)
     
     # GET request - display form
+    from dashboard.views_blocs import get_public_bloc_context
     context = {
         'form_config': form_config,
         'fields': form_config.fields_config,
         'success': False,
+        'bloc_context': get_public_bloc_context(form_config.event),
     }
-    
+
     return render(request, 'dashboard/public_form.html', context)

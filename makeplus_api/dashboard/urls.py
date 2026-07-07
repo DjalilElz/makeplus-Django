@@ -10,6 +10,7 @@ from . import views_eposter_dashboard
 from . import views_eposter_management
 from . import views_eposter_final
 from . import views_final_communications
+from . import views_blocs
 
 app_name = 'dashboard'
 
@@ -164,4 +165,14 @@ urlpatterns = [
     path('my-final-communications/', views_final_communications.my_final_communications_home, name='my_final_communications_home'),
     path('events/<uuid:event_id>/final-communications/', views_final_communications.final_communications, name='final_communications'),
     path('final-communications/<uuid:submission_id>/download/', views_final_communications.download_final_communication, name='download_final_communication'),
+
+    # Registration Blocs / Paid Registration (admin config + orders)
+    path('events/<uuid:event_id>/blocs/', views_blocs.blocs_config, name='blocs_config'),
+    path('events/<uuid:event_id>/blocs/save/', views_blocs.blocs_config_save, name='blocs_config_save'),
+    path('events/<uuid:event_id>/blocs/items/save/', views_blocs.bloc_item_save, name='bloc_item_save'),
+    path('blocs/items/<int:item_id>/delete/', views_blocs.bloc_item_delete, name='bloc_item_delete'),
+    path('events/<uuid:event_id>/blocs/periods/save/', views_blocs.reduction_period_save, name='reduction_period_save'),
+    path('blocs/periods/<int:period_id>/delete/', views_blocs.reduction_period_delete, name='reduction_period_delete'),
+    path('events/<uuid:event_id>/blocs/orders/', views_blocs.registration_orders, name='registration_orders'),
+    path('blocs/orders/<uuid:order_id>/update/', views_blocs.registration_order_update, name='registration_order_update'),
 ]

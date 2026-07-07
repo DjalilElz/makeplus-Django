@@ -1,0 +1,204 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Registration & Blocs - {{ event.name }}{% endblock %}
+{% block page_title %}Registration & Blocs{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-0">{{ event.name }}</h4>
+            <small class="text-muted">Paid registration configuration</small>
+        </div>
+        <div>
+            <a href="{% url 'dashboard:registration_orders' event.id %}" class="btn btn-outline-primary">
+                <i class="bi bi-inbox"></i> Submitted Registrations
+                {% if pending_orders %}<span class="badge bg-danger">{{ pending_orders }}</span>{% endif %}
+            </a>
+            <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Event
+            </a>
+        </div>
+    </div>
+
+    <!-- Bloc visibility + reductions -->
+    <form method="post" action="{% url 'dashboard:blocs_config_save' event.id %}">
+        {% csrf_token %}
+        <div class="stat-card mb-4">
+            <h5><i class="bi bi-toggles"></i> Blocs shown on the registration form</h5>
+            <hr>
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" name="show_status" id="show_status" {% if config.show_status %}checked{% endif %}>
+                        <label class="form-check-label" for="show_status"><strong>Status</strong></label>
+                    </div>
+                    <select name="status_select_mode" class="form-select form-select-sm">
+                        {% for val, label in select_mode_choices %}
+                        <option value="{{ val }}" {% if config.status_select_mode == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" name="show_restauration" id="show_restauration" {% if config.show_restauration %}checked{% endif %}>
+                        <label class="form-check-label" for="show_restauration"><strong>Restauration</strong></label>
+                    </div>
+                    <select name="restauration_select_mode" class="form-select form-select-sm">
+                        {% for val, label in select_mode_choices %}
+                        <option value="{{ val }}" {% if config.restauration_select_mode == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" name="show_workshops" id="show_workshops" {% if config.show_workshops %}checked{% endif %}>
+                        <label class="form-check-label" for="show_workshops"><strong>Workshops</strong></label>
+                    </div>
+                    <small class="text-muted">Uses paid Sessions</small>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" name="show_social_event" id="show_social_event" {% if config.show_social_event %}checked{% endif %}>
+                        <label class="form-check-label" for="show_social_event"><strong>Social Event</strong></label>
+                    </div>
+                    <select name="social_event_select_mode" class="form-select form-select-sm">
+                        {% for val, label in select_mode_choices %}
+                        <option value="{{ val }}" {% if config.social_event_select_mode == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card mb-4">
+            <h5><i class="bi bi-percent"></i> Reductions</h5>
+            <hr>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" name="reduction_by_period_enabled" id="rp" {% if config.reduction_by_period_enabled %}checked{% endif %}>
+                <label class="form-check-label" for="rp"><strong>Reduction by period</strong> (define periods below)</label>
+            </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" name="reduction_by_blocs_enabled" id="rb" {% if config.reduction_by_blocs_enabled %}checked{% endif %}>
+                <label class="form-check-label" for="rb"><strong>Reduction by number of selected blocs</strong></label>
+            </div>
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label small">2 blocs selected → % off</label>
+                    <input type="number" step="0.01" min="0" max="100" name="reduction_2_blocs" value="{{ config.reduction_2_blocs }}" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">3 blocs selected → % off</label>
+                    <input type="number" step="0.01" min="0" max="100" name="reduction_3_blocs" value="{{ config.reduction_3_blocs }}" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">4 blocs selected → % off</label>
+                    <input type="number" step="0.01" min="0" max="100" name="reduction_4_blocs" value="{{ config.reduction_4_blocs }}" class="form-control form-control-sm">
+                </div>
+            </div>
+            <small class="text-muted d-block mt-2">1 bloc selected is always 0%. When both reductions are active, they add up.</small>
+        </div>
+
+        <button type="submit" class="btn btn-primary mb-4"><i class="bi bi-save"></i> Save configuration</button>
+    </form>
+
+    <!-- Custom bloc items -->
+    {% for bloc in blocs %}
+    <div class="stat-card mb-4">
+        <h5><i class="bi bi-list-ul"></i> {{ bloc.label }} items</h5>
+        <hr>
+        {% for item in bloc.items %}
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <form method="post" action="{% url 'dashboard:bloc_item_save' event.id %}" class="d-flex align-items-center gap-2 flex-grow-1">
+                {% csrf_token %}
+                <input type="hidden" name="item_id" value="{{ item.id }}">
+                <input type="hidden" name="bloc" value="{{ bloc.key }}">
+                <input type="text" name="name" value="{{ item.name }}" class="form-control form-control-sm" style="max-width:340px">
+                <input type="number" step="0.01" min="0" name="price" value="{{ item.price }}" class="form-control form-control-sm" style="max-width:140px" title="Price (DZD)">
+                <input type="number" name="order" value="{{ item.order }}" class="form-control form-control-sm" style="max-width:80px" title="Order">
+                <button type="submit" class="btn btn-sm btn-outline-primary" title="Save"><i class="bi bi-check-lg"></i></button>
+            </form>
+            <form method="post" action="{% url 'dashboard:bloc_item_delete' item.id %}" onsubmit="return confirm('Delete {{ item.name|escapejs }}?')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+            </form>
+        </div>
+        {% empty %}
+        <p class="text-muted">No items yet.</p>
+        {% endfor %}
+
+        <form method="post" action="{% url 'dashboard:bloc_item_save' event.id %}" class="d-flex align-items-center gap-2 mt-3">
+            {% csrf_token %}
+            <input type="hidden" name="bloc" value="{{ bloc.key }}">
+            <input type="text" name="name" placeholder="New item name" class="form-control form-control-sm" style="max-width:340px" required>
+            <input type="number" step="0.01" min="0" name="price" value="0" class="form-control form-control-sm" style="max-width:140px" title="Price (DZD)">
+            <input type="number" name="order" value="0" class="form-control form-control-sm" style="max-width:80px" title="Order">
+            <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Add</button>
+        </form>
+    </div>
+    {% endfor %}
+
+    <!-- Reduction periods -->
+    <div class="stat-card mb-4">
+        <h5><i class="bi bi-calendar-range"></i> Reduction periods</h5>
+        <hr>
+        <table class="table table-sm">
+            <thead><tr><th>Label</th><th>Start</th><th>End</th><th>Discount %</th><th></th></tr></thead>
+            <tbody>
+                {% for p in periods %}
+                <tr>
+                    <td>{{ p.name|default:"—" }}</td>
+                    <td>{{ p.start_date }}</td>
+                    <td>{{ p.end_date }}</td>
+                    <td>{{ p.discount_percent }}%</td>
+                    <td>
+                        <form method="post" action="{% url 'dashboard:reduction_period_delete' p.id %}" onsubmit="return confirm('Delete this period?')">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-muted">No periods defined.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <form method="post" action="{% url 'dashboard:reduction_period_save' event.id %}" class="d-flex align-items-end gap-2 flex-wrap mt-2">
+            {% csrf_token %}
+            <div>
+                <label class="form-label small mb-0">Label</label>
+                <input type="text" name="name" placeholder="e.g. Early bird" class="form-control form-control-sm">
+            </div>
+            <div>
+                <label class="form-label small mb-0">Start</label>
+                <input type="date" name="start_date" class="form-control form-control-sm" required>
+            </div>
+            <div>
+                <label class="form-label small mb-0">End</label>
+                <input type="date" name="end_date" class="form-control form-control-sm" required>
+            </div>
+            <div>
+                <label class="form-label small mb-0">Discount %</label>
+                <input type="number" step="0.01" min="0" max="100" name="discount_percent" value="0" class="form-control form-control-sm" style="max-width:120px">
+            </div>
+            <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Add period</button>
+        </form>
+    </div>
+
+    <!-- Paid sessions (workshops) reference -->
+    <div class="stat-card mb-4">
+        <h6><i class="bi bi-mortarboard"></i> Workshops = paid Sessions ({{ paid_sessions.count }})</h6>
+        <hr>
+        {% if paid_sessions %}
+        <ul class="mb-0">
+            {% for s in paid_sessions %}
+            <li>{{ s.title }} — {{ s.price }} DZD</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted mb-0">No paid sessions. Mark sessions as paid to populate the Workshops bloc.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

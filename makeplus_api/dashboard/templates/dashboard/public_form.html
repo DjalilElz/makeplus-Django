@@ -394,7 +394,7 @@
                     {% endif %}
 
                     <!-- Form -->
-                    <form method="post" id="registrationForm">
+                    <form method="post" id="registrationForm" enctype="multipart/form-data">
                         {% csrf_token %}
                         
                         {% for field in fields %}
@@ -480,16 +480,149 @@
                             </div>
                         {% endfor %}
 
+                        {% if bloc_context.has_blocs %}
+                        <hr class="my-4">
+
+                        {# ---- Bloc sections ---- #}
+                        {% for bloc in bloc_context.custom_blocs %}
+                        <div class="bloc-section mb-4">
+                            <h4 class="mb-3">{{ bloc.label }}</h4>
+                            {% for item in bloc.items %}
+                            <div class="form-check bloc-item mb-2">
+                                <input class="form-check-input bloc-choice"
+                                       type="{% if bloc.select_mode == 'single' %}radio{% else %}checkbox{% endif %}"
+                                       name="items_{{ bloc.key }}"
+                                       id="item_{{ item.id }}"
+                                       value="{{ item.id }}"
+                                       data-price="{{ item.price }}"
+                                       data-bloc="{{ bloc.key }}">
+                                <label class="form-check-label d-flex justify-content-between" for="item_{{ item.id }}" style="max-width:520px">
+                                    <span>{{ item.name }}</span>
+                                    <strong>{{ item.price }} DZD</strong>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+
+                        {% if bloc_context.workshops_visible and bloc_context.paid_sessions %}
+                        <div class="bloc-section mb-4">
+                            <h4 class="mb-3">Workshops</h4>
+                            {% for s in bloc_context.paid_sessions %}
+                            <div class="form-check bloc-item mb-2">
+                                <input class="form-check-input bloc-choice" type="checkbox"
+                                       name="sessions" id="session_{{ s.id }}" value="{{ s.id }}"
+                                       data-price="{{ s.price }}" data-bloc="workshops">
+                                <label class="form-check-label d-flex justify-content-between" for="session_{{ s.id }}" style="max-width:520px">
+                                    <span>{{ s.title }}</span>
+                                    <strong>{{ s.price }} DZD</strong>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {# ---- Cart summary ---- #}
+                        <div class="cart-summary p-4 mb-4" style="background:#f8f9fa;border-radius:12px;">
+                            <h4 class="mb-3">Total de votre panier</h4>
+                            <div id="cart-lines"></div>
+                            <hr>
+                            <div class="d-flex justify-content-between">
+                                <span>Total</span>
+                                <strong id="cart-total-before">0.00 DZD</strong>
+                            </div>
+                            <div class="d-flex justify-content-between text-success" id="cart-discount-row" style="display:none !important;">
+                                <span>Réduction (<span id="cart-discount-percent">0</span>%)</span>
+                                <strong id="cart-discount-amount">0.00 DZD</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mt-2" style="font-size:1.25rem;">
+                                <span><strong>Total à payer</strong></span>
+                                <strong id="cart-total-after">0.00 DZD</strong>
+                            </div>
+                        </div>
+
+                        {# ---- Payment & confirmation ---- #}
+                        <div class="mb-4">
+                            <h4 class="mb-3">Paiement et confirmation</h4>
+                            <div class="mb-3">
+                                <label for="receipt_file" class="form-label">Téléverser la quittance de banque <span class="required-indicator">*</span></label>
+                                <input type="file" class="form-control" id="receipt_file" name="receipt_file"
+                                       accept=".pdf,.jpg,.jpeg,.png" required>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="accept_conditions" name="accept_conditions" value="1" required>
+                                <label class="form-check-label" for="accept_conditions">
+                                    J'ai lu et j'accepte les conditions.
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-submit">
+                                <i class="bi bi-check-circle me-2"></i>Confirmer l'inscription
+                            </button>
+                        </div>
+                        {% else %}
                         <div class="d-grid gap-2 mt-4">
                             <button type="submit" class="btn btn-primary btn-submit">
                                 <i class="bi bi-send-fill me-2"></i>Submit Form
                             </button>
                         </div>
+                        {% endif %}
 
                         <p class="text-center text-muted small mt-3 mb-0">
                             <i class="bi bi-shield-check me-1"></i>Your information is secure and will not be shared.
                         </p>
                     </form>
+
+                    {% if bloc_context.has_blocs %}
+                    <script>
+                    (function () {
+                        var PERIOD_PCT = {{ bloc_context.period_percent_today|default:0 }};
+                        var BLOCS_ENABLED = {% if bloc_context.config.reduction_by_blocs_enabled %}true{% else %}false{% endif %};
+                        var BLOC_PCT = {2: {{ bloc_context.config.reduction_2_blocs }}, 3: {{ bloc_context.config.reduction_3_blocs }}, 4: {{ bloc_context.config.reduction_4_blocs }}};
+
+                        function fmt(n) { return n.toFixed(2) + ' DZD'; }
+
+                        function recalc() {
+                            var choices = document.querySelectorAll('.bloc-choice');
+                            var subtotal = 0.0;
+                            var blocs = {};
+                            choices.forEach(function (el) {
+                                if (el.checked) {
+                                    var price = parseFloat(el.getAttribute('data-price')) || 0;
+                                    subtotal += price;
+                                    blocs[el.getAttribute('data-bloc')] = true;
+                                }
+                            });
+                            var distinct = Object.keys(blocs).length;
+                            var periodPct = PERIOD_PCT || 0;
+                            var blocsPct = (BLOCS_ENABLED && subtotal > 0) ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
+                            var totalPct = periodPct + blocsPct;
+                            if (totalPct > 100) totalPct = 100;
+                            if (subtotal <= 0) totalPct = 0;
+                            var discountAmt = subtotal * totalPct / 100.0;
+                            var after = subtotal - discountAmt;
+
+                            document.getElementById('cart-total-before').textContent = fmt(subtotal);
+                            document.getElementById('cart-total-after').textContent = fmt(after);
+                            var row = document.getElementById('cart-discount-row');
+                            if (totalPct > 0) {
+                                row.style.setProperty('display', 'flex', 'important');
+                                document.getElementById('cart-discount-percent').textContent = totalPct;
+                                document.getElementById('cart-discount-amount').textContent = '-' + fmt(discountAmt);
+                            } else {
+                                row.style.setProperty('display', 'none', 'important');
+                            }
+                        }
+
+                        document.querySelectorAll('.bloc-choice').forEach(function (el) {
+                            el.addEventListener('change', recalc);
+                        });
+                        recalc();
+                    })();
+                    </script>
+                    {% endif %}
                 {% endif %}
             </div>
 
