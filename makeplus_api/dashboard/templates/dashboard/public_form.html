@@ -65,7 +65,7 @@
         }
         .banner-top-row {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
             gap: 40px;
             flex-wrap: wrap;
@@ -116,12 +116,16 @@
             object-fit: contain;
             filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
         }
+        .title-desc-col {
+            flex: 1;
+            min-width: 220px;
+        }
         .event-subtitle {
             font-size: 1rem;
             line-height: 1.6;
             color: var(--lavender);
             max-width: 480px;
-            margin-top: 18px;
+            margin-top: 10px;
         }
         .event-info-row {
             display: flex;
@@ -556,14 +560,18 @@
                         <div class="event-logo-large">
                             <img src="{{ form_config.event.logo.url }}" alt="{{ form_config.event.name }} Logo">
                         </div>
-                        <h1 class="event-title">{{ form_config.name }}</h1>
+                        <div class="title-desc-col">
+                            <h1 class="event-title">{{ form_config.name }}</h1>
+                            {% if form_config.description %}
+                            <p class="event-subtitle">{{ form_config.description }}</p>
+                            {% endif %}
+                        </div>
                     </div>
                     {% else %}
                     <h1 class="event-title">{{ form_config.name }}</h1>
-                    {% endif %}
-
                     {% if form_config.description %}
                     <p class="event-subtitle">{{ form_config.description }}</p>
+                    {% endif %}
                     {% endif %}
 
                     {% if form_config.event %}
@@ -995,10 +1003,9 @@
                             <div class="blocs-subscribed">
                                 <span class="label">Blocs</span>
                                 <div class="bloc-dots">
-                                    <span class="bloc-dot" id="dot-1">1</span>
-                                    <span class="bloc-dot" id="dot-2">2</span>
-                                    <span class="bloc-dot" id="dot-3">3</span>
-                                    <span class="bloc-dot" id="dot-4">4</span>
+                                    {% for key in bloc_context.active_bloc_keys %}
+                                    <span class="bloc-dot" id="dot-{{ forloop.counter }}">{{ forloop.counter }}</span>
+                                    {% endfor %}
                                 </div>
                             </div>
 
@@ -1053,7 +1060,7 @@
                 var PERIOD_PCT = {{ bloc_context.period_percent_today|default:0 }};
                 var BLOCS_ENABLED = {% if bloc_context.config.reduction_by_blocs_enabled %}true{% else %}false{% endif %};
                 var BLOC_PCT = {2: {{ bloc_context.config.reduction_2_blocs }}, 3: {{ bloc_context.config.reduction_3_blocs }}, 4: {{ bloc_context.config.reduction_4_blocs }}};
-                var BLOC_ORDER = ['status', 'restauration', 'workshops', 'social_event'];
+                var BLOC_ORDER = [{% for key in bloc_context.active_bloc_keys %}'{{ key }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
 
                 function fmt(n) { return n.toFixed(2) + ' DZD'; }
 

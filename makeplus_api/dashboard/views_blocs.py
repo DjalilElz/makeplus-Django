@@ -286,6 +286,10 @@ def get_public_bloc_context(event):
         if period:
             period_percent_today = float(period.discount_percent)
 
+    active_bloc_keys = [b['key'] for b in custom_blocs]
+    if config.show_workshops and paid_sessions:
+        active_bloc_keys.append('workshops')
+
     return {
         'has_blocs': True,
         'config': config,
@@ -293,6 +297,7 @@ def get_public_bloc_context(event):
         'workshops_visible': config.show_workshops,
         'paid_sessions': paid_sessions,
         'period_percent_today': period_percent_today,
+        'active_bloc_keys': active_bloc_keys,
     }
 
 
