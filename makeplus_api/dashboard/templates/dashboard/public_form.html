@@ -7,22 +7,23 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
-    <!-- Google Fonts (ICC 2026 theme) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --deep-purple: #2A1F6B;
-            --mid-purple: #4B3B9E;
-            --light-purple: #5A4AAE;
-            --gold-tan: #C9A876;
-            --light-gold: #D9BBA3;
-            --lavender-grey: #B8B0DC;
-            --cream-bg: #FAF5F0;
-            --warm-white: #F9F4EF;
-            --pure-white: #FFFFFF;
+            --banner-1: #2D1B6B;
+            --banner-2: #46309a;
+            --banner-3: #3a2480;
+            --steel-blue: #7BA7BC;
+            --dusty-rose: #E8B9B9;
+            --dusty-rose-dark: #8B4B4B;
+            --dusty-rose-bg: #F5E3E1;
+            --lavender: #C9C2E8;
+            --cream: #FAF6F0;
+            --ink: #1a1a1a;
+            --border-light: #E7E2DC;
             --font-serif: 'Playfair Display', serif;
             --font-sans: 'Inter', sans-serif;
         }
@@ -30,241 +31,480 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            background-color: var(--cream-bg);
+            background-color: #fff;
             font-family: var(--font-sans);
             min-height: 100vh;
+            color: #2c2c2c;
         }
 
-        /* Elegant Banner */
+        /* ============ 1. TOP BANNER ============ */
         .elegant-banner {
-            background: radial-gradient(circle at 70% 30%, var(--mid-purple) 0%, var(--deep-purple) 60%, #241A5E 100%);
-            color: var(--pure-white);
-            padding: 55px 20px 80px;
+            background: linear-gradient(135deg, var(--banner-1) 0%, var(--banner-2) 55%, var(--banner-3) 100%);
+            color: #fff;
+            padding: 48px 20px 64px;
             position: relative;
             overflow: hidden;
         }
         .elegant-banner::before {
             content: '';
             position: absolute;
-            top: -50%;
-            right: -20%;
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(75, 59, 158, 0.3) 0%, transparent 70%);
+            top: -30%;
+            right: -12%;
+            width: 480px;
+            height: 480px;
+            background: var(--steel-blue);
+            opacity: 0.28;
             border-radius: 50%;
+            filter: blur(60px);
         }
         .banner-content {
             position: relative;
             z-index: 2;
-            max-width: 900px;
+            max-width: 1100px;
             margin: 0 auto;
-        }
-        .event-eyebrow {
-            font-size: 0.95rem;
-            font-weight: 600;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: var(--gold-tan);
-            margin-bottom: 22px;
-            text-align: center;
         }
         .logo-title-row {
             display: flex;
             align-items: center;
-            gap: 28px;
+            gap: 18px;
+            margin-bottom: 34px;
             flex-wrap: wrap;
         }
         .event-logo img {
-            max-height: 100px;
-            max-width: 260px;
+            max-height: 54px;
+            max-width: 200px;
             object-fit: contain;
-            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
         }
-        .event-title-wrapper { flex: 1; min-width: 250px; }
+        .brand-divider {
+            width: 1px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .brand-name {
+            font-family: var(--font-sans);
+            font-size: 0.72rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            line-height: 1.5;
+        }
+        .brand-name .light { font-weight: 300; display: block; opacity: 0.85; }
+        .brand-name .bold { font-weight: 700; display: block; }
+
+        .event-eyebrow {
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--dusty-rose);
+            margin-bottom: 14px;
+        }
         .event-title {
             font-family: var(--font-serif);
-            font-size: 2.6rem;
+            font-size: 2.5rem;
             font-weight: 700;
             line-height: 1.2;
-            color: var(--pure-white);
+            color: #fff;
+        }
+        .event-title em {
+            font-style: italic;
+            color: var(--dusty-rose);
         }
         .event-subtitle {
             font-size: 1rem;
             line-height: 1.6;
-            color: var(--lavender-grey);
-            margin-top: 18px;
-            max-width: 760px;
+            color: var(--lavender);
+            margin-top: 16px;
+            max-width: 520px;
         }
         .event-info-row {
             display: flex;
-            gap: 40px;
-            margin-top: 26px;
+            gap: 44px;
+            margin-top: 30px;
             flex-wrap: wrap;
         }
         .event-info-label {
-            font-size: 0.7rem;
-            letter-spacing: 0.12em;
+            font-size: 0.68rem;
+            letter-spacing: 0.14em;
             text-transform: uppercase;
-            color: var(--gold-tan);
-            font-weight: 500;
+            color: var(--steel-blue);
+            font-weight: 600;
+            margin-bottom: 4px;
         }
         .event-info-value {
-            font-size: 0.95rem;
+            font-size: 0.98rem;
             font-weight: 700;
-            color: var(--pure-white);
+            color: #fff;
         }
 
-        /* Card */
-        .form-wrapper {
-            max-width: 800px;
-            margin: -45px auto 60px;
-            padding: 0 20px;
-            position: relative;
-            z-index: 10;
+        /* ============ Layout ============ */
+        .page-wrapper {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 40px 20px 80px;
         }
+        .registration-grid {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 48px;
+            align-items: start;
+        }
+        .main-column { min-width: 0; }
+
+        /* Plain (no-blocs) form card, and non-form states (success/closed/verification) */
         .form-card {
-            background: var(--pure-white);
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(42, 31, 107, 0.15);
-            padding: 45px 40px;
+            background: #fff;
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+            padding: 40px;
         }
 
-        /* Typography helpers */
-        .section-title {
-            font-family: var(--font-serif);
-            font-weight: 700;
-            font-size: 1.5rem;
-            color: var(--deep-purple);
-            margin-bottom: 18px;
-        }
-
-        /* Form controls */
+        /* ============ Typography / form controls ============ */
         .form-label {
             font-weight: 600;
-            color: var(--deep-purple);
+            color: #2c2c2c;
             margin-bottom: 8px;
             font-size: 0.9rem;
         }
         .required-indicator { color: #dc3545; }
         .form-control, .form-select {
-            border: 2px solid #E9ECEF;
-            border-radius: 10px;
+            border: 1px solid var(--border-light);
+            background: var(--cream);
+            border-radius: 8px;
             padding: 12px 16px;
             font-size: 0.95rem;
             transition: all 0.2s ease;
         }
         .form-control:focus, .form-select:focus {
-            border-color: var(--mid-purple);
-            box-shadow: 0 0 0 4px rgba(75, 59, 158, 0.1);
+            border-color: var(--steel-blue);
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(123, 167, 188, 0.15);
         }
         textarea.form-control { resize: vertical; min-height: 120px; }
         .form-check-input:checked {
-            background-color: var(--deep-purple);
-            border-color: var(--deep-purple);
+            background-color: var(--banner-1);
+            border-color: var(--banner-1);
         }
         .form-check-input:focus {
-            border-color: var(--mid-purple);
-            box-shadow: 0 0 0 4px rgba(75, 59, 158, 0.1);
+            border-color: var(--steel-blue);
+            box-shadow: 0 0 0 4px rgba(123, 167, 188, 0.15);
         }
 
-        /* Buttons */
+        /* ============ Buttons ============ */
         .btn-submit, .btn-primary {
-            background: var(--deep-purple);
+            background: var(--banner-1);
             border: none;
-            border-radius: 50px;
-            padding: 14px 35px;
-            font-weight: 600;
-            letter-spacing: 0.02em;
-            color: var(--pure-white);
-            transition: all 0.3s ease;
-        }
-        .btn-submit:hover, .btn-primary:hover {
-            background: var(--mid-purple);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(42, 31, 107, 0.3);
-            color: var(--pure-white);
-        }
-        .btn-outline-primary {
-            border: 2px solid var(--deep-purple);
-            color: var(--deep-purple);
-            background: transparent;
-            border-radius: 50px;
-            padding: 12px 30px;
-            font-weight: 600;
-        }
-        .btn-outline-primary:hover { background: var(--deep-purple); color: var(--pure-white); }
-
-        /* Bloc sections */
-        .bloc-section {
-            border-top: 2px solid var(--warm-white);
-            padding-top: 24px;
-        }
-        .bloc-item {
-            background: var(--warm-white);
-            border: 2px solid var(--light-gold);
-            border-radius: 12px;
-            padding: 14px 16px;
-            margin-bottom: 12px;
+            border-radius: 8px;
+            padding: 14px 28px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            color: #fff;
             transition: all 0.2s ease;
         }
-        .bloc-item:hover { border-color: var(--gold-tan); }
-        .bloc-item .form-check-label { font-weight: 500; width: 100%; }
-
-        /* Cart summary */
-        .cart-summary {
-            background: var(--warm-white) !important;
-            border: 2px solid var(--light-gold);
-            border-radius: 16px !important;
+        .btn-submit:hover, .btn-primary:hover {
+            background: var(--banner-2);
+            color: #fff;
         }
-        .cart-total-final { font-size: 1.35rem; color: var(--deep-purple); }
+        .btn-submit:disabled, .btn-primary:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .btn-outline-primary {
+            border: 2px solid var(--banner-1);
+            color: var(--banner-1);
+            background: transparent;
+            border-radius: 8px;
+            padding: 12px 26px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        .btn-outline-primary:hover { background: var(--banner-1); color: #fff; }
 
-        /* Messages */
+        /* ============ 3. BLOCS (product sections) ============ */
+        .bloc-section {
+            margin-bottom: 40px;
+        }
+        .bloc-header {
+            display: flex;
+            align-items: baseline;
+            gap: 14px;
+            padding-bottom: 14px;
+            border-bottom: 2px solid var(--ink);
+            margin-bottom: 6px;
+        }
+        .bloc-badge {
+            display: inline-block;
+            background: var(--dusty-rose-bg);
+            color: var(--dusty-rose-dark);
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 5px 12px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+        .bloc-title {
+            font-family: var(--font-serif);
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: #2c2c2c;
+        }
+        .bloc-note {
+            font-style: italic;
+            color: #8a8a8a;
+            font-size: 0.85rem;
+            margin: 10px 0 18px;
+        }
+
+        .product-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: #fff;
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin-bottom: 10px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .product-card:hover {
+            border-color: var(--dusty-rose);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+        .product-card:has(.bloc-choice:checked) {
+            border-color: var(--steel-blue);
+            background: rgba(123, 167, 188, 0.08);
+        }
+        .product-card .form-check-input {
+            flex-shrink: 0;
+            margin: 0;
+        }
+        .product-main {
+            flex: 1;
+            min-width: 0;
+        }
+        .product-name {
+            font-family: var(--font-serif);
+            font-size: 1.05rem;
+            color: #2c2c2c;
+        }
+        .product-tag {
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--steel-blue);
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        .product-price {
+            flex-shrink: 0;
+        }
+        .price-pill {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: var(--cream);
+            color: #6c757d;
+            border-radius: 10px;
+            padding: 8px 16px;
+            min-width: 78px;
+            background: var(--banner-1);
+            color: #fff;
+        }
+        .price-pill .amount { font-weight: 700; font-size: 0.95rem; line-height: 1.1; }
+        .price-pill .currency { font-size: 0.62rem; letter-spacing: 0.05em; opacity: 0.85; }
+
+        @media (max-width: 560px) {
+            .product-card { flex-wrap: wrap; }
+            .product-main { flex-basis: calc(100% - 50px); }
+            .product-price { margin-left: auto; }
+        }
+
+        /* ============ 4. CART ============ */
+        .cart-column {
+            position: sticky;
+            top: 24px;
+        }
+        .cart-card {
+            background: #fff;
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+            padding: 26px;
+        }
+        .cart-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding-bottom: 14px;
+            border-bottom: 2px solid var(--ink);
+            margin-bottom: 16px;
+        }
+        .cart-title-row h4 {
+            font-family: var(--font-serif);
+            font-size: 1.25rem;
+            margin: 0;
+        }
+        .cart-count {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--dusty-rose-dark);
+        }
+        .cart-empty {
+            font-style: italic;
+            color: #9a9a9a;
+            text-align: center;
+            padding: 20px 0;
+        }
+        .cart-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--border-light);
+            font-size: 0.9rem;
+        }
+        .cart-line .name { color: #444; }
+        .cart-line .price { font-weight: 600; white-space: nowrap; }
+
+        .blocs-subscribed {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 18px 0;
+        }
+        .blocs-subscribed .label {
+            font-size: 0.72rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #8a8a8a;
+            font-weight: 600;
+        }
+        .bloc-dots { display: flex; gap: 6px; }
+        .bloc-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 1px solid #d8d3cc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #b8b3ac;
+            background: transparent;
+            transition: all 0.2s ease;
+        }
+        .bloc-dot.filled {
+            background: var(--steel-blue);
+            border-color: var(--steel-blue);
+            color: #fff;
+        }
+
+        .discount-banner {
+            display: none;
+            background: var(--dusty-rose-bg);
+            color: #6b3f3f;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.82rem;
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+        .discount-banner.visible { display: block; }
+
+        .cart-totals { border-top: 1px solid var(--border-light); padding-top: 14px; margin-top: 4px; }
+        .cart-totals .row-line {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: #6c757d;
+            padding: 4px 0;
+        }
+        .cart-totals .discount-line { color: #2e7d32; display: none; }
+        .cart-totals .discount-line.visible { display: flex; }
+        .cart-totals .total-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            border-top: 2px solid var(--ink);
+            margin-top: 10px;
+            padding-top: 12px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #2c2c2c;
+        }
+        .tax-note { font-size: 0.68rem; color: #9a9a9a; margin-top: 2px; font-weight: 400; }
+
+        .cart-mini-form { margin-top: 20px; }
+        .cart-mini-form .form-control { background: var(--cream); }
+
+        .legal-note {
+            font-size: 0.72rem;
+            color: #9a9a9a;
+            text-align: center;
+            margin-top: 14px;
+        }
+
+        @media (max-width: 900px) {
+            .registration-grid { grid-template-columns: 1fr; }
+            .cart-column { position: static; }
+        }
+
+        /* ============ Messages / countdown (unchanged states) ============ */
         .success-message {
-            background: var(--warm-white);
-            border: 2px solid var(--light-gold);
-            border-radius: 16px;
+            background: var(--cream);
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
             padding: 1.75rem;
             margin-bottom: 1.5rem;
         }
-        .success-icon { color: var(--gold-tan); font-size: 3.2rem; }
-        .success-message h3 { font-family: var(--font-serif); color: var(--deep-purple); }
+        .success-icon { color: var(--dusty-rose-dark); font-size: 3.2rem; }
+        .success-message h3 { font-family: var(--font-serif); color: #2c2c2c; }
         .error-message {
             background: #fdecec;
-            border: 2px solid #f5c2c7;
-            border-radius: 12px;
+            border: 1px solid #f5c2c7;
+            border-radius: 10px;
             padding: 1rem 1.25rem;
             margin-bottom: 1.25rem;
             color: #842029;
         }
-
-        /* Countdown */
         .countdown-container {
-            background: var(--warm-white);
-            border: 2px solid var(--light-gold);
-            border-radius: 16px;
+            background: var(--cream);
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
             padding: 1.5rem;
             text-align: center;
         }
-        .countdown-title { font-family: var(--font-serif); color: var(--deep-purple); }
+        .countdown-title { font-family: var(--font-serif); color: #2c2c2c; }
         .countdown-timer { display: flex; justify-content: center; align-items: center; gap: 0.5rem; }
         .countdown-item {
             display: flex; flex-direction: column; align-items: center;
-            background: var(--pure-white);
-            padding: 1rem 1.5rem; border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(42, 31, 107, 0.08);
+            background: #fff;
+            padding: 1rem 1.5rem; border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
             min-width: 78px;
         }
-        .countdown-value { font-size: 2rem; font-weight: 700; color: var(--deep-purple); line-height: 1; }
+        .countdown-value { font-size: 2rem; font-weight: 700; color: var(--banner-1); line-height: 1; }
         .countdown-label { font-size: 0.72rem; color: #6c757d; margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em; }
-        .countdown-separator { font-size: 2rem; font-weight: 700; color: var(--gold-tan); }
+        .countdown-separator { font-size: 2rem; font-weight: 700; color: var(--dusty-rose-dark); }
 
         .powered-footer { color: #9a9a9a; }
 
         @media (max-width: 768px) {
-            .elegant-banner { padding: 40px 15px 70px; }
+            .elegant-banner { padding: 36px 15px 50px; }
             .event-title { font-size: 1.9rem; }
-            .form-card { padding: 30px 22px; }
-            .form-wrapper { margin-top: -35px; }
+            .form-card { padding: 26px 20px; }
+            .page-wrapper { padding: 24px 15px 60px; }
         }
         @media (max-width: 576px) {
             .countdown-item { min-width: 60px; padding: 0.75rem 1rem; }
@@ -275,555 +515,654 @@
     </style>
 </head>
 <body>
-    <!-- Elegant Banner -->
+    <!-- ============ 1. TOP BANNER ============ -->
     <div class="elegant-banner">
         <div class="banner-content">
-            <div class="event-eyebrow">Inscription</div>
             <div class="logo-title-row">
                 {% if form_config.event and form_config.event.logo %}
                 <div class="event-logo">
                     <img src="{{ form_config.event.logo.url }}" alt="{{ form_config.event.name }} Logo">
                 </div>
+                <div class="brand-divider"></div>
                 {% endif %}
-                <div class="event-title-wrapper">
-                    <h1 class="event-title">{{ form_config.name }}</h1>
+                <div class="brand-name">
+                    <span class="light">Make</span>
+                    <span class="bold">Plus</span>
                 </div>
             </div>
+            <div class="event-eyebrow">Inscription</div>
+            <h1 class="event-title">{{ form_config.name }}</h1>
             {% if form_config.description %}
             <p class="event-subtitle">{{ form_config.description }}</p>
             {% endif %}
             {% if form_config.event %}
             <div class="event-info-row">
                 <div class="event-info-item">
-                    <div class="event-info-label">Date</div>
-                    <div class="event-info-value">{{ form_config.event.start_date|date:"d M Y" }}</div>
+                    <div class="event-info-label">Dates</div>
+                    <div class="event-info-value">{{ form_config.event.start_date|date:"d M Y" }} – {{ form_config.event.end_date|date:"d M Y" }}</div>
                 </div>
                 <div class="event-info-item">
-                    <div class="event-info-label">Lieu</div>
+                    <div class="event-info-label">Location</div>
                     <div class="event-info-value">{{ form_config.event.location|default:"—" }}</div>
+                </div>
+                <div class="event-info-item">
+                    <div class="event-info-label">Currency</div>
+                    <div class="event-info-value">DZD</div>
                 </div>
             </div>
             {% endif %}
         </div>
     </div>
 
-    <div class="form-wrapper">
+    <div class="page-wrapper">
+        {% if success %}
             <div class="form-card">
-                {% if success %}
-                    <!-- Success Message -->
-                    <div class="success-message text-center">
-                        <i class="bi bi-check-circle-fill success-icon"></i>
-                        <h3 class="mt-3 mb-2">Registration Successful!</h3>
-                        <p class="mb-0">{{ message|default:form_config.success_message }}</p>
-                        
-                        <div class="alert alert-info mt-3">
-                            <i class="bi bi-phone me-2"></i>
-                            <strong>Next Steps</strong>
-                            <br>You can now log in to the mobile app using:
-                            <br><strong>Email:</strong> {{ submitted_email }}
-                            <br><strong>Password:</strong> The password you set during sign up
-                        </div>
-                        
-                        <div class="alert alert-primary mt-3">
-                            <i class="bi bi-calendar-check me-2"></i>
-                            <strong>Event Access</strong>
-                            <br><small>You are now registered for {{ form_config.event.name }}.</small>
-                            <br><small class="text-muted">Check the mobile app for event details and your QR code.</small>
-                        </div>
-                    </div>
-                    
-                    <div class="text-center">
-                        <a href="{% url 'public_form' form_config.slug %}" class="btn btn-outline-primary">
-                            Register Another Person
-                        </a>
-                    </div>
-                {% elif form_closed %}
-                    <!-- Form Closed Message -->
-                    <div class="text-center py-5">
-                        <i class="bi bi-lock-fill" style="font-size: 4rem; color: #dc3545;"></i>
-                        <h2 class="mt-4 mb-3 text-danger">Form Closed</h2>
-                        <p class="lead text-muted mb-4">
-                            This registration form is currently not accepting submissions.
-                        </p>
-                    </div>
-                {% elif show_verification %}
-                    <!-- Verification Code Input -->
-                    <div class="text-center mb-4">
-                        <i class="bi bi-envelope-check-fill" style="font-size: 3rem; color: var(--gold-tan);"></i>
-                        <h3 class="mt-3 mb-2">Check Your Email</h3>
-                        <p class="text-muted">
-                            We've sent a 6-digit verification code to<br>
-                            <strong>{{ submitted_email }}</strong>
-                        </p>
+                <div class="success-message text-center">
+                    <i class="bi bi-check-circle-fill success-icon"></i>
+                    <h3 class="mt-3 mb-2">Registration Successful!</h3>
+                    <p class="mb-0">{{ message|default:form_config.success_message }}</p>
+
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-phone me-2"></i>
+                        <strong>Next Steps</strong>
+                        <br>You can now log in to the mobile app using:
+                        <br><strong>Email:</strong> {{ submitted_email }}
+                        <br><strong>Password:</strong> The password you set during sign up
                     </div>
 
-                    {% if message %}
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle me-2"></i>{{ message }}
-                        </div>
-                    {% endif %}
+                    <div class="alert alert-primary mt-3">
+                        <i class="bi bi-calendar-check me-2"></i>
+                        <strong>Event Access</strong>
+                        <br><small>You are now registered for {{ form_config.event.name }}.</small>
+                        <br><small class="text-muted">Check the mobile app for event details and your QR code.</small>
+                    </div>
+                </div>
 
-                    {% if errors %}
-                        <div class="error-message">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            <strong>Error:</strong>
-                            <ul class="mb-0 mt-2">
-                                {% for error in errors %}
-                                    <li>{{ error }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    {% endif %}
+                <div class="text-center">
+                    <a href="{% url 'public_form' form_config.slug %}" class="btn btn-outline-primary">
+                        Register Another Person
+                    </a>
+                </div>
+            </div>
+        {% elif form_closed %}
+            <div class="form-card">
+                <div class="text-center py-5">
+                    <i class="bi bi-lock-fill" style="font-size: 4rem; color: #dc3545;"></i>
+                    <h2 class="mt-4 mb-3 text-danger">Form Closed</h2>
+                    <p class="lead text-muted mb-4">
+                        This registration form is currently not accepting submissions.
+                    </p>
+                </div>
+            </div>
+        {% elif show_verification %}
+            <div class="form-card">
+                <div class="text-center mb-4">
+                    <i class="bi bi-envelope-check-fill" style="font-size: 3rem; color: var(--dusty-rose-dark);"></i>
+                    <h3 class="mt-3 mb-2">Check Your Email</h3>
+                    <p class="text-muted">
+                        We've sent a 6-digit verification code to<br>
+                        <strong>{{ submitted_email }}</strong>
+                    </p>
+                </div>
 
-                    <!-- Verification Form -->
-                    <form method="post" id="verificationForm">
-                        {% csrf_token %}
-                        <input type="hidden" name="email" value="{{ submitted_email }}">
-                        
-                        <div class="mb-4">
-                            <label for="verification_code" class="form-label text-center d-block">
-                                Enter Verification Code
-                            </label>
-                            <input 
-                                type="text" 
-                                class="form-control form-control-lg text-center" 
-                                id="verification_code" 
-                                name="verification_code"
-                                placeholder="000000"
-                                maxlength="6"
-                                pattern="[0-9]{6}"
-                                required
-                                autofocus
-                                style="font-size: 2rem; letter-spacing: 0.5rem; font-weight: 600;"
-                            >
-                            <small class="text-muted d-block text-center mt-2">
-                                Code expires in 3 minutes
-                            </small>
-                        </div>
+                {% if message %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>{{ message }}
+                    </div>
+                {% endif %}
 
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary btn-submit">
-                                <i class="bi bi-check-circle-fill me-2"></i>Verify & Complete Registration
-                            </button>
-                        </div>
-                    </form>
+                {% if errors %}
+                    <div class="error-message">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Error:</strong>
+                        <ul class="mb-0 mt-2">
+                            {% for error in errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
 
-                    <!-- Resend Code -->
-                    <div class="text-center mt-4">
-                        <p class="text-muted small mb-2">Didn't receive the code?</p>
-                        <button 
-                            type="button" 
-                            class="btn btn-outline-secondary btn-sm" 
-                            id="resendBtn"
-                            onclick="resendCode()"
+                <form method="post" id="verificationForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="email" value="{{ submitted_email }}">
+
+                    <div class="mb-4">
+                        <label for="verification_code" class="form-label text-center d-block">
+                            Enter Verification Code
+                        </label>
+                        <input
+                            type="text"
+                            class="form-control form-control-lg text-center"
+                            id="verification_code"
+                            name="verification_code"
+                            placeholder="000000"
+                            maxlength="6"
+                            pattern="[0-9]{6}"
+                            required
+                            autofocus
+                            style="font-size: 2rem; letter-spacing: 0.5rem; font-weight: 600;"
                         >
-                            <i class="bi bi-arrow-clockwise me-1"></i>Resend Code
-                        </button>
-                        <div id="resendTimer" class="text-muted small mt-2" style="display: none;">
-                            Please wait <span id="countdown">180</span> seconds before requesting a new code
-                        </div>
+                        <small class="text-muted d-block text-center mt-2">
+                            Code expires in 3 minutes
+                        </small>
                     </div>
 
-                    <script>
-                        let canResend = false;
-                        let countdownSeconds = 180; // 3 minutes
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-submit">
+                            <i class="bi bi-check-circle-fill me-2"></i>Verify & Complete Registration
+                        </button>
+                    </div>
+                </form>
 
-                        function startResendTimer() {
-                            const resendBtn = document.getElementById('resendBtn');
-                            const resendTimer = document.getElementById('resendTimer');
-                            const countdownSpan = document.getElementById('countdown');
-                            
-                            resendBtn.disabled = true;
-                            resendTimer.style.display = 'block';
-                            
-                            const interval = setInterval(() => {
-                                countdownSeconds--;
-                                countdownSpan.textContent = countdownSeconds;
-                                
-                                if (countdownSeconds <= 0) {
-                                    clearInterval(interval);
-                                    resendBtn.disabled = false;
-                                    resendTimer.style.display = 'none';
-                                    canResend = true;
-                                    countdownSeconds = 180;
-                                }
-                            }, 1000);
-                        }
+                <div class="text-center mt-4">
+                    <p class="text-muted small mb-2">Didn't receive the code?</p>
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary btn-sm"
+                        id="resendBtn"
+                        onclick="resendCode()"
+                    >
+                        <i class="bi bi-arrow-clockwise me-1"></i>Resend Code
+                    </button>
+                    <div id="resendTimer" class="text-muted small mt-2" style="display: none;">
+                        Please wait <span id="countdown">180</span> seconds before requesting a new code
+                    </div>
+                </div>
 
-                        function resendCode() {
-                            if (!canResend && countdownSeconds < 180) {
-                                alert('Please wait before requesting a new code.');
-                                return;
+                <script>
+                    let canResend = false;
+                    let countdownSeconds = 180; // 3 minutes
+
+                    function startResendTimer() {
+                        const resendBtn = document.getElementById('resendBtn');
+                        const resendTimer = document.getElementById('resendTimer');
+                        const countdownSpan = document.getElementById('countdown');
+
+                        resendBtn.disabled = true;
+                        resendTimer.style.display = 'block';
+
+                        const interval = setInterval(() => {
+                            countdownSeconds--;
+                            countdownSpan.textContent = countdownSeconds;
+
+                            if (countdownSeconds <= 0) {
+                                clearInterval(interval);
+                                resendBtn.disabled = false;
+                                resendTimer.style.display = 'none';
+                                canResend = true;
+                                countdownSeconds = 180;
                             }
-                            
-                            // Submit form to request new code
-                            const form = document.createElement('form');
-                            form.method = 'POST';
-                            form.action = window.location.href;
-                            
-                            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-                            const csrfInput = document.createElement('input');
-                            csrfInput.type = 'hidden';
-                            csrfInput.name = 'csrfmiddlewaretoken';
-                            csrfInput.value = csrfToken;
-                            form.appendChild(csrfInput);
-                            
-                            const emailInput = document.createElement('input');
-                            emailInput.type = 'hidden';
-                            emailInput.name = 'email';
-                            emailInput.value = '{{ submitted_email }}';
-                            form.appendChild(emailInput);
-                            
-                            const resendInput = document.createElement('input');
-                            resendInput.type = 'hidden';
-                            resendInput.name = 'resend_code';
-                            resendInput.value = 'true';
-                            form.appendChild(resendInput);
-                            
-                            document.body.appendChild(form);
-                            form.submit();
+                        }, 1000);
+                    }
+
+                    function resendCode() {
+                        if (!canResend && countdownSeconds < 180) {
+                            alert('Please wait before requesting a new code.');
+                            return;
                         }
 
-                        // Start timer on page load
-                        startResendTimer();
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = window.location.href;
 
-                        // Auto-format verification code input
-                        document.getElementById('verification_code').addEventListener('input', function(e) {
-                            this.value = this.value.replace(/[^0-9]/g, '');
-                        });
-                    </script>
-                {% else %}
-                    <!-- Banner Image (optional, in addition to the header banner) -->
-                    {% if form_config.banner_image %}
-                        <div class="mb-4">
-                            <img src="{{ form_config.banner_image.url }}" alt="Form banner" class="img-fluid" style="width: 100%; height: auto; max-height: 300px; object-fit: cover; border-radius: 14px;">
-                        </div>
-                    {% elif form_config.event and form_config.event.banner %}
-                        <div class="mb-4">
-                            <img src="{{ form_config.event.banner.url }}" alt="Event banner" class="img-fluid" style="width: 100%; height: auto; max-height: 300px; object-fit: cover; border-radius: 14px;">
-                        </div>
-                    {% endif %}
+                        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                        const csrfInput = document.createElement('input');
+                        csrfInput.type = 'hidden';
+                        csrfInput.name = 'csrfmiddlewaretoken';
+                        csrfInput.value = csrfToken;
+                        form.appendChild(csrfInput);
 
-                    <!-- Countdown Timer -->
-                    {% if form_config.countdown_enabled and form_config.countdown_date %}
-                        <div class="countdown-container mb-4">
-                            <h5 class="countdown-title text-center mb-3">
-                                <i class="bi bi-alarm me-2"></i>{{ form_config.countdown_title }}
-                            </h5>
-                            <div class="countdown-timer" id="countdown">
-                                <div class="countdown-item">
-                                    <span class="countdown-value" id="days">00</span>
-                                    <span class="countdown-label">Days</span>
-                                </div>
-                                <div class="countdown-separator">:</div>
-                                <div class="countdown-item">
-                                    <span class="countdown-value" id="hours">00</span>
-                                    <span class="countdown-label">Hours</span>
-                                </div>
-                                <div class="countdown-separator">:</div>
-                                <div class="countdown-item">
-                                    <span class="countdown-value" id="minutes">00</span>
-                                    <span class="countdown-label">Minutes</span>
-                                </div>
-                                <div class="countdown-separator">:</div>
-                                <div class="countdown-item">
-                                    <span class="countdown-value" id="seconds">00</span>
-                                    <span class="countdown-label">Seconds</span>
-                                </div>
-                            </div>
-                        </div>
-                    {% endif %}
+                        const emailInput = document.createElement('input');
+                        emailInput.type = 'hidden';
+                        emailInput.name = 'email';
+                        emailInput.value = '{{ submitted_email }}';
+                        form.appendChild(emailInput);
 
-                    <!-- Error Messages -->
-                    {% if errors %}
-                        <div class="error-message">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            <strong>Please correct the following errors:</strong>
-                            <ul class="mb-0 mt-2">
-                                {% for error in errors %}
-                                    <li>{{ error }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    {% endif %}
+                        const resendInput = document.createElement('input');
+                        resendInput.type = 'hidden';
+                        resendInput.name = 'resend_code';
+                        resendInput.value = 'true';
+                        form.appendChild(resendInput);
 
-                    <!-- Form -->
-                    <form method="post" id="registrationForm" enctype="multipart/form-data">
-                        {% csrf_token %}
-                        
-                        {% for field in fields %}
-                            <div class="mb-4">
-                                <label for="{{ field.name }}" class="form-label">
-                                    {{ field.label }}
-                                    {% if field.required %}
-                                        <span class="required-indicator">*</span>
-                                    {% endif %}
-                                </label>
-                                
-                                {% if field.type == 'textarea' %}
-                                    <textarea 
-                                        class="form-control" 
-                                        id="{{ field.name }}" 
-                                        name="{{ field.name }}"
-                                        rows="4"
-                                        {% if field.required %}required{% endif %}
-                                        {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
-                                    >{{ field.value|default:'' }}</textarea>
-                                
-                                {% elif field.type == 'select' %}
-                                    <select 
-                                        class="form-select" 
-                                        id="{{ field.name }}" 
-                                        name="{{ field.name }}"
-                                        {% if field.required %}required{% endif %}
-                                    >
-                                        <option value="">-- Select an option --</option>
-                                        {% for option in field.options %}
-                                            <option value="{{ option }}" {% if field.value == option %}selected{% endif %}>
-                                                {{ option }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
-                                
-                                {% elif field.type == 'radio' %}
-                                    {% for option in field.options %}
-                                        <div class="form-check">
-                                            <input 
-                                                class="form-check-input" 
-                                                type="radio" 
-                                                id="{{ field.name }}_{{ forloop.counter }}" 
-                                                name="{{ field.name }}"
-                                                value="{{ option }}"
-                                                {% if field.required %}required{% endif %}
-                                                {% if field.value == option %}checked{% endif %}
-                                            >
-                                            <label class="form-check-label" for="{{ field.name }}_{{ forloop.counter }}">
-                                                {{ option }}
-                                            </label>
-                                        </div>
-                                    {% endfor %}
-                                
-                                {% elif field.type == 'checkbox' %}
-                                    {% for option in field.options %}
-                                        <div class="form-check">
-                                            <input 
-                                                class="form-check-input" 
-                                                type="checkbox" 
-                                                id="{{ field.name }}_{{ forloop.counter }}" 
-                                                name="{{ field.name }}"
-                                                value="{{ option }}"
-                                                {% if option in field.value %}checked{% endif %}
-                                            >
-                                            <label class="form-check-label" for="{{ field.name }}_{{ forloop.counter }}">
-                                                {{ option }}
-                                            </label>
-                                        </div>
-                                    {% endfor %}
-                                
-                                {% else %}
-                                    <input 
-                                        type="{{ field.type }}" 
-                                        class="form-control" 
-                                        id="{{ field.name }}" 
-                                        name="{{ field.name }}"
-                                        value="{{ field.value|default:'' }}"
-                                        {% if field.required %}required{% endif %}
-                                        {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
-                                    >
-                                {% endif %}
-                            </div>
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+
+                    startResendTimer();
+
+                    document.getElementById('verification_code').addEventListener('input', function(e) {
+                        this.value = this.value.replace(/[^0-9]/g, '');
+                    });
+                </script>
+            </div>
+        {% else %}
+            {% if form_config.banner_image %}
+                <div class="mb-4">
+                    <img src="{{ form_config.banner_image.url }}" alt="Form banner" class="img-fluid" style="width: 100%; height: auto; max-height: 300px; object-fit: cover; border-radius: 14px;">
+                </div>
+            {% elif form_config.event and form_config.event.banner %}
+                <div class="mb-4">
+                    <img src="{{ form_config.event.banner.url }}" alt="Event banner" class="img-fluid" style="width: 100%; height: auto; max-height: 300px; object-fit: cover; border-radius: 14px;">
+                </div>
+            {% endif %}
+
+            {% if form_config.countdown_enabled and form_config.countdown_date %}
+                <div class="countdown-container mb-4">
+                    <h5 class="countdown-title text-center mb-3">
+                        <i class="bi bi-alarm me-2"></i>{{ form_config.countdown_title }}
+                    </h5>
+                    <div class="countdown-timer" id="countdown">
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="days">00</span>
+                            <span class="countdown-label">Days</span>
+                        </div>
+                        <div class="countdown-separator">:</div>
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="hours">00</span>
+                            <span class="countdown-label">Hours</span>
+                        </div>
+                        <div class="countdown-separator">:</div>
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="minutes">00</span>
+                            <span class="countdown-label">Minutes</span>
+                        </div>
+                        <div class="countdown-separator">:</div>
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="seconds">00</span>
+                            <span class="countdown-label">Seconds</span>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if errors %}
+                <div class="error-message">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Please correct the following errors:</strong>
+                    <ul class="mb-0 mt-2">
+                        {% for error in errors %}
+                            <li>{{ error }}</li>
                         {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            <form method="post" id="registrationForm" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <div class="registration-grid">
+                    <div class="main-column">
+                        <div class="form-card mb-4">
+                            {% for field in fields %}
+                                <div class="mb-4">
+                                    <label for="{{ field.name }}" class="form-label">
+                                        {{ field.label }}
+                                        {% if field.required %}
+                                            <span class="required-indicator">*</span>
+                                        {% endif %}
+                                    </label>
+
+                                    {% if field.type == 'textarea' %}
+                                        <textarea
+                                            class="form-control"
+                                            id="{{ field.name }}"
+                                            name="{{ field.name }}"
+                                            rows="4"
+                                            {% if field.required %}required{% endif %}
+                                            {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+                                        >{{ field.value|default:'' }}</textarea>
+
+                                    {% elif field.type == 'select' %}
+                                        <select
+                                            class="form-select"
+                                            id="{{ field.name }}"
+                                            name="{{ field.name }}"
+                                            {% if field.required %}required{% endif %}
+                                        >
+                                            <option value="">-- Select an option --</option>
+                                            {% for option in field.options %}
+                                                <option value="{{ option }}" {% if field.value == option %}selected{% endif %}>
+                                                    {{ option }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+
+                                    {% elif field.type == 'radio' %}
+                                        {% for option in field.options %}
+                                            <div class="form-check">
+                                                <input
+                                                    class="form-check-input"
+                                                    type="radio"
+                                                    id="{{ field.name }}_{{ forloop.counter }}"
+                                                    name="{{ field.name }}"
+                                                    value="{{ option }}"
+                                                    {% if field.required %}required{% endif %}
+                                                    {% if field.value == option %}checked{% endif %}
+                                                >
+                                                <label class="form-check-label" for="{{ field.name }}_{{ forloop.counter }}">
+                                                    {{ option }}
+                                                </label>
+                                            </div>
+                                        {% endfor %}
+
+                                    {% elif field.type == 'checkbox' %}
+                                        {% for option in field.options %}
+                                            <div class="form-check">
+                                                <input
+                                                    class="form-check-input"
+                                                    type="checkbox"
+                                                    id="{{ field.name }}_{{ forloop.counter }}"
+                                                    name="{{ field.name }}"
+                                                    value="{{ option }}"
+                                                    {% if option in field.value %}checked{% endif %}
+                                                >
+                                                <label class="form-check-label" for="{{ field.name }}_{{ forloop.counter }}">
+                                                    {{ option }}
+                                                </label>
+                                            </div>
+                                        {% endfor %}
+
+                                    {% else %}
+                                        <input
+                                            type="{{ field.type }}"
+                                            class="form-control"
+                                            id="{{ field.name }}"
+                                            name="{{ field.name }}"
+                                            value="{{ field.value|default:'' }}"
+                                            {% if field.required %}required{% endif %}
+                                            {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+                                        >
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+
+                            {% if not bloc_context.has_blocs %}
+                            <div class="d-grid gap-2 mt-4">
+                                <button type="submit" class="btn btn-primary btn-submit">
+                                    <i class="bi bi-send-fill me-2"></i>Submit Form
+                                </button>
+                            </div>
+                            <p class="text-center text-muted small mt-3 mb-0">
+                                <i class="bi bi-shield-check me-1"></i>Your information is secure and will not be shared.
+                            </p>
+                            {% endif %}
+                        </div>
 
                         {% if bloc_context.has_blocs %}
-                        <hr class="my-4">
-
                         {# ---- Bloc sections ---- #}
                         {% for bloc in bloc_context.custom_blocs %}
-                        <div class="bloc-section mb-4">
-                            <h4 class="section-title">{{ bloc.label }}</h4>
+                        <div class="bloc-section">
+                            <div class="bloc-header">
+                                <span class="bloc-badge">Bloc {{ forloop.counter }}</span>
+                                <span class="bloc-title">{{ bloc.label }}</span>
+                            </div>
+                            <p class="bloc-note">
+                                {% if bloc.select_mode == 'single' %}Single choice — pick one option.{% else %}Multiple choice — pick as many as you like.{% endif %}
+                            </p>
                             {% for item in bloc.items %}
-                            <div class="form-check bloc-item mb-2">
+                            <label class="product-card" for="item_{{ item.id }}">
                                 <input class="form-check-input bloc-choice"
                                        type="{% if bloc.select_mode == 'single' %}radio{% else %}checkbox{% endif %}"
                                        name="items_{{ bloc.key }}"
                                        id="item_{{ item.id }}"
                                        value="{{ item.id }}"
                                        data-price="{{ item.price }}"
-                                       data-bloc="{{ bloc.key }}">
-                                <label class="form-check-label d-flex justify-content-between" for="item_{{ item.id }}" style="max-width:520px">
-                                    <span>{{ item.name }}</span>
-                                    <strong>{{ item.price }} DZD</strong>
-                                </label>
-                            </div>
+                                       data-bloc="{{ bloc.key }}"
+                                       data-name="{{ item.name }}">
+                                <span class="product-main">
+                                    <span class="product-name d-block">{{ item.name }}</span>
+                                    <span class="product-tag">{{ bloc.label }}</span>
+                                </span>
+                                <span class="product-price">
+                                    <span class="price-pill">
+                                        <span class="amount">{{ item.price }}</span>
+                                        <span class="currency">DZD</span>
+                                    </span>
+                                </span>
+                            </label>
                             {% endfor %}
                         </div>
                         {% endfor %}
 
                         {% if bloc_context.workshops_visible and bloc_context.paid_sessions %}
-                        <div class="bloc-section mb-4">
-                            <h4 class="section-title">Workshops</h4>
+                        <div class="bloc-section">
+                            <div class="bloc-header">
+                                <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs|length|add:1 }}</span>
+                                <span class="bloc-title">Workshops</span>
+                            </div>
+                            <p class="bloc-note">Multiple choice — pick as many workshops as you like.</p>
                             {% for s in bloc_context.paid_sessions %}
-                            <div class="form-check bloc-item mb-2">
+                            <label class="product-card" for="session_{{ s.id }}">
                                 <input class="form-check-input bloc-choice" type="checkbox"
                                        name="sessions" id="session_{{ s.id }}" value="{{ s.id }}"
-                                       data-price="{{ s.price }}" data-bloc="workshops">
-                                <label class="form-check-label d-flex justify-content-between" for="session_{{ s.id }}" style="max-width:520px">
-                                    <span>{{ s.title }}</span>
-                                    <strong>{{ s.price }} DZD</strong>
-                                </label>
-                            </div>
+                                       data-price="{{ s.price }}" data-bloc="workshops" data-name="{{ s.title }}">
+                                <span class="product-main">
+                                    <span class="product-name d-block">{{ s.title }}</span>
+                                    <span class="product-tag">Workshop</span>
+                                </span>
+                                <span class="product-price">
+                                    <span class="price-pill">
+                                        <span class="amount">{{ s.price }}</span>
+                                        <span class="currency">DZD</span>
+                                    </span>
+                                </span>
+                            </label>
                             {% endfor %}
                         </div>
                         {% endif %}
+                        {% endif %}
+                    </div>
 
-                        {# ---- Cart summary ---- #}
-                        <div class="cart-summary p-4 mb-4">
-                            <h4 class="section-title">Total de votre panier</h4>
+                    {% if bloc_context.has_blocs %}
+                    <div class="cart-column">
+                        <div class="cart-card">
+                            <div class="cart-title-row">
+                                <h4>Votre panier</h4>
+                                <span class="cart-count"><span id="cart-item-count">0</span> item(s)</span>
+                            </div>
+
+                            <div id="cart-empty" class="cart-empty">Votre panier est vide...</div>
                             <div id="cart-lines"></div>
-                            <hr>
-                            <div class="d-flex justify-content-between">
-                                <span>Total</span>
-                                <strong id="cart-total-before">0.00 DZD</strong>
-                            </div>
-                            <div class="d-flex justify-content-between text-success" id="cart-discount-row" style="display:none !important;">
-                                <span>Réduction (<span id="cart-discount-percent">0</span>%)</span>
-                                <strong id="cart-discount-amount">0.00 DZD</strong>
-                            </div>
-                            <div class="d-flex justify-content-between mt-2 cart-total-final">
-                                <span><strong>Total à payer</strong></span>
-                                <strong id="cart-total-after">0.00 DZD</strong>
-                            </div>
-                        </div>
 
-                        {# ---- Payment & confirmation ---- #}
-                        <div class="mb-4">
-                            <h4 class="section-title">Paiement et confirmation</h4>
-                            <div class="mb-3">
+                            <div class="blocs-subscribed">
+                                <span class="label">Blocs</span>
+                                <div class="bloc-dots">
+                                    <span class="bloc-dot" id="dot-1">1</span>
+                                    <span class="bloc-dot" id="dot-2">2</span>
+                                    <span class="bloc-dot" id="dot-3">3</span>
+                                    <span class="bloc-dot" id="dot-4">4</span>
+                                </div>
+                            </div>
+
+                            <div id="discount-banner" class="discount-banner"></div>
+
+                            <div class="cart-totals">
+                                <div class="row-line">
+                                    <span>Subtotal</span>
+                                    <strong id="cart-total-before">0.00 DZD</strong>
+                                </div>
+                                <div class="row-line discount-line" id="cart-discount-row">
+                                    <span>Discount (<span id="cart-discount-percent">0</span>%)</span>
+                                    <strong id="cart-discount-amount">0.00 DZD</strong>
+                                </div>
+                                <div class="total-line">
+                                    <span>Total</span>
+                                    <span id="cart-total-after">0.00 DZD</span>
+                                </div>
+                                <div class="tax-note">Local taxes not included</div>
+                            </div>
+
+                            <div class="mt-4">
                                 <label for="receipt_file" class="form-label">Téléverser la quittance de banque <span class="required-indicator">*</span></label>
                                 <input type="file" class="form-control" id="receipt_file" name="receipt_file"
                                        accept=".pdf,.jpg,.jpeg,.png" required>
                             </div>
-                            <div class="form-check mb-3">
+                            <div class="form-check mt-3">
                                 <input class="form-check-input" type="checkbox" id="accept_conditions" name="accept_conditions" value="1" required>
                                 <label class="form-check-label" for="accept_conditions">
                                     J'ai lu et j'accepte les conditions.
                                 </label>
                             </div>
+
+                            <div class="d-grid gap-2 mt-4">
+                                <button type="submit" class="btn btn-primary btn-submit" id="submit-btn">
+                                    <i class="bi bi-check-circle me-2"></i>Confirmer l'inscription
+                                </button>
+                            </div>
+
+                            <p class="legal-note">
+                                <i class="bi bi-shield-check me-1"></i>Your information is secure and will not be shared.
+                            </p>
                         </div>
-
-                        <div class="d-grid gap-2 mt-4">
-                            <button type="submit" class="btn btn-primary btn-submit">
-                                <i class="bi bi-check-circle me-2"></i>Confirmer l'inscription
-                            </button>
-                        </div>
-                        {% else %}
-                        <div class="d-grid gap-2 mt-4">
-                            <button type="submit" class="btn btn-primary btn-submit">
-                                <i class="bi bi-send-fill me-2"></i>Submit Form
-                            </button>
-                        </div>
-                        {% endif %}
-
-                        <p class="text-center text-muted small mt-3 mb-0">
-                            <i class="bi bi-shield-check me-1"></i>Your information is secure and will not be shared.
-                        </p>
-                    </form>
-
-                    {% if bloc_context.has_blocs %}
-                    <script>
-                    (function () {
-                        var PERIOD_PCT = {{ bloc_context.period_percent_today|default:0 }};
-                        var BLOCS_ENABLED = {% if bloc_context.config.reduction_by_blocs_enabled %}true{% else %}false{% endif %};
-                        var BLOC_PCT = {2: {{ bloc_context.config.reduction_2_blocs }}, 3: {{ bloc_context.config.reduction_3_blocs }}, 4: {{ bloc_context.config.reduction_4_blocs }}};
-
-                        function fmt(n) { return n.toFixed(2) + ' DZD'; }
-
-                        function recalc() {
-                            var choices = document.querySelectorAll('.bloc-choice');
-                            var subtotal = 0.0;
-                            var blocs = {};
-                            choices.forEach(function (el) {
-                                if (el.checked) {
-                                    var price = parseFloat(el.getAttribute('data-price')) || 0;
-                                    subtotal += price;
-                                    blocs[el.getAttribute('data-bloc')] = true;
-                                }
-                            });
-                            var distinct = Object.keys(blocs).length;
-                            var periodPct = PERIOD_PCT || 0;
-                            var blocsPct = (BLOCS_ENABLED && subtotal > 0) ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
-                            var totalPct = periodPct + blocsPct;
-                            if (totalPct > 100) totalPct = 100;
-                            if (subtotal <= 0) totalPct = 0;
-                            var discountAmt = subtotal * totalPct / 100.0;
-                            var after = subtotal - discountAmt;
-
-                            document.getElementById('cart-total-before').textContent = fmt(subtotal);
-                            document.getElementById('cart-total-after').textContent = fmt(after);
-                            var row = document.getElementById('cart-discount-row');
-                            if (totalPct > 0) {
-                                row.style.setProperty('display', 'flex', 'important');
-                                document.getElementById('cart-discount-percent').textContent = totalPct;
-                                document.getElementById('cart-discount-amount').textContent = '-' + fmt(discountAmt);
-                            } else {
-                                row.style.setProperty('display', 'none', 'important');
-                            }
-                        }
-
-                        document.querySelectorAll('.bloc-choice').forEach(function (el) {
-                            el.addEventListener('change', recalc);
-                        });
-                        recalc();
-                    })();
-                    </script>
+                    </div>
                     {% endif %}
-                {% endif %}
-            </div>
+                </div>
+            </form>
 
-            <!-- Powered by footer -->
-            <div class="text-center mt-4">
-                <p class="powered-footer small mb-0">
-                    Powered by MakePlus Events Management
-                </p>
-            </div>
+            {% if bloc_context.has_blocs %}
+            <script>
+            (function () {
+                var PERIOD_PCT = {{ bloc_context.period_percent_today|default:0 }};
+                var BLOCS_ENABLED = {% if bloc_context.config.reduction_by_blocs_enabled %}true{% else %}false{% endif %};
+                var BLOC_PCT = {2: {{ bloc_context.config.reduction_2_blocs }}, 3: {{ bloc_context.config.reduction_3_blocs }}, 4: {{ bloc_context.config.reduction_4_blocs }}};
+                var BLOC_ORDER = ['status', 'restauration', 'workshops', 'social_event'];
+
+                function fmt(n) { return n.toFixed(2) + ' DZD'; }
+
+                function recalc() {
+                    var choices = document.querySelectorAll('.bloc-choice');
+                    var subtotal = 0.0;
+                    var blocs = {};
+                    var lines = [];
+                    choices.forEach(function (el) {
+                        if (el.checked) {
+                            var price = parseFloat(el.getAttribute('data-price')) || 0;
+                            subtotal += price;
+                            blocs[el.getAttribute('data-bloc')] = true;
+                            lines.push({ name: el.getAttribute('data-name'), price: price });
+                        }
+                    });
+                    var distinct = Object.keys(blocs).length;
+                    var periodPct = PERIOD_PCT || 0;
+                    var blocsPct = (BLOCS_ENABLED && subtotal > 0) ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
+                    var totalPct = periodPct + blocsPct;
+                    if (totalPct > 100) totalPct = 100;
+                    if (subtotal <= 0) totalPct = 0;
+                    var discountAmt = subtotal * totalPct / 100.0;
+                    var after = subtotal - discountAmt;
+
+                    // --- calculation results (unchanged math) written to the totals ---
+                    document.getElementById('cart-total-before').textContent = fmt(subtotal);
+                    document.getElementById('cart-total-after').textContent = fmt(after);
+                    var row = document.getElementById('cart-discount-row');
+                    if (totalPct > 0) {
+                        row.classList.add('visible');
+                        document.getElementById('cart-discount-percent').textContent = totalPct;
+                        document.getElementById('cart-discount-amount').textContent = '-' + fmt(discountAmt);
+                    } else {
+                        row.classList.remove('visible');
+                    }
+
+                    // --- presentational-only additions below: render already-computed values, no new math ---
+                    var cartLines = document.getElementById('cart-lines');
+                    var cartEmpty = document.getElementById('cart-empty');
+                    cartLines.innerHTML = '';
+                    if (lines.length > 0) {
+                        cartEmpty.style.display = 'none';
+                        lines.forEach(function (line) {
+                            var div = document.createElement('div');
+                            div.className = 'cart-line';
+                            div.innerHTML = '<span class="name"></span><span class="price"></span>';
+                            div.querySelector('.name').textContent = line.name;
+                            div.querySelector('.price').textContent = fmt(line.price);
+                            cartLines.appendChild(div);
+                        });
+                    } else {
+                        cartEmpty.style.display = 'block';
+                    }
+                    document.getElementById('cart-item-count').textContent = lines.length;
+
+                    BLOC_ORDER.forEach(function (blocKey, idx) {
+                        var dot = document.getElementById('dot-' + (idx + 1));
+                        if (dot) {
+                            if (blocs[blocKey]) dot.classList.add('filled');
+                            else dot.classList.remove('filled');
+                        }
+                    });
+
+                    var banner = document.getElementById('discount-banner');
+                    if (BLOCS_ENABLED && subtotal > 0) {
+                        if (distinct >= 4) {
+                            banner.textContent = '🎉 Maximum discount reached: ' + (parseFloat(BLOC_PCT[4]) || 0) + '% off!';
+                            banner.classList.add('visible');
+                        } else if (distinct >= 2) {
+                            var nextTier = distinct + 1;
+                            var nextPct = parseFloat(BLOC_PCT[nextTier]) || 0;
+                            banner.textContent = '✨ Add 1 more bloc to unlock ' + nextPct + '% off!';
+                            banner.classList.add('visible');
+                        } else {
+                            var firstPct = parseFloat(BLOC_PCT[2]) || 0;
+                            banner.textContent = '✨ Add items from another bloc to unlock ' + firstPct + '% off!';
+                            banner.classList.add('visible');
+                        }
+                    } else {
+                        banner.classList.remove('visible');
+                    }
+
+                    var submitBtn = document.getElementById('submit-btn');
+                    if (submitBtn) submitBtn.disabled = subtotal <= 0;
+                }
+
+                document.querySelectorAll('.bloc-choice').forEach(function (el) {
+                    el.addEventListener('change', recalc);
+                });
+                recalc();
+            })();
+            </script>
+            {% endif %}
+        {% endif %}
+
+        <div class="text-center mt-4">
+            <p class="powered-footer small mb-0">
+                Powered by MakePlus Events Management
+            </p>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     {% if form_config.countdown_enabled and form_config.countdown_date %}
     <script>
-        // Countdown Timer
         const countdownDate = new Date("{{ form_config.countdown_date|date:'Y-m-d H:i:s' }}").getTime();
-        
+
         function updateCountdown() {
             const now = new Date().getTime();
             const distance = countdownDate - now;
-            
+
             if (distance < 0) {
                 document.getElementById('countdown').innerHTML = '<div class="alert alert-info mb-0">Event has started!</div>';
                 return;
             }
-            
+
             const days = Math.floor(distance / (1000 * 60 * 60 * 24));
             const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
             const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-            
+
             document.getElementById('days').textContent = String(days).padStart(2, '0');
             document.getElementById('hours').textContent = String(hours).padStart(2, '0');
             document.getElementById('minutes').textContent = String(minutes).padStart(2, '0');
             document.getElementById('seconds').textContent = String(seconds).padStart(2, '0');
         }
-        
-        // Update immediately and then every second
+
         updateCountdown();
         setInterval(updateCountdown, 1000);
     </script>
     {% endif %}
-    
+
     {% if show_submission_blocked_alert %}
     <script>
-        // Show alert when form was deactivated while user had it open
         window.addEventListener('DOMContentLoaded', function() {
             alert('⚠️ Form Submission Blocked\n\nThis form has been closed and is no longer accepting submissions.\n\nYour submission was NOT sent.');
         });

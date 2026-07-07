@@ -438,7 +438,7 @@ class BlocsPublicFormTests(TestCase):
     def test_blocs_visible_shows_cart_and_receipt(self):
         self._enable_blocs()
         response = self.client.get(reverse('public_form', args=[self.form.slug]))
-        self.assertContains(response, 'Total de votre panier')
+        self.assertContains(response, 'Votre panier')
         self.assertContains(response, 'quittance de banque')
         self.assertContains(response, "Confirmer l'inscription")
         self.assertContains(response, 'Adherent')
