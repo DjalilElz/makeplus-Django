@@ -334,8 +334,6 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
 
     Returns (ok: bool, errors: list, wait_seconds: int or None).
     """
-    from django.contrib.auth.models import User
-
     config = bloc_context['config']
     errors = []
 
@@ -356,10 +354,8 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
     if not receipt:
         errors.append("Please upload your bank receipt.")
 
-    # Participant creation (on admin approval) needs a linked account,
-    # same rule the free flow enforces.
-    if not email or not User.objects.filter(email=email).exists():
-        errors.append('Please create an account first in the mobile app before registering for events.')
+    if not email:
+        errors.append('Email is required.')
 
     if errors:
         return False, errors, None

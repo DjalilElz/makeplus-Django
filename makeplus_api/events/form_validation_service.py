@@ -3,6 +3,7 @@ Form Registration Validation Service
 """
 
 from django.contrib.auth.models import User
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from .models import FormRegistrationVerification, UserEventAssignment, Participant, UserProfile
 from dashboard.models_form import FormConfiguration, FormSubmission
@@ -23,12 +24,11 @@ def send_form_validation_code(email, form_slug, form_data, ip_address=None, user
     Returns:
         tuple: (success: bool, message: str, wait_seconds: int or None)
     """
-    # Check if user exists
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
-        return False, "Please create an account first in the mobile app", None
-    
+    # No account is required to register -- if one doesn't exist yet, a
+    # placeholder gets created once the code is verified (see
+    # get_or_create_user_by_email). Greet by the name given on the form.
+    greeting_name = form_data.get('first_name', '')
+
     # Get form
     try:
         form = FormConfiguration.objects.get(slug=form_slug)
@@ -60,7 +60,7 @@ def send_form_validation_code(email, form_slug, form_data, ip_address=None, user
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #667eea;">Verify Your Registration</h2>
-            <p>Hello {user.first_name},</p>
+            <p>Hello {greeting_name},</p>
             <p>Thank you for registering for <strong>{form.event.name if form.event else form.name}</strong>.</p>
             <p>Please use the verification code below to complete your registration:</p>
             
@@ -88,7 +88,7 @@ def send_form_validation_code(email, form_slug, form_data, ip_address=None, user
         to_email=email,
         subject=subject,
         html_content=html_content,
-        to_name=user.first_name,
+        to_name=greeting_name,
         use_api=True
     )
     
@@ -119,26 +119,56 @@ def create_participant_for_event(user, event):
     return participant
 
 
+def get_or_create_user_by_email(email, first_name='', last_name=''):
+    """
+    Get the account for this email, or create a placeholder one (unusable
+    password) if they haven't signed up in the mobile app yet -- lets
+    someone register for an event before creating an account. When they
+    later use the app's normal "Sign Up" with the same email,
+    verify_signup_code() claims this placeholder (sets a real password)
+    instead of refusing or creating a duplicate.
+    """
+    user = User.objects.filter(email=email).first()
+    if user:
+        return user
+
+    username = email.split('@')[0]
+    original_username = username
+    counter = 1
+    while User.objects.filter(username=username).exists():
+        username = f"{original_username}{counter}"
+        counter += 1
+
+    try:
+        with transaction.atomic():
+            user = User.objects.create(
+                username=username,
+                email=email,
+                first_name=first_name or '',
+                last_name=last_name or '',
+            )
+            user.set_unusable_password()
+            user.save(update_fields=['password'])
+        return user
+    except IntegrityError:
+        # Lost a race against a concurrent submission/signup for the same email.
+        return User.objects.filter(email=email).first()
+
+
 def verify_form_registration(email, form_slug, code, ip_address=None, user_agent=''):
     """
     Verify form registration code and create participant record
-    
+
     Args:
         email: User's email
         form_slug: Form slug
         code: 6-digit verification code
         ip_address: IP address of request
         user_agent: User agent string
-    
+
     Returns:
         tuple: (success: bool, participant: Participant or None, message: str)
     """
-    # Get user
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
-        return False, None, "User not found"
-    
     # Get form
     try:
         form = FormConfiguration.objects.get(slug=form_slug)
@@ -163,6 +193,14 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
         is_valid, message = verification.verify_code(code)
         if not is_valid:
             return False, None, message
+
+        # They've now proven ownership of the email -- get their account,
+        # or create a placeholder one if they haven't signed up in the app.
+        user = get_or_create_user_by_email(
+            email,
+            first_name=verification.form_data.get('first_name', ''),
+            last_name=verification.form_data.get('last_name', ''),
+        )
 
         # Paid (blocs) registrations were staged at submit time -- the
         # RegistrationOrder is created now, but it stays pending until an

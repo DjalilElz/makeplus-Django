@@ -2376,14 +2376,10 @@ def public_form_view(request, slug):
                 }
                 return render(request, 'dashboard/public_form.html', context)
             # --- End paid flow; below is the free (email-verification) flow ---
+            # No account is required to register -- a placeholder account is
+            # created once the verification code is confirmed (see
+            # get_or_create_user_by_email in events/form_validation_service.py).
 
-            # Check if user exists
-            from django.contrib.auth.models import User
-            user_exists = User.objects.filter(email=email).exists() if email else False
-            
-            if email and not user_exists:
-                errors.append('Please create an account first in the mobile app before registering for events.')
-            
             # If there are errors, redisplay form with errors
             if errors:
                 context = {

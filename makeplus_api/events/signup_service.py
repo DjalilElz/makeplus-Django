@@ -24,9 +24,14 @@ def send_signup_verification_code(email, first_name, password, last_name, ip_add
         tuple: (success: bool, message: str, wait_seconds: int or None)
     """
     from django.contrib.auth.hashers import make_password
-    
-    # Check if user already exists
-    if User.objects.filter(email=email).exists():
+
+    # An account with this email may already exist as a placeholder --
+    # created when someone registered for an event before signing up in
+    # the app (see get_or_create_user_by_email). Those have no usable
+    # password yet, so signing up "claims" them instead of being blocked.
+    # Only a real, already-claimed account blocks a new signup.
+    existing = User.objects.filter(email=email).first()
+    if existing and existing.has_usable_password():
         return False, "Email already registered", None
     
     # Check if can resend
@@ -106,10 +111,13 @@ def verify_signup_code(email, code, ip_address=None, user_agent=''):
     Returns:
         tuple: (success: bool, user: User or None, message: str)
     """
-    # Check if user already exists
-    if User.objects.filter(email=email).exists():
+    # Only a real, already-claimed account blocks a new signup -- a
+    # placeholder created by event registration (no usable password) gets
+    # claimed below instead.
+    existing = User.objects.filter(email=email).first()
+    if existing and existing.has_usable_password():
         return False, None, "Email already registered"
-    
+
     # Find valid verification code
     code_hash = SignUpVerification.hash_code(code)
     
@@ -136,37 +144,57 @@ def verify_signup_code(email, code, ip_address=None, user_agent=''):
         
         if not all([first_name, last_name, password_hash]):
             return False, None, "Invalid verification data. Please request a new code."
-        
-        # Create user account
-        username = email.split('@')[0]
-        counter = 1
-        original_username = username
-        while User.objects.filter(username=username).exists():
-            username = f"{original_username}{counter}"
-            counter += 1
-        
-        user = User.objects.create(
-            username=username,
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-            password=password_hash  # Already hashed
-        )
-        
-        # Create Participant profile automatically
+
         from .models import Participant, UserProfile
-        qr_data = UserProfile.get_qr_for_user(user)
-        
-        Participant.objects.create(
-            user=user,
-            badge_id=qr_data['badge_id'],
-            qr_code_data=qr_data,
-            role='participant'
-        )
-        
+
+        if existing:
+            # Claim the placeholder account created during event
+            # registration: the name/password they just chose in the app
+            # wins, since this is a deliberate action on their real account.
+            existing.first_name = first_name
+            existing.last_name = last_name
+            existing.password = password_hash  # Already hashed
+            existing.save(update_fields=['first_name', 'last_name', 'password'])
+            user = existing
+
+            qr_data = UserProfile.get_qr_for_user(user)
+            Participant.objects.get_or_create(
+                user=user,
+                defaults={
+                    'badge_id': qr_data['badge_id'],
+                    'qr_code_data': qr_data,
+                    'role': 'participant',
+                }
+            )
+        else:
+            # Create user account
+            username = email.split('@')[0]
+            counter = 1
+            original_username = username
+            while User.objects.filter(username=username).exists():
+                username = f"{original_username}{counter}"
+                counter += 1
+
+            user = User.objects.create(
+                username=username,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                password=password_hash  # Already hashed
+            )
+
+            # Create Participant profile automatically
+            qr_data = UserProfile.get_qr_for_user(user)
+            Participant.objects.create(
+                user=user,
+                badge_id=qr_data['badge_id'],
+                qr_code_data=qr_data,
+                role='participant'
+            )
+
         # Mark code as used
         verification.mark_as_used(ip_address=ip_address, user_agent=user_agent)
-        
+
         return True, user, "Account created successfully"
         
     except Exception as e:

@@ -446,7 +446,8 @@ class BlocsPublicFormTests(TestCase):
         self.assertContains(response, "Confirmer l'inscription")
         self.assertContains(response, 'Adherent')
 
-    def test_paid_submission_requires_existing_account(self):
+    @patch.object(FormRegistrationVerification, 'generate_code', return_value='777888')
+    def test_paid_submission_without_existing_account_creates_placeholder(self, _mock_code):
         self._enable_blocs()
         receipt = _Upload('receipt.pdf', b'%PDF-1.4 fake', content_type='application/pdf')
         response = self.client.post(reverse('public_form', args=[self.form.slug]), {
@@ -455,8 +456,17 @@ class BlocsPublicFormTests(TestCase):
             'accept_conditions': '1',
             'receipt_file': receipt,
         })
-        self.assertFalse(FormRegistrationVerification.objects.filter(email='no-account@example.com').exists())
-        self.assertContains(response, 'create an account first')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Check Your Email')
+        self.assertTrue(FormRegistrationVerification.objects.filter(email='no-account@example.com').exists())
+
+        response = self.client.post(reverse('public_form', args=[self.form.slug]), {
+            'email': 'no-account@example.com', 'verification_code': '777888',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(RegistrationOrder.objects.filter(event=self.event, email='no-account@example.com').exists())
+        placeholder = User.objects.get(email='no-account@example.com')
+        self.assertFalse(placeholder.has_usable_password())
 
     @patch.object(FormRegistrationVerification, 'generate_code', return_value='654321')
     def test_paid_submission_stages_code_then_verify_creates_pending_order(self, _mock_code):
