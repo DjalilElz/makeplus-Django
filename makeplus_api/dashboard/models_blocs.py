@@ -9,9 +9,12 @@ form (FormConfiguration). Four "blocs" (categories) of payable items:
   - Bloc 3: Workshops      (reuses existing paid Sessions, no BlocItem rows)
   - Bloc 4: Social Event   (custom items, admin-defined)
 
-These models are intentionally separate from caisse.PayableItem /
-CaisseTransaction: this is registration-time payment (offline bank transfer
-with an uploaded receipt), not on-site caisse payment.
+Registration-time payment (offline bank transfer with an uploaded receipt)
+is recorded here; on-site caisse payment/fulfillment is recorded in
+caisse.PayableItem / CaisseTransaction. A RegistrationOrder's items get
+mirrored into PayableItem (see caisse.management.commands.sync_paid_bloc_items)
+so an approved order's reservations can be looked up and confirmed at the
+caisse counter via RegistrationOrder.participant.
 """
 import uuid
 from decimal import Decimal
@@ -151,6 +154,12 @@ class RegistrationOrder(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='registration_orders')
     form_submission = models.ForeignKey(
         'FormSubmission', on_delete=models.SET_NULL, null=True, blank=True, related_name='registration_orders'
+    )
+    # Set once an admin approves the order (see registration_order_update) --
+    # lets the caisse counter look up "what did this participant reserve".
+    participant = models.ForeignKey(
+        'events.Participant', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='registration_orders'
     )
 
     # Contact snapshot (for admin listing / search without joining the submission)

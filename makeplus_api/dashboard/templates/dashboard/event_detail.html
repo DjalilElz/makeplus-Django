@@ -718,7 +718,7 @@
                 <h5><i class="bi bi-currency-dollar"></i> Payable Items</h5>
                 <div>
                     <button type="button" class="btn btn-success me-2" onclick="syncPaidSessions()">
-                        <i class="bi bi-arrow-repeat"></i> Sync Paid Sessions
+                        <i class="bi bi-arrow-repeat"></i> Sync Paid Sessions &amp; Bloc Items
                     </button>
                     <a href="{% url 'dashboard:payable_item_create' event.id %}" class="btn btn-primary">
                         <i class="bi bi-plus-circle"></i> Add Custom Item
@@ -733,6 +733,7 @@
                 </p>
                 <ul class="mb-0">
                     <li><strong>Paid Sessions:</strong> Automatically synced from sessions marked as paid</li>
+                    <li><strong>Registration Bloc Items:</strong> Automatically synced from the Status/Restauration/Social Event bloc items configured on the registration form</li>
                     <li><strong>Custom Items:</strong> Dinner, merchandise, materials, etc.</li>
                 </ul>
             </div>
@@ -1041,7 +1042,7 @@ function syncPaidSessions() {
     .then(data => {
         if (data.success) {
             // Show success message
-            alert(`Sync completed!\n\nCreated: ${data.created}\nUpdated: ${data.updated}\nTotal paid sessions: ${data.total}`);
+            alert(`Sync completed!\n\nCreated: ${data.created}\nUpdated: ${data.updated}\nTotal paid sessions + bloc items: ${data.total}`);
             // Reload page to show updated items
             window.location.reload();
         } else {

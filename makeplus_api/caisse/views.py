@@ -19,6 +19,50 @@ from caisse.models import Caisse, PayableItem, CaisseTransaction
 from events.models import Participant, Event
 
 
+def _reservation_data(event, payable_items):
+    """
+    Map registration-form reservations (approved RegistrationOrders' snapshot
+    items) onto this event's PayableItems, so the caisse can pre-check what a
+    participant already reserved and tally reserved-vs-confirmed counts.
+
+    Returns:
+        key_to_payable_ids: {(kind, external_id): [payable_item_id, ...]}
+        participant_reservations: {participant_id: {(kind, external_id), ...}}
+        reservation_participants: {(kind, external_id): {participant_id, ...}}
+    where kind is 'item' (BlocItem) or 'session' (paid workshop Session).
+    """
+    from dashboard.models_blocs import RegistrationOrder
+
+    key_to_payable_ids = {}
+    for item in payable_items:
+        key = None
+        if item.bloc_item_id:
+            key = ('item', item.bloc_item_id)
+        elif item.session_id:
+            key = ('session', item.session_id)
+        if key:
+            key_to_payable_ids.setdefault(key, []).append(item.id)
+
+    approved_orders = RegistrationOrder.objects.filter(
+        event=event, status='approved', participant__isnull=False
+    ).only('participant_id', 'items_snapshot')
+
+    participant_reservations = {}
+    reservation_participants = {}
+    for order in approved_orders:
+        keys = set()
+        for entry in order.items_snapshot or []:
+            kind = entry.get('type')
+            ext_id = entry.get('id')
+            if kind in ('item', 'session') and ext_id is not None:
+                keys.add((kind, ext_id))
+                reservation_participants.setdefault((kind, ext_id), set()).add(order.participant_id)
+        if keys:
+            participant_reservations.setdefault(order.participant_id, set()).update(keys)
+
+    return key_to_payable_ids, participant_reservations, reservation_participants
+
+
 def caisse_required(view_func):
     """Decorator to check if caisse is logged in"""
     def wrapper(request, *args, **kwargs):
@@ -90,9 +134,17 @@ def caisse_dashboard(request):
     payable_items = PayableItem.objects.filter(
         event=event,
         is_active=True
-    ).select_related('session').order_by('item_type', 'name')
-    
-    # Calculate capacity info for each payable item linked to a session
+    ).select_related('session', 'bloc_item').order_by('item_type', 'name')
+
+    # Reservations made via the (bloc-enabled) registration form -- who
+    # reserved what, so it can be pre-checked/tallied at the caisse.
+    key_to_payable_ids, participant_reservations, reservation_participants = _reservation_data(
+        event, payable_items
+    )
+
+    # Calculate capacity info for each payable item linked to a session, and
+    # reserved/confirmed counts for items that come from a registration bloc
+    # (or a session that's also offered as a bloc workshop).
     payable_items_with_capacity = []
     for item in payable_items:
         item_data = {
@@ -102,9 +154,12 @@ def caisse_dashboard(request):
             'registered_count': 0,
             'available_spots': None,
             'is_full': False,
-            'capacity_percentage': 0
+            'capacity_percentage': 0,
+            'is_reservable': False,
+            'reserved_count': 0,
+            'confirmed_count': 0,
         }
-        
+
         if item.session:
             session = item.session
             if session.max_participants:
@@ -113,11 +168,11 @@ def caisse_dashboard(request):
                     status='completed',
                     items=item
                 ).values('participant').distinct().count()
-                
+
                 available_spots = session.max_participants - registered_count
                 is_full = available_spots <= 0
                 capacity_percentage = int((registered_count / session.max_participants) * 100)
-                
+
                 item_data.update({
                     'has_capacity_limit': True,
                     'max_participants': session.max_participants,
@@ -126,7 +181,26 @@ def caisse_dashboard(request):
                     'is_full': is_full,
                     'capacity_percentage': capacity_percentage
                 })
-        
+
+        reservation_key = None
+        if item.bloc_item_id:
+            reservation_key = ('item', item.bloc_item_id)
+        elif item.session_id:
+            reservation_key = ('session', item.session_id)
+
+        if reservation_key:
+            reserved_participant_ids = reservation_participants.get(reservation_key, set())
+            confirmed_participant_ids = set(
+                CaisseTransaction.objects.filter(
+                    status='completed', items=item
+                ).values_list('participant_id', flat=True)
+            )
+            item_data.update({
+                'is_reservable': True,
+                'reserved_count': len(reserved_participant_ids - confirmed_participant_ids),
+                'confirmed_count': len(confirmed_participant_ids),
+            })
+
         payable_items_with_capacity.append(item_data)
     
     # Statistics
@@ -161,6 +235,20 @@ def caisse_dashboard(request):
         for transaction in completed_transactions:
             paid_item_ids.update(transaction.items.values_list('id', flat=True))
         participant_paid_items[str(participant.id)] = list(paid_item_ids)
+
+    # Items reserved via the registration form (approved bloc orders) that
+    # aren't confirmed yet -- these get pre-checked (but not disabled) so
+    # the caisse operator can just confirm the transaction.
+    participant_reserved_items = {}
+    for participant in all_participants:
+        reserved_keys = participant_reservations.get(participant.id, set())
+        reserved_payable_ids = set()
+        for key in reserved_keys:
+            reserved_payable_ids.update(key_to_payable_ids.get(key, []))
+        already_confirmed = set(participant_paid_items.get(str(participant.id), []))
+        pending = reserved_payable_ids - already_confirmed
+        if pending:
+            participant_reserved_items[str(participant.id)] = list(pending)
     
     # Recent transactions
     recent_transactions = caisse.transactions.filter(
@@ -177,6 +265,7 @@ def caisse_dashboard(request):
         'transaction_count': transaction_count,
         'all_participants': all_participants,
         'participant_paid_items_json': json.dumps(participant_paid_items),
+        'participant_reserved_items_json': json.dumps(participant_reserved_items),
         'recent_transactions': recent_transactions
     }
     
@@ -263,15 +352,26 @@ def get_participant_paid_items(request, participant_id):
         participant=participant,
         status='completed'
     ).prefetch_related('items')
-    
+
     # Collect all paid item IDs
     paid_item_ids = set()
     for transaction in completed_transactions:
         paid_item_ids.update(transaction.items.values_list('id', flat=True))
-    
+
+    # Items reserved via the registration form (approved bloc orders) not
+    # yet confirmed at the caisse.
+    payable_items = PayableItem.objects.filter(event=caisse.event, is_active=True)
+    key_to_payable_ids, participant_reservations, _ = _reservation_data(caisse.event, payable_items)
+    reserved_keys = participant_reservations.get(participant.id, set())
+    reserved_item_ids = set()
+    for key in reserved_keys:
+        reserved_item_ids.update(key_to_payable_ids.get(key, []))
+    reserved_item_ids -= paid_item_ids
+
     return JsonResponse({
         'success': True,
-        'paid_items': list(paid_item_ids)
+        'paid_items': list(paid_item_ids),
+        'reserved_items': list(reserved_item_ids)
     })
 
 
@@ -350,12 +450,44 @@ def process_transaction(request):
         })
     
     total_amount = sum(item.price for item in items)
-    
+
+    # Determine payment method: items this participant already reserved via
+    # an approved registration bloc order were paid by bank transfer at
+    # registration; anything else is a fresh walk-up sale paid in cash.
+    payable_items_for_event = PayableItem.objects.filter(event=caisse.event, is_active=True)
+    key_to_payable_ids, participant_reservations, _ = _reservation_data(caisse.event, payable_items_for_event)
+    reserved_keys = participant_reservations.get(participant.id, set())
+    reserved_payable_ids = set()
+    for key in reserved_keys:
+        reserved_payable_ids.update(key_to_payable_ids.get(key, []))
+
+    bank_transfer_items = [item for item in items if item.id in reserved_payable_ids]
+    cash_items = [item for item in items if item.id not in reserved_payable_ids]
+
+    if bank_transfer_items and cash_items:
+        payment_method = 'mixed'
+    elif bank_transfer_items:
+        payment_method = 'bank_transfer'
+    else:
+        payment_method = 'cash'
+
+    method_note_parts = []
+    if bank_transfer_items:
+        method_note_parts.append(
+            "Paid via bank transfer (registration receipt): " + ", ".join(i.name for i in bank_transfer_items)
+        )
+    if cash_items:
+        method_note_parts.append(
+            "Paid in cash at the counter: " + ", ".join(i.name for i in cash_items)
+        )
+    auto_note = "\n".join(method_note_parts)
+    final_notes = f"{notes}\n{auto_note}" if notes else auto_note
+
     # Create transaction with explicit database transaction
     import logging
     from django.db import transaction as db_transaction
     logger = logging.getLogger(__name__)
-    
+
     try:
         with db_transaction.atomic():
             # Create the transaction record
@@ -363,8 +495,9 @@ def process_transaction(request):
                 caisse=caisse,
                 participant=participant,
                 total_amount=total_amount,
+                payment_method=payment_method,
                 status='completed',
-                notes=notes,
+                notes=final_notes,
                 marked_present=True
             )
             
@@ -443,6 +576,7 @@ def process_transaction(request):
         'message': 'Transaction processed successfully',
         'transaction_id': transaction.id,
         'total_amount': float(total_amount),
+        'payment_method': payment_method,
         'action': action
     })
 

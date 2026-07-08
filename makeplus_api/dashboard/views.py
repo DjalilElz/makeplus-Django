@@ -1652,20 +1652,21 @@ def sync_paid_sessions_ajax(request, event_id):
         return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
     
     event = get_object_or_404(Event, id=event_id)
-    
+
     try:
         from caisse.models import PayableItem
-        
+        from dashboard.models_blocs import BlocItem
+
         # Get all paid sessions for this event
         paid_sessions = Session.objects.filter(
             event=event,
             is_paid=True,
             price__gt=0
         )
-        
+
         created_count = 0
         updated_count = 0
-        
+
         for session in paid_sessions:
             # Check if payable item already exists for this session
             item, created = PayableItem.objects.get_or_create(
@@ -1679,7 +1680,7 @@ def sync_paid_sessions_ajax(request, event_id):
                     'is_active': True
                 }
             )
-            
+
             if created:
                 created_count += 1
             else:
@@ -1689,14 +1690,40 @@ def sync_paid_sessions_ajax(request, event_id):
                 item.is_active = True
                 item.save()
                 updated_count += 1
-        
+
+        # Also mirror active registration bloc items (status/restauration/
+        # social_event) so they show up alongside sessions at the caisse.
+        active_bloc_items = BlocItem.objects.filter(event=event, is_active=True)
+
+        for bloc_item in active_bloc_items:
+            bloc_name = f"{bloc_item.get_bloc_display()} - {bloc_item.name}"
+            item, created = PayableItem.objects.get_or_create(
+                event=event,
+                bloc_item=bloc_item,
+                defaults={
+                    'name': bloc_name,
+                    'price': bloc_item.price,
+                    'item_type': 'bloc',
+                    'is_active': True
+                }
+            )
+
+            if created:
+                created_count += 1
+            else:
+                item.name = bloc_name
+                item.price = bloc_item.price
+                item.is_active = True
+                item.save()
+                updated_count += 1
+
         return JsonResponse({
             'success': True,
             'created': created_count,
             'updated': updated_count,
-            'total': paid_sessions.count()
+            'total': paid_sessions.count() + active_bloc_items.count()
         })
-        
+
     except Exception as e:
         return JsonResponse({
             'success': False,

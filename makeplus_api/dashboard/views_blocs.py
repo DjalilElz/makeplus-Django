@@ -233,7 +233,7 @@ def registration_order_update(request, order_id):
 
         user = User.objects.filter(email=order.email).first()
         if user:
-            create_participant_for_event(user, order.event)
+            order.participant = create_participant_for_event(user, order.event)
         else:
             messages.warning(
                 request,
@@ -244,7 +244,7 @@ def registration_order_update(request, order_id):
     order.admin_notes = notes
     order.reviewed_by = request.user
     order.reviewed_at = timezone.now()
-    order.save(update_fields=['status', 'admin_notes', 'reviewed_by', 'reviewed_at'])
+    order.save(update_fields=['status', 'admin_notes', 'reviewed_by', 'reviewed_at', 'participant'])
     messages.success(request, f'Registration {order.status}.')
     return redirect('dashboard:registration_orders', event_id=order.event_id)
 

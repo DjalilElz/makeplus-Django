@@ -409,12 +409,23 @@
                                                 <span class="paid-indicator" style="display: none;">
                                                     <span class="badge bg-success ms-2"><i class="bi bi-check-circle"></i> Already Paid</span>
                                                 </span>
+                                                <span class="reserved-indicator" style="display: none;">
+                                                    <span class="badge bg-primary ms-2"><i class="bi bi-bookmark-check"></i> Reserved - Confirm Now</span>
+                                                </span>
                                                 {% if item.session %}
                                                     <br><small class="text-muted">
                                                         <i class="bi bi-calendar3"></i> {{ item.session.start_time|date:"d/m/Y H:i" }}
                                                     </small>
                                                 {% endif %}
-                                                
+
+                                                {% if item_data.is_reservable %}
+                                                <br>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-bookmark"></i> {{ item_data.reserved_count }} reserved (awaiting confirmation)
+                                                    &middot; <i class="bi bi-check-circle"></i> {{ item_data.confirmed_count }} confirmed
+                                                </small>
+                                                {% endif %}
+
                                                 {% if item_data.has_capacity_limit %}
                                                 <br>
                                                 <div class="mt-1">
@@ -621,6 +632,8 @@
         let selectedParticipantId = null;
         // Pre-loaded participant paid items data from server
         const participantPaidItemsData = {{ participant_paid_items_json|safe }};
+        // Items reserved via the registration form, awaiting confirmation
+        const participantReservedItemsData = {{ participant_reserved_items_json|safe }};
         
         // Custom Modal Functions
         function showCustomModal(title, body, buttons) {
@@ -776,32 +789,60 @@
                 itemBox.style.background = 'white';
                 const paidIndicator = itemBox.querySelector('.paid-indicator');
                 if (paidIndicator) paidIndicator.style.display = 'none';
+                const reservedIndicator = itemBox.querySelector('.reserved-indicator');
+                if (reservedIndicator) reservedIndicator.style.display = 'none';
             });
-            
+
             document.getElementById('notes').value = '';
             calculateTotal();
-            
-            // Load participant's paid items from pre-loaded data (instant, no AJAX needed)
+
+            // Load participant's paid/reserved items from pre-loaded data (instant, no AJAX needed)
+            // Reserved-but-unconfirmed items first, so an already-paid item
+            // (checked further below) always wins if somehow in both sets.
+            loadParticipantReservedItems(id);
             loadParticipantPaidItems(id);
         }
-        
+
+        // Pre-check items reserved via the registration form but not yet
+        // confirmed at the caisse -- the operator can just confirm as-is,
+        // or uncheck if the reservation shouldn't be honored.
+        function loadParticipantReservedItems(participantId) {
+            const reservedItems = participantReservedItemsData[participantId] || [];
+
+            reservedItems.forEach(function(itemId) {
+                const checkbox = document.getElementById('item_' + itemId);
+                if (checkbox) {
+                    checkbox.checked = true;
+
+                    const itemBox = checkbox.closest('.item-checkbox');
+                    itemBox.style.background = '#dbeafe';
+
+                    const reservedIndicator = itemBox.querySelector('.reserved-indicator');
+                    if (reservedIndicator) reservedIndicator.style.display = 'inline';
+                }
+            });
+            calculateTotal();
+        }
+
         // Load items already paid by participant from pre-loaded data
         function loadParticipantPaidItems(participantId) {
             const paidItems = participantPaidItemsData[participantId] || [];
-            
+
             // Mark already paid items instantly
             paidItems.forEach(function(itemId) {
                 const checkbox = document.getElementById('item_' + itemId);
                 if (checkbox) {
                     checkbox.checked = true;
                     checkbox.disabled = true;
-                    
+
                     const itemBox = checkbox.closest('.item-checkbox');
                     itemBox.style.opacity = '0.6';
                     itemBox.style.background = '#d1fae5';
-                    
+
                     const paidIndicator = itemBox.querySelector('.paid-indicator');
                     if (paidIndicator) paidIndicator.style.display = 'inline';
+                    const reservedIndicator = itemBox.querySelector('.reserved-indicator');
+                    if (reservedIndicator) reservedIndicator.style.display = 'none';
                 }
             });
             calculateTotal();

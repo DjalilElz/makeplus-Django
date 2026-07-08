@@ -54,6 +54,7 @@ class PayableItem(models.Model):
         ('session', 'Session/Workshop'),
         ('dinner', 'Dinner/Meal'),
         ('access', 'Access/Entry'),
+        ('bloc', 'Registration Bloc Item'),
         ('other', 'Other'),
     ]
 
@@ -62,9 +63,14 @@ class PayableItem(models.Model):
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price in local currency")
     item_type = models.CharField(max_length=20, choices=ITEM_TYPES, default='other')
-    session = models.ForeignKey(Session, on_delete=models.SET_NULL, null=True, blank=True, 
+    session = models.ForeignKey(Session, on_delete=models.SET_NULL, null=True, blank=True,
                                 related_name='payable_items',
                                 help_text="Link to session if this is a session payment")
+    bloc_item = models.ForeignKey(
+        'dashboard.BlocItem', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='payable_items',
+        help_text="Link to the registration bloc item this mirrors (status/restauration/social_event)"
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -88,13 +94,20 @@ class CaisseTransaction(models.Model):
         ('cancelled', 'Cancelled'),
     ]
 
+    PAYMENT_METHOD_CHOICES = [
+        ('cash', 'Cash'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('mixed', 'Mixed (cash + bank transfer)'),
+    ]
+
     caisse = models.ForeignKey(Caisse, on_delete=models.CASCADE, related_name='transactions')
     participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='caisse_transactions')
-    
+
     # Payment details
     items = models.ManyToManyField(PayableItem, related_name='transactions')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
-    
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='cash')
+
     # Status and metadata
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
     notes = models.TextField(blank=True, help_text="Additional notes or reasons for cancellation")
