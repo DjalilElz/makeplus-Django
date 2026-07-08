@@ -388,6 +388,8 @@
                             </div>
                         </div>
 
+                        <div id="reservedSummary" class="alert alert-primary mb-3" style="display: none;"></div>
+
                         <h6 class="mb-3">
                             <i class="bi bi-cart-check"></i> Select Items:
                         </h6>
@@ -634,6 +636,8 @@
         const participantPaidItemsData = {{ participant_paid_items_json|safe }};
         // Items reserved via the registration form, awaiting confirmation
         const participantReservedItemsData = {{ participant_reserved_items_json|safe }};
+        // Per-order discount summary (raw total, discount %, amount already paid)
+        const participantReservedSummaryData = {{ participant_reserved_summary_json|safe }};
         
         // Custom Modal Functions
         function showCustomModal(title, body, buttons) {
@@ -801,6 +805,32 @@
             // (checked further below) always wins if somehow in both sets.
             loadParticipantReservedItems(id);
             loadParticipantPaidItems(id);
+            loadParticipantReservedSummary(id);
+        }
+
+        // Show the real (already-paid, post-discount) amount for a
+        // participant's pending bloc reservation(s), instead of just the
+        // raw catalog price badges -- e.g. "15000 DZD -25% -> paid 11250 DZD".
+        function loadParticipantReservedSummary(participantId) {
+            const summaryBox = document.getElementById('reservedSummary');
+            const orders = participantReservedSummaryData[participantId] || [];
+
+            if (orders.length === 0) {
+                summaryBox.style.display = 'none';
+                summaryBox.innerHTML = '';
+                return;
+            }
+
+            const lines = orders.map(function(order) {
+                if (parseFloat(order.discount_percent) > 0) {
+                    return `<div><i class="bi bi-bookmark-check"></i> Reserved: ${order.total_before} DZD `
+                        + `&minus; ${order.discount_percent}% discount &rarr; `
+                        + `<strong>Already paid: ${order.total_after} DZD</strong></div>`;
+                }
+                return `<div><i class="bi bi-bookmark-check"></i> Reserved &amp; already paid: <strong>${order.total_after} DZD</strong></div>`;
+            });
+            summaryBox.innerHTML = lines.join('');
+            summaryBox.style.display = 'block';
         }
 
         // Pre-check items reserved via the registration form but not yet
@@ -850,10 +880,32 @@
         
         // Calculate total amount
         function calculateTotal() {
+            const checkedIds = new Set(
+                Array.from(document.querySelectorAll('#payableItems input[type="checkbox"]:checked'))
+                    .map(cb => parseInt(cb.value, 10))
+            );
+
+            // Fully-selected bloc reservations are charged at their real
+            // (already paid, post-discount) amount, not a raw price sum --
+            // keeps this preview coherent with what process_transaction bills.
+            const covered = new Set();
             let total = 0;
-            document.querySelectorAll('#payableItems input[type="checkbox"]:checked').forEach(checkbox => {
-                total += parseFloat(checkbox.getAttribute('data-price'));
+            const orders = participantReservedSummaryData[selectedParticipantId] || [];
+            orders.forEach(function(order) {
+                const payableIds = order.payable_ids || [];
+                if (payableIds.length > 0 && payableIds.every(id => checkedIds.has(id))) {
+                    total += parseFloat(order.total_after);
+                    payableIds.forEach(id => covered.add(id));
+                }
             });
+
+            document.querySelectorAll('#payableItems input[type="checkbox"]:checked').forEach(checkbox => {
+                const id = parseInt(checkbox.value, 10);
+                if (!covered.has(id)) {
+                    total += parseFloat(checkbox.getAttribute('data-price'));
+                }
+            });
+
             document.getElementById('totalAmount').textContent = total.toFixed(2) + ' DZD';
         }
         

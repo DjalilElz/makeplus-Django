@@ -179,3 +179,115 @@ class CaisseBlocReservationTests(TestCase):
         self.assertEqual(order.status, 'approved')
         self.assertIsNotNone(order.participant)
         self.assertEqual(order.participant.user, new_user)
+
+
+class CaisseDiscountedReservationTests(TestCase):
+    """A bloc order's discount is computed once for the whole order -- the
+    caisse must charge/show that real (post-discount) amount, and must
+    confirm all of an order's reserved items together, not piecemeal."""
+
+    def setUp(self):
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        EventBlocConfig.objects.create(
+            event=self.event, show_status=True, show_restauration=True,
+            reduction_by_blocs_enabled=True, reduction_2_blocs=Decimal('20'),
+        )
+        self.status_item = BlocItem.objects.create(event=self.event, bloc='status', name='Adherent', price=Decimal('1000'))
+        self.resto_item = BlocItem.objects.create(event=self.event, bloc='restauration', name='Dinner', price=Decimal('500'))
+        call_command('sync_paid_bloc_items')
+        self.status_payable = PayableItem.objects.get(bloc_item=self.status_item)
+        self.resto_payable = PayableItem.objects.get(bloc_item=self.resto_item)
+
+        self.user = User.objects.create_user(username='karim', email='k@example.com', password='x')
+        self.participant = create_participant_for_event(self.user, self.event)
+
+        self.caisse = Caisse.objects.create(name='Caisse 1', email='caisse2@example.com', event=self.event)
+        self.caisse.set_password('x')
+        self.caisse.save()
+
+        # 1000 + 500 = 1500 subtotal, 20% off (2 distinct blocs) -> 1200 after reduction.
+        self.order = RegistrationOrder.objects.create(
+            event=self.event, email=self.user.email, full_name='Karim B',
+            participant=self.participant, status='approved',
+            items_snapshot=[
+                {'bloc': 'status', 'type': 'item', 'id': self.status_item.id, 'name': 'Adherent', 'price': '1000.00'},
+                {'bloc': 'restauration', 'type': 'item', 'id': self.resto_item.id, 'name': 'Dinner', 'price': '500.00'},
+            ],
+            distinct_blocs_count=2,
+            total_before_reduction=Decimal('1500.00'),
+            total_discount_percent=Decimal('20.00'),
+            blocs_discount_percent=Decimal('20.00'),
+            total_after_reduction=Decimal('1200.00'),
+            receipt_file=SimpleUploadedFile('r.pdf', b'x', content_type='application/pdf'),
+        )
+
+    def _login_caisse(self):
+        session = self.client.session
+        session['caisse_id'] = str(self.caisse.id)
+        session['caisse_name'] = self.caisse.name
+        session.save()
+
+    def test_dashboard_shows_discounted_summary(self):
+        self._login_caisse()
+        response = self.client.get(reverse('caisse:dashboard'))
+        summary_json = response.context['participant_reserved_summary_json']
+        self.assertIn('1200.00', summary_json)
+        self.assertIn('20.00', summary_json)
+
+    def test_confirming_full_order_charges_discounted_total(self):
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:process_transaction'),
+            data={
+                'participant_id': str(self.participant.id),
+                'items': [str(self.status_payable.id), str(self.resto_payable.id)],
+                'notes': '',
+            },
+            content_type='application/json',
+        )
+        payload = response.json()
+        self.assertTrue(payload['success'], payload)
+        self.assertEqual(payload['payment_method'], 'bank_transfer')
+        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('1200.00'))
+
+        txn = CaisseTransaction.objects.get(id=payload['transaction_id'])
+        self.assertEqual(txn.total_amount, Decimal('1200.00'))
+
+    def test_confirming_partial_order_is_rejected(self):
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:process_transaction'),
+            data={
+                'participant_id': str(self.participant.id),
+                'items': [str(self.status_payable.id)],  # only one of the two reserved items
+                'notes': '',
+            },
+            content_type='application/json',
+        )
+        payload = response.json()
+        self.assertFalse(payload['success'])
+        self.assertIn('Dinner', payload['message'])
+        self.assertFalse(CaisseTransaction.objects.filter(participant=self.participant).exists())
+
+    def test_confirming_full_order_plus_walkup_item_is_mixed(self):
+        walkup_item = PayableItem.objects.create(
+            event=self.event, name='Extra Snack', price=Decimal('200'), item_type='other'
+        )
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:process_transaction'),
+            data={
+                'participant_id': str(self.participant.id),
+                'items': [str(self.status_payable.id), str(self.resto_payable.id), str(walkup_item.id)],
+                'notes': '',
+            },
+            content_type='application/json',
+        )
+        payload = response.json()
+        self.assertTrue(payload['success'], payload)
+        self.assertEqual(payload['payment_method'], 'mixed')
+        # 1200 (discounted reservation) + 200 (walk-up) = 1400
+        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('1400.00'))

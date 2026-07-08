@@ -63,6 +63,45 @@ def _reservation_data(event, payable_items):
     return key_to_payable_ids, participant_reservations, reservation_participants
 
 
+def _pending_orders_with_payable_ids(participant, event):
+    """
+    This participant's approved RegistrationOrders for this event, each with
+    the set of mirrored PayableItem ids that haven't been confirmed at the
+    caisse yet. A bloc order's discount applies to the order as a whole, so
+    it must be confirmed all at once -- see its use in process_transaction().
+
+    Returns: [(RegistrationOrder, {payable_item_id, ...}), ...] -- orders
+    with nothing left to confirm are omitted.
+    """
+    from dashboard.models_blocs import RegistrationOrder
+
+    payable_items = PayableItem.objects.filter(event=event, is_active=True)
+    key_to_payable_ids, _, _ = _reservation_data(event, payable_items)
+
+    confirmed_ids = set()
+    for txn in CaisseTransaction.objects.filter(
+        participant=participant, status='completed'
+    ).prefetch_related('items'):
+        confirmed_ids.update(txn.items.values_list('id', flat=True))
+
+    orders = RegistrationOrder.objects.filter(event=event, participant=participant, status='approved')
+    result = []
+    for order in orders:
+        keys = set()
+        for entry in order.items_snapshot or []:
+            kind = entry.get('type')
+            ext_id = entry.get('id')
+            if kind in ('item', 'session') and ext_id is not None:
+                keys.add((kind, ext_id))
+        payable_ids = set()
+        for key in keys:
+            payable_ids.update(key_to_payable_ids.get(key, []))
+        pending_ids = payable_ids - confirmed_ids
+        if pending_ids:
+            result.append((order, pending_ids))
+    return result
+
+
 def caisse_required(view_func):
     """Decorator to check if caisse is logged in"""
     def wrapper(request, *args, **kwargs):
@@ -249,7 +288,26 @@ def caisse_dashboard(request):
         pending = reserved_payable_ids - already_confirmed
         if pending:
             participant_reserved_items[str(participant.id)] = list(pending)
-    
+
+    # Discount summary for participants with a pending bloc reservation, so
+    # the operator sees the real (already paid) amount, not the raw catalog
+    # sum -- e.g. "15000 DZD -25% -> already paid 11250 DZD".
+    participant_reserved_summary = {}
+    for participant in all_participants:
+        if str(participant.id) not in participant_reserved_items:
+            continue
+        pending_orders = _pending_orders_with_payable_ids(participant, event)
+        if pending_orders:
+            participant_reserved_summary[str(participant.id)] = [
+                {
+                    'total_before': str(order.total_before_reduction),
+                    'discount_percent': str(order.total_discount_percent),
+                    'total_after': str(order.total_after_reduction),
+                    'payable_ids': list(pending_ids),
+                }
+                for order, pending_ids in pending_orders
+            ]
+
     # Recent transactions
     recent_transactions = caisse.transactions.filter(
         status='completed'
@@ -266,6 +324,7 @@ def caisse_dashboard(request):
         'all_participants': all_participants,
         'participant_paid_items_json': json.dumps(participant_paid_items),
         'participant_reserved_items_json': json.dumps(participant_reserved_items),
+        'participant_reserved_summary_json': json.dumps(participant_reserved_summary),
         'recent_transactions': recent_transactions
     }
     
@@ -449,20 +508,42 @@ def process_transaction(request):
             'message': 'Cannot process transaction:\n' + '\n'.join(capacity_errors)
         })
     
-    total_amount = sum(item.price for item in items)
+    selected_ids = set(items.values_list('id', flat=True))
 
-    # Determine payment method: items this participant already reserved via
-    # an approved registration bloc order were paid by bank transfer at
-    # registration; anything else is a fresh walk-up sale paid in cash.
-    payable_items_for_event = PayableItem.objects.filter(event=caisse.event, is_active=True)
-    key_to_payable_ids, participant_reservations, _ = _reservation_data(caisse.event, payable_items_for_event)
-    reserved_keys = participant_reservations.get(participant.id, set())
-    reserved_payable_ids = set()
-    for key in reserved_keys:
-        reserved_payable_ids.update(key_to_payable_ids.get(key, []))
+    # A bloc registration's discount is computed once, on the whole order --
+    # so its reserved items must be confirmed together, at the exact amount
+    # already paid by bank transfer (not re-summed from raw catalog prices).
+    pending_orders = _pending_orders_with_payable_ids(participant, caisse.event)
 
-    bank_transfer_items = [item for item in items if item.id in reserved_payable_ids]
-    cash_items = [item for item in items if item.id not in reserved_payable_ids]
+    bank_transfer_amount = Decimal('0')
+    bank_transfer_item_ids = set()
+    incomplete_order_errors = []
+    for order, pending_ids in pending_orders:
+        if not (pending_ids & selected_ids):
+            continue  # this reservation isn't part of this transaction
+        missing_ids = pending_ids - selected_ids
+        if missing_ids:
+            missing_names = list(
+                PayableItem.objects.filter(id__in=missing_ids).values_list('name', flat=True)
+            )
+            incomplete_order_errors.append(
+                f"Please also confirm: {', '.join(missing_names)} "
+                "(reserved together in the same registration and discounted as one)."
+            )
+            continue
+        bank_transfer_amount += order.total_after_reduction
+        bank_transfer_item_ids |= pending_ids
+
+    if incomplete_order_errors:
+        return JsonResponse({
+            'success': False,
+            'message': 'Cannot process transaction:\n' + '\n'.join(incomplete_order_errors)
+        })
+
+    cash_items = [item for item in items if item.id not in bank_transfer_item_ids]
+    bank_transfer_items = [item for item in items if item.id in bank_transfer_item_ids]
+    cash_amount = sum((item.price for item in cash_items), Decimal('0'))
+    total_amount = bank_transfer_amount + cash_amount
 
     if bank_transfer_items and cash_items:
         payment_method = 'mixed'
@@ -474,11 +555,12 @@ def process_transaction(request):
     method_note_parts = []
     if bank_transfer_items:
         method_note_parts.append(
-            "Paid via bank transfer (registration receipt): " + ", ".join(i.name for i in bank_transfer_items)
+            f"Paid via bank transfer (registration receipt), {bank_transfer_amount} DZD after discount: "
+            + ", ".join(i.name for i in bank_transfer_items)
         )
     if cash_items:
         method_note_parts.append(
-            "Paid in cash at the counter: " + ", ".join(i.name for i in cash_items)
+            f"Paid in cash at the counter, {cash_amount} DZD: " + ", ".join(i.name for i in cash_items)
         )
     auto_note = "\n".join(method_note_parts)
     final_notes = f"{notes}\n{auto_note}" if notes else auto_note
