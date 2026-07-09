@@ -17,27 +17,25 @@ def _table_names(schema_editor):
         return set(schema_editor.connection.introspection.table_names(cursor))
 
 
-def _index_names(schema_editor, table_name):
-    with schema_editor.connection.cursor() as cursor:
-        constraints = schema_editor.connection.introspection.get_constraints(cursor, table_name)
-        return set(constraints.keys())
-
-
 def create_schema(apps, schema_editor):
     from dashboard.models_blocs import BlocItemStatusRule
 
     existing_tables = _table_names(schema_editor)
     if 'dashboard_blocitemstatusrule' not in existing_tables:
+        # create_model() uses the LIVE model class, so on a fresh table
+        # this already produces the model's current shape (nullable
+        # status_item, period FK, no more uniq_status_rule_item/session --
+        # those were dropped in 0031). Migrations 0030-0032 idempotently
+        # no-op on a table that already matches their target shape.
         schema_editor.create_model(BlocItemStatusRule)
         return
 
-    # Table already exists (bookkeeping loss) -- make sure the two partial
-    # unique constraints are present too, adding whichever are missing.
-    existing_constraints = _index_names(schema_editor, 'dashboard_blocitemstatusrule')
-    if 'uniq_status_rule_item' not in existing_constraints:
-        schema_editor.add_constraint(BlocItemStatusRule, BlocItemStatusRule._meta.constraints[0])
-    if 'uniq_status_rule_session' not in existing_constraints:
-        schema_editor.add_constraint(BlocItemStatusRule, BlocItemStatusRule._meta.constraints[1])
+    # Table already exists (bookkeeping loss) -- nothing else to do here.
+    # uniq_status_rule_item/uniq_status_rule_session used to be
+    # backfilled at this point, but they were removed from the model in
+    # 0030/0031 (superseded by a nullable status_item + period FK), so
+    # there's nothing left for this migration to ensure beyond the
+    # table's existence; 0030+ bring the rest of the schema up to date.
 
 
 def reverse_noop(apps, schema_editor):
