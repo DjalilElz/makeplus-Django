@@ -296,7 +296,7 @@ from decimal import Decimal
 from django.core.files.uploadedfile import SimpleUploadedFile as _Upload
 
 from events.models import Room, Session
-from .models_blocs import EventBlocConfig, BlocItem, ReductionPeriod, RegistrationOrder
+from .models_blocs import EventBlocConfig, BlocItem, BlocItemStatusRule, ReductionPeriod, RegistrationOrder
 from .models_form import FormConfiguration, FormSubmission
 from .blocs_service import compute_order
 
@@ -593,3 +593,106 @@ class BlocsAdminTests(TestCase):
         self.assertContains(response, order.email)
         self.assertNotContains(response, 'name="action" value="approve"')
         self.assertNotContains(response, 'name="action" value="reject"')
+
+
+class BlocItemStatusRuleComputeOrderTests(TestCase):
+    """compute_order() must respect status-dependent visibility/price
+    overrides: hidden items are excluded from the cart, overridden prices
+    replace the normal price (and the period/bloc-count reduction still
+    applies on top of it)."""
+
+    def setUp(self):
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        self.config = EventBlocConfig.objects.create(
+            event=self.event, show_status=True, show_restauration=True,
+        )
+        self.status_a = BlocItem.objects.create(event=self.event, bloc='status', name='Student', price=Decimal('0'))
+        self.status_b = BlocItem.objects.create(event=self.event, bloc='status', name='Adherent', price=Decimal('0'))
+        self.dinner = BlocItem.objects.create(event=self.event, bloc='restauration', name='Dinner', price=Decimal('1000'))
+
+    def _compute(self, status_id, item_ids=()):
+        return compute_order(
+            event=self.event, config=self.config,
+            selected_item_ids=[status_id, *item_ids], selected_session_ids=[],
+            on_date=timezone.now().date(),
+        )
+
+    def test_no_rule_means_visible_at_normal_price(self):
+        result = self._compute(self.status_a.id, [self.dinner.id])
+        self.assertEqual(result['total_before_reduction'], Decimal('1000.00'))
+        self.assertEqual(len(result['snapshot']), 2)  # status + dinner
+
+    def test_hidden_item_excluded_from_cart(self):
+        BlocItemStatusRule.objects.create(
+            status_item=self.status_a, target_kind='item', target_item=self.dinner, is_visible=False,
+        )
+        result = self._compute(self.status_a.id, [self.dinner.id])
+        self.assertEqual(result['total_before_reduction'], Decimal('0.00'))
+        self.assertEqual(len(result['snapshot']), 1)  # only status, dinner excluded
+
+    def test_hidden_for_one_status_but_visible_for_another(self):
+        BlocItemStatusRule.objects.create(
+            status_item=self.status_a, target_kind='item', target_item=self.dinner, is_visible=False,
+        )
+        result = self._compute(self.status_b.id, [self.dinner.id])
+        self.assertEqual(result['total_before_reduction'], Decimal('1000.00'))
+
+    def test_price_override_applies_and_stacks_with_period_reduction(self):
+        self.config.reduction_by_period_enabled = True
+        self.config.save()
+        self.event.reduction_periods.create(
+            start_date=timezone.now().date(), end_date=timezone.now().date() + timedelta(days=1),
+            discount_percent=Decimal('10'),
+        )
+        BlocItemStatusRule.objects.create(
+            status_item=self.status_b, target_kind='item', target_item=self.dinner, override_price=Decimal('500'),
+        )
+        result = self._compute(self.status_b.id, [self.dinner.id])
+        self.assertEqual(result['total_before_reduction'], Decimal('500.00'))
+        self.assertEqual(result['period_discount_percent'], Decimal('10.00'))
+        # 500 - 10% = 450
+        self.assertEqual(result['total_after_reduction'], Decimal('450.00'))
+
+
+class BlocStatusRulesAdminTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin', password='x', is_staff=True)
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        EventBlocConfig.objects.create(event=self.event, show_status=True, show_restauration=True)
+        self.status_a = BlocItem.objects.create(event=self.event, bloc='status', name='Student', price=Decimal('0'))
+        self.dinner = BlocItem.objects.create(event=self.event, bloc='restauration', name='Dinner', price=Decimal('1000'))
+
+    def test_config_page_shows_matrix(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('dashboard:blocs_config', args=[self.event.id]))
+        self.assertContains(response, 'Status-dependent rules')
+        self.assertContains(response, 'Student')
+        self.assertContains(response, 'Dinner')
+
+    def test_save_hides_item_and_sets_price(self):
+        self.client.force_login(self.admin)
+        self.client.post(reverse('dashboard:bloc_status_rules_save', args=[self.event.id]), {
+            f'price_{self.status_a.id}_item_{self.dinner.id}': '750',
+            # visible checkbox omitted -> hidden
+        })
+        rule = BlocItemStatusRule.objects.get(status_item=self.status_a, target_item=self.dinner)
+        self.assertFalse(rule.is_visible)
+        self.assertEqual(rule.override_price, Decimal('750.00'))
+
+    def test_save_default_state_removes_rule(self):
+        BlocItemStatusRule.objects.create(
+            status_item=self.status_a, target_kind='item', target_item=self.dinner, is_visible=False,
+        )
+        self.client.force_login(self.admin)
+        self.client.post(reverse('dashboard:bloc_status_rules_save', args=[self.event.id]), {
+            f'visible_{self.status_a.id}_item_{self.dinner.id}': 'on',
+        })
+        self.assertFalse(
+            BlocItemStatusRule.objects.filter(status_item=self.status_a, target_item=self.dinner).exists()
+        )

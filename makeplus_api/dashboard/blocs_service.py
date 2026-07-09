@@ -8,7 +8,7 @@ regardless of anything the browser submitted.
 from decimal import Decimal, ROUND_HALF_UP
 
 from events.models import Session
-from .models_blocs import BlocItem
+from .models_blocs import BlocItem, BlocItemStatusRule
 
 
 TWO_PLACES = Decimal('0.01')
@@ -32,7 +32,7 @@ def _bloc_visible(config, bloc):
     }.get(bloc, False)
 
 
-def compute_order(event, config, selected_item_ids, selected_session_ids, on_date):
+def compute_order(event, config, selected_item_ids, selected_session_ids, on_date, context_status_item_id=None):
     """
     Compute a cart from the raw selections.
 
@@ -42,10 +42,22 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
         selected_item_ids: iterable of BlocItem ids (custom blocs)
         selected_session_ids: iterable of Session ids (workshops bloc)
         on_date: date used to resolve the period reduction (the submission date)
+        context_status_item_id: optional BlocItem id of a Status already
+            chosen elsewhere (e.g. locked into an existing registration),
+            used only to resolve status-dependent rules for THIS selection
+            -- it does not get added to the cart/subtotal itself. Use this
+            when pricing new items for someone who picked their Status at
+            registration and isn't re-selecting it now (e.g. the caisse
+            adding an extra item on event day).
 
     Returns dict with subtotals, snapshot, distinct bloc count, discount
     percentages, and totals before/after reduction. Only items belonging to
     the event, active, and inside a *visible* bloc are counted.
+
+    If one of the selected items is a Status item, any BlocItemStatusRule
+    rows for it can hide other items entirely, or override their price
+    (which then still goes through the period/bloc-count reduction below,
+    same as any other item) -- see BlocItemStatusRule for details.
     """
     selected_item_ids = [str(i) for i in (selected_item_ids or [])]
     selected_session_ids = [str(i) for i in (selected_session_ids or [])]
@@ -54,23 +66,36 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
     subtotals = {bloc: Decimal('0') for bloc in ALL_BLOCS}
     blocs_with_selection = set()
 
+    items = list(
+        BlocItem.objects.filter(id__in=selected_item_ids, event=event, is_active=True)
+    ) if selected_item_ids else []
+
+    status_item_ids = [item.id for item in items if item.bloc == 'status']
+    if context_status_item_id:
+        status_item_ids.append(int(context_status_item_id))
+    rules_by_target = {}
+    if status_item_ids:
+        for rule in BlocItemStatusRule.objects.filter(status_item_id__in=status_item_ids):
+            key = ('item', rule.target_item_id) if rule.target_kind == 'item' else ('session', str(rule.target_session_id))
+            rules_by_target[key] = rule
+
     # --- Custom bloc items ---
-    if selected_item_ids:
-        items = BlocItem.objects.filter(
-            id__in=selected_item_ids, event=event, is_active=True
-        )
-        for item in items:
-            if item.bloc not in CUSTOM_BLOCS or not _bloc_visible(config, item.bloc):
-                continue
-            subtotals[item.bloc] += item.price
-            blocs_with_selection.add(item.bloc)
-            snapshot.append({
-                'bloc': item.bloc,
-                'type': 'item',
-                'id': item.id,
-                'name': item.name,
-                'price': str(_q(item.price)),
-            })
+    for item in items:
+        if item.bloc not in CUSTOM_BLOCS or not _bloc_visible(config, item.bloc):
+            continue
+        rule = rules_by_target.get(('item', item.id))
+        if rule and not rule.is_visible:
+            continue
+        price = rule.override_price if (rule and rule.override_price is not None) else item.price
+        subtotals[item.bloc] += price
+        blocs_with_selection.add(item.bloc)
+        snapshot.append({
+            'bloc': item.bloc,
+            'type': 'item',
+            'id': item.id,
+            'name': item.name,
+            'price': str(_q(price)),
+        })
 
     # --- Workshops (paid sessions) ---
     if selected_session_ids and _bloc_visible(config, 'workshops'):
@@ -78,14 +103,18 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
             id__in=selected_session_ids, event=event, is_paid=True
         )
         for session in sessions:
-            subtotals['workshops'] += session.price
+            rule = rules_by_target.get(('session', str(session.id)))
+            if rule and not rule.is_visible:
+                continue
+            price = rule.override_price if (rule and rule.override_price is not None) else session.price
+            subtotals['workshops'] += price
             blocs_with_selection.add('workshops')
             snapshot.append({
                 'bloc': 'workshops',
                 'type': 'session',
                 'id': str(session.id),
                 'name': session.title,
-                'price': str(_q(session.price)),
+                'price': str(_q(price)),
             })
 
     total_before = sum(subtotals.values(), Decimal('0'))
@@ -120,3 +149,27 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
         'total_discount_percent': _q(total_percent),
         'total_after_reduction': total_after,
     }
+
+
+def serialize_status_rules_for_event(event):
+    """
+    All BlocItemStatusRule rows for this event, keyed by status item id ->
+    target key -> {'visible': bool, 'price': str or None}. Baked into the
+    registration form (and caisse) as JSON so item visibility/price can
+    update live as the participant picks a different Status, without a
+    round trip per click. Target key is 'item_<id>' or 'session_<id>' --
+    matching the data-bloc-target attributes rendered on each input.
+    """
+    rules = BlocItemStatusRule.objects.filter(status_item__event=event)
+    result = {}
+    for rule in rules:
+        status_key = str(rule.status_item_id)
+        target_key = (
+            f"item_{rule.target_item_id}" if rule.target_kind == 'item'
+            else f"session_{rule.target_session_id}"
+        )
+        result.setdefault(status_key, {})[target_key] = {
+            'visible': rule.is_visible,
+            'price': str(rule.override_price) if rule.override_price is not None else None,
+        }
+    return result

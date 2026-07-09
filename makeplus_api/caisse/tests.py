@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from events.models import Event, Room, Session
 from events.form_validation_service import create_participant_for_event
-from dashboard.models_blocs import BlocItem, EventBlocConfig, RegistrationOrder
+from dashboard.models_blocs import BlocItem, BlocItemStatusRule, EventBlocConfig, RegistrationOrder
 from .models import Caisse, CaisseTransaction, PayableItem
 
 
@@ -478,6 +478,67 @@ class CaisseBlocGroupingTests(TestCase):
         )
         payload = response.json()
         self.assertTrue(payload['success'], payload)
+
+
+class CaisseStatusDependentPricingTests(TestCase):
+    """A participant's already-chosen Status (locked into a prior
+    reservation) must still drive visibility/price for brand-new items
+    added at the counter, even though they aren't re-picking Status now."""
+
+    def setUp(self):
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        EventBlocConfig.objects.create(event=self.event, show_status=True, show_restauration=True)
+        self.status_item = BlocItem.objects.create(event=self.event, bloc='status', name='Adherent', price=Decimal('0'))
+        self.dinner = BlocItem.objects.create(event=self.event, bloc='restauration', name='Dinner', price=Decimal('1000'))
+        BlocItemStatusRule.objects.create(
+            status_item=self.status_item, target_kind='item', target_item=self.dinner,
+            override_price=Decimal('400'),
+        )
+        call_command('sync_paid_bloc_items')
+        self.dinner_payable = PayableItem.objects.get(bloc_item=self.dinner)
+
+        self.user = User.objects.create_user(username='karim', email='k@example.com', password='x')
+        self.participant = create_participant_for_event(self.user, self.event)
+
+        # Already-approved reservation that only picked a Status (no
+        # dinner) -- simulates them having chosen "Adherent" at
+        # registration, now wanting to add Dinner fresh at the counter.
+        RegistrationOrder.objects.create(
+            event=self.event, email=self.user.email, full_name='Karim B',
+            participant=self.participant, status='approved',
+            items_snapshot=[{'bloc': 'status', 'type': 'item', 'id': self.status_item.id, 'name': 'Adherent', 'price': '0.00'}],
+            total_before_reduction=Decimal('0'), total_after_reduction=Decimal('0'),
+            receipt_file=SimpleUploadedFile('r.pdf', b'x', content_type='application/pdf'),
+        )
+
+        self.caisse = Caisse.objects.create(name='Caisse 1', email='caisse5@example.com', event=self.event)
+        self.caisse.set_password('x')
+        self.caisse.save()
+
+    def _login_caisse(self):
+        session = self.client.session
+        session['caisse_id'] = str(self.caisse.id)
+        session['caisse_name'] = self.caisse.name
+        session.save()
+
+    def test_new_item_uses_status_override_price_from_existing_reservation(self):
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:process_transaction'),
+            data={
+                'participant_id': str(self.participant.id),
+                'items': [str(self.dinner_payable.id)],
+                'notes': '',
+            },
+            content_type='application/json',
+        )
+        payload = response.json()
+        self.assertTrue(payload['success'], payload)
+        # 400 (status-overridden price), not the normal 1000.
+        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('400.00'))
 
 
 class CaisseSessionReservationTests(TestCase):

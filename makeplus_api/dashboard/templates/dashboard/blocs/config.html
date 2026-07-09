@@ -138,6 +138,57 @@
     </div>
     {% endfor %}
 
+    <!-- Status-dependent visibility/price rules -->
+    {% if status_items and target_rows %}
+    <div class="stat-card mb-4">
+        <h5><i class="bi bi-diagram-3"></i> Status-dependent rules</h5>
+        <hr>
+        <p class="text-muted small">
+            Make items in Restauration / Social Event / Workshops depend on which Status the participant picks.
+            Uncheck "visible" to hide an item entirely for a status, or set a custom price to charge that status
+            differently for it. Leave a cell at its default (checked, no price) for normal behavior -- nothing is
+            stored for cells you don't customize.
+        </p>
+        <form method="post" action="{% url 'dashboard:bloc_status_rules_save' event.id %}">
+            {% csrf_token %}
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered align-middle">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            {% for status_item in status_items %}
+                            <th class="text-center">{{ status_item.name }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in target_rows %}
+                        <tr>
+                            <td><small class="text-muted">{{ row.bloc_label }}</small><br>{{ row.label }}</td>
+                            {% for cell in row.cells %}
+                            <td class="text-center" style="min-width: 140px;">
+                                <div class="form-check form-switch d-flex justify-content-center mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           name="visible_{{ cell.status_id }}_{{ cell.target_key }}"
+                                           {% if cell.visible %}checked{% endif %}
+                                           title="Visible for this status">
+                                </div>
+                                <input type="number" step="0.01" min="0" class="form-control form-control-sm"
+                                       name="price_{{ cell.status_id }}_{{ cell.target_key }}"
+                                       value="{{ cell.price|default_if_none:'' }}"
+                                       placeholder="normal price" title="Override price (blank = normal price)">
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Save status rules</button>
+        </form>
+    </div>
+    {% endif %}
+
     <!-- Reduction periods -->
     <div class="stat-card mb-4">
         <h5><i class="bi bi-calendar-range"></i> Reduction periods</h5>

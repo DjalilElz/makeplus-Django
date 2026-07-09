@@ -936,15 +936,17 @@
                                 {% if bloc.select_mode == 'single' %}Single choice — pick one option.{% else %}Multiple choice — pick as many as you like.{% endif %}
                             </p>
                             {% for item in bloc.items %}
-                            <label class="product-card" for="item_{{ item.id }}">
+                            <label class="product-card" id="product_item_{{ item.id }}" for="item_{{ item.id }}">
                                 <input class="form-check-input bloc-choice"
                                        type="{% if bloc.select_mode == 'single' %}radio{% else %}checkbox{% endif %}"
                                        name="items_{{ bloc.key }}"
                                        id="item_{{ item.id }}"
                                        value="{{ item.id }}"
                                        data-price="{{ item.price }}"
+                                       data-original-price="{{ item.price }}"
                                        data-bloc="{{ bloc.key }}"
-                                       data-name="{{ item.name }}">
+                                       data-name="{{ item.name }}"
+                                       {% if bloc.key == 'status' %}data-is-status="true"{% else %}data-target-key="item_{{ item.id }}"{% endif %}>
                                 <span class="product-main">
                                     <span class="product-name d-block">{{ item.name }}</span>
                                     <span class="product-tag">{{ bloc.label }}</span>
@@ -968,10 +970,12 @@
                             </div>
                             <p class="bloc-note">Multiple choice — pick as many workshops as you like.</p>
                             {% for s in bloc_context.paid_sessions %}
-                            <label class="product-card" for="session_{{ s.id }}">
+                            <label class="product-card" id="product_session_{{ s.id }}" for="session_{{ s.id }}">
                                 <input class="form-check-input bloc-choice" type="checkbox"
                                        name="sessions" id="session_{{ s.id }}" value="{{ s.id }}"
-                                       data-price="{{ s.price }}" data-bloc="workshops" data-name="{{ s.title }}">
+                                       data-price="{{ s.price }}" data-original-price="{{ s.price }}"
+                                       data-bloc="workshops" data-name="{{ s.title }}"
+                                       data-target-key="session_{{ s.id }}">
                                 <span class="product-main">
                                     <span class="product-name d-block">{{ s.title }}</span>
                                     <span class="product-tag">Workshop</span>
@@ -1061,8 +1065,43 @@
                 var BLOCS_ENABLED = {% if bloc_context.config.reduction_by_blocs_enabled %}true{% else %}false{% endif %};
                 var BLOC_PCT = {2: {{ bloc_context.config.reduction_2_blocs }}, 3: {{ bloc_context.config.reduction_3_blocs }}, 4: {{ bloc_context.config.reduction_4_blocs }}};
                 var BLOC_ORDER = [{% for key in bloc_context.active_bloc_keys %}'{{ key }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+                // Status -> {target_key: {visible, price}} -- lets picking a
+                // Status hide/show or re-price items in the other blocs live.
+                var STATUS_RULES = {{ bloc_context.status_rules_json|safe }};
 
                 function fmt(n) { return n.toFixed(2) + ' DZD'; }
+
+                // Apply the rules for whichever Status is currently picked (if any)
+                // to every other-bloc item: hide it, or swap in its overridden
+                // price -- mutating data-price so recalc()'s existing subtotal
+                // math picks up the effective price with no further changes.
+                function applyStatusRules() {
+                    var statusEl = document.querySelector('.bloc-choice[data-is-status="true"]:checked');
+                    var rules = (statusEl && STATUS_RULES[statusEl.value]) || {};
+
+                    document.querySelectorAll('.bloc-choice[data-target-key]').forEach(function (el) {
+                        var targetKey = el.getAttribute('data-target-key');
+                        var rule = rules[targetKey];
+                        var card = document.getElementById('product_' + targetKey);
+                        var visible = !rule || rule.visible;
+                        var price = (rule && rule.price !== null && rule.price !== undefined)
+                            ? rule.price
+                            : el.getAttribute('data-original-price');
+
+                        el.setAttribute('data-price', price);
+                        var amountEl = card ? card.querySelector('.price-pill .amount') : null;
+                        if (amountEl) amountEl.textContent = parseFloat(price).toFixed(0);
+
+                        if (!visible) {
+                            if (el.checked) el.checked = false;
+                            el.disabled = true;
+                            if (card) card.style.display = 'none';
+                        } else {
+                            el.disabled = false;
+                            if (card) card.style.display = '';
+                        }
+                    });
+                }
 
                 function recalc() {
                     var choices = document.querySelectorAll('.bloc-choice');
@@ -1149,8 +1188,12 @@
                 }
 
                 document.querySelectorAll('.bloc-choice').forEach(function (el) {
-                    el.addEventListener('change', recalc);
+                    el.addEventListener('change', function () {
+                        applyStatusRules();
+                        recalc();
+                    });
                 });
+                applyStatusRules();
                 recalc();
             })();
             </script>

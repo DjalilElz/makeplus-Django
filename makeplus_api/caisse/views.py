@@ -694,8 +694,23 @@ def process_transaction(request):
     # reservation) are treated the same as if picked on the registration
     # form: recompute the bloc-count/period discount across just this new
     # selection, using the exact same engine the form uses.
-    from dashboard.models_blocs import EventBlocConfig
+    from dashboard.models_blocs import EventBlocConfig, RegistrationOrder
     from dashboard.blocs_service import compute_order
+
+    # If this participant already has a Status locked in from an earlier
+    # (non-rejected) reservation, status-dependent rules for it still apply
+    # to brand-new items added today, even though they aren't re-picking
+    # Status right now.
+    existing_status_item_id = None
+    for order in RegistrationOrder.objects.filter(
+        event=caisse.event, participant=participant
+    ).exclude(status='rejected').only('items_snapshot'):
+        for entry in order.items_snapshot or []:
+            if entry.get('bloc') == 'status':
+                existing_status_item_id = entry.get('id')
+                break
+        if existing_status_item_id:
+            break
 
     new_bloc_keys = {}
     plain_cash_items = []
@@ -726,6 +741,7 @@ def process_transaction(request):
                 event=caisse.event, config=config,
                 selected_item_ids=new_item_ids, selected_session_ids=new_session_ids,
                 on_date=timezone.now().date(),
+                context_status_item_id=existing_status_item_id,
             )
             covered_keys = {(entry['type'], str(entry['id'])) for entry in result['snapshot']}
             recomputed_bloc_amount = result['total_after_reduction']

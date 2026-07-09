@@ -120,6 +120,60 @@ class BlocItem(models.Model):
         return f"{self.get_bloc_display()} - {self.name} ({self.price})"
 
 
+class BlocItemStatusRule(models.Model):
+    """
+    Makes an item in Restauration/Social Event/Workshops conditional on
+    which Status item the participant picked: hide it entirely for that
+    status, and/or charge a different (overridden) price for it. No rule
+    for a given (status, target) pair means default behavior -- visible,
+    normal price -- so this is fully opt-in and doesn't affect events that
+    don't use it.
+
+    An overridden price still goes through the normal period%/bloc-count%
+    reduction afterwards, same as any other item -- it just replaces the
+    starting price for that one (status, item) combination.
+    """
+    TARGET_KIND_CHOICES = [
+        ('item', 'Bloc Item'),
+        ('session', 'Workshop Session'),
+    ]
+
+    status_item = models.ForeignKey(BlocItem, on_delete=models.CASCADE, related_name='dependent_rules')
+    target_kind = models.CharField(max_length=10, choices=TARGET_KIND_CHOICES)
+    target_item = models.ForeignKey(
+        BlocItem, on_delete=models.CASCADE, null=True, blank=True, related_name='status_rules'
+    )
+    target_session = models.ForeignKey(
+        'events.Session', on_delete=models.CASCADE, null=True, blank=True, related_name='status_rules'
+    )
+
+    is_visible = models.BooleanField(default=True)
+    override_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Bloc Item Status Rule'
+        verbose_name_plural = 'Bloc Item Status Rules'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['status_item', 'target_item'], condition=models.Q(target_kind='item'),
+                name='uniq_status_rule_item'
+            ),
+            models.UniqueConstraint(
+                fields=['status_item', 'target_session'], condition=models.Q(target_kind='session'),
+                name='uniq_status_rule_session'
+            ),
+        ]
+
+    def __str__(self):
+        target = self.target_item.name if self.target_item_id else (
+            self.target_session.title if self.target_session_id else '?'
+        )
+        return f"{self.status_item.name} -> {target} (visible={self.is_visible}, price={self.override_price})"
+
+
 class ReductionPeriod(models.Model):
     """A date range mapped to a single % discount on the whole cart."""
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='reduction_periods')

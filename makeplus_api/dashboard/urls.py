@@ -171,6 +171,7 @@ urlpatterns = [
     path('events/<uuid:event_id>/blocs/save/', views_blocs.blocs_config_save, name='blocs_config_save'),
     path('events/<uuid:event_id>/blocs/items/save/', views_blocs.bloc_item_save, name='bloc_item_save'),
     path('blocs/items/<int:item_id>/delete/', views_blocs.bloc_item_delete, name='bloc_item_delete'),
+    path('events/<uuid:event_id>/blocs/status-rules/save/', views_blocs.bloc_status_rules_save, name='bloc_status_rules_save'),
     path('events/<uuid:event_id>/blocs/periods/save/', views_blocs.reduction_period_save, name='reduction_period_save'),
     path('blocs/periods/<int:period_id>/delete/', views_blocs.reduction_period_delete, name='reduction_period_delete'),
     path('events/<uuid:event_id>/blocs/orders/', views_blocs.registration_orders, name='registration_orders'),
