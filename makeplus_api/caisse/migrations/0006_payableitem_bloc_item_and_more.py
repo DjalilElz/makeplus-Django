@@ -22,7 +22,7 @@ def _column_names(schema_editor, table_name):
 
 
 def add_columns(apps, schema_editor):
-    from .models import PayableItem, CaisseTransaction
+    from caisse.models import PayableItem, CaisseTransaction
 
     payable_item_columns = _column_names(schema_editor, 'caisse_payableitem')
     if 'bloc_item_id' not in payable_item_columns:
