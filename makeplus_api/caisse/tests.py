@@ -392,6 +392,94 @@ class CaisseDiscountedReservationTests(TestCase):
         self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('1400.00'))
 
 
+class CaisseBlocGroupingTests(TestCase):
+    """
+    The caisse item selection must be coherent with the registration form:
+    items grouped by bloc, single-choice blocs rendered/enforced as
+    single-select (radio), multiple-choice blocs stay multi-select
+    (checkbox).
+    """
+
+    def setUp(self):
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        EventBlocConfig.objects.create(
+            event=self.event, show_status=True, status_select_mode='single',
+            show_restauration=True, restauration_select_mode='multiple',
+        )
+        self.status_item_a = BlocItem.objects.create(event=self.event, bloc='status', name='Adherent', price=Decimal('1000'))
+        self.status_item_b = BlocItem.objects.create(event=self.event, bloc='status', name='Non-adherent', price=Decimal('2000'))
+        self.resto_item_a = BlocItem.objects.create(event=self.event, bloc='restauration', name='Dinner 1', price=Decimal('500'))
+        self.resto_item_b = BlocItem.objects.create(event=self.event, bloc='restauration', name='Dinner 2', price=Decimal('600'))
+        call_command('sync_paid_bloc_items')
+        self.status_payable_a = PayableItem.objects.get(bloc_item=self.status_item_a)
+        self.status_payable_b = PayableItem.objects.get(bloc_item=self.status_item_b)
+        self.resto_payable_a = PayableItem.objects.get(bloc_item=self.resto_item_a)
+        self.resto_payable_b = PayableItem.objects.get(bloc_item=self.resto_item_b)
+
+        self.user = User.objects.create_user(username='karim', email='k@example.com', password='x')
+        self.participant = create_participant_for_event(self.user, self.event)
+
+        self.caisse = Caisse.objects.create(name='Caisse 1', email='caisse4@example.com', event=self.event)
+        self.caisse.set_password('x')
+        self.caisse.save()
+
+    def _login_caisse(self):
+        session = self.client.session
+        session['caisse_id'] = str(self.caisse.id)
+        session['caisse_name'] = self.caisse.name
+        session.save()
+
+    def test_items_grouped_by_bloc_with_correct_input_type(self):
+        self._login_caisse()
+        response = self.client.get(reverse('caisse:dashboard'))
+        groups = {g['label']: g for g in response.context['bloc_groups']}
+
+        self.assertIn('Status', groups)
+        self.assertEqual(groups['Status']['select_mode'], 'single')
+        self.assertEqual(groups['Status']['input_type'], 'radio')
+        self.assertEqual(
+            {d['item'].id for d in groups['Status']['items']},
+            {self.status_payable_a.id, self.status_payable_b.id},
+        )
+
+        self.assertIn('Restauration', groups)
+        self.assertEqual(groups['Restauration']['select_mode'], 'multiple')
+        self.assertEqual(groups['Restauration']['input_type'], 'checkbox')
+
+    def test_selecting_two_single_choice_items_is_rejected(self):
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:process_transaction'),
+            data={
+                'participant_id': str(self.participant.id),
+                'items': [str(self.status_payable_a.id), str(self.status_payable_b.id)],
+                'notes': '',
+            },
+            content_type='application/json',
+        )
+        payload = response.json()
+        self.assertFalse(payload['success'])
+        self.assertIn('only one option', payload['message'])
+        self.assertFalse(CaisseTransaction.objects.filter(participant=self.participant).exists())
+
+    def test_selecting_two_multiple_choice_items_is_allowed(self):
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:process_transaction'),
+            data={
+                'participant_id': str(self.participant.id),
+                'items': [str(self.resto_payable_a.id), str(self.resto_payable_b.id)],
+                'notes': '',
+            },
+            content_type='application/json',
+        )
+        payload = response.json()
+        self.assertTrue(payload['success'], payload)
+
+
 class CaisseSessionReservationTests(TestCase):
     """
     Regression test: Session's PK is a UUID, but items_snapshot stores its

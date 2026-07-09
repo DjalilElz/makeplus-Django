@@ -1,0 +1,70 @@
+{% with item=item_data.item %}
+<div class="item-checkbox item-{{ item.id }}" data-item-id="{{ item.id }}" {% if item_data.is_full %}data-is-full="true"{% endif %}>
+    <div class="d-flex align-items-start">
+        <input type="{{ input_type|default:'checkbox' }}" class="form-check-input me-2 mt-1"
+               id="item_{{ item.id }}"
+               {% if input_type == 'radio' %}name="{{ radio_name }}"{% endif %}
+               value="{{ item.id }}"
+               data-price="{{ item.price }}"
+               {% if item_data.data_bloc %}data-bloc="{{ item_data.data_bloc }}"{% endif %}
+               {% if item_data.is_full %}disabled{% endif %}
+               onchange="calculateTotal()">
+        <label class="form-check-label flex-grow-1" for="item_{{ item.id }}" style="cursor: pointer;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <strong>{{ item.name }}</strong>
+                    <span class="paid-indicator" style="display: none;">
+                        <span class="badge bg-success ms-2"><i class="bi bi-check-circle"></i> Already Paid</span>
+                    </span>
+                    <span class="reserved-indicator" style="display: none;">
+                        <span class="badge bg-primary ms-2"><i class="bi bi-bookmark-check"></i> Reserved - Confirm Now</span>
+                    </span>
+                    {% if item.session %}
+                        <br><small class="text-muted">
+                            <i class="bi bi-calendar3"></i> {{ item.session.start_time|date:"d/m/Y H:i" }}
+                        </small>
+                    {% endif %}
+
+                    {% if item_data.is_reservable %}
+                    <br>
+                    <small class="text-muted">
+                        <i class="bi bi-bookmark"></i> {{ item_data.reserved_count }} reserved (awaiting confirmation)
+                        &middot; <i class="bi bi-check-circle"></i> {{ item_data.confirmed_count }} confirmed
+                    </small>
+                    {% endif %}
+
+                    {% if item_data.has_capacity_limit %}
+                    <br>
+                    <div class="mt-1">
+                        {% if item_data.is_full %}
+                            <span class="badge bg-danger">
+                                <i class="bi bi-x-circle"></i> FULL - {{ item_data.registered_count }}/{{ item_data.max_participants }}
+                            </span>
+                        {% elif item_data.available_spots <= 5 %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-exclamation-triangle"></i> {{ item_data.available_spots }} spots left ({{ item_data.registered_count }}/{{ item_data.max_participants }})
+                            </span>
+                        {% else %}
+                            <span class="badge bg-info">
+                                <i class="bi bi-people"></i> {{ item_data.available_spots }} spots available ({{ item_data.registered_count }}/{{ item_data.max_participants }})
+                            </span>
+                        {% endif %}
+
+                        <!-- Capacity progress bar -->
+                        <div class="progress mt-1" style="height: 4px;">
+                            <div class="progress-bar {% if item_data.capacity_percentage >= 100 %}bg-danger{% elif item_data.capacity_percentage >= 80 %}bg-warning{% else %}bg-success{% endif %}"
+                                 role="progressbar"
+                                 style="width: {{ item_data.capacity_percentage }}%"
+                                 aria-valuenow="{{ item_data.capacity_percentage }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                <span class="badge bg-success item-price-badge ms-2">{{ item.price }} DZD</span>
+            </div>
+        </label>
+    </div>
+</div>
+{% endwith %}

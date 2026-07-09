@@ -392,78 +392,38 @@
                             <i class="bi bi-cart-check"></i> Select Items:
                         </h6>
                         <div id="payableItems" style="max-height: 520px; overflow-y: auto;">
-                            {% for item_data in payable_items_with_capacity %}
-                            {% with item=item_data.item %}
-                            <div class="item-checkbox item-{{ item.id }}" data-item-id="{{ item.id }}" {% if item_data.is_full %}data-is-full="true"{% endif %}>
-                                <div class="d-flex align-items-start">
-                                    <input type="checkbox" class="form-check-input me-2 mt-1" 
-                                           id="item_{{ item.id }}" 
-                                           value="{{ item.id }}" 
-                                           data-price="{{ item.price }}"
-                                           {% if item_data.is_full %}disabled{% endif %}
-                                           onchange="calculateTotal()">
-                                    <label class="form-check-label flex-grow-1" for="item_{{ item.id }}" style="cursor: pointer;">
-                                        <div class="d-flex justify-content-between align-items-start">
-                                            <div class="flex-grow-1">
-                                                <strong>{{ item.name }}</strong>
-                                                <span class="paid-indicator" style="display: none;">
-                                                    <span class="badge bg-success ms-2"><i class="bi bi-check-circle"></i> Already Paid</span>
-                                                </span>
-                                                <span class="reserved-indicator" style="display: none;">
-                                                    <span class="badge bg-primary ms-2"><i class="bi bi-bookmark-check"></i> Reserved - Confirm Now</span>
-                                                </span>
-                                                {% if item.session %}
-                                                    <br><small class="text-muted">
-                                                        <i class="bi bi-calendar3"></i> {{ item.session.start_time|date:"d/m/Y H:i" }}
-                                                    </small>
-                                                {% endif %}
-
-                                                {% if item_data.is_reservable %}
-                                                <br>
-                                                <small class="text-muted">
-                                                    <i class="bi bi-bookmark"></i> {{ item_data.reserved_count }} reserved (awaiting confirmation)
-                                                    &middot; <i class="bi bi-check-circle"></i> {{ item_data.confirmed_count }} confirmed
-                                                </small>
-                                                {% endif %}
-
-                                                {% if item_data.has_capacity_limit %}
-                                                <br>
-                                                <div class="mt-1">
-                                                    {% if item_data.is_full %}
-                                                        <span class="badge bg-danger">
-                                                            <i class="bi bi-x-circle"></i> FULL - {{ item_data.registered_count }}/{{ item_data.max_participants }}
-                                                        </span>
-                                                    {% elif item_data.available_spots <= 5 %}
-                                                        <span class="badge bg-warning text-dark">
-                                                            <i class="bi bi-exclamation-triangle"></i> {{ item_data.available_spots }} spots left ({{ item_data.registered_count }}/{{ item_data.max_participants }})
-                                                        </span>
-                                                    {% else %}
-                                                        <span class="badge bg-info">
-                                                            <i class="bi bi-people"></i> {{ item_data.available_spots }} spots available ({{ item_data.registered_count }}/{{ item_data.max_participants }})
-                                                        </span>
-                                                    {% endif %}
-                                                    
-                                                    <!-- Capacity progress bar -->
-                                                    <div class="progress mt-1" style="height: 4px;">
-                                                        <div class="progress-bar {% if item_data.capacity_percentage >= 100 %}bg-danger{% elif item_data.capacity_percentage >= 80 %}bg-warning{% else %}bg-success{% endif %}" 
-                                                             role="progressbar" 
-                                                             style="width: {{ item_data.capacity_percentage }}%"
-                                                             aria-valuenow="{{ item_data.capacity_percentage }}" 
-                                                             aria-valuemin="0" 
-                                                             aria-valuemax="100"></div>
-                                                    </div>
-                                                </div>
-                                                {% endif %}
-                                            </div>
-                                            <span class="badge bg-success item-price-badge ms-2">{{ item.price }} DZD</span>
-                                        </div>
-                                    </label>
+                            {% for group in bloc_groups %}
+                            <div class="bloc-group mb-3">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <span class="badge bg-secondary">Bloc {{ forloop.counter }}</span>
+                                    <strong>{{ group.label }}</strong>
+                                    <small class="text-muted">
+                                        {% if group.select_mode == 'single' %}(pick one){% else %}(pick any number){% endif %}
+                                    </small>
                                 </div>
+                                {% for item_data in group.items %}
+                                {% include 'caisse/_item_row.html' with item_data=item_data input_type=group.input_type radio_name=group.radio_name %}
+                                {% endfor %}
                             </div>
-                            {% endwith %}
-                            {% empty %}
-                            <p class="text-muted text-center py-3">No payable items available</p>
                             {% endfor %}
+
+                            {% if other_items %}
+                            <div class="bloc-group mb-3">
+                                {% if bloc_groups %}
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <span class="badge bg-secondary">Other</span>
+                                    <strong>Other Items</strong>
+                                </div>
+                                {% endif %}
+                                {% for item_data in other_items %}
+                                {% include 'caisse/_item_row.html' with item_data=item_data input_type='checkbox' %}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            {% if not bloc_groups and not other_items %}
+                            <p class="text-muted text-center py-3">No payable items available</p>
+                            {% endif %}
                         </div>
 
                         <div class="bg-light p-3 rounded mb-3 mt-3">
@@ -648,7 +608,14 @@
         const participantReservedItemsData = {{ participant_reserved_items_json|safe }};
         // Per-order discount summary (raw total, discount %, amount already paid)
         const participantReservedSummaryData = {{ participant_reserved_summary_json|safe }};
-        
+        // Same discount config the registration form uses (dashboard/blocs_service.py
+        // compute_order): period % + bloc-count % (additive, capped at 100), applied
+        // to newly-selected bloc items so the live preview matches the form exactly.
+        const PERIOD_PCT = parseFloat({{ period_percent_today_json|safe }}) || 0;
+        const BLOCS_ENABLED = {{ blocs_enabled_json|safe }};
+        const BLOC_PCT = {{ bloc_pct_json|safe }};
+
+
         // Custom Modal Functions
         function showCustomModal(title, body, buttons) {
             const modal = document.getElementById('customModal');
@@ -791,7 +758,7 @@
             document.getElementById('noParticipantSelected').style.display = 'none';
             
             // Reset all items first
-            document.querySelectorAll('#payableItems input[type="checkbox"]').forEach(function(cb) {
+            document.querySelectorAll('#payableItems input').forEach(function(cb) {
                 cb.checked = false;
                 cb.disabled = false;
                 const itemBox = cb.closest('.item-checkbox');
@@ -944,7 +911,7 @@
         // Calculate total amount
         function calculateTotal() {
             const checkedIds = new Set(
-                Array.from(document.querySelectorAll('#payableItems input[type="checkbox"]:checked'))
+                Array.from(document.querySelectorAll('#payableItems input:checked'))
                     .map(cb => parseInt(cb.value, 10))
             );
 
@@ -971,18 +938,39 @@
             // Already-paid items (checked+disabled) are shown separately --
             // they're informational only, not part of what this transaction
             // will actually charge, so they no longer inflate the total.
+            // Newly-picked bloc items (not part of an existing reservation)
+            // get the same period%+bloc-count% discount the registration
+            // form would apply, computed live across just this new group --
+            // plain (non-bloc) items are just added at face value.
             let alreadyPaid = 0;
-            document.querySelectorAll('#payableItems input[type="checkbox"]:checked').forEach(checkbox => {
+            let newBlocSubtotal = 0;
+            const newBlocsSeen = new Set();
+            document.querySelectorAll('#payableItems input:checked').forEach(checkbox => {
                 const id = parseInt(checkbox.value, 10);
                 if (covered.has(id)) return;
                 const price = parseFloat(checkbox.getAttribute('data-price'));
                 if (checkbox.disabled) {
                     alreadyPaid += price;
+                    return;
+                }
+                const bloc = checkbox.getAttribute('data-bloc');
+                if (bloc) {
+                    newBlocSubtotal += price;
+                    newBlocsSeen.add(bloc);
                 } else {
                     newCharge += price;
                     newChargeBefore += price;
                 }
             });
+
+            if (newBlocSubtotal > 0) {
+                const distinct = newBlocsSeen.size;
+                const blocsPct = BLOCS_ENABLED ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
+                let totalPct = PERIOD_PCT + blocsPct;
+                if (totalPct > 100) totalPct = 100;
+                newChargeBefore += newBlocSubtotal;
+                newCharge += newBlocSubtotal * (1 - totalPct / 100);
+            }
 
             document.getElementById('totalAmount').textContent = newCharge.toFixed(2) + ' DZD';
 
@@ -1016,7 +1004,7 @@
             }
             
             // For print_badge action, no items need to be selected
-            const selectedItems = Array.from(document.querySelectorAll('#payableItems input[type="checkbox"]:checked:not(:disabled)'))
+            const selectedItems = Array.from(document.querySelectorAll('#payableItems input:checked:not(:disabled)'))
                 .map(cb => cb.value);
             
             // Validate items for process and process_and_print actions
@@ -1114,7 +1102,7 @@
             selectedParticipantId = null;
             document.getElementById('participantDetails').style.display = 'none';
             document.getElementById('noParticipantSelected').style.display = 'block';
-            document.querySelectorAll('#payableItems input[type="checkbox"]').forEach(cb => cb.checked = false);
+            document.querySelectorAll('#payableItems input').forEach(cb => cb.checked = false);
             document.getElementById('notes').value = '';
             calculateTotal();
             

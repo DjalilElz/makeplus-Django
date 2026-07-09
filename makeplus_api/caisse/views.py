@@ -210,8 +210,15 @@ def caisse_dashboard(request):
     # (or a session that's also offered as a bloc workshop).
     payable_items_with_capacity = []
     for item in payable_items:
+        data_bloc = None
+        if item.bloc_item_id:
+            data_bloc = item.bloc_item.bloc
+        elif item.session_id:
+            data_bloc = 'workshops'
+
         item_data = {
             'item': item,
+            'data_bloc': data_bloc,
             'has_capacity_limit': False,
             'max_participants': None,
             'registered_count': 0,
@@ -265,7 +272,69 @@ def caisse_dashboard(request):
             })
 
         payable_items_with_capacity.append(item_data)
-    
+
+    # Group items into blocs the same way the registration form does --
+    # same order (status, restauration, social_event, then workshops last),
+    # same select_mode (single = radio, multiple = checkbox) per bloc.
+    # Anything outside the bloc system (plain dinner/access/other items, or
+    # sessions when the event doesn't use blocs at all) falls into "Other".
+    from dashboard.models_blocs import EventBlocConfig, CUSTOM_BLOC_CHOICES
+
+    try:
+        bloc_config = event.bloc_config
+    except EventBlocConfig.DoesNotExist:
+        bloc_config = None
+
+    bloc_groups = []
+    grouped_item_ids = set()
+    if bloc_config:
+        for bloc_key, bloc_label in CUSTOM_BLOC_CHOICES:
+            bloc_item_data = [d for d in payable_items_with_capacity if d['data_bloc'] == bloc_key]
+            if bloc_item_data:
+                select_mode = bloc_config.select_mode_for(bloc_key)
+                bloc_groups.append({
+                    'label': bloc_label,
+                    'select_mode': select_mode,
+                    'input_type': 'radio' if select_mode == 'single' else 'checkbox',
+                    'radio_name': f'bloc_{bloc_key}',
+                    'items': bloc_item_data,
+                })
+                grouped_item_ids.update(d['item'].id for d in bloc_item_data)
+
+        if bloc_config.show_workshops:
+            workshop_item_data = [d for d in payable_items_with_capacity if d['data_bloc'] == 'workshops']
+            if workshop_item_data:
+                bloc_groups.append({
+                    'label': 'Workshops',
+                    'select_mode': 'multiple',
+                    'input_type': 'checkbox',
+                    'radio_name': '',
+                    'items': workshop_item_data,
+                })
+                grouped_item_ids.update(d['item'].id for d in workshop_item_data)
+
+    other_items = [d for d in payable_items_with_capacity if d['item'].id not in grouped_item_ids]
+
+    # Discount config for live client-side recompute of newly-added bloc
+    # items (same additive period% + bloc-count% formula as compute_order,
+    # see dashboard/blocs_service.py) -- so the caisse total/reduction
+    # preview updates live and matches the registration form exactly.
+    period_percent_today = Decimal('0')
+    if bloc_config and bloc_config.reduction_by_period_enabled:
+        today = timezone.now().date()
+        period = event.reduction_periods.filter(
+            start_date__lte=today, end_date__gte=today
+        ).order_by('-discount_percent').first()
+        if period:
+            period_percent_today = period.discount_percent
+
+    blocs_enabled = bool(bloc_config and bloc_config.reduction_by_blocs_enabled)
+    bloc_pct = {
+        2: str(bloc_config.reduction_2_blocs) if bloc_config else '0',
+        3: str(bloc_config.reduction_3_blocs) if bloc_config else '0',
+        4: str(bloc_config.reduction_4_blocs) if bloc_config else '0',
+    }
+
     # Statistics
     total_amount = caisse.get_total_amount()
     total_participants = caisse.get_total_participants()
@@ -344,6 +413,8 @@ def caisse_dashboard(request):
         'event': event,
         'payable_items': payable_items,
         'payable_items_with_capacity': payable_items_with_capacity,
+        'bloc_groups': bloc_groups,
+        'other_items': other_items,
         'total_amount': total_amount,
         'total_participants': total_participants,
         'transaction_count': transaction_count,
@@ -351,6 +422,9 @@ def caisse_dashboard(request):
         'participant_paid_items_json': json.dumps(participant_paid_items),
         'participant_reserved_items_json': json.dumps(participant_reserved_items),
         'participant_reserved_summary_json': json.dumps(participant_reserved_summary),
+        'period_percent_today_json': json.dumps(str(period_percent_today)),
+        'blocs_enabled_json': json.dumps(blocs_enabled),
+        'bloc_pct_json': json.dumps(bloc_pct),
         'recent_transactions': recent_transactions
     }
     
@@ -533,7 +607,35 @@ def process_transaction(request):
             'success': False,
             'message': 'Cannot process transaction:\n' + '\n'.join(capacity_errors)
         })
-    
+
+    # Enforce single-choice blocs the same way the registration form does --
+    # reject if more than one item from a single-select bloc is chosen
+    # together (whether reserved, newly added, or a mix of both).
+    from dashboard.models_blocs import EventBlocConfig, CUSTOM_BLOC_CHOICES
+    bloc_labels = dict(CUSTOM_BLOC_CHOICES)
+    try:
+        bloc_config_for_validation = caisse.event.bloc_config
+    except EventBlocConfig.DoesNotExist:
+        bloc_config_for_validation = None
+
+    if bloc_config_for_validation:
+        picked_by_bloc = {}
+        for item in items:
+            if item.bloc_item_id:
+                picked_by_bloc.setdefault(item.bloc_item.bloc, []).append(item.name)
+
+        select_mode_errors = []
+        for bloc_key, names in picked_by_bloc.items():
+            if bloc_config_for_validation.select_mode_for(bloc_key) == 'single' and len(names) > 1:
+                select_mode_errors.append(
+                    f"Please select only one option in {bloc_labels.get(bloc_key, bloc_key)}: {', '.join(names)}"
+                )
+        if select_mode_errors:
+            return JsonResponse({
+                'success': False,
+                'message': 'Cannot process transaction:\n' + '\n'.join(select_mode_errors)
+            })
+
     selected_ids = set(items.values_list('id', flat=True))
 
     # A bloc registration's discount is computed once, on the whole order --
