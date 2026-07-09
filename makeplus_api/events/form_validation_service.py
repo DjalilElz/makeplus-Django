@@ -203,15 +203,17 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
         )
 
         # Paid (blocs) registrations were staged at submit time -- the
-        # RegistrationOrder is created now, but it stays pending until an
-        # admin approves it, so no participant is created here.
+        # RegistrationOrder is created now as "reserved". The participant
+        # role is granted right away (same trust level as the free flow);
+        # the caisse operator does the real payment validation on event day.
         if verification.form_data.get('__paid_meta__'):
             from dashboard.views_blocs import finalize_paid_registration
-            ok, result_message = finalize_paid_registration(verification, form)
+            ok, result_message = finalize_paid_registration(verification, form, user)
             if not ok:
                 return False, None, result_message
             verification.mark_as_used(ip_address=ip_address, user_agent=user_agent)
-            return True, None, result_message
+            participant = Participant.objects.filter(user=user).first()
+            return True, participant, result_message
 
         # Free (no-blocs) flow: grant the participant role immediately,
         # since there's no payment for an admin to review.

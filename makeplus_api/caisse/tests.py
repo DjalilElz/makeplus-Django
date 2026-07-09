@@ -72,7 +72,7 @@ class CaisseBlocReservationTests(TestCase):
         session['caisse_name'] = self.caisse.name
         session.save()
 
-    def _make_order(self, status='approved'):
+    def _make_order(self, status='pending'):
         return RegistrationOrder.objects.create(
             event=self.event, email=self.user.email, full_name='Karim B',
             participant=self.participant, status=status,
@@ -86,14 +86,23 @@ class CaisseBlocReservationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['participant_reserved_items_json'], '{}')
 
-    def test_pending_order_not_counted_as_reserved(self):
-        self._make_order(status='pending')
+    def test_confirmed_order_not_shown_as_reserved_again(self):
+        # 'approved' now means already confirmed at the caisse -- it
+        # shouldn't show up as still awaiting confirmation.
+        self._make_order(status='approved')
         self._login_caisse()
         response = self.client.get(reverse('caisse:dashboard'))
         self.assertEqual(response.context['participant_reserved_items_json'], '{}')
 
-    def test_approved_order_pre_selects_item(self):
-        self._make_order(status='approved')
+    def test_rejected_order_not_counted_as_reserved(self):
+        self._make_order(status='rejected')
+        self._login_caisse()
+        response = self.client.get(reverse('caisse:dashboard'))
+        self.assertEqual(response.context['participant_reserved_items_json'], '{}')
+
+    def test_pending_order_pre_selects_item(self):
+        # 'pending' = reserved on submission, no admin review needed.
+        self._make_order(status='pending')
         self._login_caisse()
         response = self.client.get(reverse('caisse:dashboard'))
         reserved_json = response.context['participant_reserved_items_json']
@@ -107,8 +116,8 @@ class CaisseBlocReservationTests(TestCase):
         self.assertEqual(item_data['reserved_count'], 1)
         self.assertEqual(item_data['confirmed_count'], 0)
 
-    def test_confirming_reserved_item_records_bank_transfer(self):
-        self._make_order(status='approved')
+    def test_confirming_reserved_item_records_bank_transfer_and_flips_status(self):
+        order = self._make_order(status='pending')
         self._login_caisse()
         response = self.client.post(
             reverse('caisse:process_transaction'),
@@ -123,6 +132,10 @@ class CaisseBlocReservationTests(TestCase):
         txn = CaisseTransaction.objects.get(id=payload['transaction_id'])
         self.assertEqual(txn.payment_method, 'bank_transfer')
         self.assertIn('bank transfer', txn.notes.lower())
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'approved')  # confirmed at caisse
+        self.assertEqual(order.reviewed_by_caisse, self.caisse)
 
         # Reserved count drops to 0, confirmed count rises to 1 once processed.
         response = self.client.get(reverse('caisse:dashboard'))
@@ -145,16 +158,16 @@ class CaisseBlocReservationTests(TestCase):
         self.assertEqual(payload['payment_method'], 'cash')
 
     def test_mixed_payment_when_reserved_and_walkup_combined(self):
-        self._make_order(status='approved')
-        session_item = PayableItem.objects.create(
-            event=self.event, name='Extra Workshop', price=Decimal('300'), item_type='other'
+        self._make_order(status='pending')
+        other_item = PayableItem.objects.create(
+            event=self.event, name='Extra Snack', price=Decimal('300'), item_type='other'
         )
         self._login_caisse()
         response = self.client.post(
             reverse('caisse:process_transaction'),
             data={
                 'participant_id': str(self.participant.id),
-                'items': [str(self.payable.id), str(session_item.id)],
+                'items': [str(self.payable.id), str(other_item.id)],
                 'notes': '',
             },
             content_type='application/json',
@@ -163,22 +176,64 @@ class CaisseBlocReservationTests(TestCase):
         self.assertTrue(payload['success'], payload)
         self.assertEqual(payload['payment_method'], 'mixed')
 
-    def test_registration_order_update_sets_participant_on_approve(self):
-        order = RegistrationOrder.objects.create(
-            event=self.event, email='new@example.com', full_name='New Person',
-            status='pending',
-            receipt_file=SimpleUploadedFile('r.pdf', b'x', content_type='application/pdf'),
+    def test_reject_reservation_rejects_pending_order_without_revoking_role(self):
+        self._make_order(status='pending')
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:reject_reservation'),
+            data={'participant_id': str(self.participant.id), 'reason': 'Fake receipt'},
+            content_type='application/json',
         )
-        new_user = User.objects.create_user(username='newperson', email='new@example.com', password='x')
-        admin = User.objects.create_user(username='admin', password='x', is_staff=True)
-        self.client.force_login(admin)
-        self.client.post(reverse('dashboard:registration_order_update', args=[order.id]), {
-            'action': 'approve', 'admin_notes': '',
-        })
-        order.refresh_from_db()
-        self.assertEqual(order.status, 'approved')
-        self.assertIsNotNone(order.participant)
-        self.assertEqual(order.participant.user, new_user)
+        payload = response.json()
+        self.assertTrue(payload['success'], payload)
+
+        order = RegistrationOrder.objects.get(participant=self.participant)
+        self.assertEqual(order.status, 'rejected')
+        self.assertEqual(order.reviewed_by_caisse, self.caisse)
+        self.assertEqual(order.admin_notes, 'Fake receipt')
+        # Participant role isn't revoked -- only the reservation is rejected.
+        self.assertTrue(self.participant.pk)
+
+        # No longer shown as reserved.
+        response = self.client.get(reverse('caisse:dashboard'))
+        self.assertEqual(response.context['participant_reserved_items_json'], '{}')
+
+    def test_reject_reservation_with_no_pending_order_fails(self):
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:reject_reservation'),
+            data={'participant_id': str(self.participant.id), 'reason': ''},
+            content_type='application/json',
+        )
+        payload = response.json()
+        self.assertFalse(payload['success'])
+
+    def test_new_bloc_item_added_at_counter_gets_combined_discount(self):
+        # No reservation -- caisse adds two different bloc items fresh on
+        # the day; the multi-bloc discount should apply just like it would
+        # if picked together on the registration form.
+        EventBlocConfig.objects.filter(event=self.event).update(
+            show_restauration=True, reduction_by_blocs_enabled=True, reduction_2_blocs=Decimal('20'),
+        )
+        resto_item = BlocItem.objects.create(event=self.event, bloc='restauration', name='Dinner', price=Decimal('500'))
+        call_command('sync_paid_bloc_items')
+        resto_payable = PayableItem.objects.get(bloc_item=resto_item)
+
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:process_transaction'),
+            data={
+                'participant_id': str(self.participant.id),
+                'items': [str(self.payable.id), str(resto_payable.id)],
+                'notes': '',
+            },
+            content_type='application/json',
+        )
+        payload = response.json()
+        self.assertTrue(payload['success'], payload)
+        self.assertEqual(payload['payment_method'], 'cash')
+        # 1000 + 500 = 1500, 20% off (2 distinct blocs) -> 1200.
+        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('1200.00'))
 
 
 class CaisseDiscountedReservationTests(TestCase):
@@ -211,7 +266,7 @@ class CaisseDiscountedReservationTests(TestCase):
         # 1000 + 500 = 1500 subtotal, 20% off (2 distinct blocs) -> 1200 after reduction.
         self.order = RegistrationOrder.objects.create(
             event=self.event, email=self.user.email, full_name='Karim B',
-            participant=self.participant, status='approved',
+            participant=self.participant, status='pending',
             items_snapshot=[
                 {'bloc': 'status', 'type': 'item', 'id': self.status_item.id, 'name': 'Adherent', 'price': '1000.00'},
                 {'bloc': 'restauration', 'type': 'item', 'id': self.resto_item.id, 'name': 'Dinner', 'price': '500.00'},
@@ -255,6 +310,9 @@ class CaisseDiscountedReservationTests(TestCase):
 
         txn = CaisseTransaction.objects.get(id=payload['transaction_id'])
         self.assertEqual(txn.total_amount, Decimal('1200.00'))
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, 'approved')
 
     def test_confirming_partial_order_is_rejected(self):
         self._login_caisse()

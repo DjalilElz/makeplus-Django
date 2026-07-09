@@ -388,7 +388,12 @@
                             </div>
                         </div>
 
-                        <div id="reservedSummary" class="alert alert-primary mb-3" style="display: none;"></div>
+                        <div id="reservedSummary" class="alert alert-primary mb-3" style="display: none;">
+                            <div id="reservedSummaryText"></div>
+                            <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="rejectReservationBtn" onclick="rejectReservation()">
+                                <i class="bi bi-x-circle"></i> Reject Reservation (invalid payment proof)
+                            </button>
+                        </div>
 
                         <h6 class="mb-3">
                             <i class="bi bi-cart-check"></i> Select Items:
@@ -813,11 +818,12 @@
         // raw catalog price badges -- e.g. "15000 DZD -25% -> paid 11250 DZD".
         function loadParticipantReservedSummary(participantId) {
             const summaryBox = document.getElementById('reservedSummary');
+            const summaryText = document.getElementById('reservedSummaryText');
             const orders = participantReservedSummaryData[participantId] || [];
 
             if (orders.length === 0) {
                 summaryBox.style.display = 'none';
-                summaryBox.innerHTML = '';
+                summaryText.innerHTML = '';
                 return;
             }
 
@@ -829,8 +835,49 @@
                 }
                 return `<div><i class="bi bi-bookmark-check"></i> Reserved &amp; already paid: <strong>${order.total_after} DZD</strong></div>`;
             });
-            summaryBox.innerHTML = lines.join('');
+            summaryText.innerHTML = lines.join('');
             summaryBox.style.display = 'block';
+        }
+
+        // Reject a participant's reservation(s) at the counter -- e.g. the
+        // bank receipt turns out to be invalid. Does not revoke their
+        // participant role, only the reserved bloc items/discount.
+        async function rejectReservation() {
+            if (!selectedParticipantId) return;
+
+            const confirmed = await customConfirm(
+                'Reject this participant\'s reservation? This cannot be undone -- '
+                + 'they will need to register again if this was a mistake.',
+                'Reject Reservation'
+            );
+            if (!confirmed) return;
+
+            const reason = await customPrompt(
+                'Reason for rejecting (optional):', 'Reject Reservation', ''
+            );
+
+            try {
+                const response = await fetch('{% url "caisse:reject_reservation" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        participant_id: selectedParticipantId,
+                        reason: reason || ''
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    await customAlert(data.message, 'Reservation Rejected');
+                    window.location.reload();
+                } else {
+                    await customAlert(data.message, 'Error');
+                }
+            } catch (err) {
+                await customAlert('Failed to reject reservation: ' + err, 'Error');
+            }
         }
 
         // Pre-check items reserved via the registration form but not yet

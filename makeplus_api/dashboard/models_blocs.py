@@ -143,10 +143,15 @@ class ReductionPeriod(models.Model):
 
 
 class RegistrationOrder(models.Model):
-    """A paid registration submitted from the public form (pending approval)."""
+    """
+    A paid (bloc) registration submitted from the public form. Automatically
+    reserved on submission -- no admin review gates it. The caisse operator
+    does the real payment validation on event day (see process_transaction /
+    reject_reservation in caisse/views.py), which confirms or rejects it.
+    """
     STATUS_CHOICES = [
-        ('pending', 'Pending Review'),
-        ('approved', 'Approved'),
+        ('pending', 'Reserved (awaiting caisse confirmation)'),
+        ('approved', 'Confirmed at Caisse'),
         ('rejected', 'Rejected'),
     ]
 
@@ -155,8 +160,8 @@ class RegistrationOrder(models.Model):
     form_submission = models.ForeignKey(
         'FormSubmission', on_delete=models.SET_NULL, null=True, blank=True, related_name='registration_orders'
     )
-    # Set once an admin approves the order (see registration_order_update) --
-    # lets the caisse counter look up "what did this participant reserve".
+    # Set immediately when the order is created (reservation time) -- lets
+    # the caisse counter look up "what did this participant reserve".
     participant = models.ForeignKey(
         'events.Participant', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='registration_orders'
@@ -184,9 +189,14 @@ class RegistrationOrder(models.Model):
     receipt_file = models.FileField(upload_to='registrations/receipts/')
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    admin_notes = models.TextField(blank=True)
+    admin_notes = models.TextField(blank=True, help_text="Notes from whoever confirmed/rejected this (caisse or admin)")
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='reviewed_registration_orders')
+    reviewed_by_caisse = models.ForeignKey(
+        'caisse.Caisse', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reviewed_registration_orders',
+        help_text="Which caisse station confirmed or rejected this reservation on event day"
+    )
     reviewed_at = models.DateTimeField(null=True, blank=True)
 
     ip_address = models.GenericIPAddressField(null=True, blank=True)

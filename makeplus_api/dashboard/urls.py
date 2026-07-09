@@ -174,5 +174,4 @@ urlpatterns = [
     path('events/<uuid:event_id>/blocs/periods/save/', views_blocs.reduction_period_save, name='reduction_period_save'),
     path('blocs/periods/<int:period_id>/delete/', views_blocs.reduction_period_delete, name='reduction_period_delete'),
     path('events/<uuid:event_id>/blocs/orders/', views_blocs.registration_orders, name='registration_orders'),
-    path('blocs/orders/<uuid:order_id>/update/', views_blocs.registration_order_update, name='registration_order_update'),
 ]

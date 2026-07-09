@@ -188,13 +188,18 @@ def reduction_period_delete(request, period_id):
 @login_required
 @user_passes_test(is_staff_user)
 def registration_orders(request, event_id):
-    """List submitted registration orders (paid registrations awaiting review)."""
+    """
+    Read-only list of submitted registration orders (paid registrations).
+    Confirming or rejecting a reservation happens at the caisse on event
+    day (see process_transaction / reject_reservation in caisse/views.py),
+    not here -- admin no longer approves/rejects these.
+    """
     event = get_object_or_404(Event, id=event_id)
 
     status = request.GET.get('status', '').strip()
     query = request.GET.get('q', '').strip()
 
-    orders = RegistrationOrder.objects.filter(event=event).select_related('reviewed_by')
+    orders = RegistrationOrder.objects.filter(event=event).select_related('reviewed_by', 'reviewed_by_caisse')
     if status in ('pending', 'approved', 'rejected'):
         orders = orders.filter(status=status)
     if query:
@@ -208,45 +213,6 @@ def registration_orders(request, event_id):
         'query': query,
     }
     return render(request, 'dashboard/blocs/orders.html', context)
-
-
-@login_required
-@user_passes_test(is_staff_user)
-@require_POST
-def registration_order_update(request, order_id):
-    """Approve or reject a registration order."""
-    order = get_object_or_404(RegistrationOrder, id=order_id)
-    action = request.POST.get('action')
-    notes = (request.POST.get('admin_notes') or '').strip()
-
-    if action == 'approve':
-        order.status = 'approved'
-    elif action == 'reject':
-        order.status = 'rejected'
-    else:
-        messages.error(request, 'Unknown action.')
-        return redirect('dashboard:registration_orders', event_id=order.event_id)
-
-    if action == 'approve':
-        from django.contrib.auth.models import User
-        from events.form_validation_service import create_participant_for_event
-
-        user = User.objects.filter(email=order.email).first()
-        if user:
-            order.participant = create_participant_for_event(user, order.event)
-        else:
-            messages.warning(
-                request,
-                f'Registration approved, but no account was found for {order.email} -- '
-                'the participant role was not granted.'
-            )
-
-    order.admin_notes = notes
-    order.reviewed_by = request.user
-    order.reviewed_at = timezone.now()
-    order.save(update_fields=['status', 'admin_notes', 'reviewed_by', 'reviewed_at', 'participant'])
-    messages.success(request, f'Registration {order.status}.')
-    return redirect('dashboard:registration_orders', event_id=order.event_id)
 
 
 # ---------------------------------------------------------------------------
@@ -386,15 +352,22 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
     return True, [], None
 
 
-def finalize_paid_registration(verification, form_config):
+def finalize_paid_registration(verification, form_config, user):
     """
     Called once the email verification code staged by stage_paid_registration()
-    has been confirmed. Builds the FormSubmission + pending RegistrationOrder
-    from the data stashed on the verification row.
+    has been confirmed. Builds the FormSubmission + RegistrationOrder from the
+    data stashed on the verification row.
+
+    The order starts out reserved (status='pending'/"Reserved"), and no
+    admin review gates that -- the participant role is granted right away
+    (same trust level as the free flow), while the caisse operator does the
+    real payment validation on event day (see process_transaction /
+    reject_reservation in caisse/views.py).
 
     Returns (ok: bool, message: str).
     """
     from .models_form import FormSubmission
+    from events.form_validation_service import create_participant_for_event
 
     event = form_config.event
     bloc_context = get_public_bloc_context(event)
@@ -422,9 +395,12 @@ def finalize_paid_registration(verification, form_config):
         user_agent=verification.user_agent[:1000],
     )
 
+    participant = create_participant_for_event(user, event)
+
     RegistrationOrder.objects.create(
         event=event,
         form_submission=submission,
+        participant=participant,
         full_name=meta.get('full_name', ''),
         email=verification.email or '',
         items_snapshot=result['snapshot'],
@@ -441,7 +417,7 @@ def finalize_paid_registration(verification, form_config):
     )
 
     form_config.increment_submission_count()
-    return True, 'Votre inscription a été enregistrée et est en attente de validation.'
-
-    form_config.increment_submission_count()
-    return True, []
+    return True, (
+        'Votre inscription a été enregistrée et est réservée. '
+        'Présentez votre preuve de paiement à la caisse le jour de l\'événement pour la confirmer.'
+    )

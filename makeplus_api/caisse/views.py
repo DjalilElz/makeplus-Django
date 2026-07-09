@@ -21,9 +21,12 @@ from events.models import Participant, Event
 
 def _reservation_data(event, payable_items):
     """
-    Map registration-form reservations (approved RegistrationOrders' snapshot
-    items) onto this event's PayableItems, so the caisse can pre-check what a
-    participant already reserved and tally reserved-vs-confirmed counts.
+    Map registration-form reservations (still-'pending'/reserved
+    RegistrationOrders' snapshot items -- i.e. not yet confirmed or
+    rejected at the caisse) onto this event's PayableItems, so the caisse
+    can pre-check what a participant already reserved and tally
+    reserved-vs-confirmed counts. No admin review gates this: an order is
+    reserved the moment it's submitted and email-verified.
 
     Returns:
         key_to_payable_ids: {(kind, external_id): [payable_item_id, ...]}
@@ -43,13 +46,13 @@ def _reservation_data(event, payable_items):
         if key:
             key_to_payable_ids.setdefault(key, []).append(item.id)
 
-    approved_orders = RegistrationOrder.objects.filter(
-        event=event, status='approved', participant__isnull=False
+    reserved_orders = RegistrationOrder.objects.filter(
+        event=event, status='pending', participant__isnull=False
     ).only('participant_id', 'items_snapshot')
 
     participant_reservations = {}
     reservation_participants = {}
-    for order in approved_orders:
+    for order in reserved_orders:
         keys = set()
         for entry in order.items_snapshot or []:
             kind = entry.get('type')
@@ -65,10 +68,11 @@ def _reservation_data(event, payable_items):
 
 def _pending_orders_with_payable_ids(participant, event):
     """
-    This participant's approved RegistrationOrders for this event, each with
-    the set of mirrored PayableItem ids that haven't been confirmed at the
-    caisse yet. A bloc order's discount applies to the order as a whole, so
-    it must be confirmed all at once -- see its use in process_transaction().
+    This participant's still-reserved ('pending') RegistrationOrders for
+    this event, each with the set of mirrored PayableItem ids that haven't
+    been confirmed at the caisse yet. A bloc order's discount applies to
+    the order as a whole, so it must be confirmed all at once -- see its
+    use in process_transaction().
 
     Returns: [(RegistrationOrder, {payable_item_id, ...}), ...] -- orders
     with nothing left to confirm are omitted.
@@ -84,7 +88,7 @@ def _pending_orders_with_payable_ids(participant, event):
     ).prefetch_related('items'):
         confirmed_ids.update(txn.items.values_list('id', flat=True))
 
-    orders = RegistrationOrder.objects.filter(event=event, participant=participant, status='approved')
+    orders = RegistrationOrder.objects.filter(event=event, participant=participant, status='pending')
     result = []
     for order in orders:
         keys = set()
@@ -517,6 +521,7 @@ def process_transaction(request):
 
     bank_transfer_amount = Decimal('0')
     bank_transfer_item_ids = set()
+    fully_confirmed_orders = []
     incomplete_order_errors = []
     for order, pending_ids in pending_orders:
         if not (pending_ids & selected_ids):
@@ -533,6 +538,7 @@ def process_transaction(request):
             continue
         bank_transfer_amount += order.total_after_reduction
         bank_transfer_item_ids |= pending_ids
+        fully_confirmed_orders.append(order)
 
     if incomplete_order_errors:
         return JsonResponse({
@@ -542,7 +548,53 @@ def process_transaction(request):
 
     cash_items = [item for item in items if item.id not in bank_transfer_item_ids]
     bank_transfer_items = [item for item in items if item.id in bank_transfer_item_ids]
-    cash_amount = sum((item.price for item in cash_items), Decimal('0'))
+
+    # New bloc items the operator adds today (not part of any existing
+    # reservation) are treated the same as if picked on the registration
+    # form: recompute the bloc-count/period discount across just this new
+    # selection, using the exact same engine the form uses.
+    from dashboard.models_blocs import EventBlocConfig
+    from dashboard.blocs_service import compute_order
+
+    new_bloc_keys = {}
+    plain_cash_items = []
+    for item in cash_items:
+        if item.bloc_item_id:
+            key = ('item', str(item.bloc_item_id))
+        elif item.session_id:
+            key = ('session', str(item.session_id))
+        else:
+            plain_cash_items.append(item)
+            continue
+        new_bloc_keys[key] = item
+
+    recomputed_bloc_amount = Decimal('0')
+    recomputed_bloc_items = []
+    if new_bloc_keys:
+        try:
+            config = caisse.event.bloc_config
+        except EventBlocConfig.DoesNotExist:
+            config = None
+
+        if config:
+            new_item_ids = [ext_id for (kind, ext_id) in new_bloc_keys if kind == 'item']
+            new_session_ids = [ext_id for (kind, ext_id) in new_bloc_keys if kind == 'session']
+            result = compute_order(
+                event=caisse.event, config=config,
+                selected_item_ids=new_item_ids, selected_session_ids=new_session_ids,
+                on_date=timezone.now().date(),
+            )
+            covered_keys = {(entry['type'], str(entry['id'])) for entry in result['snapshot']}
+            recomputed_bloc_amount = result['total_after_reduction']
+            recomputed_bloc_items = [new_bloc_keys[key] for key in covered_keys if key in new_bloc_keys]
+            uncovered_items = [item for key, item in new_bloc_keys.items() if key not in covered_keys]
+            plain_cash_items.extend(uncovered_items)
+        else:
+            # No bloc config at all for this event -- nothing to recompute against.
+            plain_cash_items.extend(new_bloc_keys.values())
+
+    plain_cash_amount = sum((item.price for item in plain_cash_items), Decimal('0'))
+    cash_amount = recomputed_bloc_amount + plain_cash_amount
     total_amount = bank_transfer_amount + cash_amount
 
     if bank_transfer_items and cash_items:
@@ -558,9 +610,15 @@ def process_transaction(request):
             f"Paid via bank transfer (registration receipt), {bank_transfer_amount} DZD after discount: "
             + ", ".join(i.name for i in bank_transfer_items)
         )
-    if cash_items:
+    if recomputed_bloc_items:
         method_note_parts.append(
-            f"Paid in cash at the counter, {cash_amount} DZD: " + ", ".join(i.name for i in cash_items)
+            f"New bloc items added at the counter (discount recomputed), {recomputed_bloc_amount} DZD: "
+            + ", ".join(i.name for i in recomputed_bloc_items)
+        )
+    if plain_cash_items:
+        method_note_parts.append(
+            f"Paid in cash at the counter, {plain_cash_amount} DZD: "
+            + ", ".join(i.name for i in plain_cash_items)
         )
     auto_note = "\n".join(method_note_parts)
     final_notes = f"{notes}\n{auto_note}" if notes else auto_note
@@ -590,7 +648,16 @@ def process_transaction(request):
             
             # Explicitly save the transaction
             transaction.save()
-            
+
+            # Mark each fully-confirmed reservation as confirmed -- the
+            # caisse operator's confirmation is the final validation, no
+            # admin review involved.
+            for order in fully_confirmed_orders:
+                order.status = 'approved'
+                order.reviewed_by_caisse = caisse
+                order.reviewed_at = timezone.now()
+                order.save(update_fields=['status', 'reviewed_by_caisse', 'reviewed_at'])
+
             logger.info(f"[CAISSE] ✅ Transaction {transaction.id} created successfully")
             logger.info(f"[CAISSE] Participant: {participant.user.email}")
             logger.info(f"[CAISSE] Items to link: {len(items)}")
@@ -660,6 +727,55 @@ def process_transaction(request):
         'total_amount': float(total_amount),
         'payment_method': payment_method,
         'action': action
+    })
+
+
+@caisse_required
+@require_http_methods(["POST"])
+def reject_reservation(request):
+    """
+    Reject a participant's still-reserved bloc registration(s) at the
+    counter -- e.g. the bank receipt turns out to be invalid. No admin
+    review happens before this; the caisse operator is the final check.
+    Rejecting only affects the reserved items/discount -- it does not
+    revoke the participant role itself, which was granted at email
+    verification (same trust level as the free flow).
+    """
+    caisse = request.caisse
+
+    try:
+        data = json.loads(request.body)
+        participant_id = data.get('participant_id')
+        reason = (data.get('reason') or '').strip()
+    except json.JSONDecodeError:
+        participant_id = request.POST.get('participant_id')
+        reason = (request.POST.get('reason') or '').strip()
+
+    if not participant_id:
+        return JsonResponse({'success': False, 'message': 'Participant ID required'})
+
+    try:
+        participant = Participant.objects.get(id=participant_id)
+        if not participant.is_registered_for_event(caisse.event):
+            return JsonResponse({'success': False, 'message': 'Participant not registered for this event'})
+    except Participant.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Participant not found'})
+
+    pending_orders = _pending_orders_with_payable_ids(participant, caisse.event)
+    if not pending_orders:
+        return JsonResponse({'success': False, 'message': 'No pending reservation to reject'})
+
+    for order, _pending_ids in pending_orders:
+        order.status = 'rejected'
+        order.reviewed_by_caisse = caisse
+        order.reviewed_at = timezone.now()
+        if reason:
+            order.admin_notes = reason
+        order.save(update_fields=['status', 'reviewed_by_caisse', 'reviewed_at', 'admin_notes'])
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Rejected {len(pending_orders)} reservation(s).'
     })
 
 

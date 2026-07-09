@@ -464,9 +464,15 @@ class BlocsPublicFormTests(TestCase):
             'email': 'no-account@example.com', 'verification_code': '777888',
         })
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(RegistrationOrder.objects.filter(event=self.event, email='no-account@example.com').exists())
+        order = RegistrationOrder.objects.get(event=self.event, email='no-account@example.com')
         placeholder = User.objects.get(email='no-account@example.com')
         self.assertFalse(placeholder.has_usable_password())
+        # Reserved immediately, no admin review -- participant role granted
+        # right away too (same trust level as the free flow).
+        self.assertEqual(order.status, 'pending')
+        self.assertIsNotNone(order.participant)
+        self.assertEqual(order.participant.user, placeholder)
+        self.assertTrue(Participant.objects.filter(user=placeholder, role='participant').exists())
 
     @patch.object(FormRegistrationVerification, 'generate_code', return_value='654321')
     def test_paid_submission_stages_code_then_verify_creates_pending_order(self, _mock_code):
@@ -493,8 +499,11 @@ class BlocsPublicFormTests(TestCase):
         self.assertEqual(order.email, 'k@example.com')
         self.assertTrue(order.receipt_file)
         self.assertTrue(FormSubmission.objects.filter(form=self.form).exists())
-        # No payment has been reviewed yet -- no participant role granted.
-        self.assertFalse(Participant.objects.filter(user=self.registrant).exists())
+        # Reserved immediately -- no admin review gates it. The participant
+        # role is granted right away too (same trust level as the free
+        # flow); the caisse operator validates the actual payment on the day.
+        self.assertEqual(order.participant.user, self.registrant)
+        self.assertTrue(Participant.objects.filter(user=self.registrant, role='participant').exists())
 
     def test_paid_submission_requires_receipt(self):
         self._enable_blocs()
@@ -571,32 +580,16 @@ class BlocsAdminTests(TestCase):
         self.client.post(reverse('dashboard:bloc_item_delete', args=[item.id]))
         self.assertFalse(BlocItem.objects.filter(id=item.id).exists())
 
-    def test_approve_order_grants_participant_role(self):
-        registrant = User.objects.create_user(username='karim', email='k@example.com', password='x')
+    def test_orders_list_is_read_only(self):
+        # Admin can view submitted orders, but confirming/rejecting them now
+        # only happens at the caisse (see caisse.tests) -- no admin action.
         self.client.force_login(self.admin)
         order = RegistrationOrder.objects.create(
             event=self.event, email='k@example.com', full_name='K',
             receipt_file=_Upload('r.pdf', b'x', content_type='application/pdf'),
         )
-        self.client.post(reverse('dashboard:registration_order_update', args=[order.id]), {
-            'action': 'approve', 'admin_notes': 'ok',
-        })
-        order.refresh_from_db()
-        self.assertEqual(order.status, 'approved')
-        self.assertEqual(order.reviewed_by, self.admin)
-        self.assertTrue(Participant.objects.filter(user=registrant, role='participant').exists())
-        self.assertTrue(UserEventAssignment.objects.filter(user=registrant, event=self.event, role='participant').exists())
-
-    def test_reject_order_grants_no_participant_role(self):
-        registrant = User.objects.create_user(username='sara', email='sara@example.com', password='x')
-        self.client.force_login(self.admin)
-        order = RegistrationOrder.objects.create(
-            event=self.event, email='sara@example.com', full_name='S',
-            receipt_file=_Upload('r.pdf', b'x', content_type='application/pdf'),
-        )
-        self.client.post(reverse('dashboard:registration_order_update', args=[order.id]), {
-            'action': 'reject', 'admin_notes': 'missing funds',
-        })
-        order.refresh_from_db()
-        self.assertEqual(order.status, 'rejected')
-        self.assertFalse(Participant.objects.filter(user=registrant).exists())
+        response = self.client.get(reverse('dashboard:registration_orders', args=[self.event.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, order.email)
+        self.assertNotContains(response, 'name="action" value="approve"')
+        self.assertNotContains(response, 'name="action" value="reject"')
