@@ -404,9 +404,22 @@ def get_public_bloc_context(event):
     if config.show_workshops and paid_sessions:
         active_bloc_keys.append('workshops')
 
-    from .blocs_service import serialize_status_rules_for_event, serialize_period_baseline_rules_for_event
+    from .blocs_service import (
+        serialize_status_rules_for_event, serialize_period_baseline_rules_for_event,
+        serialize_all_periods_preview, get_active_period,
+    )
 
     today = timezone.now().date()
+
+    periods = []
+    current_period_id = ''
+    all_periods_rules_json = '{}'
+    if config.reduction_by_period_enabled:
+        periods = list(event.reduction_periods.all().order_by('start_date'))
+        if periods:
+            current_period = get_active_period(event, today)
+            current_period_id = str(current_period.id) if current_period else ''
+            all_periods_rules_json = json.dumps(serialize_all_periods_preview(event))
 
     return {
         'has_blocs': True,
@@ -417,6 +430,9 @@ def get_public_bloc_context(event):
         'active_bloc_keys': active_bloc_keys,
         'status_rules_json': json.dumps(serialize_status_rules_for_event(event, today)),
         'period_rules_json': json.dumps(serialize_period_baseline_rules_for_event(event, today)),
+        'periods': periods,
+        'current_period_id': current_period_id,
+        'all_periods_rules_json': all_periods_rules_json,
     }
 
 

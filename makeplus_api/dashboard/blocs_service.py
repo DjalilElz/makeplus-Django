@@ -190,24 +190,16 @@ def _target_key(rule):
     return f"item_{rule.target_item_id}" if rule.target_kind == 'item' else f"session_{rule.target_session_id}"
 
 
-def serialize_period_baseline_rules_for_event(event, on_date):
+def serialize_period_baseline_rules(event, period):
     """
-    Period-only (no status) rules for TODAY's active period -- the
-    baseline price/visibility for every item (including Status items
-    themselves), applied regardless of which Status is picked or before
-    any is picked at all. Keyed by target key ('item_<id>'/'session_<id>').
-    Empty if period pricing isn't enabled or no period covers on_date.
+    Period-only (no status) rules for the given period -- the baseline
+    price/visibility for every item (including Status items themselves),
+    applied regardless of which Status is picked or before any is picked
+    at all. Keyed by target key ('item_<id>'/'session_<id>'). Empty if
+    period is None.
     """
-    try:
-        config = event.bloc_config
-    except Exception:
-        return {}
-    if not config.reduction_by_period_enabled:
-        return {}
-    period = get_active_period(event, on_date)
     if not period:
         return {}
-
     result = {}
     for rule in BlocItemStatusRule.objects.filter(period=period, status_item__isnull=True):
         result[_target_key(rule)] = {
@@ -217,27 +209,18 @@ def serialize_period_baseline_rules_for_event(event, on_date):
     return result
 
 
-def serialize_status_rules_for_event(event, on_date):
+def serialize_status_rules_for_period(event, period):
     """
-    Effective status-dependent rules for this event, keyed by status item
-    id -> target key -> {'visible': bool, 'price': str or None}. Baked
-    into the registration form (and caisse) as JSON so item
-    visibility/price can update live as the participant picks a different
-    Status, without a round trip per click.
+    Effective status-dependent rules for this event scoped to the given
+    period (or None for "no period active"), keyed by status item id ->
+    target key -> {'visible': bool, 'price': str or None}.
 
-    Resolved against TODAY's active period already (same precedence as
-    compute_order): a rule specific to (status, today's period) wins over
-    a status-only rule that applies across all periods.
+    Precedence, same as compute_order: a rule specific to (status, period)
+    wins over a status-only rule that applies across all periods.
     """
-    try:
-        config = event.bloc_config
-        active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
-    except Exception:
-        active_period = None
-
     rules_qs = BlocItemStatusRule.objects.filter(status_item__event=event, status_item__isnull=False)
-    if active_period:
-        rules_qs = rules_qs.filter(Q(period=active_period) | Q(period__isnull=True))
+    if period:
+        rules_qs = rules_qs.filter(Q(period=period) | Q(period__isnull=True))
     else:
         rules_qs = rules_qs.filter(period__isnull=True)
 
@@ -251,5 +234,44 @@ def serialize_status_rules_for_event(event, on_date):
         result.setdefault(str(status_id), {})[target_key] = {
             'visible': chosen.is_visible,
             'price': str(chosen.override_price) if chosen.override_price is not None else None,
+        }
+    return result
+
+
+def serialize_period_baseline_rules_for_event(event, on_date):
+    """Period-only rules for TODAY's active period -- see serialize_period_baseline_rules."""
+    try:
+        config = event.bloc_config
+    except Exception:
+        return {}
+    if not config.reduction_by_period_enabled:
+        return {}
+    return serialize_period_baseline_rules(event, get_active_period(event, on_date))
+
+
+def serialize_status_rules_for_event(event, on_date):
+    """Status-dependent rules resolved against TODAY's active period -- see serialize_status_rules_for_period."""
+    try:
+        config = event.bloc_config
+        active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
+    except Exception:
+        active_period = None
+    return serialize_status_rules_for_period(event, active_period)
+
+
+def serialize_all_periods_preview(event):
+    """
+    For every configured ReductionPeriod, its baseline (any-status) and
+    per-status rules -- lets the registration page preview any period's
+    pricing client-side without a round trip. Keyed by period id (string):
+    {"<period_id>": {"baseline": {...}, "status": {"<status_id>": {...}}}}.
+    Only meaningful when reduction_by_period_enabled; callers should gate
+    on that (and on there being at least one period) before using this.
+    """
+    result = {}
+    for period in event.reduction_periods.all():
+        result[str(period.id)] = {
+            'baseline': serialize_period_baseline_rules(event, period),
+            'status': serialize_status_rules_for_period(event, period),
         }
     return result

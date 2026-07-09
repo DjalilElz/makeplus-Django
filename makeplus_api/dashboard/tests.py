@@ -576,6 +576,46 @@ class BlocsPublicFormTests(TestCase):
         self.assertFalse(RegistrationOrder.objects.filter(event=self.event).exists())
         self.assertContains(response, 'only one option')
 
+    def test_no_period_switcher_without_periods(self):
+        self._enable_blocs()
+        response = self.client.get(reverse('public_form', args=[self.form.slug]))
+        # The CSS rule always exists in <style>; the actual switcher element
+        # (with this id) is only rendered when periods exist.
+        self.assertNotContains(response, 'id="period-switcher"')
+
+    def test_period_switcher_shows_one_button_per_period(self):
+        self._enable_blocs()
+        config = self.event.bloc_config
+        config.reduction_by_period_enabled = True
+        config.save()
+        today = timezone.now().date()
+        self.event.reduction_periods.create(
+            name='Early Bird', start_date=today - timedelta(days=1), end_date=today + timedelta(days=1),
+        )
+        self.event.reduction_periods.create(
+            name='Regular', start_date=today + timedelta(days=10), end_date=today + timedelta(days=20),
+        )
+        response = self.client.get(reverse('public_form', args=[self.form.slug]))
+        self.assertContains(response, 'id="period-switcher"')
+        self.assertContains(response, 'Early Bird')
+        self.assertContains(response, 'Regular')
+        self.assertContains(response, 'class="period-btn active"')
+
+    def test_period_switcher_bakes_preview_prices_for_every_period(self):
+        self._enable_blocs()
+        config = self.event.bloc_config
+        config.reduction_by_period_enabled = True
+        config.save()
+        today = timezone.now().date()
+        early = self.event.reduction_periods.create(
+            name='Early Bird', start_date=today - timedelta(days=1), end_date=today + timedelta(days=1),
+        )
+        BlocItemStatusRule.objects.create(period=early, target_kind='item', target_item=self.item, override_price=Decimal('300'))
+
+        response = self.client.get(reverse('public_form', args=[self.form.slug]))
+        self.assertContains(response, f'"{early.id}"')
+        self.assertContains(response, '300.00')
+
 
 class BlocsAdminTests(TestCase):
     def setUp(self):

@@ -444,6 +444,45 @@
             color: #fff;
         }
 
+        .period-switcher-wrap {
+            max-width: 900px;
+            margin: 20px auto 0;
+            padding: 0 16px;
+        }
+        .period-switcher {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+        .period-btn {
+            border: 1px solid var(--border-light);
+            background: #fff;
+            color: #495057;
+            border-radius: 999px;
+            padding: 6px 16px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .period-btn:hover { border-color: var(--steel-blue); }
+        .period-btn.active {
+            background: var(--steel-blue);
+            border-color: var(--steel-blue);
+            color: #fff;
+            font-weight: 600;
+        }
+        .period-preview-note {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #6b3f3f;
+            background: var(--dusty-rose-bg);
+            border-radius: 8px;
+            padding: 6px 12px;
+            margin: 10px auto 0;
+            max-width: 520px;
+        }
+
         .discount-banner {
             display: none;
             background: var(--dusty-rose-bg);
@@ -627,6 +666,22 @@
             </div>
         </div>
     </div>
+
+    {% if not success and not form_closed and not show_verification and bloc_context.periods %}
+    <div class="period-switcher-wrap">
+        <div class="period-switcher" id="period-switcher">
+            {% for p in bloc_context.periods %}
+            <button type="button" class="period-btn{% if p.id|stringformat:'s' == bloc_context.current_period_id %} active{% endif %}"
+                    data-period-id="{{ p.id }}">
+                {{ p.name|default:"Period" }} ({{ p.start_date|date:"M j" }} – {{ p.end_date|date:"M j" }})
+            </button>
+            {% endfor %}
+        </div>
+        <p class="period-preview-note" id="period-preview-note" style="display: none;">
+            <i class="bi bi-eye me-1"></i>Previewing prices for another period — selection is disabled. Click your current period to select items.
+        </p>
+    </div>
+    {% endif %}
 
     <div class="page-wrapper">
         {% if success %}
@@ -1086,23 +1141,42 @@
                 // manual prices, applying to every item (including Status
                 // items themselves) regardless of which Status is picked.
                 var PERIOD_RULES = {{ bloc_context.period_rules_json|safe }};
+                // period_id -> {baseline: {...}, status: {status_id: {...}}} for
+                // EVERY configured period -- lets the period-switcher buttons
+                // preview any period's pricing without a server round trip.
+                var ALL_PERIODS_RULES = {{ bloc_context.all_periods_rules_json|safe }};
+                var CURRENT_PERIOD_ID = "{{ bloc_context.current_period_id }}";
+                var activePeriodId = CURRENT_PERIOD_ID;
+                var isCurrentPeriodActive = true;
 
                 function fmt(n) { return n.toFixed(2) + ' DZD'; }
                 function fmtPrice(n) { return n <= 0 ? 'Free' : fmt(n); }
 
-                // Apply today's period pricing (baseline, applies to everything)
-                // and then whichever Status is currently picked (if any, takes
-                // precedence over the period baseline for its own targets) to
-                // every item: hide it, or swap in its effective price --
-                // mutating data-price so recalc()'s existing subtotal math
-                // picks up the effective price with no further changes.
+                // Apply the active period's pricing (baseline, applies to
+                // everything) and then whichever Status is currently picked
+                // (if any, takes precedence over the period baseline for its
+                // own targets) to every item: hide it, or swap in its
+                // effective price -- mutating data-price so recalc()'s
+                // existing subtotal math picks up the effective price with
+                // no further changes. When previewing a period other than
+                // today's real one, every item is disabled -- looking only.
                 function applyPricingRules() {
                     var statusEl = document.querySelector('.bloc-choice[data-is-status="true"]:checked');
-                    var statusRules = (statusEl && STATUS_RULES[statusEl.value]) || {};
+                    isCurrentPeriodActive = (activePeriodId === CURRENT_PERIOD_ID);
+
+                    var baselineRules, statusRules;
+                    var previewData = activePeriodId && ALL_PERIODS_RULES[activePeriodId];
+                    if (previewData) {
+                        baselineRules = previewData.baseline || {};
+                        statusRules = (statusEl && previewData.status[statusEl.value]) || {};
+                    } else {
+                        baselineRules = PERIOD_RULES;
+                        statusRules = (statusEl && STATUS_RULES[statusEl.value]) || {};
+                    }
 
                     document.querySelectorAll('.bloc-choice[data-target-key]').forEach(function (el) {
                         var targetKey = el.getAttribute('data-target-key');
-                        var rule = statusRules[targetKey] || PERIOD_RULES[targetKey];
+                        var rule = statusRules[targetKey] || baselineRules[targetKey];
                         var card = document.getElementById('product_' + targetKey);
                         var visible = !rule || rule.visible;
                         var price = (rule && rule.price !== null && rule.price !== undefined)
@@ -1123,10 +1197,13 @@
                             el.disabled = true;
                             if (card) card.style.display = 'none';
                         } else {
-                            el.disabled = false;
                             if (card) card.style.display = '';
+                            el.disabled = !isCurrentPeriodActive;
                         }
                     });
+
+                    var note = document.getElementById('period-preview-note');
+                    if (note) note.style.display = isCurrentPeriodActive ? 'none' : 'block';
                 }
 
                 function recalc() {
@@ -1220,7 +1297,7 @@
                     }
 
                     var submitBtn = document.getElementById('submit-btn');
-                    if (submitBtn) submitBtn.disabled = lines.length === 0;
+                    if (submitBtn) submitBtn.disabled = lines.length === 0 || !isCurrentPeriodActive;
                 }
 
                 document.querySelectorAll('.bloc-choice').forEach(function (el) {
@@ -1229,6 +1306,19 @@
                         recalc();
                     });
                 });
+
+                document.querySelectorAll('.period-btn').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        activePeriodId = btn.getAttribute('data-period-id');
+                        document.querySelectorAll('.period-btn').forEach(function (b) {
+                            b.classList.remove('active');
+                        });
+                        btn.classList.add('active');
+                        applyPricingRules();
+                        recalc();
+                    });
+                });
+
                 applyPricingRules();
                 recalc();
             })();
