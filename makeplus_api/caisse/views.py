@@ -21,12 +21,18 @@ from events.models import Participant, Event
 
 def _reservation_data(event, payable_items):
     """
-    Map registration-form reservations (still-'pending'/reserved
-    RegistrationOrders' snapshot items -- i.e. not yet confirmed or
-    rejected at the caisse) onto this event's PayableItems, so the caisse
-    can pre-check what a participant already reserved and tally
+    Map registration-form reservations onto this event's PayableItems, so
+    the caisse can pre-check what a participant already reserved and tally
     reserved-vs-confirmed counts. No admin review gates this: an order is
     reserved the moment it's submitted and email-verified.
+
+    Deliberately NOT filtered to status='pending' here: orders approved
+    under the since-removed admin-review flow (or otherwise carrying a
+    stale 'approved' status) can still have items with no actual
+    CaisseTransaction behind them -- nothing was really handed out. Only
+    'rejected' orders are excluded; _pending_orders_with_payable_ids
+    (which this feeds) does the real work of subtracting out whatever a
+    completed CaisseTransaction already covers.
 
     Returns:
         key_to_payable_ids: {(kind, external_id): [payable_item_id, ...]}
@@ -52,8 +58,8 @@ def _reservation_data(event, payable_items):
         if key:
             key_to_payable_ids.setdefault(key, []).append(item.id)
 
-    reserved_orders = RegistrationOrder.objects.filter(
-        event=event, status='pending', participant__isnull=False
+    reserved_orders = RegistrationOrder.objects.exclude(status='rejected').filter(
+        event=event, participant__isnull=False
     ).only('participant_id', 'items_snapshot')
 
     participant_reservations = {}
@@ -75,11 +81,16 @@ def _reservation_data(event, payable_items):
 
 def _pending_orders_with_payable_ids(participant, event):
     """
-    This participant's still-reserved ('pending') RegistrationOrders for
-    this event, each with the set of mirrored PayableItem ids that haven't
-    been confirmed at the caisse yet. A bloc order's discount applies to
-    the order as a whole, so it must be confirmed all at once -- see its
-    use in process_transaction().
+    This participant's non-rejected RegistrationOrders for this event, each
+    with the set of mirrored PayableItem ids that haven't actually been
+    confirmed (no completed CaisseTransaction covers them) yet. A bloc
+    order's discount applies to the order as a whole, so it must be
+    confirmed all at once -- see its use in process_transaction().
+
+    Whether an item still needs confirming is decided purely by the
+    absence of a completed CaisseTransaction for it -- not by order.status,
+    which can be stale 'approved' from the since-removed admin-review flow
+    even though nothing was ever actually handed out at the counter.
 
     Returns: [(RegistrationOrder, {payable_item_id, ...}), ...] -- orders
     with nothing left to confirm are omitted.
@@ -95,7 +106,9 @@ def _pending_orders_with_payable_ids(participant, event):
     ).prefetch_related('items'):
         confirmed_ids.update(txn.items.values_list('id', flat=True))
 
-    orders = RegistrationOrder.objects.filter(event=event, participant=participant, status='pending')
+    orders = RegistrationOrder.objects.exclude(status='rejected').filter(
+        event=event, participant=participant
+    )
     result = []
     for order in orders:
         keys = set()

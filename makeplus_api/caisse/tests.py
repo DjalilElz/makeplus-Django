@@ -86,10 +86,26 @@ class CaisseBlocReservationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['participant_reserved_items_json'], '{}')
 
-    def test_confirmed_order_not_shown_as_reserved_again(self):
-        # 'approved' now means already confirmed at the caisse -- it
-        # shouldn't show up as still awaiting confirmation.
+    def test_stale_approved_order_with_no_real_transaction_still_shows_as_reserved(self):
+        # Regression: orders approved under the since-removed admin-review
+        # flow can have status='approved' with no CaisseTransaction behind
+        # them at all -- nothing was actually handed out. Whether an item
+        # still needs confirming must be decided by CaisseTransaction data,
+        # not the (possibly stale) status field.
         self._make_order(status='approved')
+        self._login_caisse()
+        response = self.client.get(reverse('caisse:dashboard'))
+        reserved_json = response.context['participant_reserved_items_json']
+        self.assertIn(str(self.participant.id), reserved_json)
+        self.assertIn(str(self.payable.id), reserved_json)
+
+    def test_order_with_completed_transaction_not_shown_as_reserved_again(self):
+        self._make_order(status='approved')
+        txn = CaisseTransaction.objects.create(
+            caisse=self.caisse, participant=self.participant, total_amount=Decimal('1000'), status='completed',
+        )
+        txn.items.add(self.payable)
+
         self._login_caisse()
         response = self.client.get(reverse('caisse:dashboard'))
         self.assertEqual(response.context['participant_reserved_items_json'], '{}')
