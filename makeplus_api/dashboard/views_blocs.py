@@ -155,6 +155,7 @@ def blocs_config_save(request, event_id):
     config.reduction_2_blocs = _parse_decimal(request.POST.get('reduction_2_blocs'))
     config.reduction_3_blocs = _parse_decimal(request.POST.get('reduction_3_blocs'))
     config.reduction_4_blocs = _parse_decimal(request.POST.get('reduction_4_blocs'))
+    config.require_payment_proof = bool(request.POST.get('require_payment_proof'))
 
     config.save()
     messages.success(request, 'Registration configuration saved.')
@@ -387,6 +388,13 @@ def get_public_bloc_context(event):
         'restauration': config.show_restauration,
         'social_event': config.show_social_event,
     }
+    # French display labels for the public (participant-facing) form only --
+    # the admin config page keeps the English CUSTOM_BLOC_CHOICES labels.
+    bloc_labels_fr = {
+        'status': 'Statut',
+        'restauration': 'Restauration',
+        'social_event': 'Événement social',
+    }
     custom_blocs = []
     for bloc_key, bloc_label in CUSTOM_BLOC_CHOICES:
         if not visibility.get(bloc_key):
@@ -396,7 +404,7 @@ def get_public_bloc_context(event):
             continue
         custom_blocs.append({
             'key': bloc_key,
-            'label': bloc_label,
+            'label': bloc_labels_fr.get(bloc_key, bloc_label),
             'select_mode': config.select_mode_for(bloc_key),
             'items': items,
         })
@@ -466,33 +474,35 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
     for bloc in bloc_context['custom_blocs']:
         picked = [v for v in request.POST.getlist(f"items_{bloc['key']}") if v]
         if bloc['select_mode'] == 'single' and len(picked) > 1:
-            errors.append(f"Please select only one option in {bloc['label']}.")
+            errors.append(f"Veuillez sélectionner une seule option dans {bloc['label']}.")
         selected_item_ids.extend(picked)
 
     selected_session_ids = [v for v in request.POST.getlist('sessions') if v]
 
     if not email:
-        errors.append('Email is required.')
+        errors.append("L'e-mail est requis.")
 
     if errors:
         return False, errors, None
 
     # A fully free selection (e.g. a 0-priced Status) doesn't need a bank
     # receipt or the accept-conditions checkbox -- there's no payment to
-    # prove. Everything else still goes through the normal flow.
+    # prove. Same when the event has payment proof turned off entirely.
+    # Everything else still goes through the normal flow.
     preview = compute_order(
         event=form_config.event, config=config,
         selected_item_ids=selected_item_ids, selected_session_ids=selected_session_ids,
         on_date=timezone.now().date(),
     )
     is_free = preview['total_after_reduction'] <= 0
+    proof_required = config.require_payment_proof and not is_free
 
     receipt = request.FILES.get('receipt_file')
-    if not is_free:
+    if proof_required:
         if not request.POST.get('accept_conditions'):
-            errors.append("You must accept the conditions.")
+            errors.append("Vous devez accepter les conditions.")
         if not receipt:
-            errors.append("Please upload your bank receipt.")
+            errors.append("Veuillez téléverser votre quittance de banque.")
 
     if errors:
         return False, errors, None
@@ -545,7 +555,7 @@ def finalize_paid_registration(verification, form_config, user):
     event = form_config.event
     bloc_context = get_public_bloc_context(event)
     if not bloc_context:
-        return False, "This event's registration options are no longer available."
+        return False, "Les options d'inscription de cet événement ne sont plus disponibles."
 
     meta = verification.form_data.get('__paid_meta__') or {}
     receipt_path = meta.get('receipt_path') or ''
@@ -558,10 +568,12 @@ def finalize_paid_registration(verification, form_config, user):
         on_date=timezone.now().date(),
     )
 
-    # A fully free selection doesn't carry a receipt -- only require one
-    # when there was actually something to pay for.
-    if result['total_after_reduction'] > 0 and not receipt_path:
-        return False, "Missing receipt file. Please submit your registration again."
+    # A fully free selection doesn't carry a receipt, and neither does an
+    # event with payment proof turned off entirely -- only require one when
+    # there was actually something to pay for AND the event asks for proof.
+    proof_required = bloc_context['config'].require_payment_proof and result['total_after_reduction'] > 0
+    if proof_required and not receipt_path:
+        return False, "Fichier de quittance manquant. Veuillez soumettre à nouveau votre inscription."
 
     submission = FormSubmission.objects.create(
         form=form_config,

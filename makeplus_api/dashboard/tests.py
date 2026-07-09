@@ -443,7 +443,7 @@ class BlocsPublicFormTests(TestCase):
     def test_no_blocs_shows_plain_form(self):
         response = self.client.get(reverse('public_form', args=[self.form.slug]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Submit Form')
+        self.assertContains(response, 'Envoyer le formulaire')
         self.assertNotContains(response, 'Confirmer')
         self.assertNotContains(response, 'quittance de banque')
 
@@ -466,7 +466,7 @@ class BlocsPublicFormTests(TestCase):
             'receipt_file': receipt,
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Check Your Email')
+        self.assertContains(response, 'Vérifiez votre e-mail')
         self.assertTrue(FormRegistrationVerification.objects.filter(email='no-account@example.com').exists())
 
         response = self.client.post(reverse('public_form', args=[self.form.slug]), {
@@ -494,7 +494,7 @@ class BlocsPublicFormTests(TestCase):
             'receipt_file': receipt,
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Check Your Email')
+        self.assertContains(response, 'Vérifiez votre e-mail')
         # Nothing is created yet -- only staged behind the verification code.
         self.assertFalse(RegistrationOrder.objects.filter(event=self.event).exists())
 
@@ -533,7 +533,7 @@ class BlocsPublicFormTests(TestCase):
             'items_status': str(free_item.id),
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Check Your Email')
+        self.assertContains(response, 'Vérifiez votre e-mail')
 
         response = self.client.post(reverse('public_form', args=[self.form.slug]), {
             'email': 'k@example.com', 'verification_code': '111222',
@@ -544,6 +544,29 @@ class BlocsPublicFormTests(TestCase):
         self.assertFalse(order.receipt_file)
         self.assertEqual(order.participant.user, self.registrant)
 
+    @patch.object(FormRegistrationVerification, 'generate_code', return_value='222333')
+    def test_require_payment_proof_off_skips_receipt_even_when_not_free(self, _mock_code):
+        self._enable_blocs()
+        config = self.event.bloc_config
+        config.require_payment_proof = False
+        config.save()
+
+        # self.item is priced at 1000 (not free) -- still no receipt/conditions needed.
+        response = self.client.post(reverse('public_form', args=[self.form.slug]), {
+            'first_name': 'Karim', 'last_name': 'B', 'email': 'k@example.com',
+            'items_status': str(self.item.id),
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Vérifiez votre e-mail')
+
+        response = self.client.post(reverse('public_form', args=[self.form.slug]), {
+            'email': 'k@example.com', 'verification_code': '222333',
+        })
+        self.assertEqual(response.status_code, 200)
+        order = RegistrationOrder.objects.get(event=self.event)
+        self.assertEqual(order.total_after_reduction, Decimal('1000.00'))
+        self.assertFalse(order.receipt_file)
+
     def test_paid_submission_requires_receipt(self):
         self._enable_blocs()
         response = self.client.post(reverse('public_form', args=[self.form.slug]), {
@@ -552,7 +575,7 @@ class BlocsPublicFormTests(TestCase):
         })
         self.assertEqual(response.status_code, 200)
         self.assertFalse(RegistrationOrder.objects.filter(event=self.event).exists())
-        self.assertContains(response, 'bank receipt')
+        self.assertContains(response, 'quittance de banque')
 
     def test_paid_submission_requires_conditions(self):
         self._enable_blocs()
@@ -562,7 +585,7 @@ class BlocsPublicFormTests(TestCase):
             'items_status': str(self.item.id), 'receipt_file': receipt,
         })
         self.assertFalse(RegistrationOrder.objects.filter(event=self.event).exists())
-        self.assertContains(response, 'accept the conditions')
+        self.assertContains(response, 'accepter les conditions')
 
     def test_single_select_rejects_multiple(self):
         EventBlocConfig.objects.create(event=self.event, show_status=True, status_select_mode='single')
@@ -574,7 +597,7 @@ class BlocsPublicFormTests(TestCase):
             'accept_conditions': '1', 'receipt_file': receipt,
         })
         self.assertFalse(RegistrationOrder.objects.filter(event=self.event).exists())
-        self.assertContains(response, 'only one option')
+        self.assertContains(response, 'une seule option')
 
     def test_no_period_switcher_without_periods(self):
         self._enable_blocs()
@@ -648,6 +671,24 @@ class BlocsAdminTests(TestCase):
         self.assertFalse(config.show_restauration)
         self.assertTrue(config.reduction_by_blocs_enabled)
         self.assertEqual(config.reduction_2_blocs, Decimal('15'))
+
+    def test_require_payment_proof_defaults_true_and_is_toggleable(self):
+        config = EventBlocConfig.objects.create(event=self.event)
+        self.assertTrue(config.require_payment_proof)
+
+        self.client.force_login(self.admin)
+        self.client.post(reverse('dashboard:blocs_config_save', args=[self.event.id]), {
+            'status_select_mode': 'single',
+            # require_payment_proof omitted -> unchecked
+        })
+        config.refresh_from_db()
+        self.assertFalse(config.require_payment_proof)
+
+        self.client.post(reverse('dashboard:blocs_config_save', args=[self.event.id]), {
+            'status_select_mode': 'single', 'require_payment_proof': 'on',
+        })
+        config.refresh_from_db()
+        self.assertTrue(config.require_payment_proof)
 
     def test_create_and_delete_item(self):
         self.client.force_login(self.admin)

@@ -2259,7 +2259,7 @@ def public_form_view(request, slug):
                     context = {
                         'form_config': form_config,
                         'fields': form_config.fields_config,
-                        'errors': ['Email and verification code are required'],
+                        'errors': ["L'e-mail et le code de vérification sont requis"],
                         'show_verification': True,
                         'submitted_email': email,
                     }
@@ -2334,7 +2334,7 @@ def public_form_view(request, slug):
                 # Validate required fields
                 if field.get('required'):
                     if not value or (isinstance(value, list) and len(value) == 0):
-                        errors.append(f'{field.get("label")} is required.')
+                        errors.append(f'{field.get("label")} est requis.')
                         continue
                 
                 form_data[field_name] = value
@@ -2349,17 +2349,17 @@ def public_form_view(request, slug):
             
             # Validate required fields
             if not email:
-                errors.append('Email is required.')
+                errors.append("L'e-mail est requis.")
             if not first_name:
-                errors.append('First name is required.')
+                errors.append('Le prénom est requis.')
             if not last_name:
-                errors.append('Last name is required.')
-            
+                errors.append('Le nom est requis.')
+
             # Validate event is assigned to form
             if not form_config.event:
-                errors.append('This form is not linked to an event.')
+                errors.append("Ce formulaire n'est lié à aucun événement.")
             elif not form_config.event.start_date:
-                errors.append('Event configuration is incomplete (missing start date).')
+                errors.append("La configuration de l'événement est incomplète (date de début manquante).")
                 print(f"WARNING: Event {form_config.event.id} missing start_date")
 
             # --- Paid registration (blocs) flow ---
@@ -2390,7 +2390,7 @@ def public_form_view(request, slug):
                         'form_config': form_config,
                         'show_verification': True,
                         'submitted_email': email,
-                        'message': 'Verification code sent to your email',
+                        'message': 'Code de vérification envoyé à votre e-mail',
                     }
                     return render(request, 'dashboard/public_form.html', context)
                 context = {

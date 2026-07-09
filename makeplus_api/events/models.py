@@ -936,31 +936,31 @@ class FormRegistrationVerification(models.Model):
     
     def __str__(self):
         return f"{self.email} - {self.form.name} - {'Used' if self.is_used else 'Active'}"
-    
+
     @staticmethod
     def hash_code(code):
         """Hash a 6-digit code for secure storage"""
         return hashlib.sha256(code.encode()).hexdigest()
-    
+
     @staticmethod
     def generate_code():
         """Generate a random 6-digit code"""
         return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
-    
+
     def is_expired(self):
         """Check if code has expired"""
         return timezone.now() > self.expires_at
-    
+
     def verify_code(self, code):
         """Verify if provided code matches and is valid"""
         if self.is_used:
-            return False, "Code already used"
+            return False, "Code déjà utilisé"
         if self.is_expired():
-            return False, "Code expired"
+            return False, "Code expiré"
         if self.code_hash != self.hash_code(code):
-            return False, "Invalid code"
-        return True, "Code verified"
-    
+            return False, "Code invalide"
+        return True, "Code vérifié"
+
     def mark_as_used(self, ip_address=None, user_agent=''):
         """Mark code as used"""
         self.is_used = True

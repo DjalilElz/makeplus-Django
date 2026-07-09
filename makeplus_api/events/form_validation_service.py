@@ -33,16 +33,16 @@ def send_form_validation_code(email, form_slug, form_data, ip_address=None, user
     try:
         form = FormConfiguration.objects.get(slug=form_slug)
     except FormConfiguration.DoesNotExist:
-        return False, "Form not found", None
-    
+        return False, "Formulaire introuvable", None
+
     # Check if form is active
     if not form.is_active:
-        return False, "This form is no longer accepting submissions", None
-    
+        return False, "Ce formulaire n'accepte plus de soumissions", None
+
     # Check if can resend
     can_resend, wait_seconds = FormRegistrationVerification.can_resend(email, form)
     if not can_resend:
-        return False, f"Please wait {wait_seconds} seconds before requesting a new code", wait_seconds
+        return False, f"Veuillez patienter {wait_seconds} secondes avant de demander un nouveau code", wait_seconds
     
     # Create verification code
     code, verification = FormRegistrationVerification.create_verification(
@@ -54,30 +54,30 @@ def send_form_validation_code(email, form_slug, form_data, ip_address=None, user
     )
     
     # Send email
-    subject = f"Verify Your Registration - {form.event.name if form.event else form.name}"
+    subject = f"Vérifiez votre inscription - {form.event.name if form.event else form.name}"
     html_content = f"""
     <html>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #667eea;">Verify Your Registration</h2>
-            <p>Hello {greeting_name},</p>
-            <p>Thank you for registering for <strong>{form.event.name if form.event else form.name}</strong>.</p>
-            <p>Please use the verification code below to complete your registration:</p>
-            
+            <h2 style="color: #667eea;">Vérifiez votre inscription</h2>
+            <p>Bonjour {greeting_name},</p>
+            <p>Merci de vous être inscrit(e) à <strong>{form.event.name if form.event else form.name}</strong>.</p>
+            <p>Veuillez utiliser le code de vérification ci-dessous pour terminer votre inscription :</p>
+
             <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; text-align: center; margin: 20px 0;">
                 <div style="font-size: 48px; font-weight: bold; letter-spacing: 10px; color: #667eea; margin: 20px 0;">
                     {code}
                 </div>
-                <p style="color: #6c757d; font-size: 0.9em;">This code expires in 3 minutes</p>
+                <p style="color: #6c757d; font-size: 0.9em;">Ce code expire dans 3 minutes</p>
             </div>
-            
+
             <div style="background: #e7f3ff; padding: 15px; border-left: 4px solid #2196F3; margin: 20px 0;">
-                <p style="margin: 0;"><strong>Next Step:</strong> Enter this code on the registration page to complete your registration.</p>
+                <p style="margin: 0;"><strong>Étape suivante :</strong> Entrez ce code sur la page d'inscription pour terminer votre inscription.</p>
             </div>
-            
+
             <p style="margin-top: 30px;">
-                Best regards,<br>
-                <strong>MakePlus Team</strong>
+                Cordialement,<br>
+                <strong>L'équipe MakePlus</strong>
             </p>
         </div>
     </body>
@@ -93,9 +93,9 @@ def send_form_validation_code(email, form_slug, form_data, ip_address=None, user
     )
     
     if success:
-        return True, "Verification code sent to your email", None
+        return True, "Code de vérification envoyé à votre e-mail", None
     else:
-        return False, f"Failed to send email: {error}", None
+        return False, f"Échec de l'envoi de l'e-mail : {error}", None
 
 
 def create_participant_for_event(user, event):
@@ -173,11 +173,11 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
     try:
         form = FormConfiguration.objects.get(slug=form_slug)
     except FormConfiguration.DoesNotExist:
-        return False, None, "Form not found"
-    
+        return False, None, "Formulaire introuvable"
+
     # Find valid verification code
     code_hash = FormRegistrationVerification.hash_code(code)
-    
+
     try:
         verification = FormRegistrationVerification.objects.filter(
             email=email,
@@ -185,9 +185,9 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
             code_hash=code_hash,
             is_used=False
         ).order_by('-created_at').first()
-        
+
         if not verification:
-            return False, None, "Invalid or expired code"
+            return False, None, "Code invalide ou expiré"
         
         # Verify code
         is_valid, message = verification.verify_code(code)
@@ -235,10 +235,10 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
         # Mark code as used
         verification.mark_as_used(ip_address=ip_address, user_agent=user_agent)
 
-        return True, participant, "Registration completed successfully"
+        return True, participant, "Inscription terminée avec succès"
 
     except Exception as e:
-        return False, None, f"Error completing registration: {str(e)}"
+        return False, None, f"Erreur lors de la finalisation de l'inscription : {str(e)}"
 
 
 def resend_form_validation_code(email, form_slug, form_data=None, ip_address=None, user_agent=''):
@@ -263,13 +263,13 @@ def resend_form_validation_code(email, form_slug, form_data=None, ip_address=Non
         try:
             form = FormConfiguration.objects.get(slug=form_slug)
         except FormConfiguration.DoesNotExist:
-            return False, "Form not found", None
+            return False, "Formulaire introuvable", None
 
         previous = FormRegistrationVerification.objects.filter(
             email=email, form=form
         ).order_by('-created_at').first()
         if not previous:
-            return False, "No previous registration found for this email. Please fill out the form again.", None
+            return False, "Aucune inscription précédente trouvée pour cet e-mail. Veuillez remplir le formulaire à nouveau.", None
         form_data = previous.form_data
 
     return send_form_validation_code(email, form_slug, form_data, ip_address, user_agent)

@@ -616,19 +616,19 @@
                     {% if form_config.event %}
                     <div class="event-info-row">
                         <div class="event-info-item">
-                            <div class="event-info-label">Start Date</div>
+                            <div class="event-info-label">Date de début</div>
                             <div class="event-info-value">{{ form_config.event.start_date|date:"d M Y" }}</div>
                         </div>
                         <div class="event-info-item">
-                            <div class="event-info-label">End Date</div>
+                            <div class="event-info-label">Date de fin</div>
                             <div class="event-info-value">{{ form_config.event.end_date|date:"d M Y" }}</div>
                         </div>
                         <div class="event-info-item">
-                            <div class="event-info-label">Location</div>
+                            <div class="event-info-label">Lieu</div>
                             <div class="event-info-value">{{ form_config.event.location|default:"—" }}</div>
                         </div>
                         <div class="event-info-item">
-                            <div class="event-info-label">Currency</div>
+                            <div class="event-info-label">Devise</div>
                             <div class="event-info-value">DZD</div>
                         </div>
                     </div>
@@ -673,12 +673,12 @@
             {% for p in bloc_context.periods %}
             <button type="button" class="period-btn{% if p.id|stringformat:'s' == bloc_context.current_period_id %} active{% endif %}"
                     data-period-id="{{ p.id }}">
-                {{ p.name|default:"Period" }} ({{ p.start_date|date:"M j" }} – {{ p.end_date|date:"M j" }})
+                {{ p.name|default:"Période" }} ({{ p.start_date|date:"M j" }} – {{ p.end_date|date:"M j" }})
             </button>
             {% endfor %}
         </div>
         <p class="period-preview-note" id="period-preview-note" style="display: none;">
-            <i class="bi bi-eye me-1"></i>Previewing prices for another period — selection is disabled. Click your current period to select items.
+            <i class="bi bi-eye me-1"></i>Aperçu des prix d'une autre période — la sélection est désactivée. Cliquez sur votre période actuelle pour sélectionner des articles.
         </p>
     </div>
     {% endif %}
@@ -688,28 +688,28 @@
             <div class="form-card">
                 <div class="success-message text-center">
                     <i class="bi bi-check-circle-fill success-icon"></i>
-                    <h3 class="mt-3 mb-2">Registration Successful!</h3>
+                    <h3 class="mt-3 mb-2">Inscription réussie !</h3>
                     <p class="mb-0">{{ message|default:form_config.success_message }}</p>
 
                     <div class="alert alert-info mt-3">
                         <i class="bi bi-phone me-2"></i>
-                        <strong>Next Steps</strong>
-                        <br>You can now log in to the mobile app using:
-                        <br><strong>Email:</strong> {{ submitted_email }}
-                        <br><strong>Password:</strong> The password you set during sign up
+                        <strong>Prochaines étapes</strong>
+                        <br>Vous pouvez maintenant vous connecter à l'application mobile avec :
+                        <br><strong>E-mail :</strong> {{ submitted_email }}
+                        <br><strong>Mot de passe :</strong> le mot de passe que vous avez défini lors de l'inscription
                     </div>
 
                     <div class="alert alert-primary mt-3">
                         <i class="bi bi-calendar-check me-2"></i>
-                        <strong>Event Access</strong>
-                        <br><small>You are now registered for {{ form_config.event.name }}.</small>
-                        <br><small class="text-muted">Check the mobile app for event details and your QR code.</small>
+                        <strong>Accès à l'événement</strong>
+                        <br><small>Vous êtes maintenant inscrit(e) à {{ form_config.event.name }}.</small>
+                        <br><small class="text-muted">Consultez l'application mobile pour les détails de l'événement et votre QR code.</small>
                     </div>
                 </div>
 
                 <div class="text-center">
                     <a href="{% url 'public_form' form_config.slug %}" class="btn btn-outline-primary">
-                        Register Another Person
+                        Inscrire une autre personne
                     </a>
                 </div>
             </div>
@@ -717,9 +717,9 @@
             <div class="form-card">
                 <div class="text-center py-5">
                     <i class="bi bi-lock-fill" style="font-size: 4rem; color: #dc3545;"></i>
-                    <h2 class="mt-4 mb-3 text-danger">Form Closed</h2>
+                    <h2 class="mt-4 mb-3 text-danger">Formulaire fermé</h2>
                     <p class="lead text-muted mb-4">
-                        This registration form is currently not accepting submissions.
+                        Ce formulaire d'inscription n'accepte plus de soumissions actuellement.
                     </p>
                 </div>
             </div>
@@ -727,9 +727,9 @@
             <div class="form-card">
                 <div class="text-center mb-4">
                     <i class="bi bi-envelope-check-fill" style="font-size: 3rem; color: var(--dusty-rose-dark);"></i>
-                    <h3 class="mt-3 mb-2">Check Your Email</h3>
+                    <h3 class="mt-3 mb-2">Vérifiez votre e-mail</h3>
                     <p class="text-muted">
-                        We've sent a 6-digit verification code to<br>
+                        Nous avons envoyé un code de vérification à 6 chiffres à<br>
                         <strong>{{ submitted_email }}</strong>
                     </p>
                 </div>
@@ -743,7 +743,7 @@
                 {% if errors %}
                     <div class="error-message">
                         <i class="bi bi-exclamation-triangle me-2"></i>
-                        <strong>Error:</strong>
+                        <strong>Erreur :</strong>
                         <ul class="mb-0 mt-2">
                             {% for error in errors %}
                                 <li>{{ error }}</li>
@@ -758,7 +758,7 @@
 
                     <div class="mb-4">
                         <label for="verification_code" class="form-label text-center d-block">
-                            Enter Verification Code
+                            Entrez le code de vérification
                         </label>
                         <input
                             type="text"
@@ -773,29 +773,29 @@
                             style="font-size: 2rem; letter-spacing: 0.5rem; font-weight: 600;"
                         >
                         <small class="text-muted d-block text-center mt-2">
-                            Code expires in 3 minutes
+                            Le code expire dans 3 minutes
                         </small>
                     </div>
 
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-submit">
-                            <i class="bi bi-check-circle-fill me-2"></i>Verify & Complete Registration
+                            <i class="bi bi-check-circle-fill me-2"></i>Vérifier et terminer l'inscription
                         </button>
                     </div>
                 </form>
 
                 <div class="text-center mt-4">
-                    <p class="text-muted small mb-2">Didn't receive the code?</p>
+                    <p class="text-muted small mb-2">Vous n'avez pas reçu le code ?</p>
                     <button
                         type="button"
                         class="btn btn-outline-secondary btn-sm"
                         id="resendBtn"
                         onclick="resendCode()"
                     >
-                        <i class="bi bi-arrow-clockwise me-1"></i>Resend Code
+                        <i class="bi bi-arrow-clockwise me-1"></i>Renvoyer le code
                     </button>
                     <div id="resendTimer" class="text-muted small mt-2" style="display: none;">
-                        Please wait <span id="countdown">180</span> seconds before requesting a new code
+                        Veuillez patienter <span id="countdown">180</span> secondes avant de demander un nouveau code
                     </div>
                 </div>
 
@@ -827,7 +827,7 @@
 
                     function resendCode() {
                         if (!canResend && countdownSeconds < 180) {
-                            alert('Please wait before requesting a new code.');
+                            alert('Veuillez patienter avant de demander un nouveau code.');
                             return;
                         }
 
@@ -869,7 +869,7 @@
             {% if errors %}
                 <div class="error-message">
                     <i class="bi bi-exclamation-triangle me-2"></i>
-                    <strong>Please correct the following errors:</strong>
+                    <strong>Veuillez corriger les erreurs suivantes :</strong>
                     <ul class="mb-0 mt-2">
                         {% for error in errors %}
                             <li>{{ error }}</li>
@@ -910,7 +910,7 @@
                                             name="{{ field.name }}"
                                             {% if field.required %}required{% endif %}
                                         >
-                                            <option value="">-- Select an option --</option>
+                                            <option value="">-- Sélectionnez une option --</option>
                                             {% for option in field.options %}
                                                 <option value="{{ option }}" {% if field.value == option %}selected{% endif %}>
                                                     {{ option }}
@@ -970,11 +970,11 @@
                             {% if not bloc_context.has_blocs %}
                             <div class="d-grid gap-2 mt-4">
                                 <button type="submit" class="btn btn-primary btn-submit">
-                                    <i class="bi bi-send-fill me-2"></i>Submit Form
+                                    <i class="bi bi-send-fill me-2"></i>Envoyer le formulaire
                                 </button>
                             </div>
                             <p class="text-center text-muted small mt-3 mb-0">
-                                <i class="bi bi-shield-check me-1"></i>Your information is secure and will not be shared.
+                                <i class="bi bi-shield-check me-1"></i>Vos informations sont sécurisées et ne seront pas partagées.
                             </p>
                             {% endif %}
                         </div>
@@ -988,7 +988,7 @@
                                 <span class="bloc-title">{{ bloc.label }}</span>
                             </div>
                             <p class="bloc-note">
-                                {% if bloc.select_mode == 'single' %}Single choice — pick one option.{% else %}Multiple choice — pick as many as you like.{% endif %}
+                                {% if bloc.select_mode == 'single' %}Choix unique — sélectionnez une option.{% else %}Choix multiple — sélectionnez autant que vous le souhaitez.{% endif %}
                             </p>
                             {% for item in bloc.items %}
                             <label class="product-card" id="product_item_{{ item.id }}" for="item_{{ item.id }}">
@@ -1013,7 +1013,7 @@
                                         <span class="amount">{{ item.price }}</span>
                                         <span class="currency">DZD</span>
                                         {% else %}
-                                        <span class="amount">Free</span>
+                                        <span class="amount">Gratuit</span>
                                         {% endif %}
                                     </span>
                                 </span>
@@ -1026,9 +1026,9 @@
                         <div class="bloc-section">
                             <div class="bloc-header">
                                 <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs|length|add:1 }}</span>
-                                <span class="bloc-title">Workshops</span>
+                                <span class="bloc-title">Ateliers</span>
                             </div>
-                            <p class="bloc-note">Multiple choice — pick as many workshops as you like.</p>
+                            <p class="bloc-note">Choix multiple — sélectionnez autant d'ateliers que vous le souhaitez.</p>
                             {% for s in bloc_context.paid_sessions %}
                             <label class="product-card" id="product_session_{{ s.id }}" for="session_{{ s.id }}">
                                 <input class="form-check-input bloc-choice" type="checkbox"
@@ -1038,7 +1038,7 @@
                                        data-target-key="session_{{ s.id }}">
                                 <span class="product-main">
                                     <span class="product-name d-block">{{ s.title }}</span>
-                                    <span class="product-tag">Workshop</span>
+                                    <span class="product-tag">Atelier</span>
                                 </span>
                                 <span class="product-price">
                                     <span class="price-pill">
@@ -1046,7 +1046,7 @@
                                         <span class="amount">{{ s.price }}</span>
                                         <span class="currency">DZD</span>
                                         {% else %}
-                                        <span class="amount">Free</span>
+                                        <span class="amount">Gratuit</span>
                                         {% endif %}
                                     </span>
                                 </span>
@@ -1062,7 +1062,7 @@
                         <div class="cart-card">
                             <div class="cart-title-row">
                                 <h4>Votre panier</h4>
-                                <span class="cart-count"><span id="cart-item-count">0</span> item(s)</span>
+                                <span class="cart-count"><span id="cart-item-count">0</span> article(s)</span>
                             </div>
 
                             <div id="cart-empty" class="cart-empty">Votre panier est vide...</div>
@@ -1081,18 +1081,18 @@
 
                             <div class="cart-totals">
                                 <div class="row-line">
-                                    <span>Subtotal</span>
+                                    <span>Sous-total</span>
                                     <strong id="cart-total-before">0.00 DZD</strong>
                                 </div>
                                 <div class="row-line discount-line" id="cart-discount-row">
-                                    <span>Discount (<span id="cart-discount-percent">0</span>%)</span>
+                                    <span>Réduction (<span id="cart-discount-percent">0</span>%)</span>
                                     <strong id="cart-discount-amount">0.00 DZD</strong>
                                 </div>
                                 <div class="total-line">
                                     <span>Total</span>
                                     <span id="cart-total-after">0.00 DZD</span>
                                 </div>
-                                <div class="tax-note">Local taxes not included</div>
+                                <div class="tax-note">Taxes locales non incluses</div>
                             </div>
 
                             <div id="payment-proof-section">
@@ -1109,7 +1109,7 @@
                                 </div>
                             </div>
                             <p id="free-registration-note" class="text-success mt-4" style="display: none;">
-                                <i class="bi bi-check-circle me-1"></i>This registration is free -- no payment proof needed.
+                                <i class="bi bi-check-circle me-1"></i>Cette inscription est gratuite — aucune preuve de paiement n'est nécessaire.
                             </p>
 
                             <div class="d-grid gap-2 mt-4">
@@ -1119,7 +1119,7 @@
                             </div>
 
                             <p class="legal-note">
-                                <i class="bi bi-shield-check me-1"></i>Your information is secure and will not be shared.
+                                <i class="bi bi-shield-check me-1"></i>Vos informations sont sécurisées et ne seront pas partagées.
                             </p>
                         </div>
                     </div>
@@ -1131,6 +1131,7 @@
             <script>
             (function () {
                 var BLOCS_ENABLED = {% if bloc_context.config.reduction_by_blocs_enabled %}true{% else %}false{% endif %};
+                var REQUIRE_PAYMENT_PROOF = {% if bloc_context.config.require_payment_proof %}true{% else %}false{% endif %};
                 var BLOC_PCT = {2: {{ bloc_context.config.reduction_2_blocs }}, 3: {{ bloc_context.config.reduction_3_blocs }}, 4: {{ bloc_context.config.reduction_4_blocs }}};
                 var BLOC_ORDER = [{% for key in bloc_context.active_bloc_keys %}'{{ key }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
                 // Status -> {target_key: {visible, price}} -- lets picking a
@@ -1150,7 +1151,7 @@
                 var isCurrentPeriodActive = true;
 
                 function fmt(n) { return n.toFixed(2) + ' DZD'; }
-                function fmtPrice(n) { return n <= 0 ? 'Free' : fmt(n); }
+                function fmtPrice(n) { return n <= 0 ? 'Gratuit' : fmt(n); }
 
                 // Apply the active period's pricing (baseline, applies to
                 // everything) and then whichever Status is currently picked
@@ -1189,7 +1190,7 @@
                             var numPrice = parseFloat(price) || 0;
                             pricePill.innerHTML = numPrice > 0
                                 ? '<span class="amount">' + numPrice.toFixed(0) + '</span><span class="currency">DZD</span>'
-                                : '<span class="amount">Free</span>';
+                                : '<span class="amount">Gratuit</span>';
                         }
 
                         if (!visible) {
@@ -1238,17 +1239,19 @@
                         row.classList.remove('visible');
                     }
 
-                    // A fully free selection doesn't need payment proof --
+                    // A fully free selection, or an event with payment proof
+                    // turned off entirely, doesn't need a receipt/conditions --
                     // matches the server-side check in stage_paid_registration.
                     var isFree = after <= 0;
+                    var proofNotRequired = isFree || !REQUIRE_PAYMENT_PROOF;
                     var proofSection = document.getElementById('payment-proof-section');
                     var freeNote = document.getElementById('free-registration-note');
                     var receiptInput = document.getElementById('receipt_file');
                     var conditionsInput = document.getElementById('accept_conditions');
-                    if (proofSection) proofSection.style.display = isFree ? 'none' : '';
-                    if (freeNote) freeNote.style.display = isFree ? 'block' : 'none';
-                    if (receiptInput) receiptInput.required = !isFree;
-                    if (conditionsInput) conditionsInput.required = !isFree;
+                    if (proofSection) proofSection.style.display = proofNotRequired ? 'none' : '';
+                    if (freeNote) freeNote.style.display = (isFree && REQUIRE_PAYMENT_PROOF) ? 'block' : 'none';
+                    if (receiptInput) receiptInput.required = !proofNotRequired;
+                    if (conditionsInput) conditionsInput.required = !proofNotRequired;
 
                     // --- presentational-only additions below: render already-computed values, no new math ---
                     var cartLines = document.getElementById('cart-lines');
@@ -1280,16 +1283,16 @@
                     var banner = document.getElementById('discount-banner');
                     if (BLOCS_ENABLED && subtotal > 0) {
                         if (distinct >= 4) {
-                            banner.textContent = '🎉 Maximum discount reached: ' + (parseFloat(BLOC_PCT[4]) || 0) + '% off!';
+                            banner.textContent = '🎉 Réduction maximale atteinte : ' + (parseFloat(BLOC_PCT[4]) || 0) + '% de réduction !';
                             banner.classList.add('visible');
                         } else if (distinct >= 2) {
                             var nextTier = distinct + 1;
                             var nextPct = parseFloat(BLOC_PCT[nextTier]) || 0;
-                            banner.textContent = '✨ Add 1 more bloc to unlock ' + nextPct + '% off!';
+                            banner.textContent = '✨ Ajoutez 1 bloc de plus pour débloquer ' + nextPct + '% de réduction !';
                             banner.classList.add('visible');
                         } else {
                             var firstPct = parseFloat(BLOC_PCT[2]) || 0;
-                            banner.textContent = '✨ Add items from another bloc to unlock ' + firstPct + '% off!';
+                            banner.textContent = '✨ Ajoutez des articles d\'un autre bloc pour débloquer ' + firstPct + '% de réduction !';
                             banner.classList.add('visible');
                         }
                     } else {

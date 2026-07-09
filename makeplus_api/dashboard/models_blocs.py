@@ -66,6 +66,12 @@ class EventBlocConfig(models.Model):
     reduction_4_blocs = models.DecimalField(max_digits=5, decimal_places=2, default=0,
                                             help_text="% off when items from 4 distinct blocs are selected")
 
+    # Whether the participant must upload a bank transfer receipt (and
+    # accept conditions) to submit a paid registration. When off, no proof
+    # is required regardless of price. A fully free (0 DZD) selection never
+    # requires one either way, independent of this toggle.
+    require_payment_proof = models.BooleanField(default=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
