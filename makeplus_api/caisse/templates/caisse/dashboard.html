@@ -471,8 +471,16 @@
                                 <span class="text-muted"><i class="bi bi-check-circle"></i> Already paid (not charged again):</span>
                                 <span id="alreadyPaidAmount" class="text-muted">0.00 DZD</span>
                             </div>
+                            <div class="d-flex justify-content-between align-items-center mb-1" id="beforeReductionRow" style="display: none;">
+                                <span class="text-muted">Amount before reduction:</span>
+                                <span id="beforeReductionAmount" class="text-muted">0.00 DZD</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2" id="reductionRow" style="display: none;">
+                                <span class="text-muted">Reduction:</span>
+                                <span id="reductionPercent" class="text-muted fw-bold">0%</span>
+                            </div>
                             <div class="d-flex justify-content-between align-items-center">
-                                <strong>New charge (this transaction):</strong>
+                                <strong>Amount charged (this transaction):</strong>
                                 <span id="totalAmount" class="fs-4" style="color: #10b981; font-weight: 700;">0.00 DZD</span>
                             </div>
                         </div>
@@ -943,13 +951,19 @@
             // Fully-selected bloc reservations are charged at their real
             // (already paid, post-discount) amount, not a raw price sum --
             // keeps this preview coherent with what process_transaction bills.
+            // Track the pre-discount total alongside it too, so the
+            // reduction can be shown live, before the transaction is
+            // processed -- the operator needs this to tell the participant
+            // how much they're saving before confirming anything.
             const covered = new Set();
             let newCharge = 0;
+            let newChargeBefore = 0;
             const orders = participantReservedSummaryData[selectedParticipantId] || [];
             orders.forEach(function(order) {
                 const payableIds = order.payable_ids || [];
                 if (payableIds.length > 0 && payableIds.every(id => checkedIds.has(id))) {
                     newCharge += parseFloat(order.total_after);
+                    newChargeBefore += parseFloat(order.total_before);
                     payableIds.forEach(id => covered.add(id));
                 }
             });
@@ -961,20 +975,36 @@
             document.querySelectorAll('#payableItems input[type="checkbox"]:checked').forEach(checkbox => {
                 const id = parseInt(checkbox.value, 10);
                 if (covered.has(id)) return;
+                const price = parseFloat(checkbox.getAttribute('data-price'));
                 if (checkbox.disabled) {
-                    alreadyPaid += parseFloat(checkbox.getAttribute('data-price'));
+                    alreadyPaid += price;
                 } else {
-                    newCharge += parseFloat(checkbox.getAttribute('data-price'));
+                    newCharge += price;
+                    newChargeBefore += price;
                 }
             });
 
             document.getElementById('totalAmount').textContent = newCharge.toFixed(2) + ' DZD';
+
             const alreadyPaidRow = document.getElementById('alreadyPaidRow');
             if (alreadyPaid > 0) {
                 document.getElementById('alreadyPaidAmount').textContent = alreadyPaid.toFixed(2) + ' DZD';
                 alreadyPaidRow.style.display = 'flex';
             } else {
                 alreadyPaidRow.style.display = 'none';
+            }
+
+            const beforeReductionRow = document.getElementById('beforeReductionRow');
+            const reductionRow = document.getElementById('reductionRow');
+            const discountPercent = newChargeBefore > 0 ? ((newChargeBefore - newCharge) / newChargeBefore * 100) : 0;
+            if (discountPercent > 0.01) {
+                document.getElementById('beforeReductionAmount').textContent = newChargeBefore.toFixed(2) + ' DZD';
+                document.getElementById('reductionPercent').textContent = discountPercent.toFixed(2) + '%';
+                beforeReductionRow.style.display = 'flex';
+                reductionRow.style.display = 'flex';
+            } else {
+                beforeReductionRow.style.display = 'none';
+                reductionRow.style.display = 'none';
             }
         }
         
