@@ -798,7 +798,7 @@
             const lines = orders.map(function(order) {
                 const hasDiscount = parseFloat(order.discount_percent) > 0;
                 let html = '<div class="mb-2"><i class="bi bi-bookmark-check"></i> <strong>Reserved registration</strong></div>';
-                html += `<div>Amount before reduction: <strong>${order.total_before} DZD</strong></div>`;
+                html += `<div>Amount before reduction: <strong>${fmtPrice(parseFloat(order.total_before))}</strong></div>`;
 
                 if (hasDiscount) {
                     const parts = [];
@@ -815,7 +815,7 @@
                 }
 
                 html += `<div>Amount after reduction (already paid by bank transfer): `
-                    + `<strong>${order.total_after} DZD</strong></div>`;
+                    + `<strong>${fmtPrice(parseFloat(order.total_after))}</strong></div>`;
                 return `<div class="mb-2">${html}</div>`;
             });
             summaryText.innerHTML = lines.join('<hr class="my-2">');
@@ -909,6 +909,8 @@
         }
         
         // Calculate total amount
+        function fmtPrice(n) { return n <= 0 ? 'Free' : n.toFixed(2) + ' DZD'; }
+
         function calculateTotal() {
             const checkedIds = new Set(
                 Array.from(document.querySelectorAll('#payableItems input:checked'))
@@ -972,7 +974,7 @@
                 newCharge += newBlocSubtotal * (1 - totalPct / 100);
             }
 
-            document.getElementById('totalAmount').textContent = newCharge.toFixed(2) + ' DZD';
+            document.getElementById('totalAmount').textContent = fmtPrice(newCharge);
 
             const alreadyPaidRow = document.getElementById('alreadyPaidRow');
             if (alreadyPaid > 0) {
@@ -1067,11 +1069,11 @@
                     }
 
                     if ((action === 'process' || action === 'process_and_print') && data.total_before_reduction) {
-                        message += `<br><br>Amount before reduction: <strong>${data.total_before_reduction.toFixed(2)} DZD</strong>`;
+                        message += `<br><br>Amount before reduction: <strong>${fmtPrice(data.total_before_reduction)}</strong>`;
                         if (data.total_discount_percent > 0.01) {
                             message += `<br>Reduction: <strong>${data.total_discount_percent.toFixed(2)}%</strong>`;
                         }
-                        message += `<br>Amount charged: <strong>${data.total_amount.toFixed(2)} DZD</strong>`;
+                        message += `<br>Amount charged: <strong>${fmtPrice(data.total_amount)}</strong>`;
                     }
 
                     customAlert(message, 'Success').then(() => {

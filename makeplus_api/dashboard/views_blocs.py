@@ -401,22 +401,37 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
 
     selected_session_ids = [v for v in request.POST.getlist('sessions') if v]
 
-    # Conditions + receipt are mandatory for paid registrations.
-    if not request.POST.get('accept_conditions'):
-        errors.append("You must accept the conditions.")
-    receipt = request.FILES.get('receipt_file')
-    if not receipt:
-        errors.append("Please upload your bank receipt.")
-
     if not email:
         errors.append('Email is required.')
 
     if errors:
         return False, errors, None
 
-    receipt_path = default_storage.save(
-        f'registrations/receipts/{uuid.uuid4().hex}_{receipt.name}', receipt
+    # A fully free selection (e.g. a 0-priced Status) doesn't need a bank
+    # receipt or the accept-conditions checkbox -- there's no payment to
+    # prove. Everything else still goes through the normal flow.
+    preview = compute_order(
+        event=form_config.event, config=config,
+        selected_item_ids=selected_item_ids, selected_session_ids=selected_session_ids,
+        on_date=timezone.now().date(),
     )
+    is_free = preview['total_after_reduction'] <= 0
+
+    receipt = request.FILES.get('receipt_file')
+    if not is_free:
+        if not request.POST.get('accept_conditions'):
+            errors.append("You must accept the conditions.")
+        if not receipt:
+            errors.append("Please upload your bank receipt.")
+
+    if errors:
+        return False, errors, None
+
+    receipt_path = ''
+    if receipt:
+        receipt_path = default_storage.save(
+            f'registrations/receipts/{uuid.uuid4().hex}_{receipt.name}', receipt
+        )
 
     staged_data = dict(form_data)
     staged_data['__paid_meta__'] = {
@@ -463,9 +478,7 @@ def finalize_paid_registration(verification, form_config, user):
         return False, "This event's registration options are no longer available."
 
     meta = verification.form_data.get('__paid_meta__') or {}
-    receipt_path = meta.get('receipt_path')
-    if not receipt_path:
-        return False, "Missing receipt file. Please submit your registration again."
+    receipt_path = meta.get('receipt_path') or ''
 
     result = compute_order(
         event=event,
@@ -474,6 +487,11 @@ def finalize_paid_registration(verification, form_config, user):
         selected_session_ids=meta.get('selected_session_ids', []),
         on_date=timezone.now().date(),
     )
+
+    # A fully free selection doesn't carry a receipt -- only require one
+    # when there was actually something to pay for.
+    if result['total_after_reduction'] > 0 and not receipt_path:
+        return False, "Missing receipt file. Please submit your registration again."
 
     submission = FormSubmission.objects.create(
         form=form_config,

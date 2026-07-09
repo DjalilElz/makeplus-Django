@@ -505,6 +505,36 @@ class BlocsPublicFormTests(TestCase):
         self.assertEqual(order.participant.user, self.registrant)
         self.assertTrue(Participant.objects.filter(user=self.registrant, role='participant').exists())
 
+    def test_free_item_shown_as_free_on_registration_page(self):
+        self._enable_blocs()
+        free_item = BlocItem.objects.create(event=self.event, bloc='status', name='Etudiant', price=Decimal('0'))
+        response = self.client.get(reverse('public_form', args=[self.form.slug]))
+        self.assertContains(response, 'Free')
+        self.assertContains(response, free_item.name)
+
+    @patch.object(FormRegistrationVerification, 'generate_code', return_value='111222')
+    def test_free_selection_skips_receipt_and_conditions(self, _mock_code):
+        self._enable_blocs()
+        free_item = BlocItem.objects.create(event=self.event, bloc='status', name='Etudiant', price=Decimal('0'))
+        self.item.delete()  # only the free item is selectable for this test
+
+        # No accept_conditions, no receipt_file -- must not be rejected.
+        response = self.client.post(reverse('public_form', args=[self.form.slug]), {
+            'first_name': 'Karim', 'last_name': 'B', 'email': 'k@example.com',
+            'items_status': str(free_item.id),
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Check Your Email')
+
+        response = self.client.post(reverse('public_form', args=[self.form.slug]), {
+            'email': 'k@example.com', 'verification_code': '111222',
+        })
+        self.assertEqual(response.status_code, 200)
+        order = RegistrationOrder.objects.get(event=self.event)
+        self.assertEqual(order.total_after_reduction, Decimal('0.00'))
+        self.assertFalse(order.receipt_file)
+        self.assertEqual(order.participant.user, self.registrant)
+
     def test_paid_submission_requires_receipt(self):
         self._enable_blocs()
         response = self.client.post(reverse('public_form', args=[self.form.slug]), {

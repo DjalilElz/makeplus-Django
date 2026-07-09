@@ -62,7 +62,7 @@
                     </div>
                     {% endif %}
                 </div>
-                <span class="badge bg-success item-price-badge ms-2">{{ item.price }} DZD</span>
+                <span class="badge bg-success item-price-badge ms-2">{% if item.price > 0 %}{{ item.price }} DZD{% else %}Free{% endif %}</span>
             </div>
         </label>
     </div>

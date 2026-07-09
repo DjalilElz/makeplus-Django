@@ -953,8 +953,12 @@
                                 </span>
                                 <span class="product-price">
                                     <span class="price-pill">
+                                        {% if item.price > 0 %}
                                         <span class="amount">{{ item.price }}</span>
                                         <span class="currency">DZD</span>
+                                        {% else %}
+                                        <span class="amount">Free</span>
+                                        {% endif %}
                                     </span>
                                 </span>
                             </label>
@@ -982,8 +986,12 @@
                                 </span>
                                 <span class="product-price">
                                     <span class="price-pill">
+                                        {% if s.price > 0 %}
                                         <span class="amount">{{ s.price }}</span>
                                         <span class="currency">DZD</span>
+                                        {% else %}
+                                        <span class="amount">Free</span>
+                                        {% endif %}
                                     </span>
                                 </span>
                             </label>
@@ -1031,17 +1039,22 @@
                                 <div class="tax-note">Local taxes not included</div>
                             </div>
 
-                            <div class="mt-4">
-                                <label for="receipt_file" class="form-label">Téléverser la quittance de banque <span class="required-indicator">*</span></label>
-                                <input type="file" class="form-control" id="receipt_file" name="receipt_file"
-                                       accept=".pdf,.jpg,.jpeg,.png" required>
+                            <div id="payment-proof-section">
+                                <div class="mt-4">
+                                    <label for="receipt_file" class="form-label">Téléverser la quittance de banque <span class="required-indicator">*</span></label>
+                                    <input type="file" class="form-control" id="receipt_file" name="receipt_file"
+                                           accept=".pdf,.jpg,.jpeg,.png" required>
+                                </div>
+                                <div class="form-check mt-3">
+                                    <input class="form-check-input" type="checkbox" id="accept_conditions" name="accept_conditions" value="1" required>
+                                    <label class="form-check-label" for="accept_conditions">
+                                        J'ai lu et j'accepte les conditions.
+                                    </label>
+                                </div>
                             </div>
-                            <div class="form-check mt-3">
-                                <input class="form-check-input" type="checkbox" id="accept_conditions" name="accept_conditions" value="1" required>
-                                <label class="form-check-label" for="accept_conditions">
-                                    J'ai lu et j'accepte les conditions.
-                                </label>
-                            </div>
+                            <p id="free-registration-note" class="text-success mt-4" style="display: none;">
+                                <i class="bi bi-check-circle me-1"></i>This registration is free -- no payment proof needed.
+                            </p>
 
                             <div class="d-grid gap-2 mt-4">
                                 <button type="submit" class="btn btn-primary btn-submit" id="submit-btn">
@@ -1070,6 +1083,7 @@
                 var STATUS_RULES = {{ bloc_context.status_rules_json|safe }};
 
                 function fmt(n) { return n.toFixed(2) + ' DZD'; }
+                function fmtPrice(n) { return n <= 0 ? 'Free' : fmt(n); }
 
                 // Apply the rules for whichever Status is currently picked (if any)
                 // to every other-bloc item: hide it, or swap in its overridden
@@ -1089,8 +1103,13 @@
                             : el.getAttribute('data-original-price');
 
                         el.setAttribute('data-price', price);
-                        var amountEl = card ? card.querySelector('.price-pill .amount') : null;
-                        if (amountEl) amountEl.textContent = parseFloat(price).toFixed(0);
+                        var pricePill = card ? card.querySelector('.price-pill') : null;
+                        if (pricePill) {
+                            var numPrice = parseFloat(price) || 0;
+                            pricePill.innerHTML = numPrice > 0
+                                ? '<span class="amount">' + numPrice.toFixed(0) + '</span><span class="currency">DZD</span>'
+                                : '<span class="amount">Free</span>';
+                        }
 
                         if (!visible) {
                             if (el.checked) el.checked = false;
@@ -1126,8 +1145,8 @@
                     var after = subtotal - discountAmt;
 
                     // --- calculation results (unchanged math) written to the totals ---
-                    document.getElementById('cart-total-before').textContent = fmt(subtotal);
-                    document.getElementById('cart-total-after').textContent = fmt(after);
+                    document.getElementById('cart-total-before').textContent = fmtPrice(subtotal);
+                    document.getElementById('cart-total-after').textContent = fmtPrice(after);
                     var row = document.getElementById('cart-discount-row');
                     if (totalPct > 0) {
                         row.classList.add('visible');
@@ -1136,6 +1155,18 @@
                     } else {
                         row.classList.remove('visible');
                     }
+
+                    // A fully free selection doesn't need payment proof --
+                    // matches the server-side check in stage_paid_registration.
+                    var isFree = after <= 0;
+                    var proofSection = document.getElementById('payment-proof-section');
+                    var freeNote = document.getElementById('free-registration-note');
+                    var receiptInput = document.getElementById('receipt_file');
+                    var conditionsInput = document.getElementById('accept_conditions');
+                    if (proofSection) proofSection.style.display = isFree ? 'none' : '';
+                    if (freeNote) freeNote.style.display = isFree ? 'block' : 'none';
+                    if (receiptInput) receiptInput.required = !isFree;
+                    if (conditionsInput) conditionsInput.required = !isFree;
 
                     // --- presentational-only additions below: render already-computed values, no new math ---
                     var cartLines = document.getElementById('cart-lines');
@@ -1148,7 +1179,7 @@
                             div.className = 'cart-line';
                             div.innerHTML = '<span class="name"></span><span class="price"></span>';
                             div.querySelector('.name').textContent = line.name;
-                            div.querySelector('.price').textContent = fmt(line.price);
+                            div.querySelector('.price').textContent = fmtPrice(line.price);
                             cartLines.appendChild(div);
                         });
                     } else {
