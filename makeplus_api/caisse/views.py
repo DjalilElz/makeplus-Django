@@ -305,6 +305,8 @@ def caisse_dashboard(request):
             participant_reserved_summary[str(participant.id)] = [
                 {
                     'total_before': str(order.total_before_reduction),
+                    'period_discount_percent': str(order.period_discount_percent),
+                    'blocs_discount_percent': str(order.blocs_discount_percent),
                     'discount_percent': str(order.total_discount_percent),
                     'total_after': str(order.total_after_reduction),
                     'payable_ids': list(pending_ids),
@@ -520,8 +522,10 @@ def process_transaction(request):
     pending_orders = _pending_orders_with_payable_ids(participant, caisse.event)
 
     bank_transfer_amount = Decimal('0')
+    bank_transfer_before = Decimal('0')
     bank_transfer_item_ids = set()
     fully_confirmed_orders = []
+    bank_transfer_breakdown_parts = []
     incomplete_order_errors = []
     for order, pending_ids in pending_orders:
         if not (pending_ids & selected_ids):
@@ -537,8 +541,23 @@ def process_transaction(request):
             )
             continue
         bank_transfer_amount += order.total_after_reduction
+        bank_transfer_before += order.total_before_reduction
         bank_transfer_item_ids |= pending_ids
         fully_confirmed_orders.append(order)
+
+        detail = f"{order.total_before_reduction} DZD"
+        if order.total_discount_percent > 0:
+            pieces = []
+            if order.period_discount_percent > 0:
+                pieces.append(f"period {order.period_discount_percent}%")
+            if order.blocs_discount_percent > 0:
+                pieces.append(f"blocs {order.blocs_discount_percent}%")
+            reduction = f"-{order.total_discount_percent}%"
+            if pieces:
+                reduction += f" ({' + '.join(pieces)})"
+            detail += f" {reduction}"
+        detail += f" -> {order.total_after_reduction} DZD"
+        bank_transfer_breakdown_parts.append(detail)
 
     if incomplete_order_errors:
         return JsonResponse({
@@ -569,7 +588,9 @@ def process_transaction(request):
         new_bloc_keys[key] = item
 
     recomputed_bloc_amount = Decimal('0')
+    recomputed_bloc_before = Decimal('0')
     recomputed_bloc_items = []
+    recomputed_bloc_detail = ''
     if new_bloc_keys:
         try:
             config = caisse.event.bloc_config
@@ -589,6 +610,21 @@ def process_transaction(request):
             recomputed_bloc_items = [new_bloc_keys[key] for key in covered_keys if key in new_bloc_keys]
             uncovered_items = [item for key, item in new_bloc_keys.items() if key not in covered_keys]
             plain_cash_items.extend(uncovered_items)
+
+            if recomputed_bloc_items:
+                recomputed_bloc_before = result['total_before_reduction']
+                recomputed_bloc_detail = f"{result['total_before_reduction']} DZD"
+                if result['total_discount_percent'] > 0:
+                    pieces = []
+                    if result['period_discount_percent'] > 0:
+                        pieces.append(f"period {result['period_discount_percent']}%")
+                    if result['blocs_discount_percent'] > 0:
+                        pieces.append(f"blocs {result['blocs_discount_percent']}%")
+                    reduction = f"-{result['total_discount_percent']}%"
+                    if pieces:
+                        reduction += f" ({' + '.join(pieces)})"
+                    recomputed_bloc_detail += f" {reduction}"
+                recomputed_bloc_detail += f" -> {result['total_after_reduction']} DZD"
         else:
             # No bloc config at all for this event -- nothing to recompute against.
             plain_cash_items.extend(new_bloc_keys.values())
@@ -607,12 +643,12 @@ def process_transaction(request):
     method_note_parts = []
     if bank_transfer_items:
         method_note_parts.append(
-            f"Paid via bank transfer (registration receipt), {bank_transfer_amount} DZD after discount: "
+            f"Paid via bank transfer (registration receipt): {'; '.join(bank_transfer_breakdown_parts)}. Items: "
             + ", ".join(i.name for i in bank_transfer_items)
         )
     if recomputed_bloc_items:
         method_note_parts.append(
-            f"New bloc items added at the counter (discount recomputed), {recomputed_bloc_amount} DZD: "
+            f"New bloc items added at the counter (discount recomputed): {recomputed_bloc_detail}. Items: "
             + ", ".join(i.name for i in recomputed_bloc_items)
         )
     if plain_cash_items:
@@ -720,11 +756,16 @@ def process_transaction(request):
     participant.qr_code_data = updated_qr_data
     participant.save(update_fields=['qr_code_data'])
     
+    total_before_reduction = bank_transfer_before + recomputed_bloc_before + plain_cash_amount
     return JsonResponse({
         'success': True,
         'message': 'Transaction processed successfully',
         'transaction_id': transaction.id,
         'total_amount': float(total_amount),
+        'total_before_reduction': float(total_before_reduction),
+        'total_discount_percent': float(
+            (1 - (total_amount / total_before_reduction)) * 100
+        ) if total_before_reduction > 0 else 0.0,
         'payment_method': payment_method,
         'action': action
     })

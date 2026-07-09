@@ -828,14 +828,29 @@
             }
 
             const lines = orders.map(function(order) {
-                if (parseFloat(order.discount_percent) > 0) {
-                    return `<div><i class="bi bi-bookmark-check"></i> Reserved: ${order.total_before} DZD `
-                        + `&minus; ${order.discount_percent}% discount &rarr; `
-                        + `<strong>Already paid: ${order.total_after} DZD</strong></div>`;
+                const hasDiscount = parseFloat(order.discount_percent) > 0;
+                let html = '<div class="mb-2"><i class="bi bi-bookmark-check"></i> <strong>Reserved registration</strong></div>';
+                html += `<div>Amount before reduction: <strong>${order.total_before} DZD</strong></div>`;
+
+                if (hasDiscount) {
+                    const parts = [];
+                    if (parseFloat(order.period_discount_percent) > 0) {
+                        parts.push(`period ${order.period_discount_percent}%`);
+                    }
+                    if (parseFloat(order.blocs_discount_percent) > 0) {
+                        parts.push(`blocs ${order.blocs_discount_percent}%`);
+                    }
+                    const breakdown = parts.length > 0 ? ` (${parts.join(' + ')})` : '';
+                    html += `<div>Reduction: <strong>${order.discount_percent}%</strong>${breakdown}</div>`;
+                } else {
+                    html += '<div>Reduction: none</div>';
                 }
-                return `<div><i class="bi bi-bookmark-check"></i> Reserved &amp; already paid: <strong>${order.total_after} DZD</strong></div>`;
+
+                html += `<div>Amount after reduction (already paid by bank transfer): `
+                    + `<strong>${order.total_after} DZD</strong></div>`;
+                return `<div class="mb-2">${html}</div>`;
             });
-            summaryText.innerHTML = lines.join('');
+            summaryText.innerHTML = lines.join('<hr class="my-2">');
             summaryBox.style.display = 'block';
         }
 
@@ -1025,7 +1040,15 @@
                     } else if (action === 'process_and_print') {
                         message = 'Transaction processed and print window opened!';
                     }
-                    
+
+                    if ((action === 'process' || action === 'process_and_print') && data.total_before_reduction) {
+                        message += `<br><br>Amount before reduction: <strong>${data.total_before_reduction.toFixed(2)} DZD</strong>`;
+                        if (data.total_discount_percent > 0.01) {
+                            message += `<br>Reduction: <strong>${data.total_discount_percent.toFixed(2)}%</strong>`;
+                        }
+                        message += `<br>Amount charged: <strong>${data.total_amount.toFixed(2)} DZD</strong>`;
+                    }
+
                     customAlert(message, 'Success').then(() => {
                         location.reload();
                     });

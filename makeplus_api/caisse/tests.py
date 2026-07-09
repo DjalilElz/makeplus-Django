@@ -289,8 +289,33 @@ class CaisseDiscountedReservationTests(TestCase):
         self._login_caisse()
         response = self.client.get(reverse('caisse:dashboard'))
         summary_json = response.context['participant_reserved_summary_json']
-        self.assertIn('1200.00', summary_json)
-        self.assertIn('20.00', summary_json)
+        self.assertIn('1500.00', summary_json)  # before reduction
+        self.assertIn('1200.00', summary_json)  # after reduction
+        self.assertIn('20.00', summary_json)  # total discount %
+        self.assertIn('blocs_discount_percent', summary_json)
+        self.assertIn('period_discount_percent', summary_json)
+
+    def test_confirm_response_includes_before_after_and_discount(self):
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:process_transaction'),
+            data={
+                'participant_id': str(self.participant.id),
+                'items': [str(self.status_payable.id), str(self.resto_payable.id)],
+                'notes': '',
+            },
+            content_type='application/json',
+        )
+        payload = response.json()
+        self.assertTrue(payload['success'], payload)
+        self.assertEqual(payload['total_before_reduction'], 1500.0)
+        self.assertEqual(payload['total_amount'], 1200.0)
+        self.assertAlmostEqual(payload['total_discount_percent'], 20.0, places=1)
+
+        txn = CaisseTransaction.objects.get(id=payload['transaction_id'])
+        self.assertIn('1500.00 DZD', txn.notes)
+        self.assertIn('20.00%', txn.notes)
+        self.assertIn('1200.00 DZD', txn.notes)
 
     def test_confirming_full_order_charges_discounted_total(self):
         self._login_caisse()
