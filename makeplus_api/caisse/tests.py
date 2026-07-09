@@ -478,15 +478,20 @@ class BackfillRegistrationOrderParticipantTests(TestCase):
         self.assertIsNotNone(order.participant)
         self.assertEqual(order.participant.user, user)
 
-    def test_skips_orphaned_order_with_no_matching_account(self):
+    def test_creates_placeholder_account_when_none_exists(self):
+        # A reservation must show up at the caisse even if the person never
+        # opened the mobile app -- so a missing account gets a placeholder
+        # (unusable password) instead of being left orphaned.
         event = Event.objects.create(
             name="Congress", start_date=timezone.now(),
             end_date=timezone.now() + timedelta(days=2), location="Algiers",
         )
         order = RegistrationOrder.objects.create(
-            event=event, email='ghost@example.com', full_name='Ghost', status='approved',
+            event=event, email='ghost@example.com', full_name='Ghost Writer', status='approved',
             receipt_file=SimpleUploadedFile('r.pdf', b'x', content_type='application/pdf'),
         )
         call_command('backfill_registration_order_participant')
         order.refresh_from_db()
-        self.assertIsNone(order.participant)
+        self.assertIsNotNone(order.participant)
+        self.assertEqual(order.participant.user.email, 'ghost@example.com')
+        self.assertFalse(order.participant.user.has_usable_password())
