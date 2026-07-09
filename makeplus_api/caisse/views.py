@@ -36,13 +36,19 @@ def _reservation_data(event, payable_items):
     """
     from dashboard.models_blocs import RegistrationOrder
 
+    # Keys are always (kind, str(external_id)): BlocItem ids are ints,
+    # Session ids are UUIDs, and items_snapshot JSON round-trips session
+    # ids as strings -- casting everything to str keeps both sides
+    # comparable (a bare int/UUID vs str mismatch meant session-based
+    # workshop reservations, and their price coherence, silently never
+    # matched anything).
     key_to_payable_ids = {}
     for item in payable_items:
         key = None
         if item.bloc_item_id:
-            key = ('item', item.bloc_item_id)
+            key = ('item', str(item.bloc_item_id))
         elif item.session_id:
-            key = ('session', item.session_id)
+            key = ('session', str(item.session_id))
         if key:
             key_to_payable_ids.setdefault(key, []).append(item.id)
 
@@ -58,8 +64,9 @@ def _reservation_data(event, payable_items):
             kind = entry.get('type')
             ext_id = entry.get('id')
             if kind in ('item', 'session') and ext_id is not None:
-                keys.add((kind, ext_id))
-                reservation_participants.setdefault((kind, ext_id), set()).add(order.participant_id)
+                key = (kind, str(ext_id))
+                keys.add(key)
+                reservation_participants.setdefault(key, set()).add(order.participant_id)
         if keys:
             participant_reservations.setdefault(order.participant_id, set()).update(keys)
 
@@ -96,7 +103,7 @@ def _pending_orders_with_payable_ids(participant, event):
             kind = entry.get('type')
             ext_id = entry.get('id')
             if kind in ('item', 'session') and ext_id is not None:
-                keys.add((kind, ext_id))
+                keys.add((kind, str(ext_id)))
         payable_ids = set()
         for key in keys:
             payable_ids.update(key_to_payable_ids.get(key, []))
@@ -227,9 +234,9 @@ def caisse_dashboard(request):
 
         reservation_key = None
         if item.bloc_item_id:
-            reservation_key = ('item', item.bloc_item_id)
+            reservation_key = ('item', str(item.bloc_item_id))
         elif item.session_id:
-            reservation_key = ('session', item.session_id)
+            reservation_key = ('session', str(item.session_id))
 
         if reservation_key:
             reserved_participant_ids = reservation_participants.get(reservation_key, set())

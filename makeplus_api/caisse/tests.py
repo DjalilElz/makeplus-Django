@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from events.models import Event
+from events.models import Event, Room, Session
 from events.form_validation_service import create_participant_for_event
 from dashboard.models_blocs import BlocItem, EventBlocConfig, RegistrationOrder
 from .models import Caisse, CaisseTransaction, PayableItem
@@ -374,3 +374,119 @@ class CaisseDiscountedReservationTests(TestCase):
         self.assertEqual(payload['payment_method'], 'mixed')
         # 1200 (discounted reservation) + 200 (walk-up) = 1400
         self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('1400.00'))
+
+
+class CaisseSessionReservationTests(TestCase):
+    """
+    Regression test: Session's PK is a UUID, but items_snapshot stores its
+    id as a plain string (str(session.id)). Reservation-key matching must
+    treat both sides as strings, or a workshop reserved via the bloc form
+    never shows up as reserved at the caisse (silently broken before).
+    """
+
+    def setUp(self):
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        EventBlocConfig.objects.create(event=self.event, show_workshops=True)
+        room = Room.objects.create(event=self.event, name='Hall A', capacity=100, location='1st floor')
+        self.session = Session.objects.create(
+            event=self.event, room=room, title='Machine Learning', session_type='conference',
+            start_time=timezone.now(), end_time=timezone.now() + timedelta(hours=1),
+            is_paid=True, price=Decimal('2000'),
+        )
+        # A post_save signal (events/signals.py) already mirrors any paid
+        # Session into a PayableItem automatically -- fetch that one rather
+        # than creating a second, duplicate PayableItem for the same session.
+        self.session_payable = PayableItem.objects.get(session=self.session)
+
+        self.user = User.objects.create_user(username='karim', email='k@example.com', password='x')
+        self.participant = create_participant_for_event(self.user, self.event)
+
+        self.caisse = Caisse.objects.create(name='Caisse 1', email='caisse3@example.com', event=self.event)
+        self.caisse.set_password('x')
+        self.caisse.save()
+
+        self.order = RegistrationOrder.objects.create(
+            event=self.event, email=self.user.email, full_name='Karim B',
+            participant=self.participant, status='pending',
+            items_snapshot=[
+                {'bloc': 'workshops', 'type': 'session', 'id': str(self.session.id), 'name': 'Machine Learning', 'price': '2000.00'},
+            ],
+            total_before_reduction=Decimal('2000.00'),
+            total_after_reduction=Decimal('2000.00'),
+            receipt_file=SimpleUploadedFile('r.pdf', b'x', content_type='application/pdf'),
+        )
+
+    def _login_caisse(self):
+        session = self.client.session
+        session['caisse_id'] = str(self.caisse.id)
+        session['caisse_name'] = self.caisse.name
+        session.save()
+
+    def test_reserved_session_shows_up_at_caisse(self):
+        self._login_caisse()
+        response = self.client.get(reverse('caisse:dashboard'))
+        reserved_json = response.context['participant_reserved_items_json']
+        self.assertIn(str(self.participant.id), reserved_json)
+        self.assertIn(str(self.session_payable.id), reserved_json)
+
+        item_data = next(
+            d for d in response.context['payable_items_with_capacity']
+            if d['item'].id == self.session_payable.id
+        )
+        self.assertTrue(item_data['is_reservable'])
+        self.assertEqual(item_data['reserved_count'], 1)
+
+    def test_confirming_reserved_session_is_bank_transfer(self):
+        self._login_caisse()
+        response = self.client.post(
+            reverse('caisse:process_transaction'),
+            data={
+                'participant_id': str(self.participant.id),
+                'items': [str(self.session_payable.id)],
+                'notes': '',
+            },
+            content_type='application/json',
+        )
+        payload = response.json()
+        self.assertTrue(payload['success'], payload)
+        self.assertEqual(payload['payment_method'], 'bank_transfer')
+
+
+class BackfillRegistrationOrderParticipantTests(TestCase):
+    """Older orders approved before finalize_paid_registration set
+    participant at creation time can be left with participant=None,
+    making them invisible to the caisse. The backfill command fixes them."""
+
+    def test_backfills_participant_when_account_exists(self):
+        event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        user = User.objects.create_user(username='karim', email='k@example.com', password='x')
+        order = RegistrationOrder.objects.create(
+            event=event, email='k@example.com', full_name='Karim B', status='approved',
+            receipt_file=SimpleUploadedFile('r.pdf', b'x', content_type='application/pdf'),
+        )
+        self.assertIsNone(order.participant)
+
+        call_command('backfill_registration_order_participant')
+
+        order.refresh_from_db()
+        self.assertIsNotNone(order.participant)
+        self.assertEqual(order.participant.user, user)
+
+    def test_skips_orphaned_order_with_no_matching_account(self):
+        event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        order = RegistrationOrder.objects.create(
+            event=event, email='ghost@example.com', full_name='Ghost', status='approved',
+            receipt_file=SimpleUploadedFile('r.pdf', b'x', content_type='application/pdf'),
+        )
+        call_command('backfill_registration_order_participant')
+        order.refresh_from_db()
+        self.assertIsNone(order.participant)
