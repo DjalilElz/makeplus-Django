@@ -773,6 +773,14 @@ class BlocStatusRulesAdminTests(TestCase):
         self.assertContains(response, 'Student')
         self.assertContains(response, 'Dinner')
 
+    def test_save_view_get_redirects_instead_of_405(self):
+        # A stray GET (refresh, back/forward nav, a stale bookmark) on this
+        # save-only endpoint should bounce back to the config page, not
+        # show a raw 405 error.
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('dashboard:bloc_status_rules_save', args=[self.event.id]))
+        self.assertRedirects(response, reverse('dashboard:blocs_config', args=[self.event.id]))
+
     def test_save_hides_item_and_sets_price(self):
         self.client.force_login(self.admin)
         self.client.post(reverse('dashboard:bloc_status_rules_save', args=[self.event.id]), {

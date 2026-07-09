@@ -245,7 +245,6 @@ def _save_price_rule_cell(request, status_id, period_id, target_key):
 
 @login_required
 @user_passes_test(is_staff_user)
-@require_POST
 def bloc_status_rules_save(request, event_id):
     """
     Save both pricing matrices in one submit:
@@ -256,6 +255,12 @@ def bloc_status_rules_save(request, event_id):
          columns are "Any status" + every Status item.
     """
     event = get_object_or_404(Event, id=event_id)
+    if request.method != 'POST':
+        # This is a save-only endpoint reached via the config page's form --
+        # a stray GET (refresh, back/forward navigation, a stale bookmark)
+        # should just land back on the config page instead of a 405 page.
+        return redirect('dashboard:blocs_config', event_id=event.id)
+
     status_items = list(BlocItem.objects.filter(event=event, bloc='status', is_active=True))
     periods = list(ReductionPeriod.objects.filter(event=event))
 
