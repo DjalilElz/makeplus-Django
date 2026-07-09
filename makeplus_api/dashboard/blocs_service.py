@@ -7,6 +7,8 @@ regardless of anything the browser submitted.
 """
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.db.models import Q
+
 from events.models import Session
 from .models_blocs import BlocItem, BlocItemStatusRule
 
@@ -32,6 +34,34 @@ def _bloc_visible(config, bloc):
     }.get(bloc, False)
 
 
+def get_active_period(event, on_date):
+    """The ReductionPeriod (if any) covering on_date. If periods overlap,
+    the one that starts latest wins (most specific/recent)."""
+    return event.reduction_periods.filter(
+        start_date__lte=on_date, end_date__gte=on_date
+    ).order_by('-start_date').first()
+
+
+def _resolve_rule(rules_by_target, key):
+    """Most specific match wins: status+period > status-only > period-only.
+    rules_by_target[key] only ever contains rules already filtered down to
+    the relevant status ids / active period, so at most one candidate can
+    exist per specificity tier."""
+    candidates = rules_by_target.get(key)
+    if not candidates:
+        return None
+    for r in candidates:
+        if r.status_item_id and r.period_id:
+            return r
+    for r in candidates:
+        if r.status_item_id and not r.period_id:
+            return r
+    for r in candidates:
+        if not r.status_item_id and r.period_id:
+            return r
+    return None
+
+
 def compute_order(event, config, selected_item_ids, selected_session_ids, on_date, context_status_item_id=None):
     """
     Compute a cart from the raw selections.
@@ -41,7 +71,7 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
         config: EventBlocConfig
         selected_item_ids: iterable of BlocItem ids (custom blocs)
         selected_session_ids: iterable of Session ids (workshops bloc)
-        on_date: date used to resolve the period reduction (the submission date)
+        on_date: date used to resolve the active period (the submission date)
         context_status_item_id: optional BlocItem id of a Status already
             chosen elsewhere (e.g. locked into an existing registration),
             used only to resolve status-dependent rules for THIS selection
@@ -54,10 +84,11 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
     percentages, and totals before/after reduction. Only items belonging to
     the event, active, and inside a *visible* bloc are counted.
 
-    If one of the selected items is a Status item, any BlocItemStatusRule
-    rows for it can hide other items entirely, or override their price
-    (which then still goes through the period/bloc-count reduction below,
-    same as any other item) -- see BlocItemStatusRule for details.
+    Pricing per item is resolved via BlocItemStatusRule: a rule can be
+    scoped to a Status, to today's active registration Period, or both --
+    the most specific match sets that item's effective price (which then
+    still goes through the bloc-count% reduction below, same as any other
+    item). No matching rule => the item's normal base price.
     """
     selected_item_ids = [str(i) for i in (selected_item_ids or [])]
     selected_session_ids = [str(i) for i in (selected_session_ids or [])]
@@ -73,17 +104,24 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
     status_item_ids = [item.id for item in items if item.bloc == 'status']
     if context_status_item_id:
         status_item_ids.append(int(context_status_item_id))
+
+    active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
+
+    rules_qs = BlocItemStatusRule.objects.filter(
+        Q(status_item_id__in=status_item_ids) | Q(status_item__isnull=True)
+    ).filter(
+        Q(period_id=active_period.id) | Q(period__isnull=True) if active_period else Q(period__isnull=True)
+    )
     rules_by_target = {}
-    if status_item_ids:
-        for rule in BlocItemStatusRule.objects.filter(status_item_id__in=status_item_ids):
-            key = ('item', rule.target_item_id) if rule.target_kind == 'item' else ('session', str(rule.target_session_id))
-            rules_by_target[key] = rule
+    for rule in rules_qs:
+        key = ('item', rule.target_item_id) if rule.target_kind == 'item' else ('session', str(rule.target_session_id))
+        rules_by_target.setdefault(key, []).append(rule)
 
     # --- Custom bloc items ---
     for item in items:
         if item.bloc not in CUSTOM_BLOCS or not _bloc_visible(config, item.bloc):
             continue
-        rule = rules_by_target.get(('item', item.id))
+        rule = _resolve_rule(rules_by_target, ('item', item.id))
         if rule and not rule.is_visible:
             continue
         price = rule.override_price if (rule and rule.override_price is not None) else item.price
@@ -103,7 +141,7 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
             id__in=selected_session_ids, event=event, is_paid=True
         )
         for session in sessions:
-            rule = rules_by_target.get(('session', str(session.id)))
+            rule = _resolve_rule(rules_by_target, ('session', str(session.id)))
             if rule and not rule.is_visible:
                 continue
             price = rule.override_price if (rule and rule.override_price is not None) else session.price
@@ -121,13 +159,10 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
     distinct_blocs = len(blocs_with_selection)
 
     # --- Reductions (additive) ---
+    # Period-based pricing is now manual per-item (resolved above via
+    # rules), not a percentage -- kept at 0 so total_discount_percent
+    # continues to reflect only the bloc-count discount.
     period_percent = Decimal('0')
-    if config.reduction_by_period_enabled and total_before > 0:
-        period = event.reduction_periods.filter(
-            start_date__lte=on_date, end_date__gte=on_date
-        ).order_by('-discount_percent').first()
-        if period:
-            period_percent = period.discount_percent
 
     blocs_percent = Decimal('0')
     if config.reduction_by_blocs_enabled and total_before > 0:
@@ -151,25 +186,70 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
     }
 
 
-def serialize_status_rules_for_event(event):
+def _target_key(rule):
+    return f"item_{rule.target_item_id}" if rule.target_kind == 'item' else f"session_{rule.target_session_id}"
+
+
+def serialize_period_baseline_rules_for_event(event, on_date):
     """
-    All BlocItemStatusRule rows for this event, keyed by status item id ->
-    target key -> {'visible': bool, 'price': str or None}. Baked into the
-    registration form (and caisse) as JSON so item visibility/price can
-    update live as the participant picks a different Status, without a
-    round trip per click. Target key is 'item_<id>' or 'session_<id>' --
-    matching the data-bloc-target attributes rendered on each input.
+    Period-only (no status) rules for TODAY's active period -- the
+    baseline price/visibility for every item (including Status items
+    themselves), applied regardless of which Status is picked or before
+    any is picked at all. Keyed by target key ('item_<id>'/'session_<id>').
+    Empty if period pricing isn't enabled or no period covers on_date.
     """
-    rules = BlocItemStatusRule.objects.filter(status_item__event=event)
+    try:
+        config = event.bloc_config
+    except Exception:
+        return {}
+    if not config.reduction_by_period_enabled:
+        return {}
+    period = get_active_period(event, on_date)
+    if not period:
+        return {}
+
     result = {}
-    for rule in rules:
-        status_key = str(rule.status_item_id)
-        target_key = (
-            f"item_{rule.target_item_id}" if rule.target_kind == 'item'
-            else f"session_{rule.target_session_id}"
-        )
-        result.setdefault(status_key, {})[target_key] = {
+    for rule in BlocItemStatusRule.objects.filter(period=period, status_item__isnull=True):
+        result[_target_key(rule)] = {
             'visible': rule.is_visible,
             'price': str(rule.override_price) if rule.override_price is not None else None,
+        }
+    return result
+
+
+def serialize_status_rules_for_event(event, on_date):
+    """
+    Effective status-dependent rules for this event, keyed by status item
+    id -> target key -> {'visible': bool, 'price': str or None}. Baked
+    into the registration form (and caisse) as JSON so item
+    visibility/price can update live as the participant picks a different
+    Status, without a round trip per click.
+
+    Resolved against TODAY's active period already (same precedence as
+    compute_order): a rule specific to (status, today's period) wins over
+    a status-only rule that applies across all periods.
+    """
+    try:
+        config = event.bloc_config
+        active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
+    except Exception:
+        active_period = None
+
+    rules_qs = BlocItemStatusRule.objects.filter(status_item__event=event, status_item__isnull=False)
+    if active_period:
+        rules_qs = rules_qs.filter(Q(period=active_period) | Q(period__isnull=True))
+    else:
+        rules_qs = rules_qs.filter(period__isnull=True)
+
+    grouped = {}
+    for rule in rules_qs:
+        grouped.setdefault((rule.status_item_id, _target_key(rule)), []).append(rule)
+
+    result = {}
+    for (status_id, target_key), candidates in grouped.items():
+        chosen = next((r for r in candidates if r.period_id), candidates[0])
+        result.setdefault(str(status_id), {})[target_key] = {
+            'visible': chosen.is_visible,
+            'price': str(chosen.override_price) if chosen.override_price is not None else None,
         }
     return result

@@ -120,25 +120,60 @@ class BlocItem(models.Model):
         return f"{self.get_bloc_display()} - {self.name} ({self.price})"
 
 
+class ReductionPeriod(models.Model):
+    """
+    A date range used to scope manual per-item prices (see
+    BlocItemStatusRule). discount_percent is legacy/unused now -- periods
+    used to apply a flat % off the whole cart; that's been replaced by
+    setting each item's actual price for the period directly.
+    """
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='reduction_periods')
+    name = models.CharField(max_length=100, blank=True, help_text="Optional label, e.g. 'Early bird'")
+    start_date = models.DateField()
+    end_date = models.DateField()
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Reduction Period'
+        verbose_name_plural = 'Reduction Periods'
+        ordering = ['start_date']
+
+    def __str__(self):
+        return f"{self.name or 'Period'} {self.start_date} - {self.end_date}"
+
+
 class BlocItemStatusRule(models.Model):
     """
-    Makes an item in Restauration/Social Event/Workshops conditional on
-    which Status item the participant picked: hide it entirely for that
-    status, and/or charge a different (overridden) price for it. No rule
-    for a given (status, target) pair means default behavior -- visible,
-    normal price -- so this is fully opt-in and doesn't affect events that
-    don't use it.
+    Overrides an item's visibility and/or price, scoped to a specific
+    Status choice, a specific registration Period, or both together (the
+    most specific match wins). At least one of status_item/period should
+    be set -- a row with neither would apply to everyone, which isn't a
+    supported use case here.
 
-    An overridden price still goes through the normal period%/bloc-count%
-    reduction afterwards, same as any other item -- it just replaces the
-    starting price for that one (status, item) combination.
+    Resolution order for a given target item, the participant's chosen
+    status (if any), and today's active period (if any):
+      1. status_item matches AND period matches (most specific)
+      2. status_item matches, rule has no period (status override, any period)
+      3. period matches, rule has no status_item (period price, any status)
+    No matching rule => the item's normal base price, always visible.
+
+    An overridden price still goes through the bloc-count% reduction
+    afterwards, same as any other item -- it just replaces the starting
+    price for that specific (status, period, item) combination.
     """
     TARGET_KIND_CHOICES = [
         ('item', 'Bloc Item'),
         ('session', 'Workshop Session'),
     ]
 
-    status_item = models.ForeignKey(BlocItem, on_delete=models.CASCADE, related_name='dependent_rules')
+    status_item = models.ForeignKey(
+        BlocItem, on_delete=models.CASCADE, null=True, blank=True, related_name='dependent_rules'
+    )
+    period = models.ForeignKey(
+        ReductionPeriod, on_delete=models.CASCADE, null=True, blank=True, related_name='item_price_rules'
+    )
     target_kind = models.CharField(max_length=10, choices=TARGET_KIND_CHOICES)
     target_item = models.ForeignKey(
         BlocItem, on_delete=models.CASCADE, null=True, blank=True, related_name='status_rules'
@@ -154,40 +189,20 @@ class BlocItemStatusRule(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'Bloc Item Status Rule'
-        verbose_name_plural = 'Bloc Item Status Rules'
-        constraints = [
-            models.UniqueConstraint(
-                fields=['status_item', 'target_item'], condition=models.Q(target_kind='item'),
-                name='uniq_status_rule_item'
-            ),
-            models.UniqueConstraint(
-                fields=['status_item', 'target_session'], condition=models.Q(target_kind='session'),
-                name='uniq_status_rule_session'
-            ),
+        verbose_name = 'Bloc Item Price Rule'
+        verbose_name_plural = 'Bloc Item Price Rules'
+        indexes = [
+            models.Index(fields=['status_item', 'period'], name='dashboard_b_status__d5e9a1_idx'),
         ]
 
     def __str__(self):
         target = self.target_item.name if self.target_item_id else (
             self.target_session.title if self.target_session_id else '?'
         )
-        return f"{self.status_item.name} -> {target} (visible={self.is_visible}, price={self.override_price})"
-
-
-class ReductionPeriod(models.Model):
-    """A date range mapped to a single % discount on the whole cart."""
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='reduction_periods')
-    name = models.CharField(max_length=100, blank=True, help_text="Optional label, e.g. 'Early bird'")
-    start_date = models.DateField()
-    end_date = models.DateField()
-    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = 'Reduction Period'
-        verbose_name_plural = 'Reduction Periods'
-        ordering = ['start_date']
+        scope = self.status_item.name if self.status_item_id else 'any status'
+        if self.period_id:
+            scope += f" / {self.period}"
+        return f"{scope} -> {target} (visible={self.is_visible}, price={self.override_price})"
 
     def __str__(self):
         return f"{self.name or 'Period'} {self.start_date} - {self.end_date} ({self.discount_percent}%)"

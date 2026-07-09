@@ -101,7 +101,7 @@
                     {% endfor %}
                 </ul>
                 <p class="mb-1">Total before reduction: <strong>{{ order.total_before_reduction }} DZD</strong></p>
-                <p class="mb-1">Discount: period {{ order.period_discount_percent }}% + blocs {{ order.blocs_discount_percent }}% = <strong>{{ order.total_discount_percent }}%</strong></p>
+                <p class="mb-1">Discount: blocs {{ order.blocs_discount_percent }}% = <strong>{{ order.total_discount_percent }}%</strong> (item prices may already reflect per-period pricing)</p>
                 <p class="mb-3">Total to pay: <strong>{{ order.total_after_reduction }} DZD</strong></p>
                 {% if order.receipt_file %}
                 <p><a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark"></i> Open bank receipt</a></p>

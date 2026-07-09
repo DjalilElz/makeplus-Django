@@ -350,27 +350,33 @@ class BlocsComputeOrderTests(TestCase):
         self.assertEqual(r['total_before_reduction'], Decimal('0.00'))
         self.assertEqual(r['distinct_blocs_count'], 0)
 
-    def test_period_reduction_applies_by_date(self):
-        ReductionPeriod.objects.create(
-            event=self.event, start_date=self.today - timedelta(days=1),
-            end_date=self.today + timedelta(days=1), discount_percent=Decimal('10'),
+    def test_period_pricing_applies_by_date(self):
+        # Period pricing is manual per-item (BlocItemStatusRule scoped to a
+        # period, no status) rather than a % off the cart.
+        period = ReductionPeriod.objects.create(
+            event=self.event, name='Early bird',
+            start_date=self.today - timedelta(days=1), end_date=self.today + timedelta(days=1),
         )
         self.config.reduction_by_period_enabled = True
         self.config.save()
-        r = self._compute(item_ids=[self.status_item.id])  # 1000
-        self.assertEqual(r['period_discount_percent'], Decimal('10.00'))
-        self.assertEqual(r['total_after_reduction'], Decimal('900.00'))
+        BlocItemStatusRule.objects.create(
+            period=period, target_kind='item', target_item=self.status_item, override_price=Decimal('700'),
+        )
+        r = self._compute(item_ids=[self.status_item.id])  # normally 1000
+        self.assertEqual(r['total_before_reduction'], Decimal('700.00'))
+        self.assertEqual(r['total_after_reduction'], Decimal('700.00'))
 
-    def test_period_reduction_outside_range_is_zero(self):
-        ReductionPeriod.objects.create(
-            event=self.event, start_date=self.today + timedelta(days=5),
-            end_date=self.today + timedelta(days=10), discount_percent=Decimal('10'),
+    def test_period_pricing_outside_range_uses_normal_price(self):
+        period = ReductionPeriod.objects.create(
+            event=self.event, start_date=self.today + timedelta(days=5), end_date=self.today + timedelta(days=10),
         )
         self.config.reduction_by_period_enabled = True
         self.config.save()
+        BlocItemStatusRule.objects.create(
+            period=period, target_kind='item', target_item=self.status_item, override_price=Decimal('700'),
+        )
         r = self._compute(item_ids=[self.status_item.id])
-        self.assertEqual(r['period_discount_percent'], Decimal('0.00'))
-        self.assertEqual(r['total_after_reduction'], Decimal('1000.00'))
+        self.assertEqual(r['total_before_reduction'], Decimal('1000.00'))
 
     def test_blocs_reduction_by_count(self):
         self.config.reduction_by_blocs_enabled = True
@@ -380,19 +386,22 @@ class BlocsComputeOrderTests(TestCase):
         self.assertEqual(r['blocs_discount_percent'], Decimal('20.00'))
         self.assertEqual(r['total_after_reduction'], Decimal('1200.00'))
 
-    def test_reductions_are_additive(self):
-        ReductionPeriod.objects.create(
-            event=self.event, start_date=self.today - timedelta(days=1),
-            end_date=self.today + timedelta(days=1), discount_percent=Decimal('10'),
+    def test_period_price_and_blocs_reduction_are_additive(self):
+        period = ReductionPeriod.objects.create(
+            event=self.event, start_date=self.today - timedelta(days=1), end_date=self.today + timedelta(days=1),
         )
         self.config.reduction_by_period_enabled = True
         self.config.reduction_by_blocs_enabled = True
         self.config.reduction_2_blocs = Decimal('20')
         self.config.save()
-        r = self._compute(item_ids=[self.status_item.id, self.resto_item.id])  # 1500, 2 blocs
-        # 10% + 20% = 30% additive
-        self.assertEqual(r['total_discount_percent'], Decimal('30.00'))
-        self.assertEqual(r['total_after_reduction'], Decimal('1050.00'))
+        BlocItemStatusRule.objects.create(
+            period=period, target_kind='item', target_item=self.status_item, override_price=Decimal('700'),
+        )
+        r = self._compute(item_ids=[self.status_item.id, self.resto_item.id])  # 700 + 500 = 1200, 2 blocs
+        self.assertEqual(r['total_before_reduction'], Decimal('1200.00'))
+        self.assertEqual(r['blocs_discount_percent'], Decimal('20.00'))
+        # 1200 - 20% = 960
+        self.assertEqual(r['total_after_reduction'], Decimal('960.00'))
 
     def test_item_from_hidden_bloc_is_ignored(self):
         self.config.show_social_event = False
@@ -670,21 +679,40 @@ class BlocItemStatusRuleComputeOrderTests(TestCase):
         result = self._compute(self.status_b.id, [self.dinner.id])
         self.assertEqual(result['total_before_reduction'], Decimal('1000.00'))
 
-    def test_price_override_applies_and_stacks_with_period_reduction(self):
-        self.config.reduction_by_period_enabled = True
+    def test_price_override_applies_and_stacks_with_blocs_reduction(self):
+        self.config.reduction_by_blocs_enabled = True
+        self.config.reduction_2_blocs = Decimal('10')
         self.config.save()
-        self.event.reduction_periods.create(
-            start_date=timezone.now().date(), end_date=timezone.now().date() + timedelta(days=1),
-            discount_percent=Decimal('10'),
-        )
         BlocItemStatusRule.objects.create(
             status_item=self.status_b, target_kind='item', target_item=self.dinner, override_price=Decimal('500'),
         )
         result = self._compute(self.status_b.id, [self.dinner.id])
         self.assertEqual(result['total_before_reduction'], Decimal('500.00'))
-        self.assertEqual(result['period_discount_percent'], Decimal('10.00'))
+        self.assertEqual(result['blocs_discount_percent'], Decimal('10.00'))
         # 500 - 10% = 450
         self.assertEqual(result['total_after_reduction'], Decimal('450.00'))
+
+    def test_period_price_takes_precedence_and_status_layers_per_period(self):
+        # "period price is the base; status overrides must be set per
+        # period" -- a rule scoped to (status, period) beats a status-only
+        # rule that applies across all periods.
+        period = ReductionPeriod.objects.create(
+            event=self.event, start_date=timezone.now().date() - timedelta(days=1),
+            end_date=timezone.now().date() + timedelta(days=1),
+        )
+        self.config.reduction_by_period_enabled = True
+        self.config.save()
+        # Status-only rule (any period): Dinner costs 800 for Adherent.
+        BlocItemStatusRule.objects.create(
+            status_item=self.status_b, target_kind='item', target_item=self.dinner, override_price=Decimal('800'),
+        )
+        # More specific: during THIS period, Adherent's Dinner costs 300 instead.
+        BlocItemStatusRule.objects.create(
+            status_item=self.status_b, period=period, target_kind='item', target_item=self.dinner,
+            override_price=Decimal('300'),
+        )
+        result = self._compute(self.status_b.id, [self.dinner.id])
+        self.assertEqual(result['total_before_reduction'], Decimal('300.00'))
 
 
 class BlocStatusRulesAdminTests(TestCase):
@@ -708,10 +736,10 @@ class BlocStatusRulesAdminTests(TestCase):
     def test_save_hides_item_and_sets_price(self):
         self.client.force_login(self.admin)
         self.client.post(reverse('dashboard:bloc_status_rules_save', args=[self.event.id]), {
-            f'price_{self.status_a.id}_item_{self.dinner.id}': '750',
+            f'price_{self.status_a.id}_any_item_{self.dinner.id}': '750',
             # visible checkbox omitted -> hidden
         })
-        rule = BlocItemStatusRule.objects.get(status_item=self.status_a, target_item=self.dinner)
+        rule = BlocItemStatusRule.objects.get(status_item=self.status_a, period__isnull=True, target_item=self.dinner)
         self.assertFalse(rule.is_visible)
         self.assertEqual(rule.override_price, Decimal('750.00'))
 
@@ -721,8 +749,37 @@ class BlocStatusRulesAdminTests(TestCase):
         )
         self.client.force_login(self.admin)
         self.client.post(reverse('dashboard:bloc_status_rules_save', args=[self.event.id]), {
-            f'visible_{self.status_a.id}_item_{self.dinner.id}': 'on',
+            f'visible_{self.status_a.id}_any_item_{self.dinner.id}': 'on',
         })
         self.assertFalse(
             BlocItemStatusRule.objects.filter(status_item=self.status_a, target_item=self.dinner).exists()
         )
+
+    def test_save_period_pricing_matrix(self):
+        period = self.event.reduction_periods.create(
+            name='Early bird', start_date=timezone.now().date(), end_date=timezone.now().date() + timedelta(days=1),
+        )
+        config = self.event.bloc_config
+        config.reduction_by_period_enabled = True
+        config.save()
+
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('dashboard:blocs_config', args=[self.event.id]))
+        self.assertContains(response, 'Period pricing')
+        self.assertContains(response, 'Any status')
+
+        self.client.post(reverse('dashboard:bloc_status_rules_save', args=[self.event.id]), {
+            f'visible_any_{period.id}_item_{self.status_a.id}': 'on',
+            f'price_any_{period.id}_item_{self.status_a.id}': '2000',
+            f'visible_any_{period.id}_item_{self.dinner.id}': 'on',
+            f'price_any_{period.id}_item_{self.dinner.id}': '300',
+        })
+        status_rule = BlocItemStatusRule.objects.get(
+            status_item__isnull=True, period=period, target_item=self.status_a,
+        )
+        self.assertTrue(status_rule.is_visible)
+        self.assertEqual(status_rule.override_price, Decimal('2000.00'))
+        dinner_rule = BlocItemStatusRule.objects.get(
+            status_item__isnull=True, period=period, target_item=self.dinner,
+        )
+        self.assertEqual(dinner_rule.override_price, Decimal('300.00'))

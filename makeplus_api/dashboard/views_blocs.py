@@ -73,18 +73,49 @@ def blocs_config(request, event_id):
     rules_lookup = {}
     for rule in BlocItemStatusRule.objects.filter(status_item__event=event):
         target_key = f'item_{rule.target_item_id}' if rule.target_kind == 'item' else f'session_{rule.target_session_id}'
-        rules_lookup[(rule.status_item_id, target_key)] = rule
+        rules_lookup[(rule.status_item_id, rule.period_id, target_key)] = rule
 
     for row in target_rows:
         row['cells'] = []
         for status_item in status_items:
-            rule = rules_lookup.get((status_item.id, row['target_key']))
+            rule = rules_lookup.get((status_item.id, None, row['target_key']))
             row['cells'].append({
                 'status_id': status_item.id,
                 'target_key': row['target_key'],
                 'visible': rule.is_visible if rule else True,
                 'price': rule.override_price if rule else None,
             })
+
+    # Period pricing matrices: reduction-by-period is now manual per-item
+    # prices rather than a % off the cart -- for each period, rows = every
+    # item across ALL blocs (Status included, since its own price can vary
+    # by period too) + paid sessions; columns = "Any status" (applies
+    # regardless of which Status is picked) + every Status item.
+    all_target_rows = []
+    for bloc_key, bloc_label in CUSTOM_BLOC_CHOICES:
+        for item in BlocItem.objects.filter(event=event, bloc=bloc_key, is_active=True).order_by('order', 'name'):
+            all_target_rows.append({'target_key': f'item_{item.id}', 'label': item.name, 'bloc_label': bloc_label})
+    for session in paid_sessions:
+        all_target_rows.append({'target_key': f'session_{session.id}', 'label': session.title, 'bloc_label': 'Workshops'})
+
+    period_matrices = []
+    for period in periods:
+        rows = []
+        for row_def in all_target_rows:
+            cells = []
+            for status_key, status_id in [('any', None)] + [(s.id, s.id) for s in status_items]:
+                rule = rules_lookup.get((status_id, period.id, row_def['target_key']))
+                cells.append({
+                    'status_key': status_key,
+                    'target_key': row_def['target_key'],
+                    'visible': rule.is_visible if rule else True,
+                    'price': rule.override_price if rule else None,
+                })
+            rows.append({
+                'label': row_def['label'], 'bloc_label': row_def['bloc_label'],
+                'target_key': row_def['target_key'], 'cells': cells,
+            })
+        period_matrices.append({'period': period, 'rows': rows})
 
     context = {
         'event': event,
@@ -96,6 +127,7 @@ def blocs_config(request, event_id):
         'select_mode_choices': [('single', 'Single choice (radio)'), ('multiple', 'Multiple choice (checkbox)')],
         'status_items': status_items,
         'target_rows': target_rows,
+        'period_matrices': period_matrices,
     }
     return render(request, 'dashboard/blocs/config.html', context)
 
@@ -183,51 +215,77 @@ def bloc_item_delete(request, item_id):
 @login_required
 @user_passes_test(is_staff_user)
 @require_POST
+def _save_price_rule_cell(request, status_id, period_id, target_key):
+    """
+    Read one visible_<status>_<period>_<target> / price_<status>_<period>_<target>
+    cell from POST and create/update/delete the matching BlocItemStatusRule.
+    status_id/period_id are None for the "any status"/"no period" axis.
+    A cell left at its default (visible, no price override) has its rule
+    removed entirely, rather than storing a no-op row.
+    """
+    field_suffix = f"{status_id or 'any'}_{period_id or 'any'}_{target_key}"
+    is_visible = bool(request.POST.get(f'visible_{field_suffix}'))
+    raw_price = (request.POST.get(f'price_{field_suffix}') or '').strip()
+    override_price = _parse_decimal(raw_price) if raw_price else None
+
+    target_kind = 'item' if target_key.startswith('item_') else 'session'
+    lookup = {'status_item_id': status_id, 'period_id': period_id, 'target_kind': target_kind}
+    if target_kind == 'item':
+        lookup['target_item_id'] = target_key[5:]
+    else:
+        lookup['target_session_id'] = target_key[8:]
+
+    if is_visible and override_price is None:
+        BlocItemStatusRule.objects.filter(**lookup).delete()
+        return
+    BlocItemStatusRule.objects.update_or_create(
+        **lookup, defaults={'is_visible': is_visible, 'override_price': override_price}
+    )
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_POST
 def bloc_status_rules_save(request, event_id):
     """
-    Save the whole status-dependent visibility/price matrix in one submit.
-    Expects visible_<status_id>_<target_key> (checkbox) and
-    price_<status_id>_<target_key> (optional number) for every
-    (status item, other-bloc item/session) pair on the page. A cell left
-    at its default (visible, no price override) has its rule removed
-    entirely, rather than storing a no-op row.
+    Save both pricing matrices in one submit:
+      1. Status-dependent rules (no period) -- rows are every item in
+         Restauration/Social Event/Workshops, columns are Status items.
+      2. Period pricing -- one matrix per registration period, rows are
+         every item across all blocs (Status included) + paid sessions,
+         columns are "Any status" + every Status item.
     """
     event = get_object_or_404(Event, id=event_id)
-    status_item_ids = list(
-        BlocItem.objects.filter(event=event, bloc='status', is_active=True).values_list('id', flat=True)
-    )
-    target_keys = [f'item_{i}' for i in BlocItem.objects.filter(
+    status_items = list(BlocItem.objects.filter(event=event, bloc='status', is_active=True))
+    periods = list(ReductionPeriod.objects.filter(event=event))
+
+    other_target_keys = [f'item_{i}' for i in BlocItem.objects.filter(
         event=event, is_active=True
     ).exclude(bloc='status').values_list('id', flat=True)]
-    target_keys += [f'session_{s}' for s in Session.objects.filter(
+    other_target_keys += [f'session_{s}' for s in Session.objects.filter(
         event=event, is_paid=True
     ).values_list('id', flat=True)]
 
-    for status_id in status_item_ids:
-        for target_key in target_keys:
-            field_suffix = f'{status_id}_{target_key}'
-            is_visible = bool(request.POST.get(f'visible_{field_suffix}'))
-            raw_price = (request.POST.get(f'price_{field_suffix}') or '').strip()
-            override_price = _parse_decimal(raw_price) if raw_price else None
+    all_target_keys = [f'item_{i}' for i in BlocItem.objects.filter(
+        event=event, is_active=True
+    ).values_list('id', flat=True)]
+    all_target_keys += [f'session_{s}' for s in Session.objects.filter(
+        event=event, is_paid=True
+    ).values_list('id', flat=True)]
 
-            if is_visible and override_price is None:
-                # Default state -- no rule needed.
-                BlocItemStatusRule.objects.filter(
-                    status_item_id=status_id, target_kind='item' if target_key.startswith('item_') else 'session',
-                    **({'target_item_id': target_key[5:]} if target_key.startswith('item_') else {'target_session_id': target_key[8:]})
-                ).delete()
-                continue
+    # 1. Status-dependent matrix (no period).
+    for status_item in status_items:
+        for target_key in other_target_keys:
+            _save_price_rule_cell(request, status_item.id, None, target_key)
 
-            target_kind = 'item' if target_key.startswith('item_') else 'session'
-            defaults = {'is_visible': is_visible, 'override_price': override_price}
-            lookup = {'status_item_id': status_id, 'target_kind': target_kind}
-            if target_kind == 'item':
-                lookup['target_item_id'] = target_key[5:]
-            else:
-                lookup['target_session_id'] = target_key[8:]
-            BlocItemStatusRule.objects.update_or_create(**lookup, defaults=defaults)
+    # 2. Per-period matrices (Any status + each Status item).
+    for period in periods:
+        for target_key in all_target_keys:
+            _save_price_rule_cell(request, None, period.id, target_key)
+            for status_item in status_items:
+                _save_price_rule_cell(request, status_item.id, period.id, target_key)
 
-    messages.success(request, 'Status-dependent rules saved.')
+    messages.success(request, 'Pricing rules saved.')
     return redirect('dashboard:blocs_config', event_id=event.id)
 
 
@@ -342,22 +400,13 @@ def get_public_bloc_context(event):
     if config.show_workshops:
         paid_sessions = list(Session.objects.filter(event=event, is_paid=True).order_by('start_time'))
 
-    # Period discount applicable to *today* (fixed at page load), so the cart
-    # can preview the reduced total client-side. The server still recomputes.
-    period_percent_today = 0
-    if config.reduction_by_period_enabled:
-        today = timezone.now().date()
-        period = event.reduction_periods.filter(
-            start_date__lte=today, end_date__gte=today
-        ).order_by('-discount_percent').first()
-        if period:
-            period_percent_today = float(period.discount_percent)
-
     active_bloc_keys = [b['key'] for b in custom_blocs]
     if config.show_workshops and paid_sessions:
         active_bloc_keys.append('workshops')
 
-    from .blocs_service import serialize_status_rules_for_event
+    from .blocs_service import serialize_status_rules_for_event, serialize_period_baseline_rules_for_event
+
+    today = timezone.now().date()
 
     return {
         'has_blocs': True,
@@ -365,9 +414,9 @@ def get_public_bloc_context(event):
         'custom_blocs': custom_blocs,
         'workshops_visible': config.show_workshops,
         'paid_sessions': paid_sessions,
-        'period_percent_today': period_percent_today,
         'active_bloc_keys': active_bloc_keys,
-        'status_rules_json': json.dumps(serialize_status_rules_for_event(event)),
+        'status_rules_json': json.dumps(serialize_status_rules_for_event(event, today)),
+        'period_rules_json': json.dumps(serialize_period_baseline_rules_for_event(event, today)),
     }
 
 

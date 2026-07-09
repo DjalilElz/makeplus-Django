@@ -946,7 +946,8 @@
                                        data-original-price="{{ item.price }}"
                                        data-bloc="{{ bloc.key }}"
                                        data-name="{{ item.name }}"
-                                       {% if bloc.key == 'status' %}data-is-status="true"{% else %}data-target-key="item_{{ item.id }}"{% endif %}>
+                                       data-target-key="item_{{ item.id }}"
+                                       {% if bloc.key == 'status' %}data-is-status="true"{% endif %}>
                                 <span class="product-main">
                                     <span class="product-name d-block">{{ item.name }}</span>
                                     <span class="product-tag">{{ bloc.label }}</span>
@@ -1074,28 +1075,34 @@
             {% if bloc_context.has_blocs %}
             <script>
             (function () {
-                var PERIOD_PCT = {{ bloc_context.period_percent_today|default:0 }};
                 var BLOCS_ENABLED = {% if bloc_context.config.reduction_by_blocs_enabled %}true{% else %}false{% endif %};
                 var BLOC_PCT = {2: {{ bloc_context.config.reduction_2_blocs }}, 3: {{ bloc_context.config.reduction_3_blocs }}, 4: {{ bloc_context.config.reduction_4_blocs }}};
                 var BLOC_ORDER = [{% for key in bloc_context.active_bloc_keys %}'{{ key }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
                 // Status -> {target_key: {visible, price}} -- lets picking a
                 // Status hide/show or re-price items in the other blocs live.
+                // Already resolved against today's active period server-side.
                 var STATUS_RULES = {{ bloc_context.status_rules_json|safe }};
+                // target_key -> {visible, price} -- today's active period's
+                // manual prices, applying to every item (including Status
+                // items themselves) regardless of which Status is picked.
+                var PERIOD_RULES = {{ bloc_context.period_rules_json|safe }};
 
                 function fmt(n) { return n.toFixed(2) + ' DZD'; }
                 function fmtPrice(n) { return n <= 0 ? 'Free' : fmt(n); }
 
-                // Apply the rules for whichever Status is currently picked (if any)
-                // to every other-bloc item: hide it, or swap in its overridden
-                // price -- mutating data-price so recalc()'s existing subtotal
-                // math picks up the effective price with no further changes.
-                function applyStatusRules() {
+                // Apply today's period pricing (baseline, applies to everything)
+                // and then whichever Status is currently picked (if any, takes
+                // precedence over the period baseline for its own targets) to
+                // every item: hide it, or swap in its effective price --
+                // mutating data-price so recalc()'s existing subtotal math
+                // picks up the effective price with no further changes.
+                function applyPricingRules() {
                     var statusEl = document.querySelector('.bloc-choice[data-is-status="true"]:checked');
-                    var rules = (statusEl && STATUS_RULES[statusEl.value]) || {};
+                    var statusRules = (statusEl && STATUS_RULES[statusEl.value]) || {};
 
                     document.querySelectorAll('.bloc-choice[data-target-key]').forEach(function (el) {
                         var targetKey = el.getAttribute('data-target-key');
-                        var rule = rules[targetKey];
+                        var rule = statusRules[targetKey] || PERIOD_RULES[targetKey];
                         var card = document.getElementById('product_' + targetKey);
                         var visible = !rule || rule.visible;
                         var price = (rule && rule.price !== null && rule.price !== undefined)
@@ -1136,9 +1143,7 @@
                         }
                     });
                     var distinct = Object.keys(blocs).length;
-                    var periodPct = PERIOD_PCT || 0;
-                    var blocsPct = (BLOCS_ENABLED && subtotal > 0) ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
-                    var totalPct = periodPct + blocsPct;
+                    var totalPct = (BLOCS_ENABLED && subtotal > 0) ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
                     if (totalPct > 100) totalPct = 100;
                     if (subtotal <= 0) totalPct = 0;
                     var discountAmt = subtotal * totalPct / 100.0;
@@ -1215,16 +1220,16 @@
                     }
 
                     var submitBtn = document.getElementById('submit-btn');
-                    if (submitBtn) submitBtn.disabled = subtotal <= 0;
+                    if (submitBtn) submitBtn.disabled = lines.length === 0;
                 }
 
                 document.querySelectorAll('.bloc-choice').forEach(function (el) {
                     el.addEventListener('change', function () {
-                        applyStatusRules();
+                        applyPricingRules();
                         recalc();
                     });
                 });
-                applyStatusRules();
+                applyPricingRules();
                 recalc();
             })();
             </script>
