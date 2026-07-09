@@ -373,32 +373,25 @@
             <div class="col-md-5">
                 <div class="transaction-panel">
                     <div id="participantDetails" style="display: none;">
-                        <h5 class="mb-3">
-                            <i class="bi bi-receipt"></i> Process Transaction
+                        <h5 class="mb-2 d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-receipt"></i> Process Transaction</span>
+                            <span class="text-muted fs-6 fw-normal" id="participantNameInline"></span>
                         </h5>
-                        <div class="alert alert-info mb-3">
-                            <div class="mb-2">
-                                <strong><i class="bi bi-person"></i> Name:</strong> <span id="participantName"></span>
-                            </div>
-                            <div class="mb-2">
-                                <strong><i class="bi bi-envelope"></i> Email:</strong> <span id="participantEmail"></span>
-                            </div>
-                            <div>
-                                <strong><i class="bi bi-qr-code"></i> QR Code:</strong> <span id="participantQR"></span>
-                            </div>
-                        </div>
+                        <!-- Name/Email/QR Code are already shown on the selected participant card
+                             on the left -- keeping them out of this panel too leaves more room
+                             for the item list, which is the part actually used per transaction. -->
 
-                        <div id="reservedSummary" class="alert alert-primary mb-3" style="display: none;">
+                        <div id="reservedSummary" class="alert alert-primary mb-3 py-2" style="display: none;">
                             <div id="reservedSummaryText"></div>
                             <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="rejectReservationBtn" onclick="rejectReservation()">
                                 <i class="bi bi-x-circle"></i> Reject Reservation (invalid payment proof)
                             </button>
                         </div>
 
-                        <h6 class="mb-3">
+                        <h6 class="mb-2">
                             <i class="bi bi-cart-check"></i> Select Items:
                         </h6>
-                        <div id="payableItems" style="max-height: 300px; overflow-y: auto;">
+                        <div id="payableItems" style="max-height: 520px; overflow-y: auto;">
                             {% for item_data in payable_items_with_capacity %}
                             {% with item=item_data.item %}
                             <div class="item-checkbox item-{{ item.id }}" data-item-id="{{ item.id }}" {% if item_data.is_full %}data-is-full="true"{% endif %}>
@@ -474,12 +467,16 @@
                         </div>
 
                         <div class="bg-light p-3 rounded mb-3 mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2" id="alreadyPaidRow" style="display: none;">
+                                <span class="text-muted"><i class="bi bi-check-circle"></i> Already paid (not charged again):</span>
+                                <span id="alreadyPaidAmount" class="text-muted">0.00 DZD</span>
+                            </div>
                             <div class="d-flex justify-content-between align-items-center">
-                                <strong>Total Amount:</strong> 
+                                <strong>New charge (this transaction):</strong>
                                 <span id="totalAmount" class="fs-4" style="color: #10b981; font-weight: 700;">0.00 DZD</span>
                             </div>
                         </div>
-                        
+
                         <div class="mb-3">
                             <label for="notes" class="form-label">
                                 <i class="bi bi-pencil-square"></i> Notes (Optional)
@@ -771,9 +768,7 @@
         function selectParticipant(element) {
             const id = element.getAttribute('data-id');
             const name = element.getAttribute('data-name');
-            const email = element.getAttribute('data-email');
-            const qr = element.getAttribute('data-qr');
-            
+
             // Highlight selected participant
             document.querySelectorAll('.participant-item').forEach(function(item) {
                 item.style.borderColor = '#e5e7eb';
@@ -783,9 +778,7 @@
             element.style.background = '#ede9fe';
             
             selectedParticipantId = id;
-            document.getElementById('participantName').textContent = name;
-            document.getElementById('participantEmail').textContent = email;
-            document.getElementById('participantQR').textContent = qr;
+            document.getElementById('participantNameInline').textContent = name;
             document.getElementById('participantDetails').style.display = 'block';
             document.getElementById('noParticipantSelected').style.display = 'none';
             
@@ -951,24 +944,38 @@
             // (already paid, post-discount) amount, not a raw price sum --
             // keeps this preview coherent with what process_transaction bills.
             const covered = new Set();
-            let total = 0;
+            let newCharge = 0;
             const orders = participantReservedSummaryData[selectedParticipantId] || [];
             orders.forEach(function(order) {
                 const payableIds = order.payable_ids || [];
                 if (payableIds.length > 0 && payableIds.every(id => checkedIds.has(id))) {
-                    total += parseFloat(order.total_after);
+                    newCharge += parseFloat(order.total_after);
                     payableIds.forEach(id => covered.add(id));
                 }
             });
 
+            // Already-paid items (checked+disabled) are shown separately --
+            // they're informational only, not part of what this transaction
+            // will actually charge, so they no longer inflate the total.
+            let alreadyPaid = 0;
             document.querySelectorAll('#payableItems input[type="checkbox"]:checked').forEach(checkbox => {
                 const id = parseInt(checkbox.value, 10);
-                if (!covered.has(id)) {
-                    total += parseFloat(checkbox.getAttribute('data-price'));
+                if (covered.has(id)) return;
+                if (checkbox.disabled) {
+                    alreadyPaid += parseFloat(checkbox.getAttribute('data-price'));
+                } else {
+                    newCharge += parseFloat(checkbox.getAttribute('data-price'));
                 }
             });
 
-            document.getElementById('totalAmount').textContent = total.toFixed(2) + ' DZD';
+            document.getElementById('totalAmount').textContent = newCharge.toFixed(2) + ' DZD';
+            const alreadyPaidRow = document.getElementById('alreadyPaidRow');
+            if (alreadyPaid > 0) {
+                document.getElementById('alreadyPaidAmount').textContent = alreadyPaid.toFixed(2) + ' DZD';
+                alreadyPaidRow.style.display = 'flex';
+            } else {
+                alreadyPaidRow.style.display = 'none';
+            }
         }
         
         // Process transaction
