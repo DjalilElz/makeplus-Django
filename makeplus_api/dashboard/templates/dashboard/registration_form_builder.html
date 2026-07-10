@@ -287,6 +287,20 @@ let requiredFields = [
 
                 formFields = customFields;
                 fieldCounter = formFields.length;
+
+                // Pull the 3 fixed fields' saved label/placeholder back
+                // into requiredFields (which otherwise always starts from
+                // hardcoded English defaults). Without this, any
+                // customization made to them -- or even just their saved
+                // order -- was invisible on the next edit, and saving
+                // again from there would silently overwrite the real
+                // saved values with the defaults.
+                requiredFields = requiredFields.map(defaultField => {
+                    const saved = fieldsData.find(f => f.name === defaultField.name);
+                    return saved ? { ...defaultField, ...saved } : defaultField;
+                });
+                const savedOrder = fieldsData.map(f => f.name);
+                requiredFields.sort((a, b) => savedOrder.indexOf(a.name) - savedOrder.indexOf(b.name));
             }
         }
     } catch(e) {
