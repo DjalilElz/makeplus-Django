@@ -154,7 +154,7 @@ def login_view(request):
                     return redirect('dashboard:my_final_communications_home')
                 # Redirect event owners directly to their event's submissions
                 if is_event_owner and not user.is_staff:
-                    return redirect('dashboard:event_owner_submissions')
+                    return redirect('dashboard:event_owner_submissions_home')
                 return redirect('dashboard:home')
             else:
                 messages.error(request, 'You do not have permission to access the dashboard.')
