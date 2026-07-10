@@ -242,6 +242,14 @@ class RegistrationOrder(models.Model):
         'events.Participant', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='registration_orders'
     )
+    # Whichever ReductionPeriod was active on the day this order was placed
+    # (if period pricing is enabled for the event) -- a snapshot, not a
+    # live lookup, so it stays accurate even if periods are edited later.
+    period = models.ForeignKey(
+        ReductionPeriod, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='registration_orders',
+        help_text='Reduction period active when this order was placed (snapshot).',
+    )
 
     # Contact snapshot (for admin listing / search without joining the submission)
     full_name = models.CharField(max_length=255, blank=True)

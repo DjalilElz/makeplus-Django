@@ -183,6 +183,7 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
         'blocs_discount_percent': _q(blocs_percent),
         'total_discount_percent': _q(total_percent),
         'total_after_reduction': total_after,
+        'active_period_id': active_period.id if active_period else None,
     }
 
 

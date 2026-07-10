@@ -664,6 +664,7 @@ def finalize_paid_registration(verification, form_config, user):
         event=event,
         form_submission=submission,
         participant=participant,
+        period_id=result['active_period_id'],
         full_name=meta.get('full_name', ''),
         email=verification.email or '',
         items_snapshot=result['snapshot'],

@@ -11,6 +11,7 @@ from . import views_eposter_management
 from . import views_eposter_final
 from . import views_final_communications
 from . import views_blocs
+from . import views_event_owner
 
 app_name = 'dashboard'
 
@@ -165,6 +166,10 @@ urlpatterns = [
     path('my-final-communications/', views_final_communications.my_final_communications_home, name='my_final_communications_home'),
     path('events/<uuid:event_id>/final-communications/', views_final_communications.final_communications, name='final_communications'),
     path('final-communications/<uuid:submission_id>/download/', views_final_communications.download_final_communication, name='download_final_communication'),
+
+    # Registration submissions (staff + event owners, read-only)
+    path('my-submissions/', views_event_owner.event_owner_submissions_home, name='event_owner_submissions_home'),
+    path('events/<uuid:event_id>/my-submissions/', views_event_owner.event_owner_submissions, name='event_owner_submissions'),
 
     # Registration Blocs / Paid Registration (admin config + orders)
     path('events/<uuid:event_id>/blocs/', views_blocs.blocs_config, name='blocs_config'),

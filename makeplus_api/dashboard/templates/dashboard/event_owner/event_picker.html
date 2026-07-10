@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mes événements</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --banner-1: #2D1B6B;
+            --banner-2: #46309a;
+            --banner-3: #3a2480;
+            --steel-blue: #7BA7BC;
+            --dusty-rose: #E8B9B9;
+            --cream: #FAF6F0;
+            --border-light: #E7E2DC;
+            --font-serif: 'Playfair Display', serif;
+            --font-sans: 'Inter', sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: var(--cream);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            color: #2c2c2c;
+        }
+        .elegant-banner {
+            background: linear-gradient(135deg, var(--banner-1) 0%, var(--banner-2) 55%, var(--banner-3) 100%);
+            color: #fff;
+            padding: 36px 20px 44px;
+            position: relative;
+            overflow: hidden;
+        }
+        .elegant-banner::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            right: -12%;
+            width: 380px;
+            height: 380px;
+            background: var(--steel-blue);
+            opacity: 0.28;
+            border-radius: 50%;
+            filter: blur(60px);
+        }
+        .banner-content { position: relative; z-index: 2; max-width: 900px; margin: 0 auto; }
+        .banner-eyebrow {
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--dusty-rose);
+            margin-bottom: 8px;
+        }
+        .page-title { font-family: var(--font-serif); font-size: 1.9rem; font-weight: 700; }
+        .page-wrapper { max-width: 900px; margin: -20px auto 0; padding: 0 20px 60px; position: relative; z-index: 3; }
+        .event-card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.07);
+            padding: 20px 24px;
+            margin-bottom: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .event-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 34px rgba(0,0,0,0.1);
+            color: inherit;
+        }
+        .event-card h5 { font-family: var(--font-serif); margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+    <div class="elegant-banner">
+        <div class="banner-content">
+            <div class="banner-eyebrow">Espace organisateur</div>
+            <h1 class="page-title">Mes événements</h1>
+        </div>
+    </div>
+
+    <div class="page-wrapper">
+        {% for event in events %}
+        <a class="event-card" href="{% url 'dashboard:event_owner_submissions' event.id %}">
+            <div>
+                <h5>{{ event.name }}</h5>
+                <small class="text-muted">{{ event.start_date|date:"d M Y" }} — {{ event.end_date|date:"d M Y" }}</small>
+            </div>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+        {% empty %}
+        <p class="text-muted text-center py-5">Aucun événement associé à votre compte.</p>
+        {% endfor %}
+    </div>
+</body>
+</html>

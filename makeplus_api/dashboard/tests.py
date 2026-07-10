@@ -931,3 +931,75 @@ class BlocStatusRulesAdminTests(TestCase):
             status_item__isnull=True, period=period, target_item=self.dinner,
         )
         self.assertEqual(dinner_rule.override_price, Decimal('300.00'))
+
+
+class EventOwnerSubmissionsTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin', password='x', is_staff=True)
+        self.owner = User.objects.create_user(username='owner', email='owner@example.com', password='x')
+        self.stranger = User.objects.create_user(username='stranger', password='x')
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        self.other_event = Event.objects.create(
+            name="Other Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Oran",
+        )
+        UserEventAssignment.objects.create(
+            user=self.owner, event=self.event, role='event_owner', is_active=True,
+        )
+        status_item = BlocItem.objects.create(event=self.event, bloc='status', name='Membre', price=Decimal('0'))
+        receipt = _Upload('receipt.pdf', b'%PDF-1.4 fake', content_type='application/pdf')
+        self.order = RegistrationOrder.objects.create(
+            event=self.event, full_name='Karim B', email='k@example.com',
+            items_snapshot=[
+                {'bloc': 'status', 'type': 'item', 'id': status_item.id, 'name': 'Membre', 'price': '0'},
+                {'bloc': 'restauration', 'type': 'item', 'id': 99, 'name': 'Dinner', 'price': '800'},
+            ],
+            total_before_reduction=Decimal('800'), total_after_reduction=Decimal('800'),
+            receipt_file=receipt,
+        )
+
+    def test_owner_sees_only_their_own_event(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.event.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Karim B')
+        self.assertContains(response, 'Membre')
+        self.assertContains(response, 'Dinner')
+
+    def test_owner_cannot_view_a_different_event(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.other_event.id]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_stranger_without_assignment_is_forbidden(self):
+        self.client.force_login(self.stranger)
+        response = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.event.id]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_view_any_event(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.event.id]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_home_redirects_straight_to_the_only_owned_event(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('dashboard:event_owner_submissions_home'))
+        self.assertRedirects(response, reverse('dashboard:event_owner_submissions', args=[self.event.id]))
+
+    def test_home_shows_picker_for_multiple_events(self):
+        UserEventAssignment.objects.create(
+            user=self.owner, event=self.other_event, role='event_owner', is_active=True,
+        )
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('dashboard:event_owner_submissions_home'))
+        self.assertContains(response, self.event.name)
+        self.assertContains(response, self.other_event.name)
+
+    def test_login_allows_event_owner_and_redirects_to_submissions(self):
+        response = self.client.post(reverse('dashboard:login'), {
+            'email': 'owner@example.com', 'password': 'x',
+        })
+        self.assertRedirects(response, reverse('dashboard:event_owner_submissions_home'))

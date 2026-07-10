@@ -126,18 +126,24 @@ def login_view(request):
         
         if user is not None:
             print(f"  User is_staff: {user.is_staff}, is_superuser: {user.is_superuser}")
-            # Allow staff, superusers, committee members, and room managers (gestionnaire des salles)
+            # Allow staff, superusers, committee members, room managers
+            # (gestionnaire des salles), and event owners
             is_committee = EPosterCommitteeMember.objects.filter(user=user, is_active=True).exists()
             is_room_manager = UserEventAssignment.objects.filter(
                 user=user, role='gestionnaire_des_salles', is_active=True
             ).exists()
-            if user.is_staff or user.is_superuser or is_committee or is_room_manager:
+            is_event_owner = UserEventAssignment.objects.filter(
+                user=user, role='event_owner', is_active=True
+            ).exists()
+            if user.is_staff or user.is_superuser or is_committee or is_room_manager or is_event_owner:
                 login(request, user)
                 welcome_msg = f'Welcome back, {user.get_full_name() or user.email}!'
                 if is_committee and not user.is_staff:
                     welcome_msg += ' (Committee Member)'
                 elif is_room_manager and not user.is_staff:
                     welcome_msg += ' (Room Manager)'
+                elif is_event_owner and not user.is_staff:
+                    welcome_msg += ' (Event Owner)'
                 messages.success(request, welcome_msg)
 
                 # Redirect committee members directly to ePoster management
@@ -146,6 +152,9 @@ def login_view(request):
                 # Redirect room managers directly to their final communications page
                 if is_room_manager and not user.is_staff:
                     return redirect('dashboard:my_final_communications_home')
+                # Redirect event owners directly to their event's submissions
+                if is_event_owner and not user.is_staff:
+                    return redirect('dashboard:event_owner_submissions')
                 return redirect('dashboard:home')
             else:
                 messages.error(request, 'You do not have permission to access the dashboard.')
