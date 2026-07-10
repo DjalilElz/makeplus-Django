@@ -8,7 +8,7 @@
     <div class="row mb-4">
         <div class="col-12">
             <h2><i class="bi bi-ui-checks me-2"></i>{% if form %}Edit {{ form.name }}{% else %}Create New Registration Form{% endif %}</h2>
-            <p class="text-muted">Build a custom registration form with drag-and-drop fields</p>
+            <p class="text-muted">Build a custom registration form with reorderable fields</p>
         </div>
     </div>
 
@@ -185,17 +185,12 @@
     border-radius: 8px;
     padding: 15px;
     margin-bottom: 15px;
-    cursor: move;
     transition: all 0.2s;
 }
 
 .field-item:hover {
     border-color: #0d6efd;
     box-shadow: 0 2px 8px rgba(13,110,253,0.2);
-}
-
-.field-item.dragging {
-    opacity: 0.5;
 }
 
 .field-header {
@@ -208,12 +203,6 @@
 .field-type-badge {
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
-}
-
-.drag-handle {
-    cursor: move;
-    color: #6c757d;
-    font-size: 1.2rem;
 }
 
 #previewContainer {
@@ -246,11 +235,11 @@ let fieldCounter = 0;
 let formFields = [];
 let requiredFields = [
     {
-        name: 'email',
-        label: 'Email Address',
-        type: 'email',
+        name: 'last_name',
+        label: 'Last Name',
+        type: 'text',
         required: true,
-        placeholder: 'Enter your email address',
+        placeholder: 'Enter your last name',
         isSystemField: true
     },
     {
@@ -262,11 +251,11 @@ let requiredFields = [
         isSystemField: true
     },
     {
-        name: 'last_name',
-        label: 'Last Name',
-        type: 'text',
+        name: 'email',
+        label: 'Email Address',
+        type: 'email',
         required: true,
-        placeholder: 'Enter your last name',
+        placeholder: 'Enter your email address',
         isSystemField: true
     }
 ];
@@ -438,13 +427,22 @@ function renderField(field, index) {
         <div class="field-item" data-index="${index}">
             <div class="field-header">
                 <div>
-                    <i class="bi bi-grip-vertical drag-handle me-2"></i>
                     <strong>${field.label}</strong>
                     <span class="badge bg-secondary field-type-badge ms-2">${field.type}</span>
                 </div>
-                <button type="button" class="btn btn-sm btn-danger" onclick="removeField(${index})">
-                    <i class="bi bi-trash"></i>
-                </button>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Move up"
+                            onclick="moveField(${index}, -1)" ${index === 0 ? 'disabled' : ''}>
+                        <i class="bi bi-arrow-up"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Move down"
+                            onclick="moveField(${index}, 1)" ${index === formFields.length - 1 ? 'disabled' : ''}>
+                        <i class="bi bi-arrow-down"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removeField(${index})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             </div>
             
             <div class="row g-2">
@@ -554,17 +552,35 @@ function updateFieldOptions(index, value) {
 function removeField(index) {
     if (confirm('Remove this field?')) {
         formFields.splice(index, 1);
-        
+
         // Re-render all fields
         const container = document.getElementById('fieldsContainer');
         container.innerHTML = '';
         formFields.forEach((field, idx) => {
             renderField(field, idx);
         });
-        
+
         toggleNoFieldsMessage();
         updatePreview();
     }
+}
+
+// Move a field earlier (-1) or later (+1) in the saved order
+function moveField(index, direction) {
+    const target = index + direction;
+    if (target < 0 || target >= formFields.length) return;
+
+    const tmp = formFields[index];
+    formFields[index] = formFields[target];
+    formFields[target] = tmp;
+
+    const container = document.getElementById('fieldsContainer');
+    container.innerHTML = '';
+    formFields.forEach((field, idx) => {
+        renderField(field, idx);
+    });
+
+    updatePreview();
 }
 
 // Toggle no fields message

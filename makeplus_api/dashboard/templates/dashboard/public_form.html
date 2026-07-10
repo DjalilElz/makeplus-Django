@@ -104,6 +104,12 @@
             font-style: italic;
             color: var(--dusty-rose);
         }
+        /* Emphasize a leading number (e.g. "1er Congrès...") -- applies
+           automatically to any event title starting with a digit. */
+        .event-title::first-letter {
+            font-size: 1.4em;
+            font-weight: 800;
+        }
         .logo-title-row {
             display: flex;
             align-items: center;
@@ -478,6 +484,19 @@
             color: #fff;
             font-weight: 600;
         }
+        /* The period actually running today, regardless of which one is
+           being previewed (.active) -- always visible so it stands out. */
+        .period-btn.is-current-period {
+            border-color: #dc3545;
+            border-width: 2px;
+            color: #dc3545;
+            font-weight: 700;
+        }
+        .period-btn.is-current-period.active {
+            background: #dc3545;
+            border-color: #dc3545;
+            color: #fff;
+        }
         .period-preview-note {
             text-align: center;
             font-size: 0.8rem;
@@ -677,7 +696,7 @@
     <div class="period-switcher-wrap">
         <div class="period-switcher" id="period-switcher">
             {% for p in bloc_context.periods %}
-            <button type="button" class="period-btn{% if p.id|stringformat:'s' == bloc_context.current_period_id %} active{% endif %}"
+            <button type="button" class="period-btn{% if p.id|stringformat:'s' == bloc_context.current_period_id %} active is-current-period{% endif %}"
                     data-period-id="{{ p.id }}">
                 {{ p.name|default:"Période" }} ({{ p.start_date|date:"M j" }} – {{ p.end_date|date:"M j" }})
             </button>
@@ -1014,7 +1033,9 @@
                                     {% if item.description %}
                                     <span class="product-description d-block">{{ item.description }}</span>
                                     {% endif %}
+                                    {% if bloc.key != 'status' %}
                                     <span class="product-tag">{{ bloc.label }}</span>
+                                    {% endif %}
                                 </span>
                                 <span class="product-price">
                                     <span class="price-pill">
@@ -1035,7 +1056,7 @@
                         <div class="bloc-section">
                             <div class="bloc-header">
                                 <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs|length|add:1 }}</span>
-                                <span class="bloc-title">Ateliers</span>
+                                <span class="bloc-title">Ateliers / Workshops</span>
                             </div>
                             <p class="bloc-note">Choix multiple — sélectionnez autant d'ateliers que vous le souhaitez.</p>
                             {% for s in bloc_context.paid_sessions %}
