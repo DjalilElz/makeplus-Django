@@ -179,5 +179,6 @@ urlpatterns = [
     path('events/<uuid:event_id>/blocs/status-rules/save/', views_blocs.bloc_status_rules_save, name='bloc_status_rules_save'),
     path('events/<uuid:event_id>/blocs/periods/save/', views_blocs.reduction_period_save, name='reduction_period_save'),
     path('blocs/periods/<int:period_id>/delete/', views_blocs.reduction_period_delete, name='reduction_period_delete'),
+    path('events/<uuid:event_id>/blocs/workshops/order/save/', views_blocs.workshop_order_save, name='workshop_order_save'),
     path('events/<uuid:event_id>/blocs/orders/', views_blocs.registration_orders, name='registration_orders'),
 ]

@@ -420,6 +420,11 @@ class Session(models.Model):
         help_text="Uncheck to temporarily hide this session from the public registration form "
                    "(e.g. speaker not confirmed yet) without deleting it. Admin views are unaffected.",
     )
+    order = models.IntegerField(
+        default=0,
+        help_text="Controls display order in the Workshops bloc on the public registration form only "
+                   "(the schedule/agenda still sorts by start time). Lower shows first.",
+    )
     
     # Live streaming
     youtube_live_url = models.URLField(blank=True, help_text="YouTube live stream URL")

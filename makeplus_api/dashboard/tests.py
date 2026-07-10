@@ -759,6 +759,36 @@ class BlocsAdminTests(TestCase):
         # Editing must not create a second row.
         self.assertEqual(ReductionPeriod.objects.filter(event=self.event).count(), 1)
 
+    def test_workshop_order_save_and_public_page_respects_it(self):
+        room = Room.objects.create(event=self.event, name='R1', capacity=50, location='Hall')
+        session_a = Session.objects.create(
+            event=self.event, room=room, title='Workshop A',
+            start_time=timezone.now(), end_time=timezone.now() + timedelta(hours=1),
+            is_paid=True, price=Decimal('300'),
+        )
+        session_b = Session.objects.create(
+            event=self.event, room=room, title='Workshop B',
+            start_time=timezone.now() + timedelta(hours=2), end_time=timezone.now() + timedelta(hours=3),
+            is_paid=True, price=Decimal('300'),
+        )
+
+        self.client.force_login(self.admin)
+        self.client.post(reverse('dashboard:workshop_order_save', args=[self.event.id]), {
+            f'order_{session_a.id}': '2',
+            f'order_{session_b.id}': '1',
+        })
+        session_a.refresh_from_db()
+        session_b.refresh_from_db()
+        self.assertEqual(session_a.order, 2)
+        self.assertEqual(session_b.order, 1)
+
+        from .views_blocs import get_public_bloc_context
+        EventBlocConfig.objects.create(event=self.event, show_workshops=True)
+        bloc_context = get_public_bloc_context(self.event)
+        self.assertEqual(
+            [s.title for s in bloc_context['paid_sessions']], ['Workshop B', 'Workshop A'],
+        )
+
     def test_orders_list_is_read_only(self):
         # Admin can view submitted orders, but confirming/rejecting them now
         # only happens at the caisse (see caisse.tests) -- no admin action.

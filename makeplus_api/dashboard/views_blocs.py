@@ -52,7 +52,7 @@ def blocs_config(request, event_id):
             'items': list(BlocItem.objects.filter(event=event, bloc=bloc_key).order_by('order', 'name')),
         })
 
-    paid_sessions = Session.objects.filter(event=event, is_paid=True).order_by('start_time')
+    paid_sessions = Session.objects.filter(event=event, is_paid=True).order_by('order', 'start_time')
     periods = ReductionPeriod.objects.filter(event=event).order_by('start_date')
     pending_orders = RegistrationOrder.objects.filter(event=event, status='pending').count()
 
@@ -392,6 +392,33 @@ def reduction_period_delete(request, period_id):
 
 @login_required
 @user_passes_test(is_staff_user)
+@require_POST
+def workshop_order_save(request, event_id):
+    """
+    Set each paid session's display order in the Workshops bloc on the
+    public registration form (registration display only -- the
+    schedule/agenda still sorts by start time).
+    """
+    event = get_object_or_404(Event, id=event_id)
+
+    for session in Session.objects.filter(event=event, is_paid=True):
+        raw_order = request.POST.get(f'order_{session.id}')
+        if raw_order is None:
+            continue
+        try:
+            new_order = int(raw_order)
+        except (ValueError, TypeError):
+            continue
+        if session.order != new_order:
+            session.order = new_order
+            session.save(update_fields=['order'])
+
+    messages.success(request, 'Workshop order updated.')
+    return redirect('dashboard:blocs_config', event_id=event.id)
+
+
+@login_required
+@user_passes_test(is_staff_user)
 def registration_orders(request, event_id):
     """
     Read-only list of submitted registration orders (paid registrations).
@@ -468,7 +495,7 @@ def get_public_bloc_context(event):
     paid_sessions = []
     if config.show_workshops:
         paid_sessions = list(
-            Session.objects.filter(event=event, is_paid=True, is_active=True).order_by('start_time')
+            Session.objects.filter(event=event, is_paid=True, is_active=True).order_by('order', 'start_time')
         )
 
     # Public page section order: Status, Restauration, Ateliers/Workshops,

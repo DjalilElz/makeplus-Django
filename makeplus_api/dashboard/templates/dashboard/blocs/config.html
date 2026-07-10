@@ -299,16 +299,31 @@
     </div>
     {% endif %}
 
-    <!-- Paid sessions (workshops) reference -->
+    <!-- Paid sessions (workshops) reference + display order -->
     <div class="stat-card mb-4">
         <h6><i class="bi bi-mortarboard"></i> Workshops = paid Sessions ({{ paid_sessions.count }})</h6>
         <hr>
         {% if paid_sessions %}
-        <ul class="mb-0">
-            {% for s in paid_sessions %}
-            <li>{{ s.title }} — {{ s.price }} DZD</li>
-            {% endfor %}
-        </ul>
+        <p class="text-muted small">
+            Controls the order workshops appear in on the public registration form only -- the schedule/agenda
+            still sorts by start time. Lower shows first.
+        </p>
+        <form method="post" action="{% url 'dashboard:workshop_order_save' event.id %}">
+            {% csrf_token %}
+            <table class="table table-sm align-middle">
+                <thead><tr><th style="width:100px">Order</th><th>Workshop</th><th>Price</th></tr></thead>
+                <tbody>
+                    {% for s in paid_sessions %}
+                    <tr>
+                        <td><input type="number" name="order_{{ s.id }}" value="{{ s.order }}" class="form-control form-control-sm" style="max-width:80px"></td>
+                        <td>{{ s.title }}</td>
+                        <td>{{ s.price }} DZD</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Save workshop order</button>
+        </form>
         {% else %}
         <p class="text-muted mb-0">No paid sessions. Mark sessions as paid to populate the Workshops bloc.</p>
         {% endif %}
