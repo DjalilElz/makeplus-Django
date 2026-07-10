@@ -216,7 +216,8 @@ class SessionForm(forms.ModelForm):
         fields = [
             'title', 'description', 'session_type', 'room', 'start_time', 'end_time',
             'speaker_name', 'speaker_title', 'speaker_bio', 'speaker_photo_url',
-            'theme', 'max_participants', 'is_paid', 'price', 'youtube_live_url', 'status', 'cover_image_url'
+            'theme', 'max_participants', 'is_paid', 'price', 'youtube_live_url', 'status', 'cover_image_url',
+            'is_active',
         ]
         widgets = {
             'title': forms.TextInput(attrs={
@@ -266,6 +267,9 @@ class SessionForm(forms.ModelForm):
                 'min': '1'
             }),
             'is_paid': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            }),
+            'is_active': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
             }),
             'price': forms.NumberInput(attrs={

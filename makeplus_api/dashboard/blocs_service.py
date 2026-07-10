@@ -138,7 +138,7 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
     # --- Workshops (paid sessions) ---
     if selected_session_ids and _bloc_visible(config, 'workshops'):
         sessions = Session.objects.filter(
-            id__in=selected_session_ids, event=event, is_paid=True
+            id__in=selected_session_ids, event=event, is_paid=True, is_active=True
         )
         for session in sessions:
             rule = _resolve_rule(rules_by_target, ('session', str(session.id)))

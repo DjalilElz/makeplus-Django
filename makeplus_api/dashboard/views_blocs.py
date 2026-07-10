@@ -463,7 +463,9 @@ def get_public_bloc_context(event):
 
     paid_sessions = []
     if config.show_workshops:
-        paid_sessions = list(Session.objects.filter(event=event, is_paid=True).order_by('start_time'))
+        paid_sessions = list(
+            Session.objects.filter(event=event, is_paid=True, is_active=True).order_by('start_time')
+        )
 
     active_bloc_keys = [b['key'] for b in custom_blocs]
     if config.show_workshops and paid_sessions:

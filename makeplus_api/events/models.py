@@ -413,6 +413,11 @@ class Session(models.Model):
     is_paid = models.BooleanField(default=False, help_text="Paid atelier (participants must pay)")
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Price for paid ateliers")
     max_participants = models.IntegerField(null=True, blank=True, help_text="Maximum number of participants (leave empty for unlimited)")
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Uncheck to temporarily hide this session from the public registration form "
+                   "(e.g. speaker not confirmed yet) without deleting it. Admin views are unaffected.",
+    )
     
     # Live streaming
     youtube_live_url = models.URLField(blank=True, help_text="YouTube live stream URL")
