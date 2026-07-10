@@ -1,12 +1,20 @@
 """
-Self-heal for a prod migration-history inconsistency: caisse.0005 was
-recorded as applied before its dependency events.0018, which trips
-Django's check_consistent_history() and blocks every `migrate` call.
-Postgres-only; safe to call repeatedly (no-ops once history is consistent
-or on backends where the affected rows don't exist).
-"""
+Self-heal for prod migration-history gaps: some migrations were recorded
+as applied without their dependencies also being recorded (historical
+DB/migration-file drift), which trips Django's check_consistent_history()
+and blocks every `migrate` call before it gets a chance to run anything --
+including fixing itself.
 
-from datetime import timedelta
+This walks the full migration graph, finds every migration that's a
+(transitive) dependency of an applied migration but isn't itself recorded
+as applied, and actually runs those migrations for real via
+MigrationExecutor -- bypassing only the history-consistency guard, not
+the migrations themselves. That's safe here because this codebase's
+migrations of this kind are written defensively (check-before-ALTER), so
+replaying one that already matches the live schema is a no-op.
+
+Postgres-only. Safe to call repeatedly: no-ops once history is consistent.
+"""
 
 
 def fix_migration_history(dry_run=False, log=lambda msg: None):
@@ -16,46 +24,38 @@ def fix_migration_history(dry_run=False, log=lambda msg: None):
     if connection.vendor != 'postgresql':
         return False
 
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT applied FROM django_migrations WHERE app='caisse' AND name='0005_alter_payableitem_item_type_and_more'"
-        )
-        caisse_row = cursor.fetchone()
-        cursor.execute(
-            "SELECT applied FROM django_migrations WHERE app='events' AND name='0018_session_max_participants'"
-        )
-        events_row = cursor.fetchone()
+    from django.db.migrations.executor import MigrationExecutor
 
-        if events_row is not None:
-            log('events.0018 is already recorded as applied -- nothing to do.')
-            return False
+    executor = MigrationExecutor(connection)
+    applied = set(executor.loader.applied_migrations.keys())
 
-        if caisse_row is None:
-            log('caisse.0005 is not recorded as applied either -- history is not in the broken state; nothing to do.')
-            return False
+    missing = set()
+    stack = list(applied)
+    while stack:
+        key = stack.pop()
+        node = executor.loader.graph.node_map.get(key)
+        if not node:
+            continue
+        for parent in node.parents:
+            if parent not in applied and parent not in missing:
+                missing.add(parent)
+                stack.append(parent)
 
-        caisse_applied = caisse_row[0]
-        events_applied = caisse_applied - timedelta(seconds=1)
-        log(f'caisse.0005 applied at {caisse_applied}; will record events.0018 as applied at {events_applied}')
+    if not missing:
+        log('Migration history is consistent -- nothing to do.')
+        return False
 
-        cursor.execute(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name='events_session' AND column_name='max_participants'"
-        )
-        column_exists = cursor.fetchone() is not None
-        log(f'events_session.max_participants column exists: {column_exists}')
+    targets = list(missing)
+    plan = executor.migration_plan(targets)
 
-        if dry_run:
-            log('[DRY RUN] No changes made.')
-            return True
+    log(f'Found {len(plan)} unrecorded migration(s) that applied migrations depend on:')
+    for migration, _backwards in plan:
+        log(f'  - {migration.app_label}.{migration.name}')
 
-        if not column_exists:
-            cursor.execute('ALTER TABLE events_session ADD COLUMN max_participants INTEGER NULL')
-            log('Added events_session.max_participants column.')
-
-        cursor.execute(
-            "INSERT INTO django_migrations (app, name, applied) VALUES (%s, %s, %s)",
-            ['events', '0018_session_max_participants', events_applied],
-        )
-        log('Recorded events.0018 as applied. Migration history is now consistent.')
+    if dry_run:
+        log('[DRY RUN] No changes made.')
         return True
+
+    executor.migrate(targets, plan=plan)
+    log('Applied the missing migrations. Migration history is now consistent.')
+    return True
