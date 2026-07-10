@@ -896,19 +896,17 @@ def registration_form_edit(request, form_id):
             return redirect('dashboard:registration_form_edit', form_id=form.id)
         
         form.success_message = request.POST.get('success_message', 'Thank you for your registration!')
-        form.send_confirmation_email = request.POST.get('send_confirmation_email') == 'on'
         form.is_active = request.POST.get('is_active') == 'on'
         form.countdown_enabled = request.POST.get('countdown_enabled') == 'on'
         form.countdown_date = request.POST.get('countdown_date') or None
         form.countdown_title = request.POST.get('countdown_title', 'Event Starts In')
-        
-        # Handle email template
-        email_template_id = request.POST.get('confirmation_email_template')
-        if email_template_id:
-            form.confirmation_email_template_id = email_template_id
-        else:
-            form.confirmation_email_template_id = None
-        
+
+        # send_confirmation_email / confirmation_email_template have no
+        # control in this form's UI -- leave them as whatever they already
+        # were rather than silently resetting them (== 'on' on a field that
+        # never gets submitted is always False; a missing template_id
+        # would always clear an existing link) on every unrelated edit.
+
         # Handle banner image
         if request.POST.get('clear_banner') == 'on':
             form.banner_image = None

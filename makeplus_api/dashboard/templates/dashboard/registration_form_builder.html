@@ -260,15 +260,22 @@ let requiredFields = [
     }
 ];
 
-// Initialize form fields from existing data
+// Initialize form fields from existing data. This only populates
+// formFields/fieldCounter -- rendering happens exactly once, in the
+// DOMContentLoaded listener below. (Previously this block also rendered
+// the fields itself, either immediately or via its own separate
+// DOMContentLoaded listener; since the listener below unconditionally
+// renders formFields too, every custom field on an existing form got
+// rendered twice into #fieldsContainer via insertAdjacentHTML, which
+// appends rather than replaces -- editing any form with custom fields
+// showed each one duplicated.)
 {% if form and form.fields_config %}
     try {
-        // Get the JSON data from the script tag
         const fieldsConfigElement = document.getElementById('fields-config-data');
         if (fieldsConfigElement) {
             const fieldsData = JSON.parse(fieldsConfigElement.textContent);
             console.log('Loading fields data:', fieldsData);
-            
+
             if (Array.isArray(fieldsData) && fieldsData.length > 0) {
                 // Load ALL custom fields (non-system fields). Fields saved
                 // before isSystemField existed won't have that flag, so
@@ -277,27 +284,9 @@ let requiredFields = [
                 const systemNames = requiredFields.map(f => f.name);
                 const customFields = fieldsData.filter(field => !field.isSystemField && !systemNames.includes(field.name));
                 console.log('Custom fields found:', customFields);
-                
+
                 formFields = customFields;
                 fieldCounter = formFields.length;
-                
-                // Wait for DOM to be ready before rendering
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', function() {
-                        console.log('DOM ready, rendering fields...');
-                        formFields.forEach((field, index) => {
-                            renderField(field, index);
-                        });
-                        updatePreview();
-                    });
-                } else {
-                    // DOM already loaded
-                    console.log('DOM already ready, rendering fields immediately...');
-                    formFields.forEach((field, index) => {
-                        renderField(field, index);
-                    });
-                    updatePreview();
-                }
             }
         }
     } catch(e) {
@@ -455,9 +444,9 @@ function renderField(field, index) {
                 
                 <div class="col-md-6">
                     <label class="form-label small">Field Name</label>
-                    <input type="text" class="form-control form-control-sm" 
-                           value="${field.name}" 
-                           onchange="updateField(${index}, 'name', this.value)">
+                    <input type="text" class="form-control form-control-sm"
+                           value="${field.name}"
+                           onchange="updateField(${index}, 'name', this.value, this)">
                 </div>
                 
                 <div class="col-md-6">
@@ -519,11 +508,27 @@ function renderField(field, index) {
 }
 
 // Update field
-function updateField(index, property, value) {
-    if (formFields[index]) {
-        formFields[index][property] = value;
-        updatePreview();
+function updateField(index, property, value, sourceEl) {
+    if (!formFields[index]) return;
+
+    if (property === 'name') {
+        // Two fields sharing one name would share one HTML `name`
+        // attribute on the public form -- only one value survives
+        // submission, silently dropping the other. Reject the rename
+        // instead of allowing that to happen invisibly.
+        const trimmed = value.trim();
+        const systemNames = requiredFields.map(f => f.name);
+        const takenByOther = formFields.some((f, i) => i !== index && f.name === trimmed);
+        if (!trimmed || systemNames.includes(trimmed) || takenByOther) {
+            alert(`"${trimmed}" is already used by another field. Choose a different field name.`);
+            if (sourceEl) sourceEl.value = formFields[index].name;
+            return;
+        }
+        value = trimmed;
     }
+
+    formFields[index][property] = value;
+    updatePreview();
 }
 
 // Update field type
