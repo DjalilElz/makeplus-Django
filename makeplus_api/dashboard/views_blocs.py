@@ -172,6 +172,7 @@ def bloc_item_save(request, event_id):
     item_id = request.POST.get('item_id')
     bloc = request.POST.get('bloc')
     name = (request.POST.get('name') or '').strip()
+    description = (request.POST.get('description') or '').strip()
     price = _parse_decimal(request.POST.get('price'))
     order = request.POST.get('order') or 0
 
@@ -189,12 +190,13 @@ def bloc_item_save(request, event_id):
         item = get_object_or_404(BlocItem, id=item_id, event=event)
         item.bloc = bloc
         item.name = name
+        item.description = description
         item.price = price
         item.order = order
         item.save()
         messages.success(request, f'Item "{name}" updated.')
     else:
-        BlocItem.objects.create(event=event, bloc=bloc, name=name, price=price, order=order)
+        BlocItem.objects.create(event=event, bloc=bloc, name=name, description=description, price=price, order=order)
         messages.success(request, f'Item "{name}" added.')
 
     return redirect('dashboard:blocs_config', event_id=event.id)

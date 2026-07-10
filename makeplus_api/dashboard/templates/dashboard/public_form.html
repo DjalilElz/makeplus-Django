@@ -330,6 +330,12 @@
             font-size: 1.05rem;
             color: #2c2c2c;
         }
+        .product-description {
+            font-size: 0.82rem;
+            color: #6c757d;
+            margin-top: 2px;
+            line-height: 1.35;
+        }
         .product-tag {
             font-size: 0.7rem;
             letter-spacing: 0.08em;
@@ -1005,6 +1011,9 @@
                                        {% if bloc.key == 'status' %}data-is-status="true"{% endif %}>
                                 <span class="product-main">
                                     <span class="product-name d-block">{{ item.name }}</span>
+                                    {% if item.description %}
+                                    <span class="product-description d-block">{{ item.description }}</span>
+                                    {% endif %}
                                     <span class="product-tag">{{ bloc.label }}</span>
                                 </span>
                                 <span class="product-price">
@@ -1038,6 +1047,9 @@
                                        data-target-key="session_{{ s.id }}">
                                 <span class="product-main">
                                     <span class="product-name d-block">{{ s.title }}</span>
+                                    {% if s.description %}
+                                    <span class="product-description d-block">{{ s.description }}</span>
+                                    {% endif %}
                                     <span class="product-tag">Atelier</span>
                                 </span>
                                 <span class="product-price">

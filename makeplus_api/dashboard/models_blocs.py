@@ -108,6 +108,7 @@ class BlocItem(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='bloc_items')
     bloc = models.CharField(max_length=20, choices=CUSTOM_BLOC_CHOICES)
     name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default='')
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     is_active = models.BooleanField(default=True)
     order = models.IntegerField(default=0)

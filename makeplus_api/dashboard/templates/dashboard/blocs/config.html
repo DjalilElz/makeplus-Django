@@ -121,32 +121,36 @@
         <h5><i class="bi bi-list-ul"></i> {{ bloc.label }} items</h5>
         <hr>
         {% for item in bloc.items %}
-        <div class="d-flex align-items-center gap-2 mb-2">
-            <form method="post" action="{% url 'dashboard:bloc_item_save' event.id %}" class="d-flex align-items-center gap-2 flex-grow-1">
+        <div class="border rounded p-2 mb-2">
+            <form method="post" action="{% url 'dashboard:bloc_item_save' event.id %}" class="d-flex align-items-center gap-2 flex-wrap">
                 {% csrf_token %}
                 <input type="hidden" name="item_id" value="{{ item.id }}">
                 <input type="hidden" name="bloc" value="{{ bloc.key }}">
-                <input type="text" name="name" value="{{ item.name }}" class="form-control form-control-sm" style="max-width:340px">
-                <input type="number" step="0.01" min="0" name="price" value="{{ item.price }}" class="form-control form-control-sm" style="max-width:140px" title="Price (DZD)">
-                <input type="number" name="order" value="{{ item.order }}" class="form-control form-control-sm" style="max-width:80px" title="Order">
+                <input type="text" name="name" value="{{ item.name }}" class="form-control form-control-sm" style="max-width:280px" placeholder="Item name">
+                <input type="number" step="0.01" min="0" name="price" value="{{ item.price }}" class="form-control form-control-sm" style="max-width:120px" title="Price (DZD)">
+                <input type="number" name="order" value="{{ item.order }}" class="form-control form-control-sm" style="max-width:70px" title="Order">
                 <button type="submit" class="btn btn-sm btn-outline-primary" title="Save"><i class="bi bi-check-lg"></i></button>
+                <textarea name="description" class="form-control form-control-sm w-100 mt-1" rows="2" placeholder="Optional description shown on the registration page">{{ item.description }}</textarea>
             </form>
-            <form method="post" action="{% url 'dashboard:bloc_item_delete' item.id %}" onsubmit="return confirm('Delete {{ item.name|escapejs }}?')">
+            <form method="post" action="{% url 'dashboard:bloc_item_delete' item.id %}" onsubmit="return confirm('Delete {{ item.name|escapejs }}?')" class="text-end mt-1">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i> Delete</button>
             </form>
         </div>
         {% empty %}
         <p class="text-muted">No items yet.</p>
         {% endfor %}
 
-        <form method="post" action="{% url 'dashboard:bloc_item_save' event.id %}" class="d-flex align-items-center gap-2 mt-3">
+        <form method="post" action="{% url 'dashboard:bloc_item_save' event.id %}" class="border rounded p-2 mt-3">
             {% csrf_token %}
             <input type="hidden" name="bloc" value="{{ bloc.key }}">
-            <input type="text" name="name" placeholder="New item name" class="form-control form-control-sm" style="max-width:340px" required>
-            <input type="number" step="0.01" min="0" name="price" value="0" class="form-control form-control-sm" style="max-width:140px" title="Price (DZD)">
-            <input type="number" name="order" value="0" class="form-control form-control-sm" style="max-width:80px" title="Order">
-            <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Add</button>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <input type="text" name="name" placeholder="New item name" class="form-control form-control-sm" style="max-width:280px" required>
+                <input type="number" step="0.01" min="0" name="price" value="0" class="form-control form-control-sm" style="max-width:120px" title="Price (DZD)">
+                <input type="number" name="order" value="0" class="form-control form-control-sm" style="max-width:70px" title="Order">
+                <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Add</button>
+            </div>
+            <textarea name="description" class="form-control form-control-sm w-100 mt-1" rows="2" placeholder="Optional description shown on the registration page"></textarea>
         </form>
     </div>
     {% endfor %}
