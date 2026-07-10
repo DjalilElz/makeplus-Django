@@ -471,9 +471,19 @@ def get_public_bloc_context(event):
             Session.objects.filter(event=event, is_paid=True, is_active=True).order_by('start_time')
         )
 
-    active_bloc_keys = [b['key'] for b in custom_blocs]
+    # Public page section order: Status, Restauration, Ateliers/Workshops,
+    # Evenement social -- Workshops renders between Restauration and Social
+    # Event rather than always last, so it's split out here for the
+    # template to interleave. custom_blocs itself stays in its original
+    # (unsplit) order for the other places it's used, e.g. gathering
+    # selections in validate_and_save_registration.
+    custom_blocs_before_workshops = [b for b in custom_blocs if b['key'] != 'social_event']
+    custom_blocs_after_workshops = [b for b in custom_blocs if b['key'] == 'social_event']
+
+    active_bloc_keys = [b['key'] for b in custom_blocs_before_workshops]
     if config.show_workshops and paid_sessions:
         active_bloc_keys.append('workshops')
+    active_bloc_keys += [b['key'] for b in custom_blocs_after_workshops]
 
     from .blocs_service import (
         serialize_status_rules_for_event, serialize_period_baseline_rules_for_event,
@@ -496,6 +506,8 @@ def get_public_bloc_context(event):
         'has_blocs': True,
         'config': config,
         'custom_blocs': custom_blocs,
+        'custom_blocs_before_workshops': custom_blocs_before_workshops,
+        'custom_blocs_after_workshops': custom_blocs_after_workshops,
         'workshops_visible': config.show_workshops,
         'paid_sessions': paid_sessions,
         'active_bloc_keys': active_bloc_keys,

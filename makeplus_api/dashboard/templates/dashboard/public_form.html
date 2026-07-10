@@ -1005,8 +1005,8 @@
                         </div>
 
                         {% if bloc_context.has_blocs %}
-                        {# ---- Bloc sections ---- #}
-                        {% for bloc in bloc_context.custom_blocs %}
+                        {# ---- Bloc sections: Status, Restauration, Ateliers/Workshops, Evenement social ---- #}
+                        {% for bloc in bloc_context.custom_blocs_before_workshops %}
                         <div class="bloc-section">
                             <div class="bloc-header">
                                 <span class="bloc-badge">Bloc {{ forloop.counter }}</span>
@@ -1033,9 +1033,6 @@
                                     {% if item.description %}
                                     <span class="product-description d-block">{{ item.description }}</span>
                                     {% endif %}
-                                    {% if bloc.key != 'status' %}
-                                    <span class="product-tag">{{ bloc.label }}</span>
-                                    {% endif %}
                                 </span>
                                 <span class="product-price">
                                     <span class="price-pill">
@@ -1055,7 +1052,7 @@
                         {% if bloc_context.workshops_visible and bloc_context.paid_sessions %}
                         <div class="bloc-section">
                             <div class="bloc-header">
-                                <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs|length|add:1 }}</span>
+                                <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs_before_workshops|length|add:1 }}</span>
                                 <span class="bloc-title">Ateliers / Workshops</span>
                             </div>
                             <p class="bloc-note">Choix multiple — sélectionnez autant d'ateliers que vous le souhaitez.</p>
@@ -1071,7 +1068,6 @@
                                     {% if s.description %}
                                     <span class="product-description d-block">{{ s.description }}</span>
                                     {% endif %}
-                                    <span class="product-tag">Atelier</span>
                                 </span>
                                 <span class="product-price">
                                     <span class="price-pill">
@@ -1087,6 +1083,48 @@
                             {% endfor %}
                         </div>
                         {% endif %}
+
+                        {% for bloc in bloc_context.custom_blocs_after_workshops %}
+                        <div class="bloc-section">
+                            <div class="bloc-header">
+                                <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs_before_workshops|length|add:1|add:forloop.counter }}</span>
+                                <span class="bloc-title">{{ bloc.label }}</span>
+                            </div>
+                            <p class="bloc-note">
+                                {% if bloc.select_mode == 'single' %}Choix unique — sélectionnez une option.{% else %}Choix multiple — sélectionnez autant que vous le souhaitez.{% endif %}
+                            </p>
+                            {% for item in bloc.items %}
+                            <label class="product-card" id="product_item_{{ item.id }}" for="item_{{ item.id }}">
+                                <input class="form-check-input bloc-choice"
+                                       type="{% if bloc.select_mode == 'single' %}radio{% else %}checkbox{% endif %}"
+                                       name="items_{{ bloc.key }}"
+                                       id="item_{{ item.id }}"
+                                       value="{{ item.id }}"
+                                       data-price="{{ item.price }}"
+                                       data-original-price="{{ item.price }}"
+                                       data-bloc="{{ bloc.key }}"
+                                       data-name="{{ item.name }}"
+                                       data-target-key="item_{{ item.id }}">
+                                <span class="product-main">
+                                    <span class="product-name d-block">{{ item.name }}</span>
+                                    {% if item.description %}
+                                    <span class="product-description d-block">{{ item.description }}</span>
+                                    {% endif %}
+                                </span>
+                                <span class="product-price">
+                                    <span class="price-pill">
+                                        {% if item.price > 0 %}
+                                        <span class="amount">{{ item.price }}</span>
+                                        <span class="currency">DZD</span>
+                                        {% else %}
+                                        <span class="amount">Gratuit</span>
+                                        {% endif %}
+                                    </span>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
                         {% endif %}
                     </div>
 
