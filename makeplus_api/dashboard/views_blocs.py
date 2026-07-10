@@ -72,7 +72,11 @@ def blocs_config(request, event_id):
         target_rows.append({'target_key': f'session_{session.id}', 'label': session.title, 'bloc_label': 'Workshops'})
 
     rules_lookup = {}
-    for rule in BlocItemStatusRule.objects.filter(status_item__event=event):
+    # status_item is null for "any status" rules -- filtering through that
+    # FK (status_item__event=event) silently drops them, since a filter
+    # across a null FK never matches in SQL. Filter by the target's event
+    # instead, which is never null.
+    for rule in BlocItemStatusRule.objects.filter(Q(target_item__event=event) | Q(target_session__event=event)):
         target_key = f'item_{rule.target_item_id}' if rule.target_kind == 'item' else f'session_{rule.target_session_id}'
         rules_lookup[(rule.status_item_id, rule.period_id, target_key)] = rule
 
