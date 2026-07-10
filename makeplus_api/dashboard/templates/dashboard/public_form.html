@@ -341,6 +341,9 @@
             color: #6c757d;
             margin-top: 2px;
             line-height: 1.35;
+            /* Preserve the line breaks an admin types in the textarea --
+               HTML collapses raw newlines to a single space by default. */
+            white-space: pre-line;
         }
         .product-tag {
             font-size: 0.7rem;
