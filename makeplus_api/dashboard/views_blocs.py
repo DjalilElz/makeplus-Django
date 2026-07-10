@@ -540,11 +540,16 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
     errors = []
 
     # Gather selections, enforcing single-select cardinality per bloc.
+    # Status specifically is mandatory -- it drives which items/prices are
+    # even visible via BlocItemStatusRule, so a registration without one
+    # doesn't make sense.
     selected_item_ids = []
     for bloc in bloc_context['custom_blocs']:
         picked = [v for v in request.POST.getlist(f"items_{bloc['key']}") if v]
         if bloc['select_mode'] == 'single' and len(picked) > 1:
             errors.append(f"Veuillez sélectionner une seule option dans {bloc['label']}.")
+        if bloc['key'] == 'status' and len(picked) == 0:
+            errors.append(f"Veuillez sélectionner une option dans {bloc['label']}.")
         selected_item_ids.extend(picked)
 
     selected_session_ids = [v for v in request.POST.getlist('sessions') if v]

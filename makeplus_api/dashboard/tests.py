@@ -612,6 +612,17 @@ class BlocsPublicFormTests(TestCase):
         self.assertFalse(RegistrationOrder.objects.filter(event=self.event).exists())
         self.assertContains(response, 'une seule option')
 
+    def test_status_selection_is_required(self):
+        self._enable_blocs()
+        receipt = _Upload('receipt.pdf', b'%PDF-1.4 fake', content_type='application/pdf')
+        response = self.client.post(reverse('public_form', args=[self.form.slug]), {
+            'first_name': 'Karim', 'last_name': 'B', 'email': 'k@example.com',
+            # items_status omitted entirely -- no status picked.
+            'accept_conditions': '1', 'receipt_file': receipt,
+        })
+        self.assertFalse(RegistrationOrder.objects.filter(event=self.event).exists())
+        self.assertContains(response, 'Veuillez sélectionner une option')
+
     def test_no_period_switcher_without_periods(self):
         self._enable_blocs()
         response = self.client.get(reverse('public_form', args=[self.form.slug]))
