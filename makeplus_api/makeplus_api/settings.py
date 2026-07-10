@@ -26,7 +26,10 @@ else:
     ALLOWED_HOSTS = []
 
 # Always add these critical hosts
-ALLOWED_HOSTS.extend(['makeplus-django-5.onrender.com', 'makeplus-platform.onrender.com', 'localhost', '127.0.0.1'])
+ALLOWED_HOSTS.extend([
+    'makeplus-django-5.onrender.com', 'makeplus-platform.onrender.com', 'makeplus-events.onrender.com',
+    'localhost', '127.0.0.1',
+])
 # Remove duplicates while preserving order
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 
@@ -79,6 +82,7 @@ MIDDLEWARE = [
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
+    'https://makeplus-events.onrender.com',
 ]
 CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
 CSRF_COOKIE_SAMESITE = 'Lax'
