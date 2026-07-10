@@ -249,8 +249,9 @@ def _save_price_rule_cells(request, event, cells):
         override_price = _parse_decimal(raw_price) if raw_price else None
 
         target_kind = 'item' if target_key.startswith('item_') else 'session'
+        # BlocItem has an integer pk; Session's pk is a UUID.
         target_item_id = int(target_key[5:]) if target_kind == 'item' else None
-        target_session_id = int(target_key[8:]) if target_kind == 'session' else None
+        target_session_id = uuid.UUID(target_key[8:]) if target_kind == 'session' else None
 
         key = (status_id, period_id, target_kind, target_item_id, target_session_id)
         current = existing.get(key)
