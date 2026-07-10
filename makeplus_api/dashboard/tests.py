@@ -730,6 +730,24 @@ class BlocsAdminTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.description, 'Updated description.')
 
+    def test_create_and_edit_reduction_period(self):
+        self.client.force_login(self.admin)
+        self.client.post(reverse('dashboard:reduction_period_save', args=[self.event.id]), {
+            'name': 'Early bird', 'start_date': '2026-01-01', 'end_date': '2026-01-31',
+        })
+        period = ReductionPeriod.objects.get(event=self.event, name='Early bird')
+        self.assertEqual(str(period.start_date), '2026-01-01')
+        self.assertEqual(str(period.end_date), '2026-01-31')
+
+        self.client.post(reverse('dashboard:reduction_period_save', args=[self.event.id]), {
+            'period_id': period.id, 'name': 'Early bird', 'start_date': '2026-02-01', 'end_date': '2026-02-15',
+        })
+        period.refresh_from_db()
+        self.assertEqual(str(period.start_date), '2026-02-01')
+        self.assertEqual(str(period.end_date), '2026-02-15')
+        # Editing must not create a second row.
+        self.assertEqual(ReductionPeriod.objects.filter(event=self.event).count(), 1)
+
     def test_orders_list_is_read_only(self):
         # Admin can view submitted orders, but confirming/rejecting them now
         # only happens at the caisse (see caisse.tests) -- no admin action.

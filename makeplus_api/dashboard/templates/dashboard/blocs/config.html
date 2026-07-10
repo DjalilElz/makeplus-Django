@@ -163,26 +163,24 @@
             Periods no longer apply a flat % off the cart -- add a period here to define a date range, then set
             each item's actual price for that period below, in the pricing matrices.
         </p>
-        <table class="table table-sm">
-            <thead><tr><th>Label</th><th>Start</th><th>End</th><th></th></tr></thead>
-            <tbody>
-                {% for p in periods %}
-                <tr>
-                    <td>{{ p.name|default:"—" }}</td>
-                    <td>{{ p.start_date }}</td>
-                    <td>{{ p.end_date }}</td>
-                    <td>
-                        <form method="post" action="{% url 'dashboard:reduction_period_delete' p.id %}" onsubmit="return confirm('Delete this period? Its per-item prices below will be lost too.')">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                        </form>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="4" class="text-muted">No periods defined.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        {% for p in periods %}
+        <div class="border rounded p-2 mb-2">
+            <form method="post" action="{% url 'dashboard:reduction_period_save' event.id %}" class="d-flex align-items-center gap-2 flex-wrap">
+                {% csrf_token %}
+                <input type="hidden" name="period_id" value="{{ p.id }}">
+                <input type="text" name="name" value="{{ p.name }}" placeholder="e.g. Early bird" class="form-control form-control-sm" style="max-width:200px">
+                <input type="date" name="start_date" value="{{ p.start_date|date:'Y-m-d' }}" class="form-control form-control-sm" required>
+                <input type="date" name="end_date" value="{{ p.end_date|date:'Y-m-d' }}" class="form-control form-control-sm" required>
+                <button type="submit" class="btn btn-sm btn-outline-primary" title="Save"><i class="bi bi-check-lg"></i></button>
+            </form>
+            <form method="post" action="{% url 'dashboard:reduction_period_delete' p.id %}" onsubmit="return confirm('Delete this period? Its per-item prices below will be lost too.')" class="text-end mt-1">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i> Delete</button>
+            </form>
+        </div>
+        {% empty %}
+        <p class="text-muted">No periods defined.</p>
+        {% endfor %}
 
         <form method="post" action="{% url 'dashboard:reduction_period_save' event.id %}" class="d-flex align-items-end gap-2 flex-wrap mt-2">
             {% csrf_token %}

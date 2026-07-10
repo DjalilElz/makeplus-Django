@@ -340,9 +340,10 @@ def bloc_status_rules_save(request, event_id):
 @user_passes_test(is_staff_user)
 @require_POST
 def reduction_period_save(request, event_id):
-    """Add a reduction period."""
+    """Create or update a reduction period."""
     event = get_object_or_404(Event, id=event_id)
 
+    period_id = request.POST.get('period_id')
     name = (request.POST.get('name') or '').strip()
     start_date = request.POST.get('start_date')
     end_date = request.POST.get('end_date')
@@ -356,10 +357,20 @@ def reduction_period_save(request, event_id):
         messages.error(request, 'The period end date must be on or after the start date.')
         return redirect('dashboard:blocs_config', event_id=event.id)
 
-    ReductionPeriod.objects.create(
-        event=event, name=name, start_date=start_date, end_date=end_date, discount_percent=discount
-    )
-    messages.success(request, 'Reduction period added.')
+    if period_id:
+        period = get_object_or_404(ReductionPeriod, id=period_id, event=event)
+        period.name = name
+        period.start_date = start_date
+        period.end_date = end_date
+        period.discount_percent = discount
+        period.save()
+        messages.success(request, 'Reduction period updated.')
+    else:
+        ReductionPeriod.objects.create(
+            event=event, name=name, start_date=start_date, end_date=end_date, discount_percent=discount
+        )
+        messages.success(request, 'Reduction period added.')
+
     return redirect('dashboard:blocs_config', event_id=event.id)
 
 
