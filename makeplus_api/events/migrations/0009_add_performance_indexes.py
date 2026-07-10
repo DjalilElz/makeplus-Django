@@ -25,11 +25,11 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name='roomaccess',
-            index=models.Index(fields=['room', 'access_time'], name='roomaccess_room_time_idx'),
+            index=models.Index(fields=['room', 'accessed_at'], name='roomaccess_room_time_idx'),
         ),
         migrations.AddIndex(
             model_name='exposantscan',
-            index=models.Index(fields=['participant', 'scan_time'], name='scan_participant_time_idx'),
+            index=models.Index(fields=['scanned_participant', 'scanned_at'], name='scan_participant_time_idx'),
         ),
         migrations.AddIndex(
             model_name='sessionquestion',

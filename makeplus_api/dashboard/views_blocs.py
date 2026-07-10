@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -215,35 +216,69 @@ def bloc_item_delete(request, item_id):
     return redirect('dashboard:blocs_config', event_id=event_id)
 
 
-@login_required
-@user_passes_test(is_staff_user)
-@require_POST
-def _save_price_rule_cell(request, status_id, period_id, target_key):
+def _save_price_rule_cells(request, event, cells):
     """
-    Read one visible_<status>_<period>_<target> / price_<status>_<period>_<target>
-    cell from POST and create/update/delete the matching BlocItemStatusRule.
-    status_id/period_id are None for the "any status"/"no period" axis.
-    A cell left at its default (visible, no price override) has its rule
-    removed entirely, rather than storing a no-op row.
+    Read every (status_id, period_id, target_key) cell's
+    visible_<status>_<period>_<target> / price_<status>_<period>_<target>
+    fields from POST and create/update/delete the matching BlocItemStatusRule
+    rows in a handful of bulk queries. status_id/period_id are None for the
+    "any status"/"no period" axis. A cell left at its default (visible, no
+    price override) has its rule removed entirely, rather than storing a
+    no-op row.
+
+    Batched because this runs once per cell in the full pricing matrix
+    (every status x every period x every item/session) -- one query per
+    cell against the matrix meant hundreds of sequential round-trips to the
+    remote DB, slow enough to trip the gunicorn worker timeout.
     """
-    field_suffix = f"{status_id or 'any'}_{period_id or 'any'}_{target_key}"
-    is_visible = bool(request.POST.get(f'visible_{field_suffix}'))
-    raw_price = (request.POST.get(f'price_{field_suffix}') or '').strip()
-    override_price = _parse_decimal(raw_price) if raw_price else None
+    existing = {
+        (r.status_item_id, r.period_id, r.target_kind, r.target_item_id, r.target_session_id): r
+        for r in BlocItemStatusRule.objects.filter(
+            Q(target_item__event=event) | Q(target_session__event=event)
+        )
+    }
 
-    target_kind = 'item' if target_key.startswith('item_') else 'session'
-    lookup = {'status_item_id': status_id, 'period_id': period_id, 'target_kind': target_kind}
-    if target_kind == 'item':
-        lookup['target_item_id'] = target_key[5:]
-    else:
-        lookup['target_session_id'] = target_key[8:]
+    to_delete_ids = []
+    to_update = []
+    to_create = []
 
-    if is_visible and override_price is None:
-        BlocItemStatusRule.objects.filter(**lookup).delete()
-        return
-    BlocItemStatusRule.objects.update_or_create(
-        **lookup, defaults={'is_visible': is_visible, 'override_price': override_price}
-    )
+    for status_id, period_id, target_key in cells:
+        field_suffix = f"{status_id or 'any'}_{period_id or 'any'}_{target_key}"
+        is_visible = bool(request.POST.get(f'visible_{field_suffix}'))
+        raw_price = (request.POST.get(f'price_{field_suffix}') or '').strip()
+        override_price = _parse_decimal(raw_price) if raw_price else None
+
+        target_kind = 'item' if target_key.startswith('item_') else 'session'
+        target_item_id = int(target_key[5:]) if target_kind == 'item' else None
+        target_session_id = int(target_key[8:]) if target_kind == 'session' else None
+
+        key = (status_id, period_id, target_kind, target_item_id, target_session_id)
+        current = existing.get(key)
+
+        if is_visible and override_price is None:
+            if current:
+                to_delete_ids.append(current.id)
+            continue
+
+        if current:
+            if current.is_visible != is_visible or current.override_price != override_price:
+                current.is_visible = is_visible
+                current.override_price = override_price
+                to_update.append(current)
+        else:
+            to_create.append(BlocItemStatusRule(
+                status_item_id=status_id, period_id=period_id, target_kind=target_kind,
+                target_item_id=target_item_id, target_session_id=target_session_id,
+                is_visible=is_visible, override_price=override_price,
+            ))
+
+    with transaction.atomic():
+        if to_delete_ids:
+            BlocItemStatusRule.objects.filter(id__in=to_delete_ids).delete()
+        if to_update:
+            BlocItemStatusRule.objects.bulk_update(to_update, ['is_visible', 'override_price'])
+        if to_create:
+            BlocItemStatusRule.objects.bulk_create(to_create)
 
 
 @login_required
@@ -282,16 +317,19 @@ def bloc_status_rules_save(request, event_id):
     ).values_list('id', flat=True)]
 
     # 1. Status-dependent matrix (no period).
-    for status_item in status_items:
-        for target_key in other_target_keys:
-            _save_price_rule_cell(request, status_item.id, None, target_key)
+    cells = [
+        (status_item.id, None, target_key)
+        for status_item in status_items
+        for target_key in other_target_keys
+    ]
 
     # 2. Per-period matrices (Any status + each Status item).
     for period in periods:
         for target_key in all_target_keys:
-            _save_price_rule_cell(request, None, period.id, target_key)
-            for status_item in status_items:
-                _save_price_rule_cell(request, status_item.id, period.id, target_key)
+            cells.append((None, period.id, target_key))
+            cells += [(status_item.id, period.id, target_key) for status_item in status_items]
+
+    _save_price_rule_cells(request, event, cells)
 
     messages.success(request, 'Pricing rules saved.')
     return redirect('dashboard:blocs_config', event_id=event.id)
