@@ -281,8 +281,12 @@ let requiredFields = [
             console.log('Loading fields data:', fieldsData);
             
             if (Array.isArray(fieldsData) && fieldsData.length > 0) {
-                // Load ALL custom fields (non-system fields)
-                const customFields = fieldsData.filter(field => !field.isSystemField);
+                // Load ALL custom fields (non-system fields). Fields saved
+                // before isSystemField existed won't have that flag, so
+                // also exclude by name to avoid treating the 3 built-in
+                // fields as custom (which would duplicate them in the UI).
+                const systemNames = requiredFields.map(f => f.name);
+                const customFields = fieldsData.filter(field => !field.isSystemField && !systemNames.includes(field.name));
                 console.log('Custom fields found:', customFields);
                 
                 formFields = customFields;
@@ -412,11 +416,15 @@ function addField() {
         placeholder: '',
         options: []
     };
-    
-    formFields.push(field);
-    renderField(field, fieldCounter);
     fieldCounter++;
-    
+
+    formFields.push(field);
+    // Index by the field's actual position in formFields, not fieldCounter --
+    // fieldCounter only ever increases (used for unique default names) and
+    // drifts out of sync with the array once a field has been removed,
+    // which silently broke editing of any field added after a removal.
+    renderField(field, formFields.length - 1);
+
     toggleNoFieldsMessage();
     updatePreview();
 }
