@@ -337,11 +337,32 @@ class BlocsComputeOrderTests(TestCase):
         self.assertEqual(r['subtotals']['restauration'], '500.00')
         self.assertEqual(r['total_before_reduction'], Decimal('1500.00'))
         self.assertEqual(r['total_after_reduction'], Decimal('1500.00'))
-        self.assertEqual(r['distinct_blocs_count'], 2)
+        # Status is mandatory on every registration, so it never counts
+        # toward the multi-bloc discount -- only restauration does here.
+        self.assertEqual(r['distinct_blocs_count'], 1)
+
+    def test_status_never_counts_toward_bloc_discount(self):
+        # Status + Restauration is only 1 *countable* bloc (restauration) --
+        # not enough to trigger the 2-bloc discount tier.
+        self.config.reduction_by_blocs_enabled = True
+        self.config.reduction_2_blocs = Decimal('20')
+        self.config.save()
+        r = self._compute(item_ids=[self.status_item.id, self.resto_item.id])
+        self.assertEqual(r['distinct_blocs_count'], 1)
+        self.assertEqual(r['blocs_discount_percent'], Decimal('0'))
+        self.assertEqual(r['total_after_reduction'], r['total_before_reduction'])
+
+        # Adding a second *real* bloc (workshops) makes it 2 countable blocs.
+        r2 = self._compute(
+            item_ids=[self.status_item.id, self.resto_item.id], session_ids=[self.paid_session.id],
+        )
+        self.assertEqual(r2['distinct_blocs_count'], 2)
+        self.assertEqual(r2['blocs_discount_percent'], Decimal('20.00'))
 
     def test_workshops_counts_as_a_bloc(self):
         r = self._compute(item_ids=[self.status_item.id], session_ids=[self.paid_session.id])
-        self.assertEqual(r['distinct_blocs_count'], 2)  # status + workshops
+        # status doesn't count -- only workshops does.
+        self.assertEqual(r['distinct_blocs_count'], 1)
         self.assertEqual(r['total_before_reduction'], Decimal('1300.00'))
 
     def test_free_session_not_charged(self):
@@ -382,9 +403,11 @@ class BlocsComputeOrderTests(TestCase):
         self.config.reduction_by_blocs_enabled = True
         self.config.reduction_2_blocs = Decimal('20')
         self.config.save()
-        r = self._compute(item_ids=[self.status_item.id, self.resto_item.id])  # 1500, 2 blocs
+        # 2 *countable* blocs: restauration + social_event (status doesn't count).
+        r = self._compute(item_ids=[self.status_item.id, self.resto_item.id, self.social_item.id])  # 3500, 2 blocs
+        self.assertEqual(r['distinct_blocs_count'], 2)
         self.assertEqual(r['blocs_discount_percent'], Decimal('20.00'))
-        self.assertEqual(r['total_after_reduction'], Decimal('1200.00'))
+        self.assertEqual(r['total_after_reduction'], Decimal('2800.00'))
 
     def test_period_price_and_blocs_reduction_are_additive(self):
         period = ReductionPeriod.objects.create(
@@ -397,19 +420,23 @@ class BlocsComputeOrderTests(TestCase):
         BlocItemStatusRule.objects.create(
             period=period, target_kind='item', target_item=self.status_item, override_price=Decimal('700'),
         )
-        r = self._compute(item_ids=[self.status_item.id, self.resto_item.id])  # 700 + 500 = 1200, 2 blocs
-        self.assertEqual(r['total_before_reduction'], Decimal('1200.00'))
+        # status (period price 700) + restauration (500) + social_event (2000)
+        # = 3200 before reduction; 2 countable blocs (status doesn't count).
+        r = self._compute(item_ids=[self.status_item.id, self.resto_item.id, self.social_item.id])
+        self.assertEqual(r['distinct_blocs_count'], 2)
+        self.assertEqual(r['total_before_reduction'], Decimal('3200.00'))
         self.assertEqual(r['blocs_discount_percent'], Decimal('20.00'))
-        # 1200 - 20% = 960
-        self.assertEqual(r['total_after_reduction'], Decimal('960.00'))
+        # 3200 - 20% = 2560
+        self.assertEqual(r['total_after_reduction'], Decimal('2560.00'))
 
     def test_item_from_hidden_bloc_is_ignored(self):
         self.config.show_social_event = False
         self.config.save()
         r = self._compute(item_ids=[self.status_item.id, self.social_item.id])
-        # social_event hidden -> its item excluded
+        # social_event hidden -> its item excluded; status doesn't count
+        # toward the bloc discount either -> 0 countable blocs.
         self.assertEqual(r['total_before_reduction'], Decimal('1000.00'))
-        self.assertEqual(r['distinct_blocs_count'], 1)
+        self.assertEqual(r['distinct_blocs_count'], 0)
 
     def test_item_from_other_event_is_ignored(self):
         other = Event.objects.create(name="Other", start_date=timezone.now(),

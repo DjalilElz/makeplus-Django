@@ -126,7 +126,11 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
             continue
         price = rule.override_price if (rule and rule.override_price is not None) else item.price
         subtotals[item.bloc] += price
-        blocs_with_selection.add(item.bloc)
+        # Status is mandatory on every registration, so it doesn't count as
+        # an extra bloc toward the multi-bloc discount -- only Restauration,
+        # Workshops, and Social Event do (max reachable count is 3, not 4).
+        if item.bloc != 'status':
+            blocs_with_selection.add(item.bloc)
         snapshot.append({
             'bloc': item.bloc,
             'type': 'item',

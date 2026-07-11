@@ -1296,7 +1296,12 @@
                             lines.push({ name: el.getAttribute('data-name'), price: price });
                         }
                     });
-                    var distinct = Object.keys(blocs).length;
+                    // blocs (all of them, including status) still drives the
+                    // progress dots below. Status is mandatory on every
+                    // registration though, so it must not count as an extra
+                    // bloc toward the multi-bloc discount -- must match
+                    // compute_order, which excludes it the same way.
+                    var distinct = Object.keys(blocs).filter(function (b) { return b !== 'status'; }).length;
                     var totalPct = (BLOCS_ENABLED && subtotal > 0) ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
                     if (totalPct > 100) totalPct = 100;
                     if (subtotal <= 0) totalPct = 0;
@@ -1358,8 +1363,12 @@
 
                     var banner = document.getElementById('discount-banner');
                     if (BLOCS_ENABLED && subtotal > 0) {
-                        if (distinct >= 4) {
-                            banner.textContent = '🎉 Réduction maximale atteinte : ' + (parseFloat(BLOC_PCT[4]) || 0) + '% de réduction !';
+                        if (distinct >= 3) {
+                            // Status never counts (mandatory on every
+                            // registration), so Restauration + Workshops +
+                            // Social Event is the real maximum -- 4 is
+                            // unreachable now.
+                            banner.textContent = '🎉 Réduction maximale atteinte : ' + (parseFloat(BLOC_PCT[3]) || 0) + '% de réduction !';
                             banner.classList.add('visible');
                         } else if (distinct >= 2) {
                             var nextTier = distinct + 1;
