@@ -507,7 +507,12 @@ def get_public_bloc_context(event):
     custom_blocs_before_workshops = [b for b in custom_blocs if b['key'] != 'social_event']
     custom_blocs_after_workshops = [b for b in custom_blocs if b['key'] == 'social_event']
 
-    active_bloc_keys = [b['key'] for b in custom_blocs_before_workshops]
+    # Status is excluded here: it's mandatory on every registration and
+    # doesn't count toward the multi-bloc discount (see compute_order), so
+    # the cart's bloc-count dots/progress track only the 3 blocs that
+    # actually affect the reduction -- Restauration, Workshops, Social
+    # Event -- not Status.
+    active_bloc_keys = [b['key'] for b in custom_blocs_before_workshops if b['key'] != 'status']
     if config.show_workshops and paid_sessions:
         active_bloc_keys.append('workshops')
     active_bloc_keys += [b['key'] for b in custom_blocs_after_workshops]
