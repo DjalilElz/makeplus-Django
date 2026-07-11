@@ -89,19 +89,27 @@
             border-bottom: 2px solid var(--border-light);
         }
         .table-elegant td { vertical-align: middle; }
-        .status-pill {
-            display: inline-block;
-            padding: 3px 12px;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .status-pending { background: #fff3cd; color: #7a5c00; }
-        .status-approved { background: #d4edda; color: #155724; }
-        .status-rejected { background: #f8d7da; color: #842029; }
         .items-list { font-size: 0.82rem; color: #555; margin: 0; padding-left: 1.1rem; }
         .back-link { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.85rem; }
         .back-link:hover { color: #fff; }
+        .status-select {
+            font-size: 0.78rem;
+            font-weight: 600;
+            border-radius: 999px;
+            padding: 3px 10px;
+            border-width: 2px;
+        }
+        .status-select.status-pending { border-color: #adb5bd; color: #495057; }
+        .status-select.status-reserved { border-color: #d4a017; color: #7a5c00; }
+        .status-select.status-approved { border-color: #198754; color: #155724; }
+        .status-select.status-rejected { border-color: #dc3545; color: #842029; }
+        .btn-delete-row {
+            border: none;
+            background: none;
+            color: #b02a37;
+            padding: 2px 4px;
+        }
+        .btn-delete-row:hover { color: #dc3545; }
     </style>
 </head>
 <body>
@@ -122,9 +130,10 @@
                 <div class="col-md-3">
                     <select name="status" class="form-select">
                         <option value="">Tous les statuts</option>
-                        <option value="pending" {% if status == 'pending' %}selected{% endif %}>Réservé</option>
+                        <option value="pending" {% if status == 'pending' %}selected{% endif %}>Enregistré</option>
+                        <option value="reserved" {% if status == 'reserved' %}selected{% endif %}>Réservé</option>
                         <option value="approved" {% if status == 'approved' %}selected{% endif %}>Confirmé</option>
-                        <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Rejeté</option>
+                        <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Annulé</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -143,9 +152,10 @@
                             <th>Période</th>
                             <th>Articles</th>
                             <th>Prix</th>
-                            <th>Réservation</th>
+                            <th>Statut de l'inscription</th>
                             <th>Soumis le</th>
                             <th>Reçu</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -171,15 +181,31 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if order.status == 'pending' %}<span class="status-pill status-pending">Réservé</span>
-                                {% elif order.status == 'approved' %}<span class="status-pill status-approved">Confirmé</span>
-                                {% else %}<span class="status-pill status-rejected">Rejeté</span>{% endif %}
+                                <form method="post" action="{% url 'dashboard:registration_status_save' order.id %}"
+                                      onsubmit="return confirmStatusChange(this, '{{ order.status }}');">
+                                    {% csrf_token %}
+                                    <select name="status" class="form-select form-select-sm status-select status-{{ order.status }}"
+                                            onchange="this.closest('form').requestSubmit()">
+                                        <option value="pending" {% if order.status == 'pending' %}selected{% endif %}>Enregistré</option>
+                                        <option value="reserved" {% if order.status == 'reserved' %}selected{% endif %}>Réservé</option>
+                                        <option value="approved" {% if order.status == 'approved' %}selected{% endif %}>Confirmé</option>
+                                        <option value="rejected" {% if order.status == 'rejected' %}selected{% endif %}>Annulé</option>
+                                    </select>
+                                </form>
                             </td>
                             <td><small>{{ order.created_at|date:"d M Y H:i" }}</small></td>
                             <td>
                                 {% if order.receipt_file %}
                                 <a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-arrow-down"></i></a>
                                 {% else %}—{% endif %}
+                            </td>
+                            <td>
+                                <form method="post" action="{% url 'dashboard:registration_delete' order.id %}"
+                                      onsubmit="return confirmDelete(this, '{{ order.status }}');">
+                                    {% csrf_token %}
+                                    {% if order.status == 'approved' %}<input type="hidden" name="confirm_paid" value="1">{% endif %}
+                                    <button type="submit" class="btn-delete-row" title="Supprimer"><i class="bi bi-trash"></i></button>
+                                </form>
                             </td>
                         </tr>
                         {% endfor %}
@@ -191,5 +217,30 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+        function confirmStatusChange(form, currentStatus) {
+            var newStatus = form.status.value;
+            if (newStatus === currentStatus) return true;
+            var labels = {pending: 'Enregistré', reserved: 'Réservé', approved: 'Confirmé', rejected: 'Annulé'};
+            var msg = 'Changer le statut vers "' + labels[newStatus] + '" ?';
+            if (newStatus === 'approved') {
+                msg = 'Confirmer cette inscription ? Cela donnera un accès réel payé au participant, '
+                    + 'exactement comme si la caisse l\'avait confirmé sur place.';
+            } else if (newStatus === 'rejected') {
+                msg = 'Annuler cette inscription ? Si elle était déjà confirmée, le paiement enregistré sera annulé.';
+            }
+            return confirm(msg);
+        }
+
+        function confirmDelete(form, status) {
+            var msg = 'Supprimer définitivement cette inscription ? Cette action est irréversible.';
+            if (status === 'approved') {
+                msg = 'Cette inscription est déjà CONFIRMÉE (paiement réel enregistré). La supprimer annulera '
+                    + 'ce paiement dans le système. Voulez-vous vraiment continuer ?';
+            }
+            return confirm(msg);
+        }
+    </script>
 </body>
 </html>

@@ -170,6 +170,8 @@ urlpatterns = [
     # Registration submissions (staff + event owners, read-only)
     path('my-submissions/', views_event_owner.event_owner_submissions_home, name='event_owner_submissions_home'),
     path('events/<uuid:event_id>/my-submissions/', views_event_owner.event_owner_submissions, name='event_owner_submissions'),
+    path('my-submissions/<uuid:order_id>/status/', views_event_owner.registration_status_save, name='registration_status_save'),
+    path('my-submissions/<uuid:order_id>/delete/', views_event_owner.registration_delete, name='registration_delete'),
 
     # Registration Blocs / Paid Registration (admin config + orders)
     path('events/<uuid:event_id>/blocs/', views_blocs.blocs_config, name='blocs_config'),

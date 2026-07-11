@@ -54,7 +54,7 @@ def blocs_config(request, event_id):
 
     paid_sessions = Session.objects.filter(event=event, is_paid=True).order_by('order', 'start_time')
     periods = ReductionPeriod.objects.filter(event=event).order_by('start_date')
-    pending_orders = RegistrationOrder.objects.filter(event=event, status='pending').count()
+    pending_orders = RegistrationOrder.objects.filter(event=event, status__in=['pending', 'reserved']).count()
 
     # Status-dependent rules matrix: rows = every item in the other blocs
     # (+ paid sessions for Workshops), columns = every Status item. A cell
@@ -643,7 +643,7 @@ def finalize_paid_registration(verification, form_config, user):
     has been confirmed. Builds the FormSubmission + RegistrationOrder from the
     data stashed on the verification row.
 
-    The order starts out reserved (status='pending'/"Reserved"), and no
+    The order starts out at status='pending' ("Registered"), and no
     admin review gates that -- the participant role is granted right away
     (same trust level as the free flow), while the caisse operator does the
     real payment validation on event day (see process_transaction /

@@ -8,7 +8,9 @@ from django.utils import timezone
 
 from unittest.mock import patch
 
-from events.models import Event, UserEventAssignment, FormRegistrationVerification, Participant
+from events.models import (
+    Event, UserEventAssignment, FormRegistrationVerification, Participant, ParticipantEventRegistration,
+)
 from .models_eposter import ScientificContributionFinalSubmission, ScientificContributionSubmission
 
 
@@ -1060,3 +1062,134 @@ class EventOwnerSubmissionsTests(TestCase):
             'email': 'owner@example.com', 'password': 'x',
         })
         self.assertRedirects(response, reverse('dashboard:event_owner_submissions_home'))
+
+    def _create_order_with_participant(self):
+        """A registration order with a real participant + workshop session,
+        for exercising confirm/cancel/delete's real side effects."""
+        participant_user = User.objects.create_user(username='participant1', email='p1@example.com', password='x')
+        participant = Participant.objects.create(user=participant_user, badge_id='BADGE-1')
+        UserEventAssignment.objects.create(
+            user=participant_user, event=self.event, role='participant', is_active=True,
+        )
+        ParticipantEventRegistration.objects.create(participant=participant, event=self.event)
+
+        status_item = BlocItem.objects.create(event=self.event, bloc='status', name='Adherent', price=Decimal('0'))
+        room = Room.objects.create(event=self.event, name='R1', capacity=50, location='Hall')
+        session = Session.objects.create(
+            event=self.event, room=room, title='Workshop A',
+            start_time=timezone.now(), end_time=timezone.now() + timedelta(hours=1),
+            is_paid=True, price=Decimal('300'),
+        )
+        order = RegistrationOrder.objects.create(
+            event=self.event, participant=participant, full_name='Real Participant', email='p1@example.com',
+            items_snapshot=[
+                {'bloc': 'status', 'type': 'item', 'id': status_item.id, 'name': 'Adherent', 'price': '0'},
+                {'bloc': 'workshops', 'type': 'session', 'id': str(session.id), 'name': 'Workshop A', 'price': '300'},
+            ],
+            total_before_reduction=Decimal('300'), total_after_reduction=Decimal('300'),
+            receipt_file=_Upload('receipt.pdf', b'%PDF-1.4 fake', content_type='application/pdf'),
+        )
+        return order, participant, participant_user, session
+
+    def test_confirm_creates_real_transaction_and_grants_session_access(self):
+        from caisse.models import CaisseTransaction
+        from events.models import SessionAccess
+
+        order, participant, _user, session = self._create_order_with_participant()
+        self.client.force_login(self.owner)
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'approved'})
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'approved')
+        self.assertEqual(order.reviewed_by, self.owner)
+        self.assertIsNotNone(order.caisse_transaction)
+        self.assertEqual(order.caisse_transaction.status, 'completed')
+        self.assertEqual(order.caisse_transaction.participant, participant)
+
+        access = SessionAccess.objects.get(participant=participant, session=session)
+        self.assertTrue(access.has_access)
+        self.assertEqual(access.payment_status, 'paid')
+
+    def test_reserved_is_bookkeeping_only(self):
+        from caisse.models import CaisseTransaction
+
+        order, _participant, _user, _session = self._create_order_with_participant()
+        self.client.force_login(self.owner)
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'reserved'})
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'reserved')
+        self.assertIsNone(order.caisse_transaction)
+        self.assertFalse(CaisseTransaction.objects.exists())
+
+    def test_cancel_after_confirm_voids_the_transaction(self):
+        order, _participant, _user, _session = self._create_order_with_participant()
+        self.client.force_login(self.owner)
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'approved'})
+        order.refresh_from_db()
+        txn = order.caisse_transaction
+
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'rejected'})
+        order.refresh_from_db()
+        txn.refresh_from_db()
+        self.assertEqual(order.status, 'rejected')
+        self.assertEqual(txn.status, 'cancelled')
+
+    def test_cannot_revert_confirmed_directly_to_pending(self):
+        order, _participant, _user, _session = self._create_order_with_participant()
+        self.client.force_login(self.owner)
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'approved'})
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'pending'})
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'approved')  # unchanged
+
+    def test_delete_revokes_only_this_events_access(self):
+        order, participant, participant_user, _session = self._create_order_with_participant()
+        # Same participant also registered for a second event -- must survive.
+        UserEventAssignment.objects.create(
+            user=participant_user, event=self.other_event, role='participant', is_active=True,
+        )
+        ParticipantEventRegistration.objects.create(participant=participant, event=self.other_event)
+
+        self.client.force_login(self.owner)
+        self.client.post(reverse('dashboard:registration_delete', args=[order.id]))
+
+        self.assertFalse(RegistrationOrder.objects.filter(id=order.id).exists())
+        self.assertFalse(
+            UserEventAssignment.objects.filter(user=participant_user, event=self.event, is_active=True).exists()
+        )
+        self.assertFalse(
+            ParticipantEventRegistration.objects.filter(participant=participant, event=self.event).exists()
+        )
+        # Other event's access untouched.
+        self.assertTrue(
+            UserEventAssignment.objects.filter(user=participant_user, event=self.other_event, is_active=True).exists()
+        )
+        self.assertTrue(
+            ParticipantEventRegistration.objects.filter(participant=participant, event=self.other_event).exists()
+        )
+        # Global participant profile untouched.
+        self.assertTrue(Participant.objects.filter(id=participant.id).exists())
+
+    def test_delete_confirmed_requires_explicit_flag(self):
+        order, _participant, _user, _session = self._create_order_with_participant()
+        self.client.force_login(self.owner)
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'approved'})
+
+        self.client.post(reverse('dashboard:registration_delete', args=[order.id]))
+        self.assertTrue(RegistrationOrder.objects.filter(id=order.id).exists())
+
+        self.client.post(reverse('dashboard:registration_delete', args=[order.id]), {'confirm_paid': '1'})
+        self.assertFalse(RegistrationOrder.objects.filter(id=order.id).exists())
+
+    def test_stranger_cannot_change_status_or_delete(self):
+        order, _participant, _user, _session = self._create_order_with_participant()
+        self.client.force_login(self.stranger)
+        response = self.client.post(
+            reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'approved'},
+        )
+        self.assertEqual(response.status_code, 403)
+        response = self.client.post(reverse('dashboard:registration_delete', args=[order.id]))
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(RegistrationOrder.objects.filter(id=order.id).exists())

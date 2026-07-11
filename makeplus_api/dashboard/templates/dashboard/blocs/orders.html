@@ -60,9 +60,10 @@
                             {% else %}—{% endif %}
                         </td>
                         <td>
-                            {% if order.status == 'pending' %}<span class="badge bg-warning text-dark">Reserved</span>
+                            {% if order.status == 'pending' %}<span class="badge bg-secondary">Registered</span>
+                            {% elif order.status == 'reserved' %}<span class="badge bg-warning text-dark">Reserved</span>
                             {% elif order.status == 'approved' %}<span class="badge bg-success">Confirmed</span>
-                            {% else %}<span class="badge bg-danger">Rejected</span>{% endif %}
+                            {% else %}<span class="badge bg-danger">Cancelled</span>{% endif %}
                         </td>
                         <td><small>{{ order.created_at|date:"M d, Y H:i" }}</small></td>
                         <td>
@@ -110,12 +111,15 @@
                 <hr>
                 <p class="mb-1">
                     <strong>Status:</strong>
-                    {% if order.status == 'pending' %}<span class="badge bg-warning text-dark">Reserved -- awaiting caisse confirmation</span>
-                    {% elif order.status == 'approved' %}<span class="badge bg-success">Confirmed at Caisse</span>
-                    {% else %}<span class="badge bg-danger">Rejected</span>{% endif %}
+                    {% if order.status == 'pending' %}<span class="badge bg-secondary">Registered -- awaiting review</span>
+                    {% elif order.status == 'reserved' %}<span class="badge bg-warning text-dark">Reserved</span>
+                    {% elif order.status == 'approved' %}<span class="badge bg-success">Confirmed</span>
+                    {% else %}<span class="badge bg-danger">Cancelled</span>{% endif %}
                 </p>
                 {% if order.reviewed_by_caisse %}
                 <p class="mb-1 text-muted"><small>By {{ order.reviewed_by_caisse.name }} on {{ order.reviewed_at|date:"M d, Y H:i" }}</small></p>
+                {% elif order.reviewed_by %}
+                <p class="mb-1 text-muted"><small>By {{ order.reviewed_by.get_full_name|default:order.reviewed_by.email }} (event owner) on {{ order.reviewed_at|date:"M d, Y H:i" }}</small></p>
                 {% endif %}
                 {% if order.admin_notes %}
                 <p class="mb-1"><strong>Notes:</strong> {{ order.admin_notes }}</p>

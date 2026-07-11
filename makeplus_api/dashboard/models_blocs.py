@@ -221,14 +221,24 @@ class BlocItemStatusRule(models.Model):
 class RegistrationOrder(models.Model):
     """
     A paid (bloc) registration submitted from the public form. Automatically
-    reserved on submission -- no admin review gates it. The caisse operator
-    does the real payment validation on event day (see process_transaction /
-    reject_reservation in caisse/views.py), which confirms or rejects it.
+    registered on submission -- no admin review gates it. From there, either
+    the caisse operator (on event day, via process_transaction/
+    reject_reservation in caisse/views.py) or the event owner (via
+    caisse.services.confirm_registration_order, same real effects) can
+    confirm or cancel it.
     """
+    # 'pending' (Registered) is set automatically on submission. From there,
+    # an event owner or caisse operator can move it to 'reserved' (a manual
+    # hold, bookkeeping only -- no payment/access implied), 'approved'
+    # (Confirmed -- a real payment confirmation: see
+    # caisse.services.confirm_registration_order, which creates the same
+    # CaisseTransaction/SessionAccess a physical caisse confirmation would),
+    # or 'rejected' (Cancelled).
     STATUS_CHOICES = [
-        ('pending', 'Reserved (awaiting caisse confirmation)'),
-        ('approved', 'Confirmed at Caisse'),
-        ('rejected', 'Rejected'),
+        ('pending', 'Registered'),
+        ('reserved', 'Reserved'),
+        ('approved', 'Confirmed'),
+        ('rejected', 'Cancelled'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -282,6 +292,18 @@ class RegistrationOrder(models.Model):
         help_text="Which caisse station confirmed or rejected this reservation on event day"
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    # Set only by caisse.services.confirm_registration_order (the
+    # event-owner confirmation path) -- gives cancel_registration_order a
+    # reliable link back to the exact CaisseTransaction it created, so
+    # cancelling can void it precisely. Deliberately left null when a
+    # physical caisse confirms an order directly (process_transaction can
+    # bundle several orders into one transaction, and doesn't record this
+    # link) -- an event owner cancelling one of those only updates the
+    # registration record, not money caisse already collected.
+    caisse_transaction = models.ForeignKey(
+        'caisse.CaisseTransaction', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='owner_confirmed_orders',
+    )
 
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
