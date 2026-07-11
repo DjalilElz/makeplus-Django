@@ -302,6 +302,27 @@
             font-size: 0.85rem;
             margin: 10px 0 18px;
         }
+        /* Blocs 2+ stay dimmed and non-interactive until a Status is
+           picked in Bloc 1 -- see lockNonStatusBlocs() below. */
+        .bloc-locked-message {
+            display: none;
+            background: var(--dusty-rose-bg);
+            color: var(--dusty-rose-dark);
+            border: 1px solid var(--dusty-rose);
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin: 10px 0 18px;
+            text-align: center;
+        }
+        .bloc-section.bloc-locked {
+            opacity: 0.45;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+        .bloc-section.bloc-locked .bloc-locked-message { display: block; }
+        .bloc-section.bloc-locked .bloc-note { display: none; }
 
         .product-card {
             display: flex;
@@ -1011,11 +1032,14 @@
                         {% if bloc_context.has_blocs %}
                         {# ---- Bloc sections: Status, Restauration, Ateliers/Workshops, Evenement social ---- #}
                         {% for bloc in bloc_context.custom_blocs_before_workshops %}
-                        <div class="bloc-section">
+                        <div class="bloc-section" data-bloc-key="{{ bloc.key }}">
                             <div class="bloc-header">
                                 <span class="bloc-badge">Bloc {{ forloop.counter }}</span>
                                 <span class="bloc-title">{{ bloc.label }}</span>
                             </div>
+                            {% if bloc.key != 'status' %}
+                            <p class="bloc-locked-message"><i class="bi bi-lock-fill me-1"></i>Veuillez d'abord sélectionner votre statut (Bloc 1) ci-dessus.</p>
+                            {% endif %}
                             <p class="bloc-note">
                                 {% if bloc.select_mode == 'single' %}Choix unique — sélectionnez une option.{% else %}Choix multiple — sélectionnez autant que vous le souhaitez.{% endif %}
                             </p>
@@ -1055,11 +1079,12 @@
                         {% endfor %}
 
                         {% if bloc_context.workshops_visible and bloc_context.paid_sessions %}
-                        <div class="bloc-section">
+                        <div class="bloc-section" data-bloc-key="workshops">
                             <div class="bloc-header">
                                 <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs_before_workshops|length|add:1 }}</span>
                                 <span class="bloc-title">Ateliers / Workshops</span>
                             </div>
+                            <p class="bloc-locked-message"><i class="bi bi-lock-fill me-1"></i>Veuillez d'abord sélectionner votre statut (Bloc 1) ci-dessus.</p>
                             <p class="bloc-note">Choix multiple — sélectionnez autant d'ateliers que vous le souhaitez.</p>
                             {% for s in bloc_context.paid_sessions %}
                             <label class="product-card" id="product_session_{{ s.id }}" for="session_{{ s.id }}">
@@ -1090,11 +1115,12 @@
                         {% endif %}
 
                         {% for bloc in bloc_context.custom_blocs_after_workshops %}
-                        <div class="bloc-section">
+                        <div class="bloc-section" data-bloc-key="{{ bloc.key }}">
                             <div class="bloc-header">
                                 <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs_before_workshops|length|add:1|add:forloop.counter }}</span>
                                 <span class="bloc-title">{{ bloc.label }}</span>
                             </div>
+                            <p class="bloc-locked-message"><i class="bi bi-lock-fill me-1"></i>Veuillez d'abord sélectionner votre statut (Bloc 1) ci-dessus.</p>
                             <p class="bloc-note">
                                 {% if bloc.select_mode == 'single' %}Choix unique — sélectionnez une option.{% else %}Choix multiple — sélectionnez autant que vous le souhaitez.{% endif %}
                             </p>
@@ -1281,6 +1307,27 @@
 
                     var note = document.getElementById('period-preview-note');
                     if (note) note.style.display = isCurrentPeriodActive ? 'none' : 'block';
+
+                    lockNonStatusBlocs(!!statusEl);
+                }
+
+                // Blocs 2+ (Restauration/Workshops/Social Event) stay dimmed
+                // and non-interactive until a Status is picked in Bloc 1 --
+                // their items' visibility/price depend on status anyway, so
+                // there's nothing valid to pick before then. Runs after the
+                // visibility-rule loop above so it only ever tightens
+                // (locks) disabled state, never re-enables something that
+                // rule/period logic already disabled for another reason.
+                function lockNonStatusBlocs(statusChosen) {
+                    document.querySelectorAll('.bloc-section[data-bloc-key]').forEach(function (section) {
+                        if (section.getAttribute('data-bloc-key') === 'status') return;
+                        section.classList.toggle('bloc-locked', !statusChosen);
+                        if (!statusChosen) {
+                            section.querySelectorAll('.bloc-choice').forEach(function (el) {
+                                el.disabled = true;
+                            });
+                        }
+                    });
                 }
 
                 function recalc() {
