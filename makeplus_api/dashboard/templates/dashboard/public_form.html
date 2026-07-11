@@ -1372,11 +1372,12 @@
                             lines.push({ name: el.getAttribute('data-name'), price: price });
                         }
                     });
-                    // blocs (all of them, including status) still drives the
-                    // progress dots below. Status is mandatory on every
-                    // registration though, so it must not count as an extra
-                    // bloc toward the multi-bloc discount -- must match
-                    // compute_order, which excludes it the same way.
+                    // Status is mandatory on every registration, so it must
+                    // not count as an extra bloc toward the multi-bloc
+                    // discount -- must match compute_order, which excludes
+                    // it the same way. This same count also drives the
+                    // progress dots below (a count of *how many* real blocs
+                    // are selected, not which specific ones).
                     var distinct = Object.keys(blocs).filter(function (b) { return b !== 'status'; }).length;
                     var totalPct = (BLOCS_ENABLED && subtotal > 0) ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
                     if (totalPct > 100) totalPct = 100;
@@ -1429,10 +1430,16 @@
                     }
                     document.getElementById('cart-item-count').textContent = lines.length;
 
+                    // A progress count, not a per-bloc indicator: dot N
+                    // lights up once N real (non-status) blocs are
+                    // selected, regardless of which ones -- e.g. Status +
+                    // Restauration fills dot 1; adding Workshops on top
+                    // (still just 2 real blocs) fills dot 2 too, whatever
+                    // order they were picked in.
                     BLOC_ORDER.forEach(function (blocKey, idx) {
                         var dot = document.getElementById('dot-' + (idx + 1));
                         if (dot) {
-                            if (blocs[blocKey]) dot.classList.add('filled');
+                            if (idx < distinct) dot.classList.add('filled');
                             else dot.classList.remove('filled');
                         }
                     });
