@@ -94,15 +94,16 @@
         .back-link:hover { color: #fff; }
         .status-select {
             font-size: 0.78rem;
-            font-weight: 600;
+            font-weight: 700;
             border-radius: 999px;
-            padding: 3px 10px;
-            border-width: 2px;
+            padding: 4px 10px;
+            border: none;
+            cursor: pointer;
         }
-        .status-select.status-pending { border-color: #adb5bd; color: #495057; }
-        .status-select.status-reserved { border-color: #d4a017; color: #7a5c00; }
-        .status-select.status-approved { border-color: #198754; color: #155724; }
-        .status-select.status-rejected { border-color: #dc3545; color: #842029; }
+        .status-select.status-pending { background: #e9ecef; color: #495057; }
+        .status-select.status-reserved { background: #fff3cd; color: #7a5c00; }
+        .status-select.status-approved { background: #d1e7dd; color: #0f5132; }
+        .status-select.status-rejected { background: #f8d7da; color: #842029; }
         .btn-delete-row {
             border: none;
             background: none;
@@ -110,6 +111,32 @@
             padding: 2px 4px;
         }
         .btn-delete-row:hover { color: #dc3545; }
+        .btn-view-row {
+            border: none;
+            background: none;
+            color: var(--banner-1);
+            padding: 2px 4px;
+        }
+        .btn-view-row:hover { color: var(--banner-2); }
+        .stats-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+        .stat-tile {
+            background: var(--cream);
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+            padding: 16px 22px;
+            min-width: 180px;
+            flex: 1;
+        }
+        .stat-tile .stat-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #8a8a8a;
+            margin-bottom: 4px;
+        }
+        .stat-tile .stat-value { font-family: var(--font-serif); font-size: 1.7rem; font-weight: 700; color: var(--banner-1); }
+        .detail-row { margin-bottom: 10px; }
+        .detail-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #8a8a8a; }
     </style>
 </head>
 <body>
@@ -123,6 +150,21 @@
 
     <div class="page-wrapper">
         <div class="content-card">
+            <div class="stats-row">
+                <div class="stat-tile">
+                    <div class="stat-label">
+                        Inscriptions{% if status %} ({{ status_label }}){% endif %}
+                    </div>
+                    <div class="stat-value">{{ submissions_count }}</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-label">
+                        Revenu total{% if status %} ({{ status_label }}){% endif %}
+                    </div>
+                    <div class="stat-value">{{ total_revenue }} DZD</div>
+                </div>
+            </div>
+
             <form method="get" class="row g-2 mb-4 filter-form">
                 <div class="col-md-6">
                     <input type="text" name="q" class="form-control" placeholder="Rechercher par nom ou e-mail..." value="{{ query }}">
@@ -148,13 +190,11 @@
                         <tr>
                             <th>Participant</th>
                             <th>E-mail</th>
+                            <th>Téléphone</th>
                             <th>Statut choisi</th>
-                            <th>Période</th>
-                            <th>Articles</th>
                             <th>Prix</th>
                             <th>Statut de l'inscription</th>
                             <th>Soumis le</th>
-                            <th>Reçu</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -163,17 +203,8 @@
                         <tr>
                             <td>{{ order.full_name|default:"—" }}</td>
                             <td>{{ order.email|default:"—" }}</td>
+                            <td>{{ order.phone|default:"—" }}</td>
                             <td>{{ order.participant_status }}</td>
-                            <td>{{ order.period.name|default:"—" }}</td>
-                            <td>
-                                <ul class="items-list">
-                                    {% for it in order.other_items %}
-                                    <li>{{ it.name }} — {{ it.price }} DZD</li>
-                                    {% empty %}
-                                    <li class="text-muted">—</li>
-                                    {% endfor %}
-                                </ul>
-                            </td>
                             <td>
                                 <strong>{{ order.total_after_reduction }} DZD</strong>
                                 {% if order.total_discount_percent > 0 %}
@@ -194,14 +225,12 @@
                                 </form>
                             </td>
                             <td><small>{{ order.created_at|date:"d M Y H:i" }}</small></td>
-                            <td>
-                                {% if order.receipt_file %}
-                                <a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-arrow-down"></i></a>
-                                {% else %}—{% endif %}
-                            </td>
-                            <td>
+                            <td class="text-nowrap">
+                                <button type="button" class="btn-view-row" title="Voir les détails" data-bs-toggle="modal" data-bs-target="#order-{{ order.id }}">
+                                    <i class="bi bi-eye"></i>
+                                </button>
                                 <form method="post" action="{% url 'dashboard:registration_delete' order.id %}"
-                                      onsubmit="return confirmDelete(this, '{{ order.status }}');">
+                                      onsubmit="return confirmDelete(this, '{{ order.status }}');" class="d-inline">
                                     {% csrf_token %}
                                     {% if order.status == 'approved' %}<input type="hidden" name="confirm_paid" value="1">{% endif %}
                                     <button type="submit" class="btn-delete-row" title="Supprimer"><i class="bi bi-trash"></i></button>
@@ -212,6 +241,78 @@
                     </tbody>
                 </table>
             </div>
+
+            {% for order in orders %}
+            <div class="modal fade" id="order-{{ order.id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content" style="border-radius: 16px; border: none;">
+                        <div class="modal-header" style="border-bottom: 1px solid var(--border-light);">
+                            <h5 class="modal-title" style="font-family: var(--font-serif);">{{ order.full_name|default:order.email }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-6 detail-row">
+                                    <div class="detail-label">E-mail</div>
+                                    <div>{{ order.email|default:"—" }}</div>
+                                </div>
+                                <div class="col-md-6 detail-row">
+                                    <div class="detail-label">Téléphone</div>
+                                    <div>{{ order.phone|default:"—" }}</div>
+                                </div>
+                                <div class="col-md-6 detail-row">
+                                    <div class="detail-label">Statut choisi</div>
+                                    <div>{{ order.participant_status }}</div>
+                                </div>
+                                <div class="col-md-6 detail-row">
+                                    <div class="detail-label">Période</div>
+                                    <div>{{ order.period.name|default:"—" }}</div>
+                                </div>
+                            </div>
+
+                            <div class="detail-row">
+                                <div class="detail-label">Articles</div>
+                                <ul class="items-list mt-1">
+                                    {% for it in order.items_snapshot %}
+                                    <li>{{ it.name }} — {{ it.price }} DZD</li>
+                                    {% empty %}
+                                    <li class="text-muted">Aucun article</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+
+                            <hr>
+                            <p class="mb-1">Total avant réduction : <strong>{{ order.total_before_reduction }} DZD</strong></p>
+                            {% if order.total_discount_percent > 0 %}
+                            <p class="mb-1">Réduction : blocs {{ order.blocs_discount_percent }}% = <strong>{{ order.total_discount_percent }}%</strong></p>
+                            {% endif %}
+                            <p class="mb-3">Total à payer : <strong>{{ order.total_after_reduction }} DZD</strong></p>
+
+                            {% if order.receipt_file %}
+                            <p><a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark"></i> Ouvrir le reçu bancaire</a></p>
+                            {% endif %}
+
+                            <hr>
+                            <p class="mb-1">
+                                <strong>Statut de l'inscription :</strong>
+                                <span class="status-select status-{{ order.status }}">
+                                    {% if order.status == 'pending' %}Enregistré
+                                    {% elif order.status == 'reserved' %}Réservé
+                                    {% elif order.status == 'approved' %}Confirmé
+                                    {% else %}Annulé{% endif %}
+                                </span>
+                            </p>
+                            {% if order.reviewed_by_caisse %}
+                            <p class="mb-1 text-muted"><small>Par {{ order.reviewed_by_caisse.name }} le {{ order.reviewed_at|date:"d M Y H:i" }}</small></p>
+                            {% elif order.reviewed_by %}
+                            <p class="mb-1 text-muted"><small>Par {{ order.reviewed_by.get_full_name|default:order.reviewed_by.email }} le {{ order.reviewed_at|date:"d M Y H:i" }}</small></p>
+                            {% endif %}
+                            <p class="mb-0 text-muted small">Soumis le {{ order.created_at|date:"d M Y H:i" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
             {% else %}
             <p class="text-muted text-center py-5 mb-0">Aucune inscription trouvée.</p>
             {% endif %}

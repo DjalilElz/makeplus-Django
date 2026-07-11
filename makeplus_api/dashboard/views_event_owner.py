@@ -8,6 +8,8 @@ receipts, move a registration between its 4 statuses (Registered ->
 Reserved -> Confirmed -> Cancelled -- see caisse.services for what
 Confirmed/Cancelled actually do), and delete a registration.
 """
+from decimal import Decimal
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -67,25 +69,47 @@ def event_owner_submissions(request, event_id):
     status = request.GET.get('status', '').strip()
     query = request.GET.get('q', '').strip()
 
-    orders = RegistrationOrder.objects.filter(event=event).select_related('period')
+    orders = RegistrationOrder.objects.filter(event=event).select_related(
+        'period', 'form_submission__form',
+    )
     if status in ('pending', 'reserved', 'approved', 'rejected'):
         orders = orders.filter(status=status)
     if query:
         orders = orders.filter(Q(full_name__icontains=query) | Q(email__icontains=query))
     orders = list(orders.order_by('-created_at'))
 
+    # A phone number, if the event's registration form has a "tel"-type
+    # custom field, lives in FormSubmission.data under whatever name the
+    # admin gave that field -- not a fixed column. Every order for this
+    # event shares the same form, so resolve the field name once.
+    phone_field_name = None
+    form_config = event.custom_forms.first()
+    if form_config:
+        phone_field_name = next(
+            (f.get('name') for f in form_config.fields_config if f.get('type') == 'tel'), None,
+        )
+
     # The participant's chosen Status item lives inside items_snapshot
     # (a JSON list), not a direct field -- pull it out for display.
+    total_revenue = Decimal('0')
     for order in orders:
         status_entry = next((it for it in order.items_snapshot if it.get('bloc') == 'status'), None)
         order.participant_status = status_entry['name'] if status_entry else '—'
-        order.other_items = [it for it in order.items_snapshot if it.get('bloc') != 'status']
+        order.phone = (
+            order.form_submission.data.get(phone_field_name, '')
+            if order.form_submission and phone_field_name else ''
+        )
+        total_revenue += order.total_after_reduction
 
+    status_labels = {'pending': 'Enregistré', 'reserved': 'Réservé', 'approved': 'Confirmé', 'rejected': 'Annulé'}
     context = {
         'event': event,
         'orders': orders,
         'status': status,
+        'status_label': status_labels.get(status, ''),
         'query': query,
+        'submissions_count': len(orders),
+        'total_revenue': total_revenue,
     }
     return render(request, 'dashboard/event_owner/submissions.html', context)
 
