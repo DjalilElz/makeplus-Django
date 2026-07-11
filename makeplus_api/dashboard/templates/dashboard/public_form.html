@@ -1229,12 +1229,42 @@
                 </div>
             </form>
 
+            <script>
+            (function () {
+                // Prevent double submission (double-click, or a slow network
+                // making someone tap again) -- covers both the simple and
+                // the blocs-cart submit buttons, whichever is rendered.
+                // Runs on the 'submit' event, which only fires after native
+                // HTML5 validation (required fields etc.) already passed, so
+                // this never blocks a legitimately-invalid first attempt.
+                var form = document.getElementById('registrationForm');
+                if (form) {
+                    var alreadySubmitting = false;
+                    form.addEventListener('submit', function (e) {
+                        if (alreadySubmitting) {
+                            e.preventDefault();
+                            return false;
+                        }
+                        alreadySubmitting = true;
+                        form.querySelectorAll('button[type="submit"]').forEach(function (btn) {
+                            btn.disabled = true;
+                            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Envoi en cours...';
+                        });
+                    });
+                }
+            })();
+            </script>
+
             {% if bloc_context.has_blocs %}
             <script>
             (function () {
                 var BLOCS_ENABLED = {% if bloc_context.config.reduction_by_blocs_enabled %}true{% else %}false{% endif %};
                 var REQUIRE_PAYMENT_PROOF = {% if bloc_context.config.require_payment_proof %}true{% else %}false{% endif %};
                 var BLOC_PCT = {2: {{ bloc_context.config.reduction_2_blocs }}, 3: {{ bloc_context.config.reduction_3_blocs }}, 4: {{ bloc_context.config.reduction_4_blocs }}};
+                // Status doesn't count as a bloc, so 3 is the true max reachable now (was 4) --
+                // fold the legacy 4-blocs field in here so an event still using it keeps applying
+                // that discount at the real max. Must match blocs_reduction_percent server-side.
+                BLOC_PCT[3] = Math.max(BLOC_PCT[3], BLOC_PCT[4]);
                 var BLOC_ORDER = [{% for key in bloc_context.active_bloc_keys %}'{{ key }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
                 // Status -> {target_key: {visible, price}} -- lets picking a
                 // Status hide/show or re-price items in the other blocs live.

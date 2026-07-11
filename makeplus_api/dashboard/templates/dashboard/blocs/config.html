@@ -88,15 +88,21 @@
                     <input type="number" step="0.01" min="0" max="100" name="reduction_2_blocs" value="{{ config.reduction_2_blocs }}" class="form-control form-control-sm">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label small">3 blocs selected → % off</label>
+                    <label class="form-label small">3 blocs selected (max) → % off</label>
                     <input type="number" step="0.01" min="0" max="100" name="reduction_3_blocs" value="{{ config.reduction_3_blocs }}" class="form-control form-control-sm">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label small">4 blocs selected → % off</label>
+                    <label class="form-label small">Legacy 4-blocs field (deprecated)</label>
                     <input type="number" step="0.01" min="0" max="100" name="reduction_4_blocs" value="{{ config.reduction_4_blocs }}" class="form-control form-control-sm">
                 </div>
             </div>
-            <small class="text-muted d-block mt-2">1 bloc selected is always 0%. When both reductions are active, they add up.</small>
+            <small class="text-muted d-block mt-2">
+                1 bloc selected is always 0%. Status doesn't count as a bloc, so 3 (Restauration/Workshops/Social
+                Event) is the real maximum -- put your top discount in the "3 blocs" field above. The legacy
+                "4 blocs" field only still exists so an older event's value there keeps applying at the 3-bloc max
+                (whichever of the two is higher wins); leave it at 0 for new events. When both reductions are
+                active, they add up.
+            </small>
         </div>
 
         <div class="stat-card mb-4">
