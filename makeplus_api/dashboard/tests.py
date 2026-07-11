@@ -411,14 +411,14 @@ class BlocsComputeOrderTests(TestCase):
         self.assertEqual(r['blocs_discount_percent'], Decimal('20.00'))
         self.assertEqual(r['total_after_reduction'], Decimal('2800.00'))
 
-    def test_legacy_4_blocs_field_still_applies_at_the_real_3_bloc_max(self):
+    def test_reduction_4_blocs_is_ignored(self):
         # Status doesn't count, so 3 (Restauration + Social Event +
-        # Workshops) is the real maximum now, not 4. An event that had its
-        # top discount configured in the now-unreachable reduction_4_blocs
-        # field (from before that change) must still get it once it hits
-        # that real max, not silently lose it.
+        # Workshops) is the real, and only, maximum -- reduction_4_blocs
+        # is unreachable and must be ignored outright, not folded into the
+        # 3-blocs tier as a fallback (that produced a discount the admin
+        # never actually configured for 3 blocs -- reverted).
         self.config.reduction_by_blocs_enabled = True
-        self.config.reduction_3_blocs = Decimal('0')
+        self.config.reduction_3_blocs = Decimal('5')
         self.config.reduction_4_blocs = Decimal('30')
         self.config.save()
         r = self._compute(
@@ -426,7 +426,7 @@ class BlocsComputeOrderTests(TestCase):
             session_ids=[self.paid_session.id],
         )
         self.assertEqual(r['distinct_blocs_count'], 3)
-        self.assertEqual(r['blocs_discount_percent'], Decimal('30'))
+        self.assertEqual(r['blocs_discount_percent'], Decimal('5'))
 
     def test_period_price_and_blocs_reduction_are_additive(self):
         period = ReductionPeriod.objects.create(

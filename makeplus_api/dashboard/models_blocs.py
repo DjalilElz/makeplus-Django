@@ -94,21 +94,23 @@ class EventBlocConfig(models.Model):
 
     def blocs_reduction_percent(self, distinct_bloc_count):
         """
-        % reduction for the number of distinct blocs selected.
+        % reduction for the number of distinct blocs selected -- follows
+        exactly what's configured in reduction_2_blocs/reduction_3_blocs,
+        nothing implied or merged in from elsewhere.
 
         Status doesn't count toward this anymore (see compute_order), so
-        3 -- not 4 -- is the true maximum reachable count now. Events
-        configured before that change may still have their intended top
-        discount sitting in reduction_4_blocs, which would otherwise never
-        apply again; at the real max, use whichever of the 3/4-blocs
-        fields is higher so that value isn't silently stranded.
+        3 is the real maximum reachable count now, not 4 --
+        reduction_4_blocs is unreachable and deliberately ignored here
+        (an earlier attempt to fold it in via max() as a "legacy value"
+        fallback produced a discount the admin never actually configured
+        for 3 blocs; reverted).
         """
         if not self.reduction_by_blocs_enabled:
             return Decimal('0')
         if distinct_bloc_count == 2:
             return self.reduction_2_blocs
         if distinct_bloc_count >= 3:
-            return max(self.reduction_3_blocs, self.reduction_4_blocs)
+            return self.reduction_3_blocs
         return Decimal('0')
 
 
