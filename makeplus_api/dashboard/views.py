@@ -2491,4 +2491,11 @@ def public_form_view(request, slug):
         'bloc_context': get_public_bloc_context(form_config.event),
     }
 
-    return render(request, 'dashboard/public_form.html', context)
+    response = render(request, 'dashboard/public_form.html', context)
+    # Prevent caching -- this is the main landing page for the form, and a
+    # stale cached copy would keep showing the old banner/header after an
+    # admin toggles use_banner_image or updates the image.
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
