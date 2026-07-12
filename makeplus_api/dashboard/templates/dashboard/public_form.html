@@ -57,12 +57,13 @@
             border-radius: 50%;
             filter: blur(60px);
         }
-        /* Image-banner mode: fixed 1600x500 (3.2:1) box so every event's
-           banner renders at the same height regardless of upload size --
-           upload at that ratio and object-fit: cover won't crop anything. */
+        /* Image-banner mode: fixed-height box (matches the recommended
+           1600x500 upload) so the photo is always contained to a defined
+           header area instead of dictating the page's own height. Fixed
+           px height (not aspect-ratio) so it's bounded on every browser. */
         .image-banner-photo-wrap {
             width: 100%;
-            aspect-ratio: 3.2 / 1;
+            height: 500px;
             overflow: hidden;
             background: #1a1a1a;
         }
@@ -71,6 +72,9 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+        @media (max-width: 768px) {
+            .image-banner-photo-wrap { height: 260px; }
         }
         .banner-content {
             position: relative;
@@ -654,9 +658,6 @@
     {% if form_config.use_banner_image and banner_img %}
     <div class="image-banner-photo-wrap">
         <img src="{{ banner_img.url }}" alt="{{ form_config.name }}" class="image-banner-photo">
-    </div>
-    <div class="elegant-banner">
-        {% include 'dashboard/_public_form_banner_content.html' %}
     </div>
     {% else %}
     <div class="elegant-banner">
@@ -1454,6 +1455,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+    {% with banner_img=form_config.banner_image|default:form_config.event.banner %}
+    {% if form_config.use_banner_image and banner_img %}{% else %}
     {% if form_config.countdown_enabled and form_config.countdown_date %}
     <script>
         const countdownDate = new Date("{{ form_config.countdown_date|date:'Y-m-d H:i:s' }}").getTime();
@@ -1461,9 +1464,11 @@
         function updateCountdown() {
             const now = new Date().getTime();
             const distance = countdownDate - now;
+            const countdownEl = document.getElementById('countdown');
+            if (!countdownEl) return;
 
             if (distance < 0) {
-                document.getElementById('countdown').innerHTML = '<div class="alert alert-info mb-0">Event has started!</div>';
+                countdownEl.innerHTML = '<div class="alert alert-info mb-0">Event has started!</div>';
                 return;
             }
 
@@ -1482,6 +1487,8 @@
         setInterval(updateCountdown, 1000);
     </script>
     {% endif %}
+    {% endif %}
+    {% endwith %}
 
     {% if show_submission_blocked_alert %}
     <script>
