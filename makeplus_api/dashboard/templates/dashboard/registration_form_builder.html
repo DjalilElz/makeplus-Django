@@ -100,8 +100,41 @@
                             </div>
                         </div>
 
+                        <!-- Banner Image Settings -->
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-image me-2"></i>Banner Image</h6>
+                                <p class="text-muted small">Upload an image to use as the page header instead of the default designed banner. Toggle it on/off per event without losing the uploaded image.</p>
+
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="useBannerImage" name="use_banner_image"
+                                           {% if form and form.use_banner_image %}checked{% endif %}>
+                                    <label class="form-check-label" for="useBannerImage">
+                                        Use this image as the form header (instead of the default design)
+                                    </label>
+                                </div>
+
+                                {% if form and form.banner_image %}
+                                <div class="mb-3">
+                                    <img src="{{ form.banner_image.url }}" alt="Current banner" class="img-fluid rounded mb-2" style="max-height: 150px;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="clearBanner" name="clear_banner">
+                                        <label class="form-check-label" for="clearBanner">
+                                            Remove current banner image
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <div class="mb-3">
+                                    <label for="bannerImage" class="form-label">{% if form and form.banner_image %}Replace banner image{% else %}Upload banner image{% endif %}</label>
+                                    <input type="file" class="form-control" id="bannerImage" name="banner_image" accept="image/*">
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="isActive" name="is_active" 
+                            <input class="form-check-input" type="checkbox" id="isActive" name="is_active"
                                    {% if not form or form.is_active %}checked{% endif %}>
                             <label class="form-check-label" for="isActive">
                                 Form is active (users can submit)

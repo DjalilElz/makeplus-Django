@@ -57,6 +57,16 @@
             border-radius: 50%;
             filter: blur(60px);
         }
+        /* Image-banner mode: an uploaded photo instead of the gradient,
+           with a dark scrim so the title/countdown text stays readable
+           regardless of the photo's own colors. */
+        .elegant-banner.image-banner::before { display: none; }
+        .image-banner-scrim {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(45, 27, 107, 0.78) 0%, rgba(70, 48, 154, 0.58) 55%, rgba(58, 36, 128, 0.78) 100%);
+            z-index: 1;
+        }
         .banner-content {
             position: relative;
             z-index: 2;
@@ -635,7 +645,10 @@
 </head>
 <body>
     <!-- ============ 1. TOP BANNER ============ -->
-    <div class="elegant-banner">
+    {% with banner_img=form_config.banner_image|default:form_config.event.banner %}
+    <div class="elegant-banner{% if form_config.use_banner_image and banner_img %} image-banner{% endif %}"
+         {% if form_config.use_banner_image and banner_img %}style="background-image: url('{{ banner_img.url }}'); background-size: cover; background-position: center;"{% endif %}>
+        {% if form_config.use_banner_image and banner_img %}<div class="image-banner-scrim"></div>{% endif %}
         <div class="banner-content">
             <div class="banner-top-row">
                 <div class="banner-main">
@@ -716,6 +729,7 @@
             </div>
         </div>
     </div>
+    {% endwith %}
 
     {% if not success and not form_closed and not show_verification and bloc_context.periods %}
     <div class="period-switcher-wrap">

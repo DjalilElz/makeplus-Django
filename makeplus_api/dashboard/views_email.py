@@ -823,9 +823,10 @@ def registration_form_create(request):
         # Handle banner image if uploaded
         if 'banner_image' in request.FILES:
             form.banner_image = request.FILES['banner_image']
-        
+        form.use_banner_image = request.POST.get('use_banner_image') == 'on'
+
         form.save()
-        
+
         messages.success(request, f'Form "{form.name}" created successfully!')
         messages.info(request, f'Public URL: {request.build_absolute_uri(form.get_public_url())}')
         return redirect('dashboard:registration_form_builder')
@@ -912,7 +913,8 @@ def registration_form_edit(request, form_id):
             form.banner_image = None
         elif 'banner_image' in request.FILES:
             form.banner_image = request.FILES['banner_image']
-        
+        form.use_banner_image = request.POST.get('use_banner_image') == 'on'
+
         form.save()
         
         messages.success(request, f'Form "{form.name}" updated successfully!')

@@ -17,6 +17,7 @@ class FormConfiguration(models.Model):
     
     # Banner image for the form (optional)
     banner_image = models.ImageField(upload_to='forms/banners/', blank=True, null=True, help_text="Optional banner image for the form. If not set, will use event banner if form is linked to an event.")
+    use_banner_image = models.BooleanField(default=False, help_text="Show the banner image at the top of the form instead of the default designed header.")
     
     # Countdown settings
     countdown_enabled = models.BooleanField(default=False, help_text="Enable countdown timer on form page")
