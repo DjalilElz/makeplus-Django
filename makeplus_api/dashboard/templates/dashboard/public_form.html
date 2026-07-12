@@ -57,16 +57,20 @@
             border-radius: 50%;
             filter: blur(60px);
         }
-        /* Image-banner mode: the uploaded photo shown as-is (original
-           aspect ratio, no crop, no tint) above the usual title/info bar. */
+        /* Image-banner mode: fixed 1600x500 (3.2:1) box so every event's
+           banner renders at the same height regardless of upload size --
+           upload at that ratio and object-fit: cover won't crop anything. */
         .image-banner-photo-wrap {
             width: 100%;
-            line-height: 0;
+            aspect-ratio: 3.2 / 1;
+            overflow: hidden;
+            background: #1a1a1a;
         }
         .image-banner-photo {
             display: block;
             width: 100%;
-            height: auto;
+            height: 100%;
+            object-fit: cover;
         }
         .banner-content {
             position: relative;
