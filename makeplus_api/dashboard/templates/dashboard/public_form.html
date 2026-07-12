@@ -57,15 +57,16 @@
             border-radius: 50%;
             filter: blur(60px);
         }
-        /* Image-banner mode: an uploaded photo instead of the gradient,
-           with a dark scrim so the title/countdown text stays readable
-           regardless of the photo's own colors. */
-        .elegant-banner.image-banner::before { display: none; }
-        .image-banner-scrim {
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(135deg, rgba(45, 27, 107, 0.78) 0%, rgba(70, 48, 154, 0.58) 55%, rgba(58, 36, 128, 0.78) 100%);
-            z-index: 1;
+        /* Image-banner mode: the uploaded photo shown as-is (original
+           aspect ratio, no crop, no tint) above the usual title/info bar. */
+        .image-banner-photo-wrap {
+            width: 100%;
+            line-height: 0;
+        }
+        .image-banner-photo {
+            display: block;
+            width: 100%;
+            height: auto;
         }
         .banner-content {
             position: relative;
@@ -646,89 +647,18 @@
 <body>
     <!-- ============ 1. TOP BANNER ============ -->
     {% with banner_img=form_config.banner_image|default:form_config.event.banner %}
-    <div class="elegant-banner{% if form_config.use_banner_image and banner_img %} image-banner{% endif %}"
-         {% if form_config.use_banner_image and banner_img %}style="background-image: url('{{ banner_img.url }}'); background-size: cover; background-position: center;"{% endif %}>
-        {% if form_config.use_banner_image and banner_img %}<div class="image-banner-scrim"></div>{% endif %}
-        <div class="banner-content">
-            <div class="banner-top-row">
-                <div class="banner-main">
-                    <div class="brand-name">
-                        <span class="light">Make</span><span class="bold">Plus</span>
-                    </div>
-                    <div class="event-eyebrow">Inscription</div>
-
-                    {% if form_config.event and form_config.event.logo %}
-                    <div class="logo-title-row">
-                        <div class="event-logo-large">
-                            <img src="{{ form_config.event.logo.url }}" alt="{{ form_config.event.name }} Logo">
-                        </div>
-                        <div class="title-desc-col">
-                            <h1 class="event-title">{{ form_config.name }}</h1>
-                            {% if form_config.description %}
-                            <p class="event-subtitle">{{ form_config.description }}</p>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% else %}
-                    <h1 class="event-title">{{ form_config.name }}</h1>
-                    {% if form_config.description %}
-                    <p class="event-subtitle">{{ form_config.description }}</p>
-                    {% endif %}
-                    {% endif %}
-
-                    {% if form_config.event %}
-                    <div class="event-info-row">
-                        <div class="event-info-item">
-                            <div class="event-info-label">Date de début</div>
-                            <div class="event-info-value">{{ form_config.event.start_date|date:"d M Y" }}</div>
-                        </div>
-                        <div class="event-info-item">
-                            <div class="event-info-label">Date de fin</div>
-                            <div class="event-info-value">{{ form_config.event.end_date|date:"d M Y" }}</div>
-                        </div>
-                        <div class="event-info-item">
-                            <div class="event-info-label">Lieu</div>
-                            <div class="event-info-value">{{ form_config.event.location|default:"—" }}</div>
-                        </div>
-                        <div class="event-info-item">
-                            <div class="event-info-label">Devise</div>
-                            <div class="event-info-value">DZD</div>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-
-                {% if not success and not form_closed and not show_verification and form_config.countdown_enabled and form_config.countdown_date %}
-                <div class="banner-countdown-side">
-                    <h5 class="countdown-title mb-2">
-                        <i class="bi bi-alarm me-1"></i>{{ form_config.countdown_title }}
-                    </h5>
-                    <div class="countdown-timer" id="countdown">
-                        <div class="countdown-item">
-                            <span class="countdown-value" id="days">00</span>
-                            <span class="countdown-label">Days</span>
-                        </div>
-                        <div class="countdown-separator">:</div>
-                        <div class="countdown-item">
-                            <span class="countdown-value" id="hours">00</span>
-                            <span class="countdown-label">Hours</span>
-                        </div>
-                        <div class="countdown-separator">:</div>
-                        <div class="countdown-item">
-                            <span class="countdown-value" id="minutes">00</span>
-                            <span class="countdown-label">Minutes</span>
-                        </div>
-                        <div class="countdown-separator">:</div>
-                        <div class="countdown-item">
-                            <span class="countdown-value" id="seconds">00</span>
-                            <span class="countdown-label">Seconds</span>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
+    {% if form_config.use_banner_image and banner_img %}
+    <div class="image-banner-photo-wrap">
+        <img src="{{ banner_img.url }}" alt="{{ form_config.name }}" class="image-banner-photo">
     </div>
+    <div class="elegant-banner">
+        {% include 'dashboard/_public_form_banner_content.html' %}
+    </div>
+    {% else %}
+    <div class="elegant-banner">
+        {% include 'dashboard/_public_form_banner_content.html' %}
+    </div>
+    {% endif %}
     {% endwith %}
 
     {% if not success and not form_closed and not show_verification and bloc_context.periods %}

@@ -1,0 +1,79 @@
+<div class="banner-content">
+    <div class="banner-top-row">
+        <div class="banner-main">
+            <div class="brand-name">
+                <span class="light">Make</span><span class="bold">Plus</span>
+            </div>
+            <div class="event-eyebrow">Inscription</div>
+
+            {% if form_config.event and form_config.event.logo %}
+            <div class="logo-title-row">
+                <div class="event-logo-large">
+                    <img src="{{ form_config.event.logo.url }}" alt="{{ form_config.event.name }} Logo">
+                </div>
+                <div class="title-desc-col">
+                    <h1 class="event-title">{{ form_config.name }}</h1>
+                    {% if form_config.description %}
+                    <p class="event-subtitle">{{ form_config.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <h1 class="event-title">{{ form_config.name }}</h1>
+            {% if form_config.description %}
+            <p class="event-subtitle">{{ form_config.description }}</p>
+            {% endif %}
+            {% endif %}
+
+            {% if form_config.event %}
+            <div class="event-info-row">
+                <div class="event-info-item">
+                    <div class="event-info-label">Date de début</div>
+                    <div class="event-info-value">{{ form_config.event.start_date|date:"d M Y" }}</div>
+                </div>
+                <div class="event-info-item">
+                    <div class="event-info-label">Date de fin</div>
+                    <div class="event-info-value">{{ form_config.event.end_date|date:"d M Y" }}</div>
+                </div>
+                <div class="event-info-item">
+                    <div class="event-info-label">Lieu</div>
+                    <div class="event-info-value">{{ form_config.event.location|default:"—" }}</div>
+                </div>
+                <div class="event-info-item">
+                    <div class="event-info-label">Devise</div>
+                    <div class="event-info-value">DZD</div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if not success and not form_closed and not show_verification and form_config.countdown_enabled and form_config.countdown_date %}
+        <div class="banner-countdown-side">
+            <h5 class="countdown-title mb-2">
+                <i class="bi bi-alarm me-1"></i>{{ form_config.countdown_title }}
+            </h5>
+            <div class="countdown-timer" id="countdown">
+                <div class="countdown-item">
+                    <span class="countdown-value" id="days">00</span>
+                    <span class="countdown-label">Days</span>
+                </div>
+                <div class="countdown-separator">:</div>
+                <div class="countdown-item">
+                    <span class="countdown-value" id="hours">00</span>
+                    <span class="countdown-label">Hours</span>
+                </div>
+                <div class="countdown-separator">:</div>
+                <div class="countdown-item">
+                    <span class="countdown-value" id="minutes">00</span>
+                    <span class="countdown-label">Minutes</span>
+                </div>
+                <div class="countdown-separator">:</div>
+                <div class="countdown-item">
+                    <span class="countdown-value" id="seconds">00</span>
+                    <span class="countdown-label">Seconds</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
