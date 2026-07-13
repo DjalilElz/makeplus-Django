@@ -6,6 +6,7 @@
     <title>Inscriptions — {{ event.name }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -174,6 +175,11 @@
         .item-count-list li:last-child { border-bottom: none; }
         .item-count-list li strong { font-family: var(--font-serif); color: var(--banner-1); font-size: 0.95rem; }
 
+        .chart-box { position: relative; height: 220px; margin-bottom: 6px; }
+        .chart-box.chart-box-wide { height: 200px; }
+        .chart-box canvas { max-height: 100%; }
+        .chart-empty { font-size: 0.82rem; color: #adb5bd; padding: 40px 0; text-align: center; }
+
         .filter-section-label {
             font-size: 0.72rem;
             font-weight: 600;
@@ -240,16 +246,35 @@
                 </button>
                 <div class="collapse" id="breakdown-panel">
                     <div class="breakdown-panel">
-                        <div class="breakdown-title">Par statut d'inscription</div>
+                        <div class="breakdown-title">Évolution des inscriptions</div>
+                        <div class="chart-box chart-box-wide">
+                            {% if registrations_by_day %}
+                            <canvas id="chart-registrations-time"></canvas>
+                            {% else %}
+                            <div class="chart-empty">Pas encore assez de données</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="breakdown-title mt-4">Par statut d'inscription</div>
                         <div class="breakdown-badges">
                             {% for code, label, count in status_breakdown %}
                             <span class="badge status-select status-{{ code }}">{{ label }} : {{ count }}</span>
                             {% endfor %}
                         </div>
+                        <div class="chart-box">
+                            {% if submissions_count %}
+                            <canvas id="chart-status"></canvas>
+                            {% else %}
+                            <div class="chart-empty">Pas encore d'inscriptions</div>
+                            {% endif %}
+                        </div>
 
-                        <div class="row">
+                        <div class="row mt-4">
                             <div class="col-md-3">
                                 <div class="breakdown-title">Statut choisi</div>
+                                <div class="chart-box">
+                                    {% if item_counts.status %}<canvas id="chart-items-status"></canvas>{% else %}<div class="chart-empty">—</div>{% endif %}
+                                </div>
                                 <ul class="item-count-list">
                                     {% for name, count in item_counts.status %}
                                     <li><span>{{ name }}</span><strong>{{ count }}</strong></li>
@@ -258,6 +283,9 @@
                             </div>
                             <div class="col-md-3">
                                 <div class="breakdown-title">Restauration</div>
+                                <div class="chart-box">
+                                    {% if item_counts.restauration %}<canvas id="chart-items-restauration"></canvas>{% else %}<div class="chart-empty">—</div>{% endif %}
+                                </div>
                                 <ul class="item-count-list">
                                     {% for name, count in item_counts.restauration %}
                                     <li><span>{{ name }}</span><strong>{{ count }}</strong></li>
@@ -266,6 +294,9 @@
                             </div>
                             <div class="col-md-3">
                                 <div class="breakdown-title">Ateliers</div>
+                                <div class="chart-box">
+                                    {% if item_counts.workshops %}<canvas id="chart-items-workshops"></canvas>{% else %}<div class="chart-empty">—</div>{% endif %}
+                                </div>
                                 <ul class="item-count-list">
                                     {% for name, count in item_counts.workshops %}
                                     <li><span>{{ name }}</span><strong>{{ count }}</strong></li>
@@ -274,6 +305,9 @@
                             </div>
                             <div class="col-md-3">
                                 <div class="breakdown-title">Événement social</div>
+                                <div class="chart-box">
+                                    {% if item_counts.social_event %}<canvas id="chart-items-social_event"></canvas>{% else %}<div class="chart-empty">—</div>{% endif %}
+                                </div>
                                 <ul class="item-count-list">
                                     {% for name, count in item_counts.social_event %}
                                     <li><span>{{ name }}</span><strong>{{ count }}</strong></li>
@@ -284,6 +318,10 @@
                     </div>
                 </div>
             </div>
+
+            {{ status_breakdown|json_script:"status-breakdown-json" }}
+            {{ item_counts|json_script:"item-counts-json" }}
+            {{ registrations_by_day|json_script:"registrations-by-day-json" }}
 
             <form method="get" class="row g-2 mb-2 filter-form">
                 <div class="col-md-6">
@@ -568,6 +606,102 @@
                 indicator.style.display = 'inline';
                 setTimeout(function () { indicator.style.display = 'none'; }, 1500);
             });
+        }
+    </script>
+
+    <script>
+        // Charts are opt-in (built only once the stats panel is first
+        // opened) so Chart.js never has to size a canvas that's still
+        // display:none inside a collapsed Bootstrap panel -- that would
+        // draw a 0-height chart that never recovers on its own.
+        var PALETTE = ['#2D1B6B', '#46309a', '#7BA7BC', '#E8B9B9', '#8B4B4B', '#3d6b7d', '#7a5c00', '#495057'];
+        var STATUS_COLORS = {
+            pending: '#495057', reserved: '#7a5c00', to_contact: '#3d6b7d',
+            to_recontact: '#8B4B4B', approved: '#0f5132', rejected: '#842029',
+        };
+        var chartsBuilt = false;
+
+        function readJson(id) {
+            var el = document.getElementById(id);
+            return el ? JSON.parse(el.textContent) : null;
+        }
+
+        function buildBarChart(canvasId, labels, data, colors, horizontal) {
+            var canvas = document.getElementById(canvasId);
+            if (!canvas || !labels.length) return;
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{ data: data, backgroundColor: colors, borderRadius: 6, maxBarThickness: 34 }],
+                },
+                options: {
+                    indexAxis: horizontal ? 'y' : 'x',
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { precision: 0 } },
+                        y: { beginAtZero: true, ticks: { precision: 0 } },
+                    },
+                },
+            });
+        }
+
+        function buildCharts() {
+            if (chartsBuilt || typeof Chart === 'undefined') return;
+            chartsBuilt = true;
+
+            var byDay = readJson('registrations-by-day-json');
+            if (byDay && byDay.length) {
+                new Chart(document.getElementById('chart-registrations-time'), {
+                    type: 'line',
+                    data: {
+                        labels: byDay.map(function (p) { return p[0]; }),
+                        datasets: [{
+                            data: byDay.map(function (p) { return p[1]; }),
+                            borderColor: '#2D1B6B',
+                            backgroundColor: 'rgba(45, 27, 107, 0.12)',
+                            tension: 0.3,
+                            fill: true,
+                            pointRadius: 3,
+                        }],
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                    },
+                });
+            }
+
+            var statusBreakdown = readJson('status-breakdown-json');
+            if (statusBreakdown && statusBreakdown.length) {
+                buildBarChart(
+                    'chart-status',
+                    statusBreakdown.map(function (r) { return r[1]; }),
+                    statusBreakdown.map(function (r) { return r[2]; }),
+                    statusBreakdown.map(function (r) { return STATUS_COLORS[r[0]] || '#2D1B6B'; }),
+                    true
+                );
+            }
+
+            var itemCounts = readJson('item-counts-json') || {};
+            ['status', 'restauration', 'workshops', 'social_event'].forEach(function (bloc) {
+                var rows = itemCounts[bloc];
+                if (!rows || !rows.length) return;
+                buildBarChart(
+                    'chart-items-' + bloc,
+                    rows.map(function (r) { return r[0]; }),
+                    rows.map(function (r) { return r[1]; }),
+                    rows.map(function (_, i) { return PALETTE[i % PALETTE.length]; }),
+                    true
+                );
+            });
+        }
+
+        var breakdownPanel = document.getElementById('breakdown-panel');
+        if (breakdownPanel) {
+            breakdownPanel.addEventListener('shown.bs.collapse', buildCharts);
         }
     </script>
 </body>

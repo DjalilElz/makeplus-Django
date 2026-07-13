@@ -10,6 +10,7 @@ Reserved / To Contact / To Recontact / Confirmed / Cancelled -- see
 caisse.services for what Confirmed/Cancelled actually do), and delete a
 registration.
 """
+from collections import Counter
 from decimal import Decimal
 
 from django.contrib import messages
@@ -172,6 +173,11 @@ def event_owner_submissions(request, event_id):
     item_counts = {b: sorted(counts.items(), key=lambda pair: -pair[1]) for b, counts in item_counts.items()}
     status_breakdown = [(code, STATUS_LABELS[code], count) for code, count in status_counts.items()]
 
+    # Registration pace over time, for a trend chart -- one point per day
+    # that had at least one submission, in chronological order.
+    day_counts = Counter(order.created_at.date().isoformat() for order in orders)
+    registrations_by_day = sorted(day_counts.items())
+
     context = {
         'event': event,
         'orders': orders,
@@ -186,6 +192,7 @@ def event_owner_submissions(request, event_id):
         'bloc_item_options': bloc_item_options,
         'item_filters': item_filters,
         'workshop_item_ids': workshop_item_ids,
+        'registrations_by_day': registrations_by_day,
     }
     return render(request, 'dashboard/event_owner/submissions.html', context)
 
