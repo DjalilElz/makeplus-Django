@@ -102,8 +102,8 @@
         }
         .status-select.status-pending { background: #e9ecef; color: #495057; }
         .status-select.status-reserved { background: #fff3cd; color: #7a5c00; }
-        .status-select.status-to_contact { background: #cfe2ff; color: #084298; }
-        .status-select.status-to_recontact { background: #ffe5d0; color: #8a4b00; }
+        .status-select.status-to_contact { background: #E3EEF3; color: #3d6b7d; }
+        .status-select.status-to_recontact { background: var(--dusty-rose-bg); color: var(--dusty-rose-dark); }
         .status-select.status-approved { background: #d1e7dd; color: #0f5132; }
         .status-select.status-rejected { background: #f8d7da; color: #842029; }
         .btn-delete-row {
@@ -141,6 +141,16 @@
         .detail-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #8a8a8a; }
 
         .stats-toggle-wrap { margin-bottom: 20px; }
+        .btn-outline-elegant {
+            background: transparent;
+            border: 1px solid var(--banner-1);
+            color: var(--banner-1);
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 7px 16px;
+        }
+        .btn-outline-elegant:hover { background: var(--banner-1); color: #fff; }
         .breakdown-panel {
             background: var(--cream);
             border: 1px solid var(--border-light);
@@ -149,22 +159,37 @@
             margin-top: 10px;
         }
         .breakdown-title {
+            font-family: var(--font-sans);
             font-size: 0.72rem;
+            font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             color: #8a8a8a;
             margin-bottom: 8px;
         }
         .breakdown-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-        .breakdown-badges .badge { font-weight: 600; font-size: 0.78rem; padding: 6px 10px; }
+        .breakdown-badges .badge { font-weight: 700; font-size: 0.78rem; padding: 6px 10px; }
         .item-count-list { list-style: none; font-size: 0.85rem; color: #444; margin: 0 0 14px; }
-        .item-count-list li { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dashed var(--border-light); }
+        .item-count-list li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--border-light); }
         .item-count-list li:last-child { border-bottom: none; }
+        .item-count-list li strong { font-family: var(--font-serif); color: var(--banner-1); font-size: 0.95rem; }
+
+        .filter-section-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #8a8a8a;
+            margin: 4px 0 8px;
+        }
+        .filter-divider { border: none; border-top: 1px solid var(--border-light); margin: 6px 0 14px; }
 
         .notes-input {
             font-size: 0.8rem;
             min-width: 160px;
             resize: vertical;
+            border-radius: 10px;
+            border: 1px solid var(--border-light);
         }
         .notes-saved-indicator { font-size: 0.7rem; }
 
@@ -210,7 +235,7 @@
             </div>
 
             <div class="stats-toggle-wrap">
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#breakdown-panel">
+                <button type="button" class="btn btn-sm btn-outline-elegant" data-bs-toggle="collapse" data-bs-target="#breakdown-panel">
                     <i class="bi bi-bar-chart-line"></i> Voir plus de statistiques
                 </button>
                 <div class="collapse" id="breakdown-panel">
@@ -274,6 +299,11 @@
                 </div>
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-elegant w-100"><i class="bi bi-funnel"></i> Filtrer</button>
+                </div>
+
+                <div class="col-12">
+                    <hr class="filter-divider">
+                    <div class="filter-section-label"><i class="bi bi-tags"></i> Filtrer par article sélectionné</div>
                 </div>
 
                 <div class="col-md-3">
@@ -477,7 +507,7 @@
                     <p class="mb-0 text-muted small">Soumis le {{ order.created_at|date:"d M Y H:i" }}</p>
                 </div>
                 <div class="modal-footer" style="border-top: 1px solid var(--border-light);">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
+                    <button type="button" class="btn btn-outline-elegant btn-sm" data-bs-dismiss="modal">Fermer</button>
                     <button type="button" class="btn btn-elegant btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Imprimer</button>
                 </div>
             </div>
