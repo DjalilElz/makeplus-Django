@@ -52,7 +52,7 @@
             border-radius: 50%;
             filter: blur(60px);
         }
-        .banner-content { position: relative; z-index: 2; max-width: 1200px; margin: 0 auto; }
+        .banner-content { position: relative; z-index: 2; max-width: 1300px; margin: 0 auto; }
         .banner-eyebrow {
             font-size: 0.78rem;
             font-weight: 600;
@@ -62,7 +62,7 @@
             margin-bottom: 8px;
         }
         .event-title { font-family: var(--font-serif); font-size: 1.9rem; font-weight: 700; }
-        .page-wrapper { max-width: 1200px; margin: -20px auto 0; padding: 0 20px 60px; position: relative; z-index: 3; }
+        .page-wrapper { max-width: 1300px; margin: -20px auto 0; padding: 0 20px 60px; position: relative; z-index: 3; }
         .content-card {
             background: #fff;
             border-radius: 18px;
@@ -102,6 +102,8 @@
         }
         .status-select.status-pending { background: #e9ecef; color: #495057; }
         .status-select.status-reserved { background: #fff3cd; color: #7a5c00; }
+        .status-select.status-to_contact { background: #cfe2ff; color: #084298; }
+        .status-select.status-to_recontact { background: #ffe5d0; color: #8a4b00; }
         .status-select.status-approved { background: #d1e7dd; color: #0f5132; }
         .status-select.status-rejected { background: #f8d7da; color: #842029; }
         .btn-delete-row {
@@ -118,7 +120,7 @@
             padding: 2px 4px;
         }
         .btn-view-row:hover { color: var(--banner-2); }
-        .stats-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+        .stats-row { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
         .stat-tile {
             background: var(--cream);
             border: 1px solid var(--border-light);
@@ -137,6 +139,48 @@
         .stat-tile .stat-value { font-family: var(--font-serif); font-size: 1.7rem; font-weight: 700; color: var(--banner-1); }
         .detail-row { margin-bottom: 10px; }
         .detail-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #8a8a8a; }
+
+        .stats-toggle-wrap { margin-bottom: 20px; }
+        .breakdown-panel {
+            background: var(--cream);
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+            padding: 18px 22px;
+            margin-top: 10px;
+        }
+        .breakdown-title {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #8a8a8a;
+            margin-bottom: 8px;
+        }
+        .breakdown-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .breakdown-badges .badge { font-weight: 600; font-size: 0.78rem; padding: 6px 10px; }
+        .item-count-list { list-style: none; font-size: 0.85rem; color: #444; margin: 0 0 14px; }
+        .item-count-list li { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dashed var(--border-light); }
+        .item-count-list li:last-child { border-bottom: none; }
+
+        .notes-input {
+            font-size: 0.8rem;
+            min-width: 160px;
+            resize: vertical;
+        }
+        .notes-saved-indicator { font-size: 0.7rem; }
+
+        @media print {
+            body * { visibility: hidden; }
+            .modal.show, .modal.show * { visibility: visible; }
+            .modal.show {
+                position: absolute;
+                top: 0;
+                left: 0;
+                margin: 0;
+                width: 100%;
+            }
+            .modal-dialog { max-width: 100%; margin: 0; }
+            .modal-footer, .btn-close { display: none !important; }
+        }
     </style>
 </head>
 <body>
@@ -165,21 +209,108 @@
                 </div>
             </div>
 
-            <form method="get" class="row g-2 mb-4 filter-form">
+            <div class="stats-toggle-wrap">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#breakdown-panel">
+                    <i class="bi bi-bar-chart-line"></i> Voir plus de statistiques
+                </button>
+                <div class="collapse" id="breakdown-panel">
+                    <div class="breakdown-panel">
+                        <div class="breakdown-title">Par statut d'inscription</div>
+                        <div class="breakdown-badges">
+                            {% for code, label, count in status_breakdown %}
+                            <span class="badge status-select status-{{ code }}">{{ label }} : {{ count }}</span>
+                            {% endfor %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="breakdown-title">Statut choisi</div>
+                                <ul class="item-count-list">
+                                    {% for name, count in item_counts.status %}
+                                    <li><span>{{ name }}</span><strong>{{ count }}</strong></li>
+                                    {% empty %}<li class="text-muted">—</li>{% endfor %}
+                                </ul>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="breakdown-title">Restauration</div>
+                                <ul class="item-count-list">
+                                    {% for name, count in item_counts.restauration %}
+                                    <li><span>{{ name }}</span><strong>{{ count }}</strong></li>
+                                    {% empty %}<li class="text-muted">—</li>{% endfor %}
+                                </ul>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="breakdown-title">Ateliers</div>
+                                <ul class="item-count-list">
+                                    {% for name, count in item_counts.workshops %}
+                                    <li><span>{{ name }}</span><strong>{{ count }}</strong></li>
+                                    {% empty %}<li class="text-muted">—</li>{% endfor %}
+                                </ul>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="breakdown-title">Événement social</div>
+                                <ul class="item-count-list">
+                                    {% for name, count in item_counts.social_event %}
+                                    <li><span>{{ name }}</span><strong>{{ count }}</strong></li>
+                                    {% empty %}<li class="text-muted">—</li>{% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <form method="get" class="row g-2 mb-2 filter-form">
                 <div class="col-md-6">
                     <input type="text" name="q" class="form-control" placeholder="Rechercher par nom ou e-mail..." value="{{ query }}">
                 </div>
                 <div class="col-md-3">
                     <select name="status" class="form-select">
-                        <option value="">Tous les statuts</option>
-                        <option value="pending" {% if status == 'pending' %}selected{% endif %}>Enregistré</option>
-                        <option value="reserved" {% if status == 'reserved' %}selected{% endif %}>Réservé</option>
-                        <option value="approved" {% if status == 'approved' %}selected{% endif %}>Confirmé</option>
-                        <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Annulé</option>
+                        <option value="">Tous les statuts d'inscription</option>
+                        {% for code, label in status_choices %}
+                        <option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-elegant w-100"><i class="bi bi-funnel"></i> Filtrer</button>
+                </div>
+
+                <div class="col-md-3">
+                    <select name="item_status" class="form-select form-select-sm">
+                        <option value="">Statut choisi (tous)</option>
+                        {% for id, name in bloc_item_options.status %}
+                        <option value="{{ id }}" {% if item_filters.status == id %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="item_restauration" class="form-select form-select-sm">
+                        <option value="">Restauration (tous)</option>
+                        {% for id, name in bloc_item_options.restauration %}
+                        <option value="{{ id }}" {% if item_filters.restauration == id %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="item_social_event" class="form-select form-select-sm">
+                        <option value="">Événement social (tous)</option>
+                        {% for id, name in bloc_item_options.social_event %}
+                        <option value="{{ id }}" {% if item_filters.social_event == id %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="item_workshops" class="form-select form-select-sm" multiple size="1" title="Maintenez Ctrl (Cmd sur Mac) pour sélectionner plusieurs ateliers">
+                        {% for id, name in bloc_item_options.workshops %}
+                        <option value="{{ id }}" {% if id in workshop_item_ids %}selected{% endif %}>{{ name }}</option>
+                        {% empty %}
+                        <option value="" disabled>Ateliers (aucun)</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12">
+                    <a href="{% url 'dashboard:event_owner_submissions' event.id %}" class="small text-muted">Réinitialiser les filtres</a>
                 </div>
             </form>
 
@@ -192,8 +323,12 @@
                             <th>E-mail</th>
                             <th>Téléphone</th>
                             <th>Statut choisi</th>
+                            <th>Restauration</th>
+                            <th>Ateliers</th>
+                            <th>Événement social</th>
                             <th>Prix</th>
                             <th>Statut de l'inscription</th>
+                            <th>Notes</th>
                             <th>Soumis le</th>
                             <th></th>
                         </tr>
@@ -204,7 +339,10 @@
                             <td>{{ order.full_name|default:"—" }}</td>
                             <td>{{ order.email|default:"—" }}</td>
                             <td>{{ order.phone|default:"—" }}</td>
-                            <td>{{ order.participant_status }}</td>
+                            <td>{{ order.bloc_names.status }}</td>
+                            <td>{{ order.bloc_names.restauration }}</td>
+                            <td>{{ order.bloc_names.workshops }}</td>
+                            <td>{{ order.bloc_names.social_event }}</td>
                             <td>
                                 <strong>{{ order.total_after_reduction }} DZD</strong>
                                 {% if order.total_discount_percent > 0 %}
@@ -217,12 +355,17 @@
                                     {% csrf_token %}
                                     <select name="status" class="form-select form-select-sm status-select status-{{ order.status }}"
                                             onchange="this.closest('form').requestSubmit()">
-                                        <option value="pending" {% if order.status == 'pending' %}selected{% endif %}>Enregistré</option>
-                                        <option value="reserved" {% if order.status == 'reserved' %}selected{% endif %}>Réservé</option>
-                                        <option value="approved" {% if order.status == 'approved' %}selected{% endif %}>Confirmé</option>
-                                        <option value="rejected" {% if order.status == 'rejected' %}selected{% endif %}>Annulé</option>
+                                        {% for code, label in status_choices %}
+                                        <option value="{{ code }}" {% if order.status == code %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
                                     </select>
                                 </form>
+                            </td>
+                            <td>
+                                <textarea class="form-control form-control-sm notes-input" rows="1"
+                                          data-save-url="{% url 'dashboard:registration_notes_save' order.id %}"
+                                          onblur="saveNote(this)" placeholder="Ajouter une note...">{{ order.admin_notes }}</textarea>
+                                <small class="notes-saved-indicator text-success" style="display:none;">Enregistré</small>
                             </td>
                             <td><small>{{ order.created_at|date:"d M Y H:i" }}</small></td>
                             <td class="text-nowrap">
@@ -276,11 +419,23 @@
                         </div>
                         <div class="col-md-6 detail-row">
                             <div class="detail-label">Statut choisi</div>
-                            <div>{{ order.participant_status }}</div>
+                            <div>{{ order.bloc_names.status }}</div>
                         </div>
                         <div class="col-md-6 detail-row">
                             <div class="detail-label">Période</div>
                             <div>{{ order.period.name|default:"—" }}</div>
+                        </div>
+                        <div class="col-md-6 detail-row">
+                            <div class="detail-label">Restauration</div>
+                            <div>{{ order.bloc_names.restauration }}</div>
+                        </div>
+                        <div class="col-md-6 detail-row">
+                            <div class="detail-label">Ateliers</div>
+                            <div>{{ order.bloc_names.workshops }}</div>
+                        </div>
+                        <div class="col-md-6 detail-row">
+                            <div class="detail-label">Événement social</div>
+                            <div>{{ order.bloc_names.social_event }}</div>
                         </div>
                     </div>
 
@@ -309,19 +464,21 @@
                     <hr>
                     <p class="mb-1">
                         <strong>Statut de l'inscription :</strong>
-                        <span class="status-select status-{{ order.status }}">
-                            {% if order.status == 'pending' %}Enregistré
-                            {% elif order.status == 'reserved' %}Réservé
-                            {% elif order.status == 'approved' %}Confirmé
-                            {% else %}Annulé{% endif %}
-                        </span>
+                        <span class="status-select status-{{ order.status }}">{{ order.status_label }}</span>
                     </p>
                     {% if order.reviewed_by_caisse %}
                     <p class="mb-1 text-muted"><small>Par {{ order.reviewed_by_caisse.name }} le {{ order.reviewed_at|date:"d M Y H:i" }}</small></p>
                     {% elif order.reviewed_by %}
                     <p class="mb-1 text-muted"><small>Par {{ order.reviewed_by.get_full_name|default:order.reviewed_by.email }} le {{ order.reviewed_at|date:"d M Y H:i" }}</small></p>
                     {% endif %}
+                    {% if order.admin_notes %}
+                    <p class="mb-1"><strong>Notes :</strong> {{ order.admin_notes }}</p>
+                    {% endif %}
                     <p class="mb-0 text-muted small">Soumis le {{ order.created_at|date:"d M Y H:i" }}</p>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid var(--border-light);">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
+                    <button type="button" class="btn btn-elegant btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Imprimer</button>
                 </div>
             </div>
         </div>
@@ -330,11 +487,14 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        var STATUS_LABELS = {
+            {% for code, label in status_choices %}'{{ code }}': '{{ label }}'{% if not forloop.last %}, {% endif %}{% endfor %}
+        };
+
         function confirmStatusChange(form, currentStatus) {
             var newStatus = form.status.value;
             if (newStatus === currentStatus) return true;
-            var labels = {pending: 'Enregistré', reserved: 'Réservé', approved: 'Confirmé', rejected: 'Annulé'};
-            var msg = 'Changer le statut vers "' + labels[newStatus] + '" ?';
+            var msg = 'Changer le statut vers "' + STATUS_LABELS[newStatus] + '" ?';
             if (newStatus === 'approved') {
                 msg = 'Confirmer cette inscription ? Cela donnera un accès réel payé au participant, '
                     + 'exactement comme si la caisse l\'avait confirmé sur place.';
@@ -351,6 +511,33 @@
                     + 'ce paiement dans le système. Voulez-vous vraiment continuer ?';
             }
             return confirm(msg);
+        }
+
+        function getCookie(name) {
+            var value = '; ' + document.cookie;
+            var parts = value.split('; ' + name + '=');
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return '';
+        }
+
+        function saveNote(textarea) {
+            var url = textarea.getAttribute('data-save-url');
+            var indicator = textarea.nextElementSibling;
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'admin_notes=' + encodeURIComponent(textarea.value),
+            }).then(function (resp) {
+                if (!indicator) return;
+                indicator.textContent = resp.ok ? 'Enregistré' : 'Erreur lors de l\'enregistrement';
+                indicator.classList.toggle('text-success', resp.ok);
+                indicator.classList.toggle('text-danger', !resp.ok);
+                indicator.style.display = 'inline';
+                setTimeout(function () { indicator.style.display = 'none'; }, 1500);
+            });
         }
     </script>
 </body>

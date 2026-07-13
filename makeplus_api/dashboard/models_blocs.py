@@ -240,14 +240,17 @@ class RegistrationOrder(models.Model):
     """
     # 'pending' (Registered) is set automatically on submission. From there,
     # an event owner or caisse operator can move it to 'reserved' (a manual
-    # hold, bookkeeping only -- no payment/access implied), 'approved'
-    # (Confirmed -- a real payment confirmation: see
-    # caisse.services.confirm_registration_order, which creates the same
-    # CaisseTransaction/SessionAccess a physical caisse confirmation would),
-    # or 'rejected' (Cancelled).
+    # hold, bookkeeping only -- no payment/access implied), 'to_contact' /
+    # 'to_recontact' (plain follow-up bookkeeping, same as 'reserved' --
+    # no payment/access implied either), 'approved' (Confirmed -- a real
+    # payment confirmation: see caisse.services.confirm_registration_order,
+    # which creates the same CaisseTransaction/SessionAccess a physical
+    # caisse confirmation would), or 'rejected' (Cancelled).
     STATUS_CHOICES = [
         ('pending', 'Registered'),
         ('reserved', 'Reserved'),
+        ('to_contact', 'To Contact'),
+        ('to_recontact', 'To Recontact'),
         ('approved', 'Confirmed'),
         ('rejected', 'Cancelled'),
     ]
