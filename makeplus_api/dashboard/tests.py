@@ -401,6 +401,27 @@ class BlocsComputeOrderTests(TestCase):
         r = self._compute(item_ids=[self.status_item.id])
         self.assertEqual(r['total_before_reduction'], Decimal('1000.00'))
 
+    def test_free_item_alone_in_bloc_does_not_count(self):
+        free_resto = BlocItem.objects.create(event=self.event, bloc='restauration', name='Free snack', price=Decimal('0'))
+        self.config.reduction_by_blocs_enabled = True
+        self.config.reduction_2_blocs = Decimal('20')
+        self.config.save()
+        # A free item alone in restauration keeps that bloc's subtotal at
+        # 0, so it doesn't count -- only social_event does here (1 real
+        # bloc), not enough for the 2-blocs discount.
+        r = self._compute(item_ids=[self.status_item.id, free_resto.id, self.social_item.id])
+        self.assertEqual(r['subtotals']['restauration'], '0.00')
+        self.assertEqual(r['distinct_blocs_count'], 1)
+        self.assertEqual(r['blocs_discount_percent'], Decimal('0'))
+
+        # Adding a paid item alongside the free one makes restauration's
+        # subtotal > 0, so it counts too -- now 2 blocs, discount applies.
+        r2 = self._compute(
+            item_ids=[self.status_item.id, free_resto.id, self.resto_item.id, self.social_item.id],
+        )
+        self.assertEqual(r2['distinct_blocs_count'], 2)
+        self.assertEqual(r2['blocs_discount_percent'], Decimal('20.00'))
+
     def test_blocs_reduction_by_count(self):
         self.config.reduction_by_blocs_enabled = True
         self.config.reduction_2_blocs = Decimal('20')

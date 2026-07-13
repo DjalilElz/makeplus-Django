@@ -95,7 +95,6 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
 
     snapshot = []
     subtotals = {bloc: Decimal('0') for bloc in ALL_BLOCS}
-    blocs_with_selection = set()
 
     items = list(
         BlocItem.objects.filter(id__in=selected_item_ids, event=event, is_active=True)
@@ -126,11 +125,6 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
             continue
         price = rule.override_price if (rule and rule.override_price is not None) else item.price
         subtotals[item.bloc] += price
-        # Status is mandatory on every registration, so it doesn't count as
-        # an extra bloc toward the multi-bloc discount -- only Restauration,
-        # Workshops, and Social Event do (max reachable count is 3, not 4).
-        if item.bloc != 'status':
-            blocs_with_selection.add(item.bloc)
         snapshot.append({
             'bloc': item.bloc,
             'type': 'item',
@@ -150,7 +144,6 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
                 continue
             price = rule.override_price if (rule and rule.override_price is not None) else session.price
             subtotals['workshops'] += price
-            blocs_with_selection.add('workshops')
             snapshot.append({
                 'bloc': 'workshops',
                 'type': 'session',
@@ -160,6 +153,12 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
             })
 
     total_before = sum(subtotals.values(), Decimal('0'))
+    # A bloc counts toward the multi-bloc discount only once its own
+    # subtotal is > 0 -- a free item alone in a bloc doesn't unlock the
+    # discount tier, the way a paid item in that bloc would. Status is
+    # mandatory on every registration and never counts either way, so
+    # the real maximum is 3 (Restauration + Workshops + Social Event).
+    blocs_with_selection = {b for b in ('restauration', 'workshops', 'social_event') if subtotals[b] > 0}
     distinct_blocs = len(blocs_with_selection)
 
     # --- Reductions (additive) ---

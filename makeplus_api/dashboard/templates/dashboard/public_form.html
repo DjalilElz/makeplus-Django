@@ -1311,23 +1311,28 @@
                 function recalc() {
                     var choices = document.querySelectorAll('.bloc-choice');
                     var subtotal = 0.0;
-                    var blocs = {};
+                    var blocSubtotals = {};
                     var lines = [];
                     choices.forEach(function (el) {
                         if (el.checked) {
                             var price = parseFloat(el.getAttribute('data-price')) || 0;
+                            var bloc = el.getAttribute('data-bloc');
                             subtotal += price;
-                            blocs[el.getAttribute('data-bloc')] = true;
+                            blocSubtotals[bloc] = (blocSubtotals[bloc] || 0) + price;
                             lines.push({ name: el.getAttribute('data-name'), price: price });
                         }
                     });
-                    // Status is mandatory on every registration, so it must
-                    // not count as an extra bloc toward the multi-bloc
-                    // discount -- must match compute_order, which excludes
-                    // it the same way. This same count also drives the
-                    // progress dots below (a count of *how many* real blocs
-                    // are selected, not which specific ones).
-                    var distinct = Object.keys(blocs).filter(function (b) { return b !== 'status'; }).length;
+                    // A bloc counts toward the multi-bloc discount only once
+                    // its own subtotal is > 0 -- a free item alone in a bloc
+                    // doesn't unlock the discount tier, must match
+                    // compute_order's blocs_with_selection. Status is
+                    // mandatory on every registration and never counts
+                    // either way. This same count also drives the progress
+                    // dots below (a count of *how many* real blocs are
+                    // selected, not which specific ones).
+                    var distinct = Object.keys(blocSubtotals).filter(function (b) {
+                        return b !== 'status' && blocSubtotals[b] > 0;
+                    }).length;
                     var totalPct = (BLOCS_ENABLED && subtotal > 0) ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
                     if (totalPct > 100) totalPct = 100;
                     if (subtotal <= 0) totalPct = 0;
