@@ -474,15 +474,17 @@
         </div>
     </div>
 
-    {# Modals live outside .page-wrapper deliberately: that container is
-       position:relative + z-index:3, which creates its own stacking
-       context. Bootstrap's backdrop is appended straight to <body> (so it
-       always escapes any such trap), but the .modal element itself stays
-       wherever it is in the DOM -- nested inside page-wrapper, its
-       z-index:1055 was only being evaluated *within* page-wrapper's low
-       z-index:3 context, so the backdrop rendered ON TOP of the modal
-       instead of behind it: exactly the "dimmed, can't click anything"
-       symptom. #}
+    {% comment %}
+    Modals live outside .page-wrapper deliberately: that container is
+    position:relative + z-index:3, which creates its own stacking
+    context. Bootstrap's backdrop is appended straight to <body> (so it
+    always escapes any such trap), but the .modal element itself stays
+    wherever it is in the DOM -- nested inside page-wrapper, its
+    z-index:1055 was only being evaluated *within* page-wrapper's low
+    z-index:3 context, so the backdrop rendered ON TOP of the modal
+    instead of behind it: exactly the "dimmed, can't click anything"
+    symptom.
+    {% endcomment %}
     {% for order in orders %}
     <div class="modal fade" id="order-{{ order.id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
