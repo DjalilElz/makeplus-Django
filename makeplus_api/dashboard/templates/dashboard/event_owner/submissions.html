@@ -378,7 +378,7 @@
             <hr class="filter-divider">
             <div class="row g-2 mb-2">
                 <div class="col-md-6">
-                    <input type="text" name="q" class="form-control" placeholder="Rechercher par nom ou e-mail..." value="{{ query }}">
+                    <input type="text" name="q" id="live-search-input" class="form-control" placeholder="Rechercher par nom ou e-mail..." value="{{ query }}" autocomplete="off">
                 </div>
                 <div class="col-md-3">
                     <select name="status" class="form-select">
@@ -400,7 +400,7 @@
 
             {% if orders %}
             <div class="table-responsive table-scroll-wrap">
-                <table class="table table-elegant">
+                <table class="table table-elegant" id="submissions-table">
                     <thead>
                         <tr>
                             <th>Participant</th>
@@ -420,8 +420,8 @@
                     <tbody>
                         {% for order in orders %}
                         <tr>
-                            <td>{{ order.full_name|default:"—" }}</td>
-                            <td>{{ order.email|default:"—" }}</td>
+                            <td class="cell-name">{{ order.full_name|default:"—" }}</td>
+                            <td class="cell-email">{{ order.email|default:"—" }}</td>
                             <td>{{ order.phone|default:"—" }}</td>
                             <td>{{ order.bloc_names.status }}</td>
                             <td>{{ order.bloc_names.restauration }}</td>
@@ -465,6 +465,9 @@
                             </td>
                         </tr>
                         {% endfor %}
+                        <tr id="no-live-results-row" style="display:none;">
+                            <td colspan="12" class="text-muted text-center py-4">Aucun résultat pour cette recherche.</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -720,6 +723,36 @@
         var breakdownPanel = document.getElementById('breakdown-panel');
         if (breakdownPanel) {
             breakdownPanel.addEventListener('shown.bs.collapse', buildCharts);
+        }
+    </script>
+
+    <script>
+        // Live client-side filtering of the already-rendered table rows by
+        // name/email as you type -- no server round-trip, no page reload.
+        // Only the table reacts to this; the "Filtrer" button still does
+        // the real (server-side, combinable-with-other-filters) search on
+        // submit, same as before.
+        var liveSearchInput = document.getElementById('live-search-input');
+        var submissionsTable = document.getElementById('submissions-table');
+
+        function applyLiveSearch() {
+            if (!submissionsTable) return;
+            var q = liveSearchInput.value.trim().toLowerCase();
+            var rows = submissionsTable.querySelectorAll('tbody tr:not(#no-live-results-row)');
+            var visibleCount = 0;
+            rows.forEach(function (tr) {
+                var name = (tr.querySelector('.cell-name') || {}).textContent || '';
+                var email = (tr.querySelector('.cell-email') || {}).textContent || '';
+                var match = !q || name.toLowerCase().indexOf(q) !== -1 || email.toLowerCase().indexOf(q) !== -1;
+                tr.style.display = match ? '' : 'none';
+                if (match) visibleCount++;
+            });
+            var noResultsRow = document.getElementById('no-live-results-row');
+            if (noResultsRow) noResultsRow.style.display = (q && visibleCount === 0) ? '' : 'none';
+        }
+
+        if (liveSearchInput) {
+            liveSearchInput.addEventListener('input', applyLiveSearch);
         }
     </script>
 </body>
