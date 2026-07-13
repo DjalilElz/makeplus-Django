@@ -90,6 +90,21 @@
             border-bottom: 2px solid var(--border-light);
         }
         .table-elegant td { vertical-align: middle; }
+        /* The table scrolls inside its own bordered box -- the page
+           itself, and everything above the table (filters/stats/charts),
+           stays put while only the rows scroll. */
+        .table-scroll-wrap {
+            max-height: 65vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+        }
+        .table-scroll-wrap .table-elegant thead th {
+            position: sticky;
+            top: 0;
+            background: #fff;
+            z-index: 2;
+        }
         .items-list { font-size: 0.82rem; color: #555; margin: 0; padding-left: 1.1rem; }
         .back-link { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.85rem; }
         .back-link:hover { color: #fff; }
@@ -225,22 +240,63 @@
 
     <div class="page-wrapper">
         <div class="content-card">
-            <div class="stats-row">
-                <div class="stat-tile">
-                    <div class="stat-label">
-                        Inscriptions{% if status %} ({{ status_label }}){% endif %}
+            <form method="get" class="filter-form">
+                <div class="filter-section-label"><i class="bi bi-tags"></i> Filtrer par article sélectionné</div>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-3">
+                        <select name="item_status" class="form-select form-select-sm">
+                            <option value="">Statut choisi (tous)</option>
+                            {% for id, name in bloc_item_options.status %}
+                            <option value="{{ id }}" {% if item_filters.status == id %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <div class="stat-value">{{ submissions_count }}</div>
-                </div>
-                <div class="stat-tile">
-                    <div class="stat-label">
-                        Revenu total{% if status %} ({{ status_label }}){% endif %}
+                    <div class="col-md-3">
+                        <select name="item_restauration" class="form-select form-select-sm">
+                            <option value="">Restauration (tous)</option>
+                            {% for id, name in bloc_item_options.restauration %}
+                            <option value="{{ id }}" {% if item_filters.restauration == id %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <div class="stat-value">{{ total_revenue }} DZD</div>
+                    <div class="col-md-3">
+                        <select name="item_social_event" class="form-select form-select-sm">
+                            <option value="">Événement social (tous)</option>
+                            {% for id, name in bloc_item_options.social_event %}
+                            <option value="{{ id }}" {% if item_filters.social_event == id %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select name="item_workshops" class="form-select form-select-sm" multiple size="1" title="Maintenez Ctrl (Cmd sur Mac) pour sélectionner plusieurs ateliers">
+                            {% for id, name in bloc_item_options.workshops %}
+                            <option value="{{ id }}" {% if id in workshop_item_ids %}selected{% endif %}>{{ name }}</option>
+                            {% empty %}
+                            <option value="" disabled>Ateliers (aucun)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
-            </div>
+                <div class="mb-4">
+                    <a href="{% url 'dashboard:event_owner_submissions' event.id %}" class="small text-muted">Réinitialiser les filtres</a>
+                </div>
 
-            <div class="stats-toggle-wrap">
+                <div class="stats-row">
+                    <div class="stat-tile">
+                        <div class="stat-label">
+                            Inscriptions{% if status %} ({{ status_label }}){% endif %}
+                        </div>
+                        <div class="stat-value">{{ submissions_count }}</div>
+                    </div>
+                    <div class="stat-tile">
+                        <div class="stat-label">
+                            Revenu total{% if status %} ({{ status_label }}){% endif %}
+                        </div>
+                        <div class="stat-value">{{ total_revenue }} DZD</div>
+                    </div>
+                </div>
+
+                <div class="stats-toggle-wrap">
                 <button type="button" class="btn btn-sm btn-outline-elegant" data-bs-toggle="collapse" data-bs-target="#breakdown-panel">
                     <i class="bi bi-bar-chart-line"></i> Voir plus de statistiques
                 </button>
@@ -319,11 +375,8 @@
                 </div>
             </div>
 
-            {{ status_breakdown|json_script:"status-breakdown-json" }}
-            {{ item_counts|json_script:"item-counts-json" }}
-            {{ registrations_by_day|json_script:"registrations-by-day-json" }}
-
-            <form method="get" class="row g-2 mb-2 filter-form">
+            <hr class="filter-divider">
+            <div class="row g-2 mb-2">
                 <div class="col-md-6">
                     <input type="text" name="q" class="form-control" placeholder="Rechercher par nom ou e-mail..." value="{{ query }}">
                 </div>
@@ -338,52 +391,15 @@
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-elegant w-100"><i class="bi bi-funnel"></i> Filtrer</button>
                 </div>
-
-                <div class="col-12">
-                    <hr class="filter-divider">
-                    <div class="filter-section-label"><i class="bi bi-tags"></i> Filtrer par article sélectionné</div>
-                </div>
-
-                <div class="col-md-3">
-                    <select name="item_status" class="form-select form-select-sm">
-                        <option value="">Statut choisi (tous)</option>
-                        {% for id, name in bloc_item_options.status %}
-                        <option value="{{ id }}" {% if item_filters.status == id %}selected{% endif %}>{{ name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select name="item_restauration" class="form-select form-select-sm">
-                        <option value="">Restauration (tous)</option>
-                        {% for id, name in bloc_item_options.restauration %}
-                        <option value="{{ id }}" {% if item_filters.restauration == id %}selected{% endif %}>{{ name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select name="item_social_event" class="form-select form-select-sm">
-                        <option value="">Événement social (tous)</option>
-                        {% for id, name in bloc_item_options.social_event %}
-                        <option value="{{ id }}" {% if item_filters.social_event == id %}selected{% endif %}>{{ name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select name="item_workshops" class="form-select form-select-sm" multiple size="1" title="Maintenez Ctrl (Cmd sur Mac) pour sélectionner plusieurs ateliers">
-                        {% for id, name in bloc_item_options.workshops %}
-                        <option value="{{ id }}" {% if id in workshop_item_ids %}selected{% endif %}>{{ name }}</option>
-                        {% empty %}
-                        <option value="" disabled>Ateliers (aucun)</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-12">
-                    <a href="{% url 'dashboard:event_owner_submissions' event.id %}" class="small text-muted">Réinitialiser les filtres</a>
-                </div>
+            </div>
             </form>
 
+            {{ status_breakdown|json_script:"status-breakdown-json" }}
+            {{ item_counts|json_script:"item-counts-json" }}
+            {{ registrations_by_day|json_script:"registrations-by-day-json" }}
+
             {% if orders %}
-            <div class="table-responsive">
+            <div class="table-responsive table-scroll-wrap">
                 <table class="table table-elegant">
                     <thead>
                         <tr>
