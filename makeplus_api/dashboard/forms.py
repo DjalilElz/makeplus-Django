@@ -30,9 +30,9 @@ class EventDetailsForm(forms.ModelForm):
     class Meta:
         model = Event
         fields = [
-            'name', 'description', 'start_date', 'end_date', 
+            'name', 'description', 'start_date', 'end_date',
             'location', 'location_url', 'status',
-            'logo', 'banner', 'organizer_contact',
+            'logo', 'banner', 'primary_color', 'organizer_contact',
             'programme_file', 'guide_file'
         ]
         widgets = {
@@ -72,6 +72,11 @@ class EventDetailsForm(forms.ModelForm):
                 'class': 'form-control',
                 'accept': 'image/*'
             }),
+            'primary_color': forms.TextInput(attrs={
+                'class': 'form-control form-control-color',
+                'type': 'color',
+                'title': "Couleur principale de l'événement"
+            }),
             'organizer_contact': forms.EmailInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'contact@event.com'
@@ -85,15 +90,15 @@ class EventDetailsForm(forms.ModelForm):
                 'accept': '.pdf'
             }),
         }
-    
+
     def clean(self):
         cleaned_data = super().clean()
         start_date = cleaned_data.get('start_date')
         end_date = cleaned_data.get('end_date')
-        
+
         if start_date and end_date and end_date <= start_date:
             raise ValidationError('End date must be after start date')
-        
+
         return cleaned_data
 
 
@@ -103,9 +108,9 @@ class EventEditForm(forms.ModelForm):
     class Meta:
         model = Event
         fields = [
-            'name', 'description', 'start_date', 'end_date', 
+            'name', 'description', 'start_date', 'end_date',
             'location', 'location_url', 'status',
-            'logo', 'banner', 'organizer_contact',
+            'logo', 'banner', 'primary_color', 'organizer_contact',
             'programme_file', 'guide_file'
         ]
         widgets = {
@@ -147,6 +152,11 @@ class EventEditForm(forms.ModelForm):
                 'class': 'form-control',
                 'accept': 'image/*'
             }),
+            'primary_color': forms.TextInput(attrs={
+                'class': 'form-control form-control-color',
+                'type': 'color',
+                'title': "Couleur principale de l'événement"
+            }),
             'organizer_contact': forms.EmailInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'contact@event.com'
@@ -160,7 +170,7 @@ class EventEditForm(forms.ModelForm):
                 'accept': '.pdf'
             }),
         }
-    
+
     def clean(self):
         """Validate form data"""
         cleaned_data = super().clean()

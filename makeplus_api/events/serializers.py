@@ -37,6 +37,7 @@ class EventSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'start_date', 'end_date',
             'location', 'location_url', 'location_details', 'logo', 'banner',
+            'primary_color',
             'status', 'dynamic_status', 'settings', 'themes', 'total_participants',
             'total_exhibitors', 'total_rooms', 'organizer_contact',
             'metadata', 'programme_file', 'guide_file', 'president',
@@ -346,13 +347,25 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         data['role'] = role or 'participant'
         if event:
+            request = self.context.get('request')
+            logo_url = None
+            if event.logo:
+                logo_url = request.build_absolute_uri(event.logo.url) if request else event.logo.url
+            banner_url = None
+            if event.banner:
+                banner_url = request.build_absolute_uri(event.banner.url) if request else event.banner.url
+
             data['event'] = {
                 'id': str(event.id),
                 'name': event.name,
+                'description': event.description,
                 'start_date': event.start_date.isoformat() if event.start_date else None,
                 'end_date': event.end_date.isoformat() if event.end_date else None,
                 'location': event.location,
                 'status': event.status,
+                'logo': logo_url,
+                'banner': banner_url,
+                'primary_color': event.primary_color,
             }
         else:
             data['event'] = None

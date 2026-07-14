@@ -139,7 +139,18 @@
                             {% endif %}
                             <div class="form-text">Upload event banner (JPG, PNG, etc.)</div>
                         </div>
-                        
+
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.primary_color.id_for_label }}" class="form-label">
+                                <i class="bi bi-palette"></i> Couleur principale
+                            </label>
+                            {{ form.primary_color }}
+                            {% if form.primary_color.errors %}
+                                <div class="text-danger small">{{ form.primary_color.errors }}</div>
+                            {% endif %}
+                            <div class="form-text">Thème l'application mobile pour cet événement une fois l'utilisateur connecté.</div>
+                        </div>
+
                         <div class="col-12">
                             <hr>
                         </div>
