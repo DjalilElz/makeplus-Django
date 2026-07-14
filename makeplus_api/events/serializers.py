@@ -315,15 +315,27 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if not user.check_password(password):
             raise serializers.ValidationError('Invalid credentials')
         
+        # Resolve current event BEFORE minting tokens, so event_id can be
+        # embedded as a JWT claim (see resolve_current_event() docstring for
+        # why UserEventAssignment alone misses every plain participant).
+        from .utils import resolve_current_event
+        event, role = resolve_current_event(user)
+
         # Generate tokens manually
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
-        
+        if event:
+            # RefreshToken.access_token copies claims present on the refresh
+            # token's payload at the time it's accessed, and TokenRefreshView
+            # does the same on renewal — so setting it here is enough for it
+            # to survive refresh too, not just this login.
+            refresh['event_id'] = str(event.id)
+
         data = {
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
-        
+
         # Add custom claims
         data['user'] = {
             'id': user.id,
@@ -331,32 +343,25 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'first_name': user.first_name,
             'last_name': user.last_name,
         }
-        
-        # Get user role from active assignments
-        assignment = UserEventAssignment.objects.filter(
-            user=user,
-            is_active=True
-        ).first()
-        
-        if assignment:
-            data['role'] = assignment.role
+
+        data['role'] = role or 'participant'
+        if event:
             data['event'] = {
-                'id': str(assignment.event.id),
-                'name': assignment.event.name,
-                'start_date': assignment.event.start_date.isoformat() if assignment.event.start_date else None,
-                'end_date': assignment.event.end_date.isoformat() if assignment.event.end_date else None,
-                'location': assignment.event.location,
-                'status': assignment.event.status,
+                'id': str(event.id),
+                'name': event.name,
+                'start_date': event.start_date.isoformat() if event.start_date else None,
+                'end_date': event.end_date.isoformat() if event.end_date else None,
+                'location': event.location,
+                'status': event.status,
             }
         else:
-            data['role'] = 'participant'  # Default role
             data['event'] = None
-        
+
         # Get QR code data automatically
         from .models import UserProfile
         qr_data = UserProfile.get_qr_for_user(user)
         data['qr_code'] = qr_data
-        
+
         return data
 
 
@@ -497,19 +502,30 @@ class AnnonceSerializer(serializers.ModelSerializer):
 
 
 class SessionQuestionSerializer(serializers.ModelSerializer):
-    """SessionQuestion serializer for participant questions"""
-    participant_name = serializers.CharField(source='participant.user.get_full_name', read_only=True)
+    """
+    SessionQuestion serializer for the Q&A feed.
+
+    Deliberately anonymous: `participant` is write_only (the view sets it
+    server-side from the JWT on create; SessionQuestion.participant still
+    exists in the DB for moderation/abuse handling, it's just never returned
+    over the API), and there is no participant-identifying field in the
+    output at all. Every client — mobile or the dashboard moderation screen —
+    sees only the question text, never who asked it.
+    """
     session_title = serializers.CharField(source='session.title', read_only=True)
     answered_by_name = serializers.CharField(source='answered_by.get_full_name', read_only=True)
-    
+
     class Meta:
         model = SessionQuestion
         fields = [
-            'id', 'session', 'session_title', 'participant', 'participant_name',
+            'id', 'session', 'session_title', 'participant',
             'question_text', 'is_answered', 'answer_text', 'answered_by',
             'answered_by_name', 'asked_at', 'answered_at'
         ]
         read_only_fields = ['id', 'asked_at', 'answered_at']
+        extra_kwargs = {
+            'participant': {'write_only': True},
+        }
 
 
 class RoomAssignmentSerializer(serializers.ModelSerializer):

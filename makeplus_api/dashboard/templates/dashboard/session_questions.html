@@ -1,0 +1,100 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Q&A — {{ session.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0"><i class="bi bi-question-circle"></i> {{ session.title }}</h2>
+            <p class="text-muted mb-0">
+                {{ event.name }} &middot; {{ session.room.name }}
+                &middot; {{ session.start_time|date:"M d, H:i" }}
+                {% if unanswered_count %}
+                    <span class="badge bg-warning text-dark ms-2">{{ unanswered_count }} en attente</span>
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'dashboard:event_detail' event.id %}#sessions" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Retour à l'événement
+        </a>
+    </div>
+
+    <div class="alert alert-light border d-flex align-items-center mb-4">
+        <i class="bi bi-incognito fs-4 me-3 text-muted"></i>
+        <div>
+            <strong>Questions anonymes.</strong>
+            L'identité du participant n'est jamais transmise par l'API — cette page ne peut pas
+            l'afficher même par erreur. Seule la question et, une fois répondue, votre réponse
+            sont visibles.
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            {% if questions %}
+                {% for q in questions %}
+                <div class="card shadow-sm mb-3 {% if not q.is_answered %}border-warning{% endif %}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="text-muted small">
+                                <i class="bi bi-person-fill-lock"></i> Participant anonyme
+                                &middot; {{ q.asked_at|date:"H:i" }}
+                            </span>
+                            {% if q.is_answered %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Répondu</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">En attente</span>
+                            {% endif %}
+                        </div>
+
+                        <p class="mb-3">{{ q.question_text }}</p>
+
+                        {% if q.is_answered %}
+                            <div class="bg-light rounded p-3 mb-3">
+                                <div class="small text-muted mb-1">
+                                    <i class="bi bi-reply-fill"></i> Réponse
+                                    {% if q.answered_by %}— {{ q.answered_by.get_full_name|default:q.answered_by.email }}{% endif %}
+                                    &middot; {{ q.answered_at|date:"H:i" }}
+                                </div>
+                                {{ q.answer_text }}
+                            </div>
+                        {% endif %}
+
+                        <div class="d-flex gap-2">
+                            <form method="post" action="{% url 'dashboard:session_question_answer' q.id %}" class="d-flex gap-2 flex-grow-1">
+                                {% csrf_token %}
+                                <input
+                                    type="text"
+                                    name="answer_text"
+                                    class="form-control form-control-sm"
+                                    placeholder="{% if q.is_answered %}Modifier la réponse…{% else %}Écrire une réponse…{% endif %}"
+                                    value="{{ q.answer_text }}"
+                                >
+                                <button type="submit" class="btn btn-sm btn-primary text-nowrap">
+                                    <i class="bi bi-send"></i> {% if q.is_answered %}Mettre à jour{% else %}Répondre{% endif %}
+                                </button>
+                            </form>
+                            {% if q.is_answered %}
+                            <form method="post" action="{% url 'dashboard:session_question_answer' q.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="answer_text" value="">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Retirer la réponse">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-question-circle display-4"></i>
+                    <p class="mt-3">Aucune question pour cette session pour le moment.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

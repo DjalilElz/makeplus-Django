@@ -4,9 +4,12 @@ from django.db import migrations, models
 
 
 def add_max_participants_if_not_exists(apps, schema_editor):
-    """Add max_participants column only if it doesn't exist"""
+    """Add max_participants column only if it doesn't exist. Postgres-only; see 0017."""
     from django.db import connection
-    
+
+    if connection.vendor != 'postgresql':
+        return
+
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT EXISTS (

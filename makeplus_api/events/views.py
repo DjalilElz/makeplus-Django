@@ -1222,16 +1222,22 @@ class SessionQuestionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get the participant from the authenticated user and current event
+        # Get the participant for the authenticated user. Participant is
+        # OneToOne with User (not per-event — Participant.events is M2M via
+        # ParticipantEventRegistration), so `event=event_context` here would
+        # raise FieldError; check registration for the current event instead.
         try:
-            participant = Participant.objects.get(
-                user=request.user,
-                event=event_context
-            )
+            participant = Participant.objects.get(user=request.user)
         except Participant.DoesNotExist:
             return Response(
-                {'error': 'Participant profile not found for this event'},
+                {'error': 'Participant profile not found'},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not participant.is_registered_for_event(event_context):
+            return Response(
+                {'error': 'Participant is not registered for this event'},
+                status=status.HTTP_403_FORBIDDEN
             )
         
         # Add participant to request data

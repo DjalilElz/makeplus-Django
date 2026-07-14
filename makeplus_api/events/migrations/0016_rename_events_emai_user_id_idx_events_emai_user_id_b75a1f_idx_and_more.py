@@ -26,8 +26,19 @@ def _rename_index_if_exists(cursor, old_name, new_name):
 
 
 def rename_indexes_if_exist(apps, schema_editor):
-    """Safely rename indexes only if they exist"""
+    """
+    Safely rename indexes only if they exist.
+
+    pg_indexes is a Postgres system catalog and doesn't exist on SQLite, which
+    is what local dev/tests run against (USE_SUPABASE=False) — this made
+    `manage.py test` fail to even build the test database, for every app, not
+    just this migration's. Prod is unaffected: this migration already ran
+    there, and Postgres is the only vendor that reaches the rename logic.
+    """
     from django.db import connection
+
+    if connection.vendor != 'postgresql':
+        return
 
     with connection.cursor() as cursor:
         _rename_index_if_exists(cursor, 'events_emai_user_id_idx', 'events_emai_user_id_b75a1f_idx')

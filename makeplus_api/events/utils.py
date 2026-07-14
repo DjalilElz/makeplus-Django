@@ -77,6 +77,54 @@ def check_room_capacity(room, additional_count=1):
     return True, "Room has capacity"
 
 
+def resolve_current_event(user):
+    """
+    Resolve the "current" (event, role) pair for a user.
+
+    Staff-type roles (gestionnaire, controller, exposant, committee) get an
+    UserEventAssignment row and that always wins. Plain participants never get
+    one (signup creates none by design) — for them we fall back to their
+    ParticipantEventRegistration rows, preferring an event that's currently
+    'active', else the most recently registered one.
+
+    Without this fallback, every plain participant — the majority of users —
+    logs in with event=None: EventContextMiddleware never gets an event_id
+    claim to put in the JWT, so anything gated on request.event_context
+    (session Q&A, room statistics) silently fails for them, and the mobile
+    client has nothing to show on the event/program screens either.
+
+    Returns (event_or_None, role_or_None).
+    """
+    from .models import UserEventAssignment, Participant
+
+    assignment = UserEventAssignment.objects.filter(
+        user=user,
+        is_active=True
+    ).select_related('event').first()
+    if assignment:
+        return assignment.event, assignment.role
+
+    participant = Participant.objects.filter(user=user).first()
+    if participant:
+        active_registration = (
+            participant.registrations
+            .filter(event__status='active')
+            .select_related('event')
+            .order_by('-registered_at')
+            .first()
+        )
+        chosen = active_registration or (
+            participant.registrations
+            .select_related('event')
+            .order_by('-registered_at')
+            .first()
+        )
+        if chosen:
+            return chosen.event, 'participant'
+
+    return None, None
+
+
 def get_user_role_in_event(user, event):
     """
     Get user's role in a specific event

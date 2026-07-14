@@ -483,6 +483,12 @@
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
+                                        <a href="{% url 'dashboard:session_questions' session.id %}" class="btn btn-sm btn-outline-{% if session.unanswered_questions_count %}warning{% else %}secondary{% endif %}" title="Questions &amp; réponses">
+                                            <i class="bi bi-question-circle"></i>
+                                            {% if session.unanswered_questions_count %}
+                                                <span class="badge bg-warning text-dark">{{ session.unanswered_questions_count }}</span>
+                                            {% endif %}
+                                        </a>
                                         <a href="{% url 'dashboard:session_edit' session.id %}" class="btn btn-sm btn-outline-primary" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </a>

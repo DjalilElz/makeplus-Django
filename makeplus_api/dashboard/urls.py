@@ -12,6 +12,7 @@ from . import views_eposter_final
 from . import views_final_communications
 from . import views_blocs
 from . import views_event_owner
+from . import views_questions
 
 app_name = 'dashboard'
 
@@ -74,6 +75,10 @@ urlpatterns = [
     path('events/<uuid:event_id>/sessions/create/', views.session_create, name='session_create'),
     path('sessions/<uuid:session_id>/edit/', views.session_edit, name='session_edit'),
     path('sessions/<uuid:session_id>/delete/', views.session_delete, name='session_delete'),
+
+    # Session Q&A (anonymous — see views_questions.py)
+    path('sessions/<uuid:session_id>/questions/', views_questions.session_questions, name='session_questions'),
+    path('questions/<int:question_id>/answer/', views_questions.session_question_answer, name='session_question_answer'),
     
     # Email Templates (Global) - REMOVED: Redundant with Campaigns functionality
     # path('email-templates/', views_email.email_template_list, name='email_template_list'),

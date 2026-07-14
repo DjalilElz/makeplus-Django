@@ -4,9 +4,12 @@ from django.db import migrations
 
 
 def add_signup_data_field(apps, schema_editor):
-    """Add signup_data field to SignUpVerification table if it doesn't exist"""
+    """Add signup_data field to SignUpVerification table if it doesn't exist. Postgres-only; see 0017."""
     from django.db import connection
-    
+
+    if connection.vendor != 'postgresql':
+        return
+
     with connection.cursor() as cursor:
         # Check if signup_data column exists
         cursor.execute("""

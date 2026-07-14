@@ -4,8 +4,14 @@ from unittest.mock import patch
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
-from .models import Event, Participant, SignUpVerification, FormRegistrationVerification
+from .models import (
+    Event, Participant, ParticipantEventRegistration, Room, Session,
+    SessionQuestion, SignUpVerification, FormRegistrationVerification,
+    UserEventAssignment,
+)
 from .form_validation_service import get_or_create_user_by_email, verify_form_registration
 from .signup_service import send_signup_verification_code, verify_signup_code
 from dashboard.models_form import FormConfiguration
@@ -105,3 +111,137 @@ class SignupClaimTests(TestCase):
         self.assertTrue(user.has_usable_password())
         self.assertEqual(User.objects.filter(email='p2@example.com').count(), 1)
         self.assertTrue(Participant.objects.filter(user=user).exists())
+
+
+class SessionQuestionFlowTests(TestCase):
+    """
+    Regression coverage for the session Q&A feature.
+
+    Guards three things that were previously all broken at once:
+      1. EventContextMiddleware always saw event_id=None, because nothing put
+         it in the JWT — for participants specifically, because the login
+         serializer only ever looked at UserEventAssignment, which plain
+         participants never get.
+      2. SessionQuestionViewSet.create() filtered Participant by a field
+         (`event=`) that doesn't exist on the model — would have raised
+         FieldError the moment #1 was fixed and this code path was ever hit.
+      3. IsGestionnaire.has_object_permission required obj.event directly,
+         which SessionQuestion doesn't have — answering was a 403 for everyone.
+    """
+
+    def setUp(self):
+        self.event = Event.objects.create(
+            name='Congress', start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location='Algiers',
+            status='active',
+        )
+        self.room = Room.objects.create(event=self.event, name='Salle A', capacity=100, location='Floor 1')
+        self.session = Session.objects.create(
+            event=self.event, room=self.room, title='Opening Talk',
+            start_time=timezone.now(), end_time=timezone.now() + timedelta(hours=1),
+        )
+
+        self.participant_user = User.objects.create_user(
+            username='asker', email='asker@example.com', password='pw12345',
+        )
+        self.participant = Participant.objects.create(user=self.participant_user, badge_id='BADGE-1')
+        ParticipantEventRegistration.objects.create(participant=self.participant, event=self.event)
+
+        self.gestionnaire_user = User.objects.create_user(
+            username='gestionnaire', email='gestionnaire@example.com', password='pw12345',
+        )
+        UserEventAssignment.objects.create(
+            user=self.gestionnaire_user, event=self.event,
+            role='gestionnaire_des_salles', is_active=True,
+        )
+
+    def _login(self, email, password):
+        client = APIClient()
+        response = client.post('/api/auth/token/', {'email': email, 'password': password}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        client.credentials(HTTP_AUTHORIZATION=f'Bearer {response.data["access"]}')
+        return client, response.data
+
+    def test_participant_login_embeds_event_id_claim(self):
+        """
+        A plain participant has no UserEventAssignment — the JWT must still
+        carry event_id, resolved from their event registration instead.
+        """
+        _client, data = self._login('asker@example.com', 'pw12345')
+        access = AccessToken(data['access'])
+        self.assertEqual(access['event_id'], str(self.event.id))
+        self.assertEqual(data['role'], 'participant')
+        self.assertEqual(data['event']['id'], str(self.event.id))
+
+    def test_event_id_claim_survives_token_refresh(self):
+        _client, data = self._login('asker@example.com', 'pw12345')
+        refresh = RefreshToken(data['refresh'])
+        new_access = refresh.access_token
+        self.assertEqual(new_access['event_id'], str(self.event.id))
+
+    def test_participant_can_ask_and_response_is_anonymous(self):
+        client, _data = self._login('asker@example.com', 'pw12345')
+
+        response = client.post('/api/session-questions/', {
+            'session': str(self.session.id),
+            'question_text': 'Combien de temps dure la pause déjeuner ?',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertNotIn('participant_name', response.data)
+        self.assertNotIn('participant', response.data)
+
+        question = SessionQuestion.objects.get(id=response.data['id'])
+        self.assertEqual(question.participant_id, self.participant.id)
+
+    def test_participant_not_registered_for_event_is_rejected(self):
+        """
+        Defends the event_context / is_registered_for_event check directly,
+        bypassing login (which would only ever mint a token for an event the
+        participant IS registered for) by forging a token for a foreign event.
+        """
+        other_event = Event.objects.create(
+            name='Other Congress', start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=1), location='Oran',
+        )
+        token = AccessToken.for_user(self.participant_user)
+        token['event_id'] = str(other_event.id)
+
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = client.post('/api/session-questions/', {
+            'session': str(self.session.id),
+            'question_text': 'Should be rejected',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 403, response.data)
+
+    def test_gestionnaire_can_answer_question(self):
+        question = SessionQuestion.objects.create(
+            session=self.session, participant=self.participant,
+            question_text='Y a-t-il du café ?',
+        )
+
+        client, _data = self._login('gestionnaire@example.com', 'pw12345')
+        response = client.post(f'/api/session-questions/{question.id}/answer/', {
+            'answer_text': 'Oui, dans le hall.',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertNotIn('participant_name', response.data)
+        question.refresh_from_db()
+        self.assertTrue(question.is_answered)
+        self.assertEqual(question.answered_by_id, self.gestionnaire_user.id)
+
+    def test_non_gestionnaire_cannot_answer_question(self):
+        question = SessionQuestion.objects.create(
+            session=self.session, participant=self.participant,
+            question_text='Y a-t-il du café ?',
+        )
+
+        client, _data = self._login('asker@example.com', 'pw12345')
+        response = client.post(f'/api/session-questions/{question.id}/answer/', {
+            'answer_text': 'Trying to self-answer',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 403, response.data)

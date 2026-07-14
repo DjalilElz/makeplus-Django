@@ -11,11 +11,19 @@ class IsGestionnaire(permissions.BasePermission):
         return request.user and request.user.is_authenticated
     
     def has_object_permission(self, request, view, obj):
-        # Get event from object
-        event = getattr(obj, 'event', None)
+        # Not every object this permission guards has `.event` directly
+        # (SessionQuestion, RoomAssignment don't) — fall back through the
+        # relations that do. A getattr(obj, 'event', None) with no fallback
+        # made SessionQuestion.answer() and RoomAssignment update/destroy
+        # return 403 for every user, including real gestionnaires.
+        event = (
+            getattr(obj, 'event', None)
+            or getattr(getattr(obj, 'session', None), 'event', None)
+            or getattr(getattr(obj, 'room', None), 'event', None)
+        )
         if not event:
             return False
-        
+
         # Check if user is gestionnaire for this event
         return UserEventAssignment.objects.filter(
             user=request.user,

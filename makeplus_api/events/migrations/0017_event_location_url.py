@@ -4,9 +4,17 @@ from django.db import migrations, models
 
 
 def add_location_url_if_not_exists(apps, schema_editor):
-    """Add location_url column only if it doesn't exist"""
+    """
+    Add location_url column only if it doesn't exist.
+
+    information_schema.columns raw SQL is Postgres-only; a fresh SQLite test
+    DB already has this column from the model state, so it's safe to no-op.
+    """
     from django.db import connection
-    
+
+    if connection.vendor != 'postgresql':
+        return
+
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT EXISTS (

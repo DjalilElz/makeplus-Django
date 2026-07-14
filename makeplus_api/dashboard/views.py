@@ -267,8 +267,10 @@ def event_detail(request, event_id):
     ))
     
     # Get event sessions (prefetch room to avoid N+1)
-    sessions = list(Session.objects.filter(event=event).select_related('room').only(
-        'id', 'title', 'session_type', 'start_time', 'end_time', 'speaker_name', 
+    sessions = list(Session.objects.filter(event=event).select_related('room').annotate(
+        unanswered_questions_count=Count('questions', filter=Q(questions__is_answered=False))
+    ).only(
+        'id', 'title', 'session_type', 'start_time', 'end_time', 'speaker_name',
         'speaker_title', 'is_paid', 'price', 'youtube_live_url', 'room__name', 'room__id'
     ))
     

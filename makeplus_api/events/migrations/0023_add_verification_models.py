@@ -4,8 +4,11 @@ from django.db import migrations, models, transaction
 
 
 def rename_indexes_safely(apps, schema_editor):
-    """Rename indexes only if they exist"""
+    """Rename indexes only if they exist. Postgres-only (pg_indexes); see 0016."""
     from django.db import connection
+
+    if connection.vendor != 'postgresql':
+        return
 
     with connection.cursor() as cursor:
         # Check if old indexes exist before renaming
