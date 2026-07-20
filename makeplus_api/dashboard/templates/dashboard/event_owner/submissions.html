@@ -213,20 +213,6 @@
             border: 1px solid var(--border-light);
         }
         .notes-saved-indicator { font-size: 0.7rem; }
-
-        @media print {
-            body * { visibility: hidden; }
-            .modal.show, .modal.show * { visibility: visible; }
-            .modal.show {
-                position: absolute;
-                top: 0;
-                left: 0;
-                margin: 0;
-                width: 100%;
-            }
-            .modal-dialog { max-width: 100%; margin: 0; }
-            .modal-footer, .btn-close { display: none !important; }
-        }
     </style>
 </head>
 <body>
@@ -567,7 +553,7 @@
                 </div>
                 <div class="modal-footer" style="border-top: 1px solid var(--border-light);">
                     <button type="button" class="btn btn-outline-elegant btn-sm" data-bs-dismiss="modal">Fermer</button>
-                    <button type="button" class="btn btn-elegant btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Imprimer</button>
+                    <button type="button" class="btn btn-elegant btn-sm" onclick="downloadOrderPdf('order-{{ order.id }}', '{{ order.full_name|default:order.email|escapejs }}')"><i class="bi bi-file-earmark-pdf"></i> Télécharger en PDF</button>
                 </div>
             </div>
         </div>
@@ -575,7 +561,39 @@
     {% endfor %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
+        // Renders the modal's header+body (footer/close button hidden for
+        // the capture) to a canvas, then wraps it in a PDF page sized to
+        // exactly that canvas -- guarantees a single page regardless of
+        // how long the order's details are, no A4 pagination logic needed.
+        async function downloadOrderPdf(modalId, personName) {
+            var modalEl = document.getElementById(modalId);
+            var content = modalEl.querySelector('.modal-content');
+            var footer = content.querySelector('.modal-footer');
+            var closeBtn = content.querySelector('.btn-close');
+            var prevFooterDisplay = footer.style.display;
+            var prevCloseDisplay = closeBtn.style.display;
+            footer.style.display = 'none';
+            closeBtn.style.display = 'none';
+            try {
+                var canvas = await html2canvas(content, { scale: 2, backgroundColor: '#ffffff' });
+                var imgData = canvas.toDataURL('image/png');
+                var pdf = new window.jspdf.jsPDF({
+                    orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
+                    unit: 'px',
+                    format: [canvas.width, canvas.height],
+                });
+                pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+                var safeName = (personName || 'inscription').replace(/[^a-z0-9\-_]+/gi, '_');
+                pdf.save('inscription-' + safeName + '.pdf');
+            } finally {
+                footer.style.display = prevFooterDisplay;
+                closeBtn.style.display = prevCloseDisplay;
+            }
+        }
+
         var STATUS_LABELS = {
             {% for code, label in status_choices %}'{{ code }}': '{{ label }}'{% if not forloop.last %}, {% endif %}{% endfor %}
         };
