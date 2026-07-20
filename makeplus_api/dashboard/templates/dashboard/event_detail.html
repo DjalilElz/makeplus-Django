@@ -183,7 +183,16 @@
                                 </a>
                             </dd>
                             {% endif %}
-                            
+
+                            {% if event.payment_link %}
+                            <dt class="col-sm-3">Payment Link:</dt>
+                            <dd class="col-sm-9">
+                                <a href="{{ event.payment_link }}" target="_blank" class="text-primary">
+                                    <i class="bi bi-credit-card"></i> View Payment Page <i class="bi bi-box-arrow-up-right"></i>
+                                </a>
+                            </dd>
+                            {% endif %}
+
                             {% if event.programme_file %}
                             <dt class="col-sm-3">Programme:</dt>
                             <dd class="col-sm-9">

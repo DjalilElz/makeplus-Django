@@ -230,6 +230,7 @@ class Event(models.Model):
     logo = models.ImageField(upload_to='events/logos/', blank=True, null=True, help_text="Event logo image")
     banner = models.ImageField(upload_to='events/banners/', blank=True, null=True, help_text="Event banner image")
     primary_color = models.CharField(max_length=7, default='#9C27B0', help_text="Hex color (e.g. #9C27B0) used to theme the mobile app for this event")
+    payment_link = models.URLField(blank=True, null=True, help_text="Optional payment/invoice link sent to participants from the submissions page")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='upcoming')
     
     # Registration settings

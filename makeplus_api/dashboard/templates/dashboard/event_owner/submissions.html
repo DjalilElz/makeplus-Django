@@ -551,9 +551,15 @@
                     {% endif %}
                     <p class="mb-0 text-muted small">Soumis le {{ order.created_at|date:"d M Y H:i" }}</p>
                 </div>
-                <div class="modal-footer" style="border-top: 1px solid var(--border-light);">
+                <div class="modal-footer flex-wrap" style="border-top: 1px solid var(--border-light);">
+                    <small class="payment-link-indicator text-success me-auto" style="display:none;"></small>
                     <button type="button" class="btn btn-outline-elegant btn-sm" data-bs-dismiss="modal">Fermer</button>
                     <button type="button" class="btn btn-elegant btn-sm" onclick="downloadOrderPdf('order-{{ order.id }}', '{{ order.full_name|default:order.email|escapejs }}')"><i class="bi bi-file-earmark-pdf"></i> Télécharger en PDF</button>
+                    <button type="button" class="btn btn-elegant btn-sm"
+                            {% if not event.payment_link %}disabled title="Aucun lien de paiement configuré pour cet événement"{% endif %}
+                            onclick="sendPaymentLink(this, '{% url 'dashboard:send_payment_link_email' order.id %}')">
+                        <i class="bi bi-credit-card"></i> Envoyer le lien de paiement
+                    </button>
                 </div>
             </div>
         </div>
@@ -644,6 +650,37 @@
                 indicator.classList.toggle('text-danger', !resp.ok);
                 indicator.style.display = 'inline';
                 setTimeout(function () { indicator.style.display = 'none'; }, 1500);
+            });
+        }
+
+        function sendPaymentLink(button, url) {
+            var indicator = button.closest('.modal-footer').querySelector('.payment-link-indicator');
+            button.disabled = true;
+            fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            }).then(function (resp) {
+                return resp.json().then(function (data) { return { resp: resp, data: data }; });
+            }).then(function (result) {
+                if (!indicator) return;
+                if (result.resp.ok && result.data.ok) {
+                    indicator.textContent = 'Lien de paiement envoyé.';
+                    indicator.classList.remove('text-danger');
+                    indicator.classList.add('text-success');
+                } else {
+                    indicator.textContent = result.data.error || "Échec de l'envoi.";
+                    indicator.classList.remove('text-success');
+                    indicator.classList.add('text-danger');
+                }
+                indicator.style.display = 'inline';
+            }).catch(function () {
+                if (!indicator) return;
+                indicator.textContent = "Échec de l'envoi.";
+                indicator.classList.remove('text-success');
+                indicator.classList.add('text-danger');
+                indicator.style.display = 'inline';
+            }).finally(function () {
+                button.disabled = false;
             });
         }
     </script>

@@ -24,6 +24,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from caisse.services import cancel_registration_order, confirm_registration_order
+from dashboard.email_sender import send_email
 from events.models import Event, ParticipantEventRegistration, UserEventAssignment
 from .models_blocs import RegistrationOrder
 
@@ -259,6 +260,66 @@ def registration_notes_save(request, order_id):
 
     order.admin_notes = request.POST.get('admin_notes', '')
     order.save(update_fields=['admin_notes'])
+    return JsonResponse({'ok': True})
+
+
+@never_cache
+@login_required
+@require_POST
+def send_payment_link_email(request, order_id):
+    """
+    Emails the participant a standard message with the event's payment
+    link plus an itemized breakdown of what they selected and the total,
+    so they know exactly how much to pay before clicking through.
+    Responds with JSON (called from the submissions modal via fetch, no
+    page reload) rather than redirecting.
+    """
+    order = get_object_or_404(RegistrationOrder, id=order_id)
+    if not _can_access_event_orders(request.user, order.event):
+        raise PermissionDenied("You do not have access to this event's submissions.")
+
+    event = order.event
+    if not event.payment_link:
+        return JsonResponse({'ok': False, 'error': "Aucun lien de paiement configuré pour cet événement."}, status=400)
+    if not order.email:
+        return JsonResponse({'ok': False, 'error': "Cette inscription n'a pas d'adresse e-mail."}, status=400)
+
+    items_html = ''.join(
+        f"<li>{it.get('name', '')} — {it.get('price', 0)} DZD</li>"
+        for it in (order.items_snapshot or [])
+    )
+    if not items_html:
+        items_html = '<li>Aucun article</li>'
+
+    subject = f"Lien de paiement — {event.name}"
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; color: #1a1a1a; line-height: 1.5;">
+        <p>Bonjour {order.full_name or ''},</p>
+        <p>Voici votre lien de paiement pour finaliser votre inscription à <strong>{event.name}</strong>.</p>
+        <p><strong>Articles sélectionnés :</strong></p>
+        <ul>{items_html}</ul>
+        <p><strong>Total à payer : {order.total_after_reduction} DZD</strong></p>
+        <p>
+            <a href="{event.payment_link}"
+               style="display:inline-block; padding:10px 20px; background:#2D1B6B; color:#ffffff; text-decoration:none; border-radius:6px;">
+               Procéder au paiement
+            </a>
+        </p>
+        <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>{event.payment_link}</p>
+        <p>Cordialement,<br>L'équipe {event.name}</p>
+    </body>
+    </html>
+    """
+
+    success, error, _ = send_email(
+        to_email=order.email,
+        subject=subject,
+        html_content=html_content,
+        to_name=order.full_name or None,
+    )
+    if not success:
+        return JsonResponse({'ok': False, 'error': error or "Échec de l'envoi."}, status=502)
     return JsonResponse({'ok': True})
 
 

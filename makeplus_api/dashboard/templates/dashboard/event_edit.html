@@ -219,6 +219,20 @@
                                 <div class="form-text">Thème l'application mobile pour cet événement une fois l'utilisateur connecté.</div>
                             </div>
 
+                            <!-- Payment link -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.payment_link.id_for_label }}" class="form-label">
+                                    <i class="bi bi-credit-card"></i> Lien de paiement (optionnel)
+                                </label>
+                                {{ form.payment_link }}
+                                {% if form.payment_link.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.payment_link.errors.0 }}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">Utilisé par le bouton "Envoyer le lien de paiement" sur la page des inscriptions.</div>
+                            </div>
+
                             <div class="col-12">
                                 <hr>
                             </div>

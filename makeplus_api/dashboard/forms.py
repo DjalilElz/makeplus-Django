@@ -32,7 +32,7 @@ class EventDetailsForm(forms.ModelForm):
         fields = [
             'name', 'description', 'start_date', 'end_date',
             'location', 'location_url', 'status',
-            'logo', 'banner', 'primary_color', 'organizer_contact',
+            'logo', 'banner', 'primary_color', 'payment_link', 'organizer_contact',
             'programme_file', 'guide_file'
         ]
         widgets = {
@@ -76,6 +76,10 @@ class EventDetailsForm(forms.ModelForm):
                 'class': 'form-control form-control-color',
                 'type': 'color',
                 'title': "Couleur principale de l'événement"
+            }),
+            'payment_link': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., https://pay.example.com/event-name (optional)'
             }),
             'organizer_contact': forms.EmailInput(attrs={
                 'class': 'form-control',
@@ -110,7 +114,7 @@ class EventEditForm(forms.ModelForm):
         fields = [
             'name', 'description', 'start_date', 'end_date',
             'location', 'location_url', 'status',
-            'logo', 'banner', 'primary_color', 'organizer_contact',
+            'logo', 'banner', 'primary_color', 'payment_link', 'organizer_contact',
             'programme_file', 'guide_file'
         ]
         widgets = {
@@ -156,6 +160,10 @@ class EventEditForm(forms.ModelForm):
                 'class': 'form-control form-control-color',
                 'type': 'color',
                 'title': "Couleur principale de l'événement"
+            }),
+            'payment_link': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., https://pay.example.com/event-name (optional)'
             }),
             'organizer_contact': forms.EmailInput(attrs={
                 'class': 'form-control',
