@@ -52,14 +52,16 @@ EMAIL_TEMPLATE_KINDS = {
             "(bouton « Envoyer le mail de préinscription »)."
         ),
         'variables': ['{{participant_name}}', '{{event_name}}', '{{payment_link}}'],
-        'default_subject': 'Lien de paiement — {{event_name}}',
+        'default_subject': 'Préinscription — {{event_name}}',
         'default_body': (
             "<p>Bonjour {{participant_name}},</p>\n"
-            "<p>Voici votre lien de paiement pour finaliser votre inscription à <strong>{{event_name}}</strong>.</p>"
+            "<p>Voici les informations de votre préinscription à <strong>{{event_name}}</strong>.</p>"
         ),
         'extra_note': (
-            "Le détail des articles sélectionnés, le total à payer et le bouton de paiement "
-            "sont ajoutés automatiquement à la fin de ce message -- inutile de les inclure ici."
+            "Le détail des articles sélectionnés et le total à payer sont ajoutés automatiquement à la fin de ce "
+            "message -- inutile de les inclure ici. Le bouton de paiement n'apparaît que si un lien de paiement "
+            "est configuré pour cet événement (page Modifier l'événement) ; sans lien, seuls les articles et le "
+            "total sont envoyés."
         ),
     },
     'registration_confirmation': {

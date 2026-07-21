@@ -556,7 +556,6 @@
                     <button type="button" class="btn btn-outline-elegant btn-sm" data-bs-dismiss="modal">Fermer</button>
                     <button type="button" class="btn btn-elegant btn-sm" onclick="downloadOrderPdf('order-{{ order.id }}', '{{ order.full_name|default:order.email|escapejs }}')"><i class="bi bi-file-earmark-pdf"></i> Télécharger en PDF</button>
                     <button type="button" class="btn btn-elegant btn-sm"
-                            {% if not event.payment_link %}disabled title="Aucun lien de paiement configuré pour cet événement"{% endif %}
                             onclick="sendPaymentLink(this, '{% url 'dashboard:send_payment_link_email' order.id %}')">
                         <i class="bi bi-credit-card"></i> Envoyer le mail de préinscription
                     </button>

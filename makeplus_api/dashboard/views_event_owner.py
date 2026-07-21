@@ -269,9 +269,11 @@ def registration_notes_save(request, order_id):
 @require_POST
 def send_payment_link_email(request, order_id):
     """
-    Emails the participant a standard message with the event's payment
-    link plus an itemized breakdown of what they selected and the total,
-    so they know exactly how much to pay before clicking through.
+    Emails the participant a standard "préinscription" message: an itemized
+    breakdown of what they selected and the total, so they know exactly how
+    much to pay -- plus a "Procéder au paiement" button/link, but only if
+    the event actually has one configured (Event.payment_link is optional;
+    a préinscription can legitimately exist without a payment link yet).
     Responds with JSON (called from the submissions modal via fetch, no
     page reload) rather than redirecting.
     """
@@ -280,8 +282,6 @@ def send_payment_link_email(request, order_id):
         raise PermissionDenied("You do not have access to this event's submissions.")
 
     event = order.event
-    if not event.payment_link:
-        return JsonResponse({'ok': False, 'error': "Aucun lien de paiement configuré pour cet événement."}, status=400)
     if not order.email:
         return JsonResponse({'ok': False, 'error': "Cette inscription n'a pas d'adresse e-mail."}, status=400)
 
@@ -292,14 +292,13 @@ def send_payment_link_email(request, order_id):
     if not items_html:
         items_html = '<li>Aucun article</li>'
 
-    # Always appended after the intro, regardless of whether that intro is
-    # the admin's own template or the default -- the whole point of this
-    # email is that the participant sees exactly what they're paying for,
-    # so this can't be left as an optional placeholder the admin forgets.
-    payment_block = f"""
-        <p><strong>Articles sélectionnés :</strong></p>
-        <ul>{items_html}</ul>
-        <p><strong>Total à payer : {order.total_after_reduction} DZD</strong></p>
+    # The button/link paragraph only appears if the event actually has a
+    # payment link configured -- the items + total always appear regardless,
+    # since that part of the requirement ("participant sees exactly what
+    # they'd pay") doesn't depend on a link existing yet.
+    payment_link_html = ''
+    if event.payment_link:
+        payment_link_html = f"""
         <p>
             <a href="{event.payment_link}"
                style="display:inline-block; padding:10px 20px; background:#2D1B6B; color:#ffffff; text-decoration:none; border-radius:6px;">
@@ -307,6 +306,13 @@ def send_payment_link_email(request, order_id):
             </a>
         </p>
         <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>{event.payment_link}</p>
+        """
+
+    payment_block = f"""
+        <p><strong>Articles sélectionnés :</strong></p>
+        <ul>{items_html}</ul>
+        <p><strong>Total à payer : {order.total_after_reduction} DZD</strong></p>
+        {payment_link_html}
     """
 
     template = EventEmailTemplate.objects.filter(
@@ -319,16 +325,16 @@ def send_payment_link_email(request, order_id):
         replacements = {
             '{{participant_name}}': order.full_name or '',
             '{{event_name}}': event.name,
-            '{{payment_link}}': event.payment_link,
+            '{{payment_link}}': event.payment_link or '',
         }
         for key, value in replacements.items():
             subject = subject.replace(key, value)
             intro_html = intro_html.replace(key, value)
     else:
-        subject = f"Lien de paiement — {event.name}"
+        subject = f"Préinscription — {event.name}"
         intro_html = f"""
         <p>Bonjour {order.full_name or ''},</p>
-        <p>Voici votre lien de paiement pour finaliser votre inscription à <strong>{event.name}</strong>.</p>
+        <p>Voici les informations de votre préinscription à <strong>{event.name}</strong>.</p>
         """
 
     html_content = f"""
