@@ -175,12 +175,10 @@ def _send_confirmation_email(order):
     if not order.email:
         return
 
-    from dashboard.models_email import EventEmailTemplate
+    from dashboard.models_email import get_event_email_template
 
     event = order.event
-    template = EventEmailTemplate.objects.filter(
-        event=event, template_type='order_confirmation', is_active=True,
-    ).first()
+    template = get_event_email_template(event, 'order_confirmation')
 
     if template:
         subject = template.subject

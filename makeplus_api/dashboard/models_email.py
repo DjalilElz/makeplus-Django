@@ -122,6 +122,32 @@ class EventEmailTemplate(models.Model):
         return duplicate
 
 
+def get_event_email_template(event, template_type):
+    """
+    Canonical lookup for an event's one template of a given kind (see
+    dashboard.views_email.EMAIL_TEMPLATE_KINDS) -- used by both the admin
+    editor and the actual email-sending code, so they can never disagree
+    about which row is "the" template for that (event, template_type).
+
+    If more than one row exists for the same (event, template_type) --
+    e.g. a leftover from the old free-form "Create Custom Template" page,
+    which let an admin pick this type with an unrelated name -- the most
+    recently *updated* one wins, and the stale duplicate(s) are deleted so
+    the ambiguity doesn't linger and silently resurface later.
+    """
+    templates = list(
+        EventEmailTemplate.objects
+        .filter(event=event, template_type=template_type)
+        .order_by('-updated_at')
+    )
+    if not templates:
+        return None
+    canonical, *stale = templates
+    if stale:
+        EventEmailTemplate.objects.filter(id__in=[t.id for t in stale]).delete()
+    return canonical
+
+
 class EmailLog(models.Model):
     """Track sent emails"""
     TARGET_TYPE_CHOICES = [

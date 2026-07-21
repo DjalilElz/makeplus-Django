@@ -25,7 +25,7 @@ from django.views.decorators.http import require_POST
 
 from caisse.services import cancel_registration_order, confirm_registration_order
 from dashboard.email_sender import send_email
-from dashboard.models_email import EventEmailTemplate
+from dashboard.models_email import get_event_email_template
 from events.models import Event, ParticipantEventRegistration, UserEventAssignment
 from .models_blocs import RegistrationOrder
 
@@ -291,9 +291,11 @@ def send_payment_link_email(request, order_id):
     )
     if not items_html:
         items_html = '<li>Aucun article</li>'
+    items_value = f"<ul>{items_html}</ul>"
+    total_value = f"{order.total_after_reduction} DZD"
 
     # The button/link paragraph only appears if the event actually has a
-    # payment link configured -- the items + total always appear regardless,
+    # payment link configured -- items/total always appear regardless,
     # since that part of the requirement ("participant sees exactly what
     # they'd pay") doesn't depend on a link existing yet.
     payment_link_html = ''
@@ -308,16 +310,7 @@ def send_payment_link_email(request, order_id):
         <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>{event.payment_link}</p>
         """
 
-    payment_block = f"""
-        <p><strong>Articles sélectionnés :</strong></p>
-        <ul>{items_html}</ul>
-        <p><strong>Total à payer : {order.total_after_reduction} DZD</strong></p>
-        {payment_link_html}
-    """
-
-    template = EventEmailTemplate.objects.filter(
-        event=event, template_type='payment_link', is_active=True,
-    ).first()
+    template = get_event_email_template(event, 'payment_link')
 
     if template:
         subject = template.subject
@@ -337,11 +330,25 @@ def send_payment_link_email(request, order_id):
         <p>Voici les informations de votre préinscription à <strong>{event.name}</strong>.</p>
         """
 
+    # {{items}}/{{total}} are insertable -- an admin can place them anywhere
+    # in their own text. If a token is missing, that piece is auto-appended
+    # afterwards instead, so it's repositionable but never silently dropped.
+    used_items_token = '{{items}}' in intro_html
+    used_total_token = '{{total}}' in intro_html
+    intro_html = intro_html.replace('{{items}}', items_value).replace('{{total}}', total_value)
+
+    fallback_html = ''
+    if not used_items_token:
+        fallback_html += f"<p><strong>Articles sélectionnés :</strong></p>{items_value}"
+    if not used_total_token:
+        fallback_html += f"<p><strong>Total à payer : {total_value}</strong></p>"
+
     html_content = f"""
     <html>
     <body style="font-family: Arial, sans-serif; color: #1a1a1a; line-height: 1.5;">
         {intro_html}
-        {payment_block}
+        {fallback_html}
+        {payment_link_html}
         <p>Cordialement,<br>L'équipe {event.name}</p>
     </body>
     </html>

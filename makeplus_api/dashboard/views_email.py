@@ -9,7 +9,7 @@ from django.db.models import Count, Q
 from django.http import Http404
 from django.utils import timezone
 from events.models import Event, Participant
-from .models_email import EmailTemplate, EventEmailTemplate, EmailLog
+from .models_email import EmailTemplate, EventEmailTemplate, EmailLog, get_event_email_template
 from smtplib import SMTPException
 import socket
 import re
@@ -51,17 +51,21 @@ EMAIL_TEMPLATE_KINDS = {
             "Envoyé manuellement depuis la page des inscriptions "
             "(bouton « Envoyer le mail de préinscription »)."
         ),
-        'variables': ['{{participant_name}}', '{{event_name}}', '{{payment_link}}'],
+        'variables': [
+            '{{participant_name}}', '{{event_name}}', '{{payment_link}}',
+            '{{items}}', '{{total}}',
+        ],
         'default_subject': 'Préinscription — {{event_name}}',
         'default_body': (
             "<p>Bonjour {{participant_name}},</p>\n"
             "<p>Voici les informations de votre préinscription à <strong>{{event_name}}</strong>.</p>"
         ),
         'extra_note': (
-            "Le détail des articles sélectionnés et le total à payer sont ajoutés automatiquement à la fin de ce "
-            "message -- inutile de les inclure ici. Le bouton de paiement n'apparaît que si un lien de paiement "
-            "est configuré pour cet événement (page Modifier l'événement) ; sans lien, seuls les articles et le "
-            "total sont envoyés."
+            "Placez {{items}} et {{total}} où vous voulez dans votre texte pour afficher la liste des articles "
+            "sélectionnés et le total à payer à cet endroit précis. Si vous ne les utilisez pas, ils sont ajoutés "
+            "automatiquement à la fin du message -- jamais omis, juste repositionnables. Le bouton de paiement "
+            "n'apparaît que si un lien de paiement est configuré pour cet événement (page Modifier l'événement) ; "
+            "sans lien, seuls les articles et le total sont envoyés."
         ),
     },
     'registration_confirmation': {
@@ -217,16 +221,12 @@ def event_email_templates(request, event_id):
     each, no free-form template browsing/creation.
     """
     event = get_object_or_404(Event, id=event_id)
-    existing = {
-        t.template_type: t
-        for t in EventEmailTemplate.objects.filter(event=event, template_type__in=EMAIL_TEMPLATE_KINDS.keys())
-    }
     kinds = [
         {
             'type': kind,
             'label': config['button_label'],
             'description': config['description'],
-            'template': existing.get(kind),
+            'template': get_event_email_template(event, kind),
         }
         for kind, config in EMAIL_TEMPLATE_KINDS.items()
     ]
@@ -252,7 +252,7 @@ def event_email_template_set(request, event_id, template_type):
 
     event = get_object_or_404(Event, id=event_id)
     config = EMAIL_TEMPLATE_KINDS[template_type]
-    template = EventEmailTemplate.objects.filter(event=event, template_type=template_type).first()
+    template = get_event_email_template(event, template_type)
 
     if request.method == 'POST':
         subject = request.POST.get('subject', '').strip()
