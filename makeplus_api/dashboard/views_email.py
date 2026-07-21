@@ -11,6 +11,7 @@ from django.utils import timezone
 from events.models import Event, Participant
 from .models_email import EmailTemplate, EventEmailTemplate, EmailLog, get_event_email_template
 from smtplib import SMTPException
+import json
 import socket
 import re
 
@@ -20,6 +21,41 @@ def replace_template_variables(text, context):
     for key, value in context.items():
         text = text.replace(f"{{{{{key}}}}}", str(value))
     return text
+
+
+def build_default_unlayer_design(html_body):
+    """
+    Wraps a plain HTML string in the minimal Unlayer design structure (one
+    row, one column, one HTML content block) so it loads into the visual
+    builder as real, editable starting content instead of a blank canvas --
+    used only the first time an admin opens one of the 3 fixed email
+    editors, before they've ever saved their own design.
+    """
+    return {
+        'body': {
+            'rows': [
+                {
+                    'cells': [1],
+                    'columns': [
+                        {
+                            'contents': [
+                                {
+                                    'type': 'html',
+                                    'values': {'html': html_body},
+                                }
+                            ],
+                            'values': {},
+                        }
+                    ],
+                    'values': {},
+                }
+            ],
+            'values': {
+                'backgroundColor': '#ffffff',
+                'contentWidth': '600px',
+            },
+        }
+    }
 
 
 # The only three email "kinds" an event admin can configure -- each maps to
@@ -289,6 +325,7 @@ def event_email_template_set(request, event_id, template_type):
         'template': template,
         'template_type': template_type,
         'config': config,
+        'default_design_json': json.dumps(build_default_unlayer_design(config['default_body'])),
     }
     return render(request, 'dashboard/event_email_template_set.html', context)
 

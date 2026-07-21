@@ -159,6 +159,12 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (e) {
             console.error('Error loading design:', e);
         }
+        {% else %}
+        try {
+            emailEditor.loadDesign({{ default_design_json|safe }});
+        } catch (e) {
+            console.error('Error loading default design:', e);
+        }
         {% endif %}
     });
 
