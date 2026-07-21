@@ -129,8 +129,13 @@ urlpatterns = [
     path('api/events/<uuid:event_id>/rooms/', views.api_event_rooms, name='api_event_rooms'),
     path('events/<uuid:event_id>/registration-fields/', views_email.event_registration_fields_api, name='event_registration_fields_api'),
     
-    # Event Email Templates
+    # Event Email Templates -- three fixed, purpose-built kinds (Confirmation,
+    # Préinscription, Registration Confirmation), each with its own coherent
+    # variable list. The old free-form create/edit routes stay defined
+    # (harmless, some other page may still reference an old row by id) but
+    # are no longer linked from the dashboard UI.
     path('events/<uuid:event_id>/email-templates/', views_email.event_email_templates, name='event_email_templates'),
+    path('events/<uuid:event_id>/email-templates/kind/<str:template_type>/', views_email.event_email_template_set, name='event_email_template_set'),
     path('events/<uuid:event_id>/email-templates/create/', views_email.event_email_template_create, name='event_email_template_create'),
     path('events/<uuid:event_id>/email-templates/<int:template_id>/edit/', views_email.event_email_template_edit, name='event_email_template_edit'),
     path('events/<uuid:event_id>/email-templates/<int:template_id>/delete/', views_email.event_email_template_delete, name='event_email_template_delete'),

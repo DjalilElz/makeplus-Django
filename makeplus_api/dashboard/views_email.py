@@ -6,6 +6,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.db import models
 from django.db.models import Count, Q
+from django.http import Http404
 from django.utils import timezone
 from events.models import Event, Participant
 from .models_email import EmailTemplate, EventEmailTemplate, EmailLog
@@ -19,6 +20,73 @@ def replace_template_variables(text, context):
     for key, value in context.items():
         text = text.replace(f"{{{{{key}}}}}", str(value))
     return text
+
+
+# The only three email "kinds" an event admin can configure -- each maps to
+# exactly one EventEmailTemplate row per event (template_type is the key,
+# not name), with its own coherent variable list matching exactly what the
+# sending code actually substitutes (see caisse.services._send_confirmation_email,
+# dashboard.views_event_owner.send_payment_link_email, and
+# events.views_registration.send_registration_confirmation_email).
+EMAIL_TEMPLATE_KINDS = {
+    'order_confirmation': {
+        'button_label': 'Confirmation',
+        'description': (
+            "Envoyé automatiquement quand une inscription passe au statut "
+            "« Confirmée » (paiement réel enregistré)."
+        ),
+        'variables': ['{{participant_name}}', '{{event_name}}'],
+        'default_subject': 'Votre inscription à {{event_name}} est confirmée',
+        'default_body': (
+            "<p>Bonjour {{participant_name}},</p>\n"
+            "<p>Nous vous confirmons que votre inscription à <strong>{{event_name}}</strong> est validée.</p>\n"
+            "<p>Nous avons hâte de vous accueillir.</p>\n"
+            "<p>Cordialement,<br>L'équipe {{event_name}}</p>"
+        ),
+        'extra_note': '',
+    },
+    'payment_link': {
+        'button_label': 'Préinscription',
+        'description': (
+            "Envoyé manuellement depuis la page des inscriptions "
+            "(bouton « Envoyer le mail de préinscription »)."
+        ),
+        'variables': ['{{participant_name}}', '{{event_name}}', '{{payment_link}}'],
+        'default_subject': 'Lien de paiement — {{event_name}}',
+        'default_body': (
+            "<p>Bonjour {{participant_name}},</p>\n"
+            "<p>Voici votre lien de paiement pour finaliser votre inscription à <strong>{{event_name}}</strong>.</p>"
+        ),
+        'extra_note': (
+            "Le détail des articles sélectionnés, le total à payer et le bouton de paiement "
+            "sont ajoutés automatiquement à la fin de ce message -- inutile de les inclure ici."
+        ),
+    },
+    'registration_confirmation': {
+        'button_label': 'Confirmation (inscription publique)',
+        'description': (
+            "Envoyé automatiquement quand un participant s'inscrit lui-même via le "
+            "formulaire public de l'événement."
+        ),
+        'variables': [
+            '{{first_name}}', '{{last_name}}', '{{participant_name}}',
+            '{{event_name}}', '{{event_date}}', '{{event_location}}',
+        ],
+        'default_subject': "Confirmation d'inscription - {{event_name}}",
+        'default_body': (
+            "<h2>Bienvenue {{first_name}}!</h2>\n"
+            "<p>Votre inscription à l'événement <strong>{{event_name}}</strong> a été confirmée.</p>\n"
+            "<p><strong>Détails de l'événement :</strong></p>\n"
+            "<ul>\n"
+            "    <li>Date : {{event_date}}</li>\n"
+            "    <li>Lieu : {{event_location}}</li>\n"
+            "</ul>\n"
+            "<p>Vous recevrez prochainement votre badge et plus d'informations.</p>\n"
+            "<p>À bientôt !</p>"
+        ),
+        'extra_note': '',
+    },
+}
 
 
 @login_required
@@ -141,17 +209,81 @@ def email_template_delete(request, template_id):
 
 @login_required
 def event_email_templates(request, event_id):
-    """List email templates for a specific event"""
+    """
+    Entry point for the event's three fixed, purpose-built email templates
+    (Confirmation, Préinscription, Registration Confirmation) -- one button
+    each, no free-form template browsing/creation.
+    """
     event = get_object_or_404(Event, id=event_id)
-    event_templates = EventEmailTemplate.objects.filter(event=event).select_related('base_template', 'created_by')
-    global_templates = EmailTemplate.objects.all()
-    
+    existing = {
+        t.template_type: t
+        for t in EventEmailTemplate.objects.filter(event=event, template_type__in=EMAIL_TEMPLATE_KINDS.keys())
+    }
+    kinds = [
+        {
+            'type': kind,
+            'label': config['button_label'],
+            'description': config['description'],
+            'template': existing.get(kind),
+        }
+        for kind, config in EMAIL_TEMPLATE_KINDS.items()
+    ]
+
     context = {
         'event': event,
-        'event_templates': event_templates,
-        'global_templates': global_templates,
+        'kinds': kinds,
     }
     return render(request, 'dashboard/event_email_templates.html', context)
+
+
+@login_required
+def event_email_template_set(request, event_id, template_type):
+    """
+    Focused create/edit for one of the three fixed email-template kinds --
+    no name field, no type picker, no global-template browsing. At most one
+    EventEmailTemplate row per (event, template_type); pre-filled with the
+    default wording the sending code falls back to when nothing custom is
+    saved, so an admin is always editing real text, never a blank form.
+    """
+    if template_type not in EMAIL_TEMPLATE_KINDS:
+        raise Http404("Unknown email template kind.")
+
+    event = get_object_or_404(Event, id=event_id)
+    config = EMAIL_TEMPLATE_KINDS[template_type]
+    template = EventEmailTemplate.objects.filter(event=event, template_type=template_type).first()
+
+    if request.method == 'POST':
+        subject = request.POST.get('subject', '').strip()
+        body = request.POST.get('body', '').strip()
+        if not subject or not body:
+            messages.error(request, 'Le sujet et le contenu sont obligatoires.')
+        else:
+            if template:
+                template.subject = subject
+                template.body = body
+                template.body_html = ''
+                template.is_active = True
+                template.save(update_fields=['subject', 'body', 'body_html', 'is_active', 'updated_at'])
+            else:
+                EventEmailTemplate.objects.create(
+                    event=event,
+                    name=config['button_label'],
+                    subject=subject,
+                    body=body,
+                    template_type=template_type,
+                    is_active=True,
+                    created_by=request.user,
+                )
+            messages.success(request, f"Modèle « {config['button_label']} » enregistré.")
+            return redirect('dashboard:event_email_templates', event_id=event.id)
+
+    context = {
+        'event': event,
+        'template': template,
+        'template_type': template_type,
+        'config': config,
+    }
+    return render(request, 'dashboard/event_email_template_set.html', context)
 
 
 @login_required

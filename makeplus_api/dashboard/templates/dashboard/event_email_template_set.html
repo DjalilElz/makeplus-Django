@@ -1,0 +1,96 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}{{ config.button_label }} — {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 900px;">
+    <div class="mb-4">
+        <a href="{% url 'dashboard:event_email_templates' event.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Retour
+        </a>
+    </div>
+
+    <h2><i class="bi bi-envelope-fill"></i> {{ config.button_label }}</h2>
+    <p class="text-muted">{{ config.description }}</p>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="subject" class="form-label">Sujet</label>
+                    <input type="text" class="form-control" id="subject" name="subject"
+                           value="{{ template.subject|default:config.default_subject }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="body" class="form-label">Contenu (HTML supporté)</label>
+                    <textarea class="form-control" id="body" name="body" rows="14" required>{{ template.body|default:config.default_body }}</textarea>
+                    {% if config.extra_note %}
+                    <div class="form-text">{{ config.extra_note }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Enregistrer
+                    </button>
+                    {% if template %}
+                    <button type="button" class="btn btn-outline-danger ms-auto"
+                            onclick="if(confirm('Réinitialiser ce modèle au texte par défaut ? Votre texte personnalisé sera supprimé.')) { document.getElementById('reset-template-form').submit(); }">
+                        <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser au texte par défaut
+                    </button>
+                    {% endif %}
+                </div>
+            </form>
+            {% if template %}
+            <form id="reset-template-form" method="post"
+                  action="{% url 'dashboard:event_email_template_delete' event.id template.id %}" style="display:none;">
+                {% csrf_token %}
+            </form>
+            <p class="text-muted small mt-2">
+                <i class="bi bi-clock-history"></i> Dernière modification : {{ template.updated_at|date:"d M Y H:i" }}
+            </p>
+            {% else %}
+            <p class="text-muted small mt-2">
+                <i class="bi bi-info-circle"></i> Aucun texte personnalisé pour l'instant — le texte par défaut ci-dessus
+                est celui actuellement envoyé. Enregistrez pour le personnaliser.
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title"><i class="bi bi-braces"></i> Variables disponibles</h6>
+                    <p class="text-muted small">Cliquez pour copier, puis collez dans le sujet ou le contenu.</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for var in config.variables %}
+                        <span class="badge bg-light text-dark border variable-pill" data-var="{{ var }}"
+                              style="cursor: pointer; font-family: monospace;" title="Cliquer pour copier">{{ var }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.variable-pill').forEach(function (pill) {
+    pill.addEventListener('click', function () {
+        var text = pill.getAttribute('data-var');
+        navigator.clipboard.writeText(text).then(function () {
+            var original = pill.textContent;
+            pill.textContent = 'Copié !';
+            setTimeout(function () { pill.textContent = original; }, 1000);
+        });
+    });
+});
+</script>
+{% endblock %}
