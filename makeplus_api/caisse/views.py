@@ -79,7 +79,7 @@ def _reservation_data(event, payable_items):
     return key_to_payable_ids, participant_reservations, reservation_participants
 
 
-def _pending_orders_with_payable_ids(participant, event):
+def _pending_orders_with_payable_ids(participant, event, key_to_payable_ids=None):
     """
     This participant's non-rejected RegistrationOrders for this event, each
     with the set of mirrored PayableItem ids that haven't actually been
@@ -92,13 +92,23 @@ def _pending_orders_with_payable_ids(participant, event):
     which can be stale 'approved' from the since-removed admin-review flow
     even though nothing was ever actually handed out at the counter.
 
+    key_to_payable_ids: optional, from a caller's own _reservation_data()
+    call. It only depends on `event` (not on `participant`), so a caller
+    looping over many participants (caisse_dashboard) can compute it once
+    and pass it in here instead of this function re-scanning every
+    RegistrationOrder for the whole event on every single call -- that
+    per-participant re-scan was the main cause of caisse dashboard/login
+    slowness on events with many participants. Recomputed as before if
+    omitted, so the other (single-participant) call sites are unaffected.
+
     Returns: [(RegistrationOrder, {payable_item_id, ...}), ...] -- orders
     with nothing left to confirm are omitted.
     """
     from dashboard.models_blocs import RegistrationOrder
 
-    payable_items = PayableItem.objects.filter(event=event, is_active=True)
-    key_to_payable_ids, _, _ = _reservation_data(event, payable_items)
+    if key_to_payable_ids is None:
+        payable_items = PayableItem.objects.filter(event=event, is_active=True)
+        key_to_payable_ids, _, _ = _reservation_data(event, payable_items)
 
     confirmed_ids = set()
     for txn in CaisseTransaction.objects.filter(
@@ -205,6 +215,17 @@ def caisse_dashboard(request):
         event, payable_items
     )
 
+    # Precompute, in one query, which participants have a completed
+    # CaisseTransaction covering each payable item -- both branches below
+    # used to run their own "CaisseTransaction.objects.filter(items=item)"
+    # query per item (2 queries x N payable items); this replaces that
+    # with a single upfront query grouped by item.
+    item_confirmed_participant_ids = {}
+    for row in CaisseTransaction.objects.filter(
+        status='completed', items__in=payable_items
+    ).values('items__id', 'participant_id').distinct():
+        item_confirmed_participant_ids.setdefault(row['items__id'], set()).add(row['participant_id'])
+
     # Calculate capacity info for each payable item linked to a session, and
     # reserved/confirmed counts for items that come from a registration bloc
     # (or a session that's also offered as a bloc workshop).
@@ -234,10 +255,7 @@ def caisse_dashboard(request):
             session = item.session
             if session.max_participants:
                 # Count how many participants have paid for this session
-                registered_count = CaisseTransaction.objects.filter(
-                    status='completed',
-                    items=item
-                ).values('participant').distinct().count()
+                registered_count = len(item_confirmed_participant_ids.get(item.id, set()))
 
                 available_spots = session.max_participants - registered_count
                 is_full = available_spots <= 0
@@ -260,11 +278,7 @@ def caisse_dashboard(request):
 
         if reservation_key:
             reserved_participant_ids = reservation_participants.get(reservation_key, set())
-            confirmed_participant_ids = set(
-                CaisseTransaction.objects.filter(
-                    status='completed', items=item
-                ).values_list('participant_id', flat=True)
-            )
+            confirmed_participant_ids = item_confirmed_participant_ids.get(item.id, set())
             item_data.update({
                 'is_reservable': True,
                 'reserved_count': len(reserved_participant_ids - confirmed_participant_ids),
@@ -359,13 +373,18 @@ def caisse_dashboard(request):
     # Extract participants from registrations
     all_participants = [reg.participant for reg in event_registrations]
     
-    # Build a dictionary of participant paid items for quick lookup
+    # Build a dictionary of participant paid items for quick lookup.
+    # .all() (not .filter()/.values_list(), which would each issue a fresh
+    # query) so this reads from the prefetch_related() above instead of
+    # re-querying per participant/transaction.
     participant_paid_items = {}
     for participant in all_participants:
-        completed_transactions = participant.caisse_transactions.filter(status='completed')
+        completed_transactions = [
+            t for t in participant.caisse_transactions.all() if t.status == 'completed'
+        ]
         paid_item_ids = set()
         for transaction in completed_transactions:
-            paid_item_ids.update(transaction.items.values_list('id', flat=True))
+            paid_item_ids.update(item.id for item in transaction.items.all())
         participant_paid_items[str(participant.id)] = list(paid_item_ids)
 
     # Items reserved via the registration form (approved bloc orders) that
@@ -389,7 +408,7 @@ def caisse_dashboard(request):
     for participant in all_participants:
         if str(participant.id) not in participant_reserved_items:
             continue
-        pending_orders = _pending_orders_with_payable_ids(participant, event)
+        pending_orders = _pending_orders_with_payable_ids(participant, event, key_to_payable_ids=key_to_payable_ids)
         if pending_orders:
             participant_reserved_summary[str(participant.id)] = [
                 {
