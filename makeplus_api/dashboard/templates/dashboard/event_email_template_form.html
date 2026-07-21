@@ -528,34 +528,3 @@ function showSaveStatus(message, type) {
 }
 </script>
 {% endblock %}
-    
-    // Insert variable buttons
-    document.querySelectorAll('.insert-var').forEach(button => {
-        button.addEventListener('click', function() {
-            const varText = this.dataset.var;
-            const target = document.activeElement;
-            
-            if (target === bodyTextarea || target === subjectInput) {
-                const start = target.selectionStart;
-                const end = target.selectionEnd;
-                const text = target.value;
-                target.value = text.substring(0, start) + varText + text.substring(end);
-                target.focus();
-                target.selectionStart = target.selectionEnd = start + varText.length;
-            } else {
-                bodyTextarea.value += varText;
-                bodyTextarea.focus();
-            }
-        });
-    });
-    
-    // Form submission prevention
-    const form = document.getElementById('templateForm');
-    form.addEventListener('submit', function(e) {
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
-    });
-});
-</script>
-{% endblock %}
