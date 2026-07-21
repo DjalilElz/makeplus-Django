@@ -61,11 +61,10 @@ EMAIL_TEMPLATE_KINDS = {
             "<p>Voici les informations de votre préinscription à <strong>{{event_name}}</strong>.</p>"
         ),
         'extra_note': (
-            "Placez {{items}} et {{total}} où vous voulez dans votre texte pour afficher la liste des articles "
-            "sélectionnés et le total à payer à cet endroit précis. Si vous ne les utilisez pas, ils sont ajoutés "
-            "automatiquement à la fin du message -- jamais omis, juste repositionnables. Le bouton de paiement "
-            "n'apparaît que si un lien de paiement est configuré pour cet événement (page Modifier l'événement) ; "
-            "sans lien, seuls les articles et le total sont envoyés."
+            "Cet email est envoyé exactement tel que vous le concevez ici -- rien n'est ajouté automatiquement. "
+            "Placez {{items}}, {{total}} et {{payment_link}} où vous voulez dans votre design pour afficher la "
+            "liste des articles, le total à payer et le lien de paiement ; si vous ne les utilisez pas, ils "
+            "n'apparaissent tout simplement pas dans l'email envoyé."
         ),
     },
     'registration_confirmation': {
@@ -256,22 +255,28 @@ def event_email_template_set(request, event_id, template_type):
 
     if request.method == 'POST':
         subject = request.POST.get('subject', '').strip()
-        body = request.POST.get('body', '').strip()
-        if not subject or not body:
-            messages.error(request, 'Le sujet et le contenu sont obligatoires.')
+        body_html = request.POST.get('body_html', '').strip()
+        builder_config = request.POST.get('builder_config', '{}')
+        if not subject or not body_html:
+            messages.error(request, "Le sujet et le contenu de l'email sont obligatoires.")
         else:
             if template:
                 template.subject = subject
-                template.body = body
-                template.body_html = ''
+                template.body = body_html
+                template.body_html = body_html
+                template.builder_config = builder_config
                 template.is_active = True
-                template.save(update_fields=['subject', 'body', 'body_html', 'is_active', 'updated_at'])
+                template.save(update_fields=[
+                    'subject', 'body', 'body_html', 'builder_config', 'is_active', 'updated_at',
+                ])
             else:
                 EventEmailTemplate.objects.create(
                     event=event,
                     name=config['button_label'],
                     subject=subject,
-                    body=body,
+                    body=body_html,
+                    body_html=body_html,
+                    builder_config=builder_config,
                     template_type=template_type,
                     is_active=True,
                     created_by=request.user,

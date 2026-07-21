@@ -269,11 +269,13 @@ def registration_notes_save(request, order_id):
 @require_POST
 def send_payment_link_email(request, order_id):
     """
-    Emails the participant a standard "préinscription" message: an itemized
-    breakdown of what they selected and the total, so they know exactly how
-    much to pay -- plus a "Procéder au paiement" button/link, but only if
-    the event actually has one configured (Event.payment_link is optional;
-    a préinscription can legitimately exist without a payment link yet).
+    Emails the participant a "préinscription" message. If the admin has
+    configured a custom template, it's sent EXACTLY as authored (subject +
+    body, only {{...}} variables substituted) -- nothing appended, nothing
+    assumed. {{items}}/{{total}}/{{payment_link}} are available for the
+    admin to place wherever they like, or omit entirely; it's their call.
+    Only the built-in default (used until an admin bothers to customize)
+    includes a sensible itemized breakdown + payment button automatically.
     Responds with JSON (called from the submissions modal via fetch, no
     page reload) rather than redirecting.
     """
@@ -294,65 +296,47 @@ def send_payment_link_email(request, order_id):
     items_value = f"<ul>{items_html}</ul>"
     total_value = f"{order.total_after_reduction} DZD"
 
-    # The button/link paragraph only appears if the event actually has a
-    # payment link configured -- items/total always appear regardless,
-    # since that part of the requirement ("participant sees exactly what
-    # they'd pay") doesn't depend on a link existing yet.
-    payment_link_html = ''
-    if event.payment_link:
-        payment_link_html = f"""
-        <p>
-            <a href="{event.payment_link}"
-               style="display:inline-block; padding:10px 20px; background:#2D1B6B; color:#ffffff; text-decoration:none; border-radius:6px;">
-               Procéder au paiement
-            </a>
-        </p>
-        <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>{event.payment_link}</p>
-        """
-
     template = get_event_email_template(event, 'payment_link')
 
     if template:
         subject = template.subject
-        intro_html = template.body_html or template.body
+        html_content = template.body_html or template.body
         replacements = {
             '{{participant_name}}': order.full_name or '',
             '{{event_name}}': event.name,
             '{{payment_link}}': event.payment_link or '',
+            '{{items}}': items_value,
+            '{{total}}': total_value,
         }
         for key, value in replacements.items():
             subject = subject.replace(key, value)
-            intro_html = intro_html.replace(key, value)
+            html_content = html_content.replace(key, value)
     else:
+        payment_link_html = ''
+        if event.payment_link:
+            payment_link_html = f"""
+            <p>
+                <a href="{event.payment_link}"
+                   style="display:inline-block; padding:10px 20px; background:#2D1B6B; color:#ffffff; text-decoration:none; border-radius:6px;">
+                   Procéder au paiement
+                </a>
+            </p>
+            <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>{event.payment_link}</p>
+            """
         subject = f"Préinscription — {event.name}"
-        intro_html = f"""
-        <p>Bonjour {order.full_name or ''},</p>
-        <p>Voici les informations de votre préinscription à <strong>{event.name}</strong>.</p>
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #1a1a1a; line-height: 1.5;">
+            <p>Bonjour {order.full_name or ''},</p>
+            <p>Voici les informations de votre préinscription à <strong>{event.name}</strong>.</p>
+            <p><strong>Articles sélectionnés :</strong></p>
+            {items_value}
+            <p><strong>Total à payer : {total_value}</strong></p>
+            {payment_link_html}
+            <p>Cordialement,<br>L'équipe {event.name}</p>
+        </body>
+        </html>
         """
-
-    # {{items}}/{{total}} are insertable -- an admin can place them anywhere
-    # in their own text. If a token is missing, that piece is auto-appended
-    # afterwards instead, so it's repositionable but never silently dropped.
-    used_items_token = '{{items}}' in intro_html
-    used_total_token = '{{total}}' in intro_html
-    intro_html = intro_html.replace('{{items}}', items_value).replace('{{total}}', total_value)
-
-    fallback_html = ''
-    if not used_items_token:
-        fallback_html += f"<p><strong>Articles sélectionnés :</strong></p>{items_value}"
-    if not used_total_token:
-        fallback_html += f"<p><strong>Total à payer : {total_value}</strong></p>"
-
-    html_content = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif; color: #1a1a1a; line-height: 1.5;">
-        {intro_html}
-        {fallback_html}
-        {payment_link_html}
-        <p>Cordialement,<br>L'équipe {event.name}</p>
-    </body>
-    </html>
-    """
 
     success, error, _ = send_email(
         to_email=order.email,
