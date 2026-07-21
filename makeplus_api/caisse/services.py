@@ -165,22 +165,45 @@ def _send_confirmation_email(order):
     Best-effort confirmation email to the participant. Failures are logged,
     never raised -- a Brevo/SMTP hiccup must not undo or block a real
     payment confirmation that already committed above.
+
+    Uses the event admin's own 'order_confirmation' EventEmailTemplate if
+    one exists (subject/body with {{participant_name}}/{{event_name}}
+    substituted), same convention as events.views_registration's
+    'registration_confirmation' template -- falls back to a fixed default
+    message otherwise.
     """
     if not order.email:
         return
 
+    from dashboard.models_email import EventEmailTemplate
+
     event = order.event
-    subject = f"Votre inscription à {event.name} est confirmée"
-    html_content = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif; color: #1a1a1a; line-height: 1.5;">
-        <p>Bonjour {order.full_name or ''},</p>
-        <p>Nous vous confirmons que votre inscription à <strong>{event.name}</strong> est validée.</p>
-        <p>Nous avons hâte de vous accueillir.</p>
-        <p>Cordialement,<br>L'équipe {event.name}</p>
-    </body>
-    </html>
-    """
+    template = EventEmailTemplate.objects.filter(
+        event=event, template_type='order_confirmation', is_active=True,
+    ).first()
+
+    if template:
+        subject = template.subject
+        html_content = template.body_html or template.body
+        replacements = {
+            '{{participant_name}}': order.full_name or '',
+            '{{event_name}}': event.name,
+        }
+        for key, value in replacements.items():
+            subject = subject.replace(key, value)
+            html_content = html_content.replace(key, value)
+    else:
+        subject = f"Votre inscription à {event.name} est confirmée"
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #1a1a1a; line-height: 1.5;">
+            <p>Bonjour {order.full_name or ''},</p>
+            <p>Nous vous confirmons que votre inscription à <strong>{event.name}</strong> est validée.</p>
+            <p>Nous avons hâte de vous accueillir.</p>
+            <p>Cordialement,<br>L'équipe {event.name}</p>
+        </body>
+        </html>
+        """
 
     try:
         success, error, _ = send_email(

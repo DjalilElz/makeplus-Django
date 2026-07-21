@@ -198,13 +198,14 @@ def event_email_template_create(request, event_id):
     if base_template_id:
         base_template = get_object_or_404(EmailTemplate, id=base_template_id)
     
-    # Available template variables
+    # Available template variables. {{payment_link}} only resolves for the
+    # 'payment_link' template type; harmless (left as literal text) for others.
     template_variables = [
         '{{event_name}}', '{{event_location}}', '{{event_start_date}}', '{{event_end_date}}',
         '{{participant_name}}', '{{participant_email}}', '{{participant_phone}}',
-        '{{badge_id}}', '{{qr_code_url}}'
+        '{{badge_id}}', '{{qr_code_url}}', '{{payment_link}}'
     ]
-    
+
     context = {
         'event': event,
         'base_template': base_template,
@@ -237,13 +238,14 @@ def event_email_template_edit(request, event_id, template_id):
         messages.success(request, f'Event email template "{event_template.name}" updated successfully!')
         return redirect('dashboard:event_email_templates', event_id=event.id)
     
-    # Available template variables
+    # Available template variables. {{payment_link}} only resolves for the
+    # 'payment_link' template type; harmless (left as literal text) for others.
     template_variables = [
         '{{event_name}}', '{{event_location}}', '{{event_start_date}}', '{{event_end_date}}',
         '{{participant_name}}', '{{participant_email}}', '{{participant_phone}}',
-        '{{badge_id}}', '{{qr_code_url}}'
+        '{{badge_id}}', '{{qr_code_url}}', '{{payment_link}}'
     ]
-    
+
     context = {
         'event': event,
         'template': event_template,

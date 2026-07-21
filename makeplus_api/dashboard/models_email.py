@@ -71,9 +71,11 @@ class EventEmailTemplate(models.Model):
         ('follow_up', 'Follow-up'),
         ('announcement', 'Announcement'),
         ('registration_confirmation', 'Registration Confirmation'),
+        ('order_confirmation', 'Order Confirmation (Paid)'),
+        ('payment_link', 'Payment Link'),
         ('custom', 'Custom'),
     ]
-    
+
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='email_templates')
     base_template = models.ForeignKey(EmailTemplate, on_delete=models.SET_NULL, null=True, blank=True, 
                                       related_name='event_customizations',

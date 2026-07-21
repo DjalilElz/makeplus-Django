@@ -25,6 +25,7 @@ from django.views.decorators.http import require_POST
 
 from caisse.services import cancel_registration_order, confirm_registration_order
 from dashboard.email_sender import send_email
+from dashboard.models_email import EventEmailTemplate
 from events.models import Event, ParticipantEventRegistration, UserEventAssignment
 from .models_blocs import RegistrationOrder
 
@@ -291,12 +292,11 @@ def send_payment_link_email(request, order_id):
     if not items_html:
         items_html = '<li>Aucun article</li>'
 
-    subject = f"Lien de paiement — {event.name}"
-    html_content = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif; color: #1a1a1a; line-height: 1.5;">
-        <p>Bonjour {order.full_name or ''},</p>
-        <p>Voici votre lien de paiement pour finaliser votre inscription à <strong>{event.name}</strong>.</p>
+    # Always appended after the intro, regardless of whether that intro is
+    # the admin's own template or the default -- the whole point of this
+    # email is that the participant sees exactly what they're paying for,
+    # so this can't be left as an optional placeholder the admin forgets.
+    payment_block = f"""
         <p><strong>Articles sélectionnés :</strong></p>
         <ul>{items_html}</ul>
         <p><strong>Total à payer : {order.total_after_reduction} DZD</strong></p>
@@ -307,6 +307,35 @@ def send_payment_link_email(request, order_id):
             </a>
         </p>
         <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>{event.payment_link}</p>
+    """
+
+    template = EventEmailTemplate.objects.filter(
+        event=event, template_type='payment_link', is_active=True,
+    ).first()
+
+    if template:
+        subject = template.subject
+        intro_html = template.body_html or template.body
+        replacements = {
+            '{{participant_name}}': order.full_name or '',
+            '{{event_name}}': event.name,
+            '{{payment_link}}': event.payment_link,
+        }
+        for key, value in replacements.items():
+            subject = subject.replace(key, value)
+            intro_html = intro_html.replace(key, value)
+    else:
+        subject = f"Lien de paiement — {event.name}"
+        intro_html = f"""
+        <p>Bonjour {order.full_name or ''},</p>
+        <p>Voici votre lien de paiement pour finaliser votre inscription à <strong>{event.name}</strong>.</p>
+        """
+
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; color: #1a1a1a; line-height: 1.5;">
+        {intro_html}
+        {payment_block}
         <p>Cordialement,<br>L'équipe {event.name}</p>
     </body>
     </html>
