@@ -16,7 +16,7 @@ import hashlib
 import re
 
 from .models import Event, EventRegistration, Session, Participant, UserProfile
-from dashboard.models_email import EventEmailTemplate
+from dashboard.models_email import get_event_email_template
 
 
 def get_client_ip(request):
@@ -223,12 +223,11 @@ def send_registration_confirmation_email(registration):
     """Send confirmation email to registered user"""
     event = registration.event
     
-    # Try to find registration confirmation template
-    template = EventEmailTemplate.objects.filter(
-        event=event,
-        template_type='registration_confirmation',
-        is_active=True
-    ).first()
+    # Try to find registration confirmation template -- shared canonical
+    # lookup (dashboard.models_email.get_event_email_template) so this can
+    # never disagree with what the "Confirmation (inscription publique)"
+    # editor shows the admin.
+    template = get_event_email_template(event, 'registration_confirmation')
     
     if template:
         # Use template and replace variables
