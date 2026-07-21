@@ -283,7 +283,7 @@
                         <option value="announcement" {% if template.template_type == 'announcement' or base_template.template_type == 'announcement' %}selected{% endif %}>Announcement</option>
                         <option value="registration_confirmation" {% if template.template_type == 'registration_confirmation' or base_template.template_type == 'registration_confirmation' %}selected{% endif %}>Registration Confirmation</option>
                         <option value="order_confirmation" {% if template.template_type == 'order_confirmation' or base_template.template_type == 'order_confirmation' %}selected{% endif %}>Order Confirmation (Paid)</option>
-                        <option value="payment_link" {% if template.template_type == 'payment_link' or base_template.template_type == 'payment_link' %}selected{% endif %}>Payment Link</option>
+                        <option value="payment_link" {% if template.template_type == 'payment_link' or base_template.template_type == 'payment_link' %}selected{% endif %}>Préinscription</option>
                         <option value="custom" {% if template.template_type == 'custom' or base_template.template_type == 'custom' or not template.template_type %}selected{% endif %}>Custom</option>
                     </select>
                     <small class="text-muted">Helps organize and filter templates</small>

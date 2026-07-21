@@ -558,7 +558,7 @@
                     <button type="button" class="btn btn-elegant btn-sm"
                             {% if not event.payment_link %}disabled title="Aucun lien de paiement configuré pour cet événement"{% endif %}
                             onclick="sendPaymentLink(this, '{% url 'dashboard:send_payment_link_email' order.id %}')">
-                        <i class="bi bi-credit-card"></i> Envoyer le lien de paiement
+                        <i class="bi bi-credit-card"></i> Envoyer le mail de préinscription
                     </button>
                 </div>
             </div>
@@ -664,7 +664,7 @@
             }).then(function (result) {
                 if (!indicator) return;
                 if (result.resp.ok && result.data.ok) {
-                    indicator.textContent = 'Lien de paiement envoyé.';
+                    indicator.textContent = 'Mail de préinscription envoyé.';
                     indicator.classList.remove('text-danger');
                     indicator.classList.add('text-success');
                 } else {

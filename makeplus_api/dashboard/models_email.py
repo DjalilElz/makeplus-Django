@@ -72,7 +72,7 @@ class EventEmailTemplate(models.Model):
         ('announcement', 'Announcement'),
         ('registration_confirmation', 'Registration Confirmation'),
         ('order_confirmation', 'Order Confirmation (Paid)'),
-        ('payment_link', 'Payment Link'),
+        ('payment_link', 'Préinscription'),
         ('custom', 'Custom'),
     ]
 
