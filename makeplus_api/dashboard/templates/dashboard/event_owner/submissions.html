@@ -407,7 +407,14 @@
                         {% for order in orders %}
                         <tr>
                             <td class="cell-name">{{ order.full_name|default:"—" }}</td>
-                            <td class="cell-email">{{ order.email|default:"—" }}</td>
+                            <td class="cell-email">
+                                {{ order.email|default:"—" }}
+                                {% if order.is_duplicate_email %}
+                                <span class="badge bg-warning text-dark" title="Cette adresse e-mail a soumis {{ order.duplicate_count }} inscriptions pour cet événement">
+                                    <i class="bi bi-exclamation-triangle"></i> Doublon ({{ order.duplicate_count }})
+                                </span>
+                                {% endif %}
+                            </td>
                             <td>{{ order.phone|default:"—" }}</td>
                             <td>{{ order.bloc_names.status }}</td>
                             <td>{{ order.bloc_names.restauration }}</td>
@@ -486,7 +493,14 @@
                     <div class="row">
                         <div class="col-md-6 detail-row">
                             <div class="detail-label">E-mail</div>
-                            <div>{{ order.email|default:"—" }}</div>
+                            <div>
+                                {{ order.email|default:"—" }}
+                                {% if order.is_duplicate_email %}
+                                <span class="badge bg-warning text-dark" title="Cette adresse e-mail a soumis {{ order.duplicate_count }} inscriptions pour cet événement">
+                                    <i class="bi bi-exclamation-triangle"></i> Doublon ({{ order.duplicate_count }})
+                                </span>
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="col-md-6 detail-row">
                             <div class="detail-label">Téléphone</div>

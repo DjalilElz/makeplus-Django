@@ -153,6 +153,12 @@ def event_owner_submissions(request, event_id):
             (f.get('name') for f in form_config.fields_config if f.get('type') == 'tel'), None,
         )
 
+    # Same email submitting more than once for this event -- flagged in the
+    # template so the owner can spot and handle duplicates manually.
+    # Counted against the event's full, unfiltered order set so a status/
+    # item filter doesn't hide a duplicate's sibling from the count.
+    email_counts = Counter((o.email or '').strip().lower() for o in all_orders if o.email)
+
     total_revenue = Decimal('0')
     status_counts = {code: 0 for code in STATUS_LABELS}
     item_counts = {b: {} for b in BLOC_KEYS}
@@ -164,6 +170,8 @@ def event_owner_submissions(request, event_id):
             order.form_submission.data.get(phone_field_name, '')
             if order.form_submission and phone_field_name else ''
         )
+        order.duplicate_count = email_counts.get((order.email or '').strip().lower(), 0)
+        order.is_duplicate_email = order.duplicate_count > 1
         total_revenue += order.total_after_reduction
         status_counts[order.status] = status_counts.get(order.status, 0) + 1
         for it in order.items_snapshot:

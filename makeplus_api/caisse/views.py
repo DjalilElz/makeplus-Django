@@ -81,11 +81,18 @@ def _reservation_data(event, payable_items):
 
 def _pending_orders_with_payable_ids(participant, event, key_to_payable_ids=None):
     """
-    This participant's non-rejected RegistrationOrders for this event, each
-    with the set of mirrored PayableItem ids that haven't actually been
-    confirmed (no completed CaisseTransaction covers them) yet. A bloc
+    This participant's MOST RECENT non-rejected RegistrationOrder for this
+    event, with the set of mirrored PayableItem ids that haven't actually
+    been confirmed (no completed CaisseTransaction covers them) yet. A bloc
     order's discount applies to the order as a whole, so it must be
     confirmed all at once -- see its use in process_transaction().
+
+    Only the latest order is considered -- a participant can have several
+    RegistrationOrders if they submitted the registration form more than
+    once (a real, common occurrence, not blocked at submission time); the
+    newest submission is treated as the authoritative one and older
+    duplicates are ignored here, both for display and for what can be
+    confirmed at the caisse.
 
     Whether an item still needs confirming is decided purely by the
     absence of a completed CaisseTransaction for it -- not by order.status,
@@ -101,8 +108,8 @@ def _pending_orders_with_payable_ids(participant, event, key_to_payable_ids=None
     slowness on events with many participants. Recomputed as before if
     omitted, so the other (single-participant) call sites are unaffected.
 
-    Returns: [(RegistrationOrder, {payable_item_id, ...}), ...] -- orders
-    with nothing left to confirm are omitted.
+    Returns: [(RegistrationOrder, {payable_item_id, ...})] -- at most one
+    entry (the latest order), omitted entirely if it has nothing pending.
     """
     from dashboard.models_blocs import RegistrationOrder
 
@@ -116,11 +123,12 @@ def _pending_orders_with_payable_ids(participant, event, key_to_payable_ids=None
     ).prefetch_related('items'):
         confirmed_ids.update(txn.items.values_list('id', flat=True))
 
-    orders = RegistrationOrder.objects.exclude(status='rejected').filter(
+    order = RegistrationOrder.objects.exclude(status='rejected').filter(
         event=event, participant=participant
-    )
+    ).order_by('-created_at').first()
+
     result = []
-    for order in orders:
+    if order:
         keys = set()
         for entry in order.items_snapshot or []:
             kind = entry.get('type')
@@ -148,6 +156,11 @@ def _pending_orders_with_payable_ids_bulk(participants, event, key_to_payable_id
     fixing the bigger _reservation_data() re-scan. This does the whole
     thing in exactly one query.
 
+    Only the latest order per participant is considered -- same reasoning
+    as _pending_orders_with_payable_ids(): a participant can have several
+    RegistrationOrders if they submitted more than once, and the newest
+    submission is treated as authoritative.
+
     participant_paid_items: {str(participant_id): [payable_item_id, ...]}
     -- caisse_dashboard already builds this correctly (from its own
     prefetch_related() on event_registrations), so it's reused here
@@ -157,37 +170,39 @@ def _pending_orders_with_payable_ids_bulk(participants, event, key_to_payable_id
     harmless here since payable_ids is already scoped to this event via
     key_to_payable_ids).
 
-    Returns: {participant_id: [(RegistrationOrder, {payable_item_id, ...}), ...]}
-    -- participants with nothing pending are omitted.
+    Returns: {participant_id: [(RegistrationOrder, {payable_item_id, ...})]}
+    -- at most one entry (the latest order) per participant, participants
+    with nothing pending are omitted.
     """
     from dashboard.models_blocs import RegistrationOrder
 
     participant_ids = [p.id for p in participants]
-    orders_by_participant = {}
+    latest_order_by_participant = {}
     for order in RegistrationOrder.objects.exclude(status='rejected').filter(
         event=event, participant_id__in=participant_ids
-    ):
-        orders_by_participant.setdefault(order.participant_id, []).append(order)
+    ).order_by('-created_at'):
+        # First order seen per participant, in -created_at order, is the
+        # latest -- setdefault skips any older ones that follow.
+        latest_order_by_participant.setdefault(order.participant_id, order)
 
     result = {}
     for participant in participants:
+        order = latest_order_by_participant.get(participant.id)
+        if order is None:
+            continue
         confirmed_ids = set(participant_paid_items.get(str(participant.id), []))
-        participant_result = []
-        for order in orders_by_participant.get(participant.id, []):
-            keys = set()
-            for entry in order.items_snapshot or []:
-                kind = entry.get('type')
-                ext_id = entry.get('id')
-                if kind in ('item', 'session') and ext_id is not None:
-                    keys.add((kind, str(ext_id)))
-            payable_ids = set()
-            for key in keys:
-                payable_ids.update(key_to_payable_ids.get(key, []))
-            pending_ids = payable_ids - confirmed_ids
-            if pending_ids:
-                participant_result.append((order, pending_ids))
-        if participant_result:
-            result[participant.id] = participant_result
+        keys = set()
+        for entry in order.items_snapshot or []:
+            kind = entry.get('type')
+            ext_id = entry.get('id')
+            if kind in ('item', 'session') and ext_id is not None:
+                keys.add((kind, str(ext_id)))
+        payable_ids = set()
+        for key in keys:
+            payable_ids.update(key_to_payable_ids.get(key, []))
+        pending_ids = payable_ids - confirmed_ids
+        if pending_ids:
+            result[participant.id] = [(order, pending_ids)]
     return result
 
 
