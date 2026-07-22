@@ -103,12 +103,28 @@ def login_view(request):
     if request.method == 'POST':
         email = request.POST.get('email')
         password = request.POST.get('password')
-        
+
         # DEBUG: Print what we received
         print(f"DEBUG Login attempt:")
         print(f"  Email received: '{email}' (length: {len(email) if email else 0})")
         print(f"  Password received: '{password}' (length: {len(password) if password else 0})")
-        
+
+        # Caisse operators are a separate account system (caisse.models.Caisse,
+        # not Django's User) for on-site payment stations -- tried first since
+        # it's a single indexed lookup. On match, set the exact same session
+        # keys the standalone /caisse/login/ page sets, so caisse_required
+        # (caisse/views.py) treats it identically to logging in there directly.
+        from caisse.models import Caisse
+        try:
+            caisse = Caisse.objects.get(email=email, is_active=True)
+        except Caisse.DoesNotExist:
+            caisse = None
+        if caisse and caisse.check_password(password):
+            request.session['caisse_id'] = caisse.id
+            request.session['caisse_name'] = caisse.name
+            messages.success(request, f'Welcome to {caisse.name}!')
+            return redirect('caisse:dashboard')
+
         # Find user by email
         try:
             user_obj = User.objects.get(email=email)
