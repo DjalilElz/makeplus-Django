@@ -609,9 +609,10 @@
         // Per-order discount summary (raw total, discount %, amount already paid)
         const participantReservedSummaryData = {{ participant_reserved_summary_json|safe }};
         // Same discount config the registration form uses (dashboard/blocs_service.py
-        // compute_order): period % + bloc-count % (additive, capped at 100), applied
-        // to newly-selected bloc items so the live preview matches the form exactly.
-        const PERIOD_PCT = parseFloat({{ period_percent_today_json|safe }}) || 0;
+        // compute_order): bloc-count % only (capped at 100), applied to newly-selected
+        // bloc items so the live preview matches what actually gets charged. No period
+        // %  -- compute_order never applies one (period pricing is per-item now, via
+        // BlocItemStatusRule overrides), so this preview doesn't either.
         const BLOCS_ENABLED = {{ blocs_enabled_json|safe }};
         const BLOC_PCT = {{ bloc_pct_json|safe }};
 
@@ -968,7 +969,7 @@
             if (newBlocSubtotal > 0) {
                 const distinct = newBlocsSeen.size;
                 const blocsPct = BLOCS_ENABLED ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
-                let totalPct = PERIOD_PCT + blocsPct;
+                let totalPct = blocsPct;
                 if (totalPct > 100) totalPct = 100;
                 newChargeBefore += newBlocSubtotal;
                 newCharge += newBlocSubtotal * (1 - totalPct / 100);

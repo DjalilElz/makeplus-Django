@@ -400,18 +400,14 @@ def caisse_dashboard(request):
     other_items = [d for d in payable_items_with_capacity if d['item'].id not in grouped_item_ids]
 
     # Discount config for live client-side recompute of newly-added bloc
-    # items (same additive period% + bloc-count% formula as compute_order,
-    # see dashboard/blocs_service.py) -- so the caisse total/reduction
-    # preview updates live and matches the registration form exactly.
-    period_percent_today = Decimal('0')
-    if bloc_config and bloc_config.reduction_by_period_enabled:
-        today = timezone.now().date()
-        period = event.reduction_periods.filter(
-            start_date__lte=today, end_date__gte=today
-        ).order_by('-discount_percent').first()
-        if period:
-            period_percent_today = period.discount_percent
-
+    # items -- bloc-count% only, matching compute_order()
+    # (dashboard/blocs_service.py) exactly: period-based pricing is now
+    # manual per-item (BlocItemStatusRule overrides), not a cart-wide
+    # percentage, so compute_order always forces period_percent to 0.
+    # This used to also add a period%, which no longer exists server-side
+    # -- the preview showed a bigger discount than what actually got
+    # charged. Removed rather than reintroduced, to stay coherent with
+    # the real pricing engine instead of re-diverging from it again.
     blocs_enabled = bool(bloc_config and bloc_config.reduction_by_blocs_enabled)
     bloc_pct = {
         2: str(bloc_config.reduction_2_blocs) if bloc_config else '0',
@@ -515,7 +511,6 @@ def caisse_dashboard(request):
         'participant_paid_items_json': json.dumps(participant_paid_items),
         'participant_reserved_items_json': json.dumps(participant_reserved_items),
         'participant_reserved_summary_json': json.dumps(participant_reserved_summary),
-        'period_percent_today_json': json.dumps(str(period_percent_today)),
         'blocs_enabled_json': json.dumps(blocs_enabled),
         'bloc_pct_json': json.dumps(bloc_pct),
         'recent_transactions': recent_transactions
