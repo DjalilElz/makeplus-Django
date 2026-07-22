@@ -48,11 +48,25 @@ FORWARD_SQL = """
         END IF;
     END $$;
 
-    CREATE INDEX IF NOT EXISTS events_emai_user_id_b75a1f_idx
-    ON events_emaillogincode (user_id, event_id, is_used);
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_indexes WHERE indexname = 'events_emai_user_id_b75a1f_idx'
+        ) THEN
+            CREATE INDEX events_emai_user_id_b75a1f_idx
+            ON events_emaillogincode (user_id, event_id, is_used);
+        END IF;
+    END $$;
 
-    CREATE INDEX IF NOT EXISTS events_emai_code_ha_idx
-    ON events_emaillogincode (code_hash);
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_indexes WHERE indexname = 'events_emai_code_ha_idx'
+        ) THEN
+            CREATE INDEX events_emai_code_ha_idx
+            ON events_emaillogincode (code_hash);
+        END IF;
+    END $$;
 """
 
 REVERSE_SQL = """
@@ -72,6 +86,17 @@ def _add_missing_columns(apps, schema_editor):
     on the SQLite DB local dev actually uses. Same SQL, same effect on
     Postgres; a clean no-op everywhere else, where the model state already
     has these columns from CREATE TABLE.
+
+    The two indexes used `CREATE INDEX IF NOT EXISTS` originally, which
+    still raised "duplicate key value violates unique constraint
+    pg_class_relname_nsp_index" on a deploy where this migration re-ran
+    (this production database has repeatedly lost its django_migrations
+    bookkeeping between deploys, same as the SeparateDatabaseAndState
+    migrations elsewhere in this app) -- Postgres index names are unique
+    per-schema, not per-table, and something about how that race played
+    out defeated IF NOT EXISTS here. Switched to the same explicit
+    pg_indexes existence check already used for the columns above, which
+    doesn't have that failure mode.
     """
     from django.db import connection
 
