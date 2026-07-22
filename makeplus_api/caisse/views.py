@@ -17,6 +17,7 @@ import base64
 
 from caisse.models import Caisse, PayableItem, CaisseTransaction
 from events.models import Participant, Event
+from dashboard.blocs_service import resolve_catalog_prices
 
 
 def _reservation_data(event, payable_items):
@@ -285,6 +286,21 @@ def caisse_dashboard(request):
         event, payable_items
     )
 
+    # Live-current prices, resolved through BlocItemStatusRule exactly like
+    # the registration form (dashboard.blocs_service.resolve_catalog_prices)
+    # -- PayableItem.price is only a snapshot taken when the row was first
+    # created and has no way to reflect a price override added/changed
+    # afterward, so it drifts from what the registration page actually
+    # charges. Applied below to keep the catalog display (and any item not
+    # already covered by a frozen order/reservation amount) coherent with
+    # the live pricing engine instead of that stale snapshot.
+    from dashboard.models_blocs import EventBlocConfig
+    try:
+        bloc_config = event.bloc_config
+    except EventBlocConfig.DoesNotExist:
+        bloc_config = None
+    live_prices = resolve_catalog_prices(event, bloc_config, timezone.now().date()) if bloc_config else {}
+
     # Precompute, in one query, which participants have a completed
     # CaisseTransaction covering each payable item -- both branches below
     # used to run their own "CaisseTransaction.objects.filter(items=item)"
@@ -304,8 +320,19 @@ def caisse_dashboard(request):
         data_bloc = None
         if item.bloc_item_id:
             data_bloc = item.bloc_item.bloc
+            live = live_prices.get(('item', item.bloc_item_id))
         elif item.session_id:
             data_bloc = 'workshops'
+            live = live_prices.get(('session', str(item.session_id)))
+        else:
+            live = None
+
+        # In-memory only (never saved) -- makes every place that already
+        # renders item.price (the catalog badge, the JS selection preview)
+        # show the live, rule-resolved price instead of the stored
+        # snapshot, with no template changes needed.
+        if live is not None:
+            item.price = live['price']
 
         item_data = {
             'item': item,
@@ -362,12 +389,8 @@ def caisse_dashboard(request):
     # same select_mode (single = radio, multiple = checkbox) per bloc.
     # Anything outside the bloc system (plain dinner/access/other items, or
     # sessions when the event doesn't use blocs at all) falls into "Other".
-    from dashboard.models_blocs import EventBlocConfig, CUSTOM_BLOC_CHOICES
-
-    try:
-        bloc_config = event.bloc_config
-    except EventBlocConfig.DoesNotExist:
-        bloc_config = None
+    # (bloc_config already resolved above, for live_prices.)
+    from dashboard.models_blocs import CUSTOM_BLOC_CHOICES
 
     bloc_groups = []
     grouped_item_ids = set()
@@ -835,6 +858,23 @@ def process_transaction(request):
             recomputed_bloc_amount = result['total_after_reduction']
             recomputed_bloc_items = [new_bloc_keys[key] for key in covered_keys if key in new_bloc_keys]
             uncovered_items = [item for key, item in new_bloc_keys.items() if key not in covered_keys]
+            # Not covered by compute_order (e.g. their bloc isn't shown in
+            # this event's config) but still bloc_item/session-backed --
+            # price them the same live, rule-resolved way rather than the
+            # possibly-stale PayableItem.price snapshot.
+            live_prices = resolve_catalog_prices(
+                caisse.event, config, timezone.now().date(),
+                context_status_item_id=existing_status_item_id,
+            )
+            for item in uncovered_items:
+                if item.bloc_item_id:
+                    live = live_prices.get(('item', item.bloc_item_id))
+                elif item.session_id:
+                    live = live_prices.get(('session', str(item.session_id)))
+                else:
+                    live = None
+                if live is not None:
+                    item.price = live['price']
             plain_cash_items.extend(uncovered_items)
 
             if recomputed_bloc_items:

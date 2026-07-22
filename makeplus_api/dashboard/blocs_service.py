@@ -62,6 +62,64 @@ def _resolve_rule(rules_by_target, key):
     return None
 
 
+def _rules_by_target(status_item_ids, active_period):
+    """
+    Build the {(kind, target_id): [rules]} lookup used to resolve per-item
+    price/visibility overrides -- shared by compute_order() and
+    resolve_catalog_prices() so there is exactly one place that decides
+    which BlocItemStatusRule applies to a given item.
+    """
+    rules_qs = BlocItemStatusRule.objects.filter(
+        Q(status_item_id__in=status_item_ids) | Q(status_item__isnull=True)
+    ).filter(
+        Q(period_id=active_period.id) | Q(period__isnull=True) if active_period else Q(period__isnull=True)
+    )
+    rules_by_target = {}
+    for rule in rules_qs:
+        key = ('item', rule.target_item_id) if rule.target_kind == 'item' else ('session', str(rule.target_session_id))
+        rules_by_target.setdefault(key, []).append(rule)
+    return rules_by_target
+
+
+def resolve_catalog_prices(event, config, on_date, context_status_item_id=None):
+    """
+    Live-current effective price and visibility for every active BlocItem/
+    Session in the event, resolved through BlocItemStatusRule exactly like
+    compute_order() -- the one source of truth anything OTHER than the
+    registration form's own cart (e.g. the caisse's item catalog) should
+    read from, instead of a separately-stored price snapshot (like
+    caisse.PayableItem.price) that has no way to know when a
+    BlocItemStatusRule changes.
+
+    Returns {('item', bloc_item_id): {'price': Decimal, 'visible': bool}, ...}
+    with the same shape for ('session', str(session_id)) keys.
+    """
+    active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
+
+    status_item_ids = list(
+        BlocItem.objects.filter(event=event, bloc='status', is_active=True).values_list('id', flat=True)
+    )
+    if context_status_item_id:
+        status_item_ids.append(int(context_status_item_id))
+
+    rules_by_target = _rules_by_target(status_item_ids, active_period)
+
+    result = {}
+    for item in BlocItem.objects.filter(event=event, is_active=True):
+        rule = _resolve_rule(rules_by_target, ('item', item.id))
+        price = rule.override_price if (rule and rule.override_price is not None) else item.price
+        visible = not (rule and not rule.is_visible)
+        result[('item', item.id)] = {'price': price, 'visible': visible}
+
+    for session in Session.objects.filter(event=event, is_paid=True, is_active=True):
+        rule = _resolve_rule(rules_by_target, ('session', str(session.id)))
+        price = rule.override_price if (rule and rule.override_price is not None) else session.price
+        visible = not (rule and not rule.is_visible)
+        result[('session', str(session.id))] = {'price': price, 'visible': visible}
+
+    return result
+
+
 def compute_order(event, config, selected_item_ids, selected_session_ids, on_date, context_status_item_id=None):
     """
     Compute a cart from the raw selections.
@@ -105,16 +163,7 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
         status_item_ids.append(int(context_status_item_id))
 
     active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
-
-    rules_qs = BlocItemStatusRule.objects.filter(
-        Q(status_item_id__in=status_item_ids) | Q(status_item__isnull=True)
-    ).filter(
-        Q(period_id=active_period.id) | Q(period__isnull=True) if active_period else Q(period__isnull=True)
-    )
-    rules_by_target = {}
-    for rule in rules_qs:
-        key = ('item', rule.target_item_id) if rule.target_kind == 'item' else ('session', str(rule.target_session_id))
-        rules_by_target.setdefault(key, []).append(rule)
+    rules_by_target = _rules_by_target(status_item_ids, active_period)
 
     # --- Custom bloc items ---
     for item in items:
