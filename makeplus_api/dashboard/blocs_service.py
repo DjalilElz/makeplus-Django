@@ -120,7 +120,10 @@ def resolve_catalog_prices(event, config, on_date, context_status_item_id=None):
     return result
 
 
-def compute_order(event, config, selected_item_ids, selected_session_ids, on_date, context_status_item_id=None):
+def compute_order(
+    event, config, selected_item_ids, selected_session_ids, on_date,
+    context_status_item_id=None, context_blocs_covered=None,
+):
     """
     Compute a cart from the raw selections.
 
@@ -137,6 +140,14 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
             when pricing new items for someone who picked their Status at
             registration and isn't re-selecting it now (e.g. the caisse
             adding an extra item on event day).
+        context_blocs_covered: optional iterable of bloc names ('restauration',
+            'workshops', 'social_event') the person already has a paid
+            selection in from elsewhere (e.g. an earlier, separately-priced
+            reservation) -- counted toward THIS selection's multi-bloc
+            discount tier without adding anything to its own subtotal/price.
+            Use this so a new item added at the caisse gets the discount
+            tier its combined selection actually qualifies for, while the
+            earlier reservation's own already-set price stays untouched.
 
     Returns dict with subtotals, snapshot, distinct bloc count, discount
     percentages, and totals before/after reduction. Only items belonging to
@@ -208,6 +219,8 @@ def compute_order(event, config, selected_item_ids, selected_session_ids, on_dat
     # mandatory on every registration and never counts either way, so
     # the real maximum is 3 (Restauration + Workshops + Social Event).
     blocs_with_selection = {b for b in ('restauration', 'workshops', 'social_event') if subtotals[b] > 0}
+    if context_blocs_covered:
+        blocs_with_selection = blocs_with_selection | {b for b in context_blocs_covered if b in ('restauration', 'workshops', 'social_event')}
     distinct_blocs = len(blocs_with_selection)
 
     # --- Reductions (additive) ---

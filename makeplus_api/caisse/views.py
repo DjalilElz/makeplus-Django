@@ -846,6 +846,29 @@ def process_transaction(request):
             config = None
 
         if config:
+            # Blocs the participant already has a paid selection in --
+            # their own price stays exactly as already set (bank-transfer
+            # orders keep their frozen total_after_reduction, untouched
+            # below), but a NEW item added today should get the discount
+            # tier their combined selection actually qualifies for, not
+            # just what they're adding in isolation. Covers both an
+            # existing reservation being confirmed in this same visit
+            # (fully_confirmed_orders) and anything already paid for on
+            # an earlier visit (a prior completed CaisseTransaction).
+            existing_blocs_covered = set()
+            for order in fully_confirmed_orders:
+                for entry in order.items_snapshot or []:
+                    if entry.get('bloc') in ('restauration', 'workshops', 'social_event'):
+                        existing_blocs_covered.add(entry['bloc'])
+            for txn in CaisseTransaction.objects.filter(
+                participant=participant, status='completed'
+            ).prefetch_related('items__bloc_item', 'items__session'):
+                for paid_item in txn.items.all():
+                    if paid_item.bloc_item_id:
+                        existing_blocs_covered.add(paid_item.bloc_item.bloc)
+                    elif paid_item.session_id:
+                        existing_blocs_covered.add('workshops')
+
             new_item_ids = [ext_id for (kind, ext_id) in new_bloc_keys if kind == 'item']
             new_session_ids = [ext_id for (kind, ext_id) in new_bloc_keys if kind == 'session']
             result = compute_order(
@@ -853,6 +876,7 @@ def process_transaction(request):
                 selected_item_ids=new_item_ids, selected_session_ids=new_session_ids,
                 on_date=timezone.now().date(),
                 context_status_item_id=existing_status_item_id,
+                context_blocs_covered=existing_blocs_covered,
             )
             covered_keys = {(entry['type'], str(entry['id'])) for entry in result['snapshot']}
             recomputed_bloc_amount = result['total_after_reduction']
