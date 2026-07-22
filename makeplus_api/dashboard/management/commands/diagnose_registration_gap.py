@@ -9,10 +9,10 @@ Usage:
     python manage.py diagnose_registration_gap <event id>
     python manage.py diagnose_registration_gap "name substring"
 """
+import uuid
 from collections import Counter
 
 from django.core.management.base import BaseCommand
-from django.db.models import Q
 
 from dashboard.models_blocs import RegistrationOrder
 from events.models import Event, ParticipantEventRegistration, UserEventAssignment
@@ -30,7 +30,15 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         query = options['event']
         if query:
-            events = Event.objects.filter(Q(id=query) | Q(name__icontains=query))
+            # Event.id is a UUIDField -- Q(id=query) forces UUID validation
+            # of `query` immediately, even when OR'd with a name filter, so
+            # a plain name string raises ValidationError before the OR ever
+            # gets a chance to apply. Only try the id lookup if it's
+            # actually a valid UUID.
+            try:
+                events = Event.objects.filter(id=uuid.UUID(query))
+            except ValueError:
+                events = Event.objects.filter(name__icontains=query)
             if not events.exists():
                 self.stdout.write(self.style.ERROR(f"No event matches '{query}'"))
                 return
