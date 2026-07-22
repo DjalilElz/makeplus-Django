@@ -391,10 +391,20 @@ def registration_delete(request, order_id):
         order.caisse_transaction.cancel(cancelled_by=cancel_label, reason='Registration deleted by event owner.')
 
     if participant:
-        UserEventAssignment.objects.filter(
-            user=participant.user, event_id=event_id, role='participant',
-        ).update(is_active=False)
-        ParticipantEventRegistration.objects.filter(participant=participant, event_id=event_id).delete()
+        # Only revoke this event's access if this was the participant's
+        # LAST order for it -- someone with duplicate submissions (a real,
+        # common case, see diagnose_registration_gap) still has another
+        # valid order for this event after one duplicate is deleted, and
+        # revoking their access anyway silently made them invisible to the
+        # caisse even though their remaining order is still there.
+        other_orders_remain = RegistrationOrder.objects.filter(
+            event_id=event_id, participant=participant,
+        ).exclude(id=order.id).exists()
+        if not other_orders_remain:
+            UserEventAssignment.objects.filter(
+                user=participant.user, event_id=event_id, role='participant',
+            ).update(is_active=False)
+            ParticipantEventRegistration.objects.filter(participant=participant, event_id=event_id).delete()
 
     order.delete()
     messages.success(request, 'Registration deleted.')
