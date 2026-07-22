@@ -136,6 +136,61 @@ def _pending_orders_with_payable_ids(participant, event, key_to_payable_ids=None
     return result
 
 
+def _pending_orders_with_payable_ids_bulk(participants, event, key_to_payable_ids, participant_paid_items):
+    """
+    Bulk version of _pending_orders_with_payable_ids() for caisse_dashboard's
+    reserved-items summary panel, which needs this for every participant
+    with a pending reservation -- calling the single-participant version in
+    a loop still ran 2-3 queries *per participant* (a CaisseTransaction
+    query + a per-transaction .items query that bypasses prefetch, plus a
+    RegistrationOrder query), which was still enough to time out the whole
+    dashboard/login request on events with many participants even after
+    fixing the bigger _reservation_data() re-scan. This does the whole
+    thing in exactly one query.
+
+    participant_paid_items: {str(participant_id): [payable_item_id, ...]}
+    -- caisse_dashboard already builds this correctly (from its own
+    prefetch_related() on event_registrations), so it's reused here
+    instead of re-querying CaisseTransaction per participant. Same
+    semantics as _pending_orders_with_payable_ids()'s confirmed_ids
+    (all of a participant's completed transactions, not event-scoped --
+    harmless here since payable_ids is already scoped to this event via
+    key_to_payable_ids).
+
+    Returns: {participant_id: [(RegistrationOrder, {payable_item_id, ...}), ...]}
+    -- participants with nothing pending are omitted.
+    """
+    from dashboard.models_blocs import RegistrationOrder
+
+    participant_ids = [p.id for p in participants]
+    orders_by_participant = {}
+    for order in RegistrationOrder.objects.exclude(status='rejected').filter(
+        event=event, participant_id__in=participant_ids
+    ):
+        orders_by_participant.setdefault(order.participant_id, []).append(order)
+
+    result = {}
+    for participant in participants:
+        confirmed_ids = set(participant_paid_items.get(str(participant.id), []))
+        participant_result = []
+        for order in orders_by_participant.get(participant.id, []):
+            keys = set()
+            for entry in order.items_snapshot or []:
+                kind = entry.get('type')
+                ext_id = entry.get('id')
+                if kind in ('item', 'session') and ext_id is not None:
+                    keys.add((kind, str(ext_id)))
+            payable_ids = set()
+            for key in keys:
+                payable_ids.update(key_to_payable_ids.get(key, []))
+            pending_ids = payable_ids - confirmed_ids
+            if pending_ids:
+                participant_result.append((order, pending_ids))
+        if participant_result:
+            result[participant.id] = participant_result
+    return result
+
+
 def caisse_required(view_func):
     """Decorator to check if caisse is logged in"""
     def wrapper(request, *args, **kwargs):
@@ -404,11 +459,15 @@ def caisse_dashboard(request):
     # Discount summary for participants with a pending bloc reservation, so
     # the operator sees the real (already paid) amount, not the raw catalog
     # sum -- e.g. "15000 DZD -25% -> already paid 11250 DZD".
+    participants_with_pending = [
+        p for p in all_participants if str(p.id) in participant_reserved_items
+    ]
+    pending_orders_by_participant = _pending_orders_with_payable_ids_bulk(
+        participants_with_pending, event, key_to_payable_ids, participant_paid_items
+    )
     participant_reserved_summary = {}
-    for participant in all_participants:
-        if str(participant.id) not in participant_reserved_items:
-            continue
-        pending_orders = _pending_orders_with_payable_ids(participant, event, key_to_payable_ids=key_to_payable_ids)
+    for participant in participants_with_pending:
+        pending_orders = pending_orders_by_participant.get(participant.id)
         if pending_orders:
             participant_reserved_summary[str(participant.id)] = [
                 {
