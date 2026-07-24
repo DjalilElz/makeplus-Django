@@ -32,7 +32,8 @@ def public_eposter_form_view(request, event_id):
         })
     
     context = {
-        'event': event
+        'event': event,
+        'form_config': config,
     }
-    
+
     return render(request, 'dashboard/eposter/public_form.html', context)

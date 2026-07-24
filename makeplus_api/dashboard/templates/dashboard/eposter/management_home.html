@@ -191,9 +191,13 @@
                         {% if is_admin %}
                         <div class="btn-group" role="group">
                             <!-- Committee management removed - members added in event creation step 4 -->
-                            <a href="{% url 'dashboard:contributions_email_templates' event.id %}" 
+                            <a href="{% url 'dashboard:contributions_email_templates' event.id %}"
                                class="btn btn-outline-secondary btn-sm">
                                 <i class="bi bi-envelope"></i> Emails
+                            </a>
+                            <a href="{% url 'dashboard:contributions_form_settings' event.id %}"
+                               class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-gear"></i> Paramètres
                             </a>
                         </div>
                         {% endif %}

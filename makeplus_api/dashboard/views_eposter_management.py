@@ -231,5 +231,40 @@ def eposter_form_toggle(request, event_id):
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
-    
+
     return response
+
+
+@login_required
+@never_cache
+def eposter_form_settings(request, event_id):
+    """
+    Custom title/intro text shown on the public scientific-contribution
+    submission form, independent of the event's own Event.description
+    (used elsewhere for the event's registration/detail pages) -- lets
+    an organizer set contribution-specific wording without touching the
+    general event description.
+    """
+    event = get_object_or_404(Event, id=event_id)
+
+    config, created = EventFormConfiguration.objects.get_or_create(
+        event=event,
+        form_type='communicant',
+        defaults={
+            'is_active': True,
+            'created_by': request.user,
+        }
+    )
+
+    if request.method == 'POST':
+        config.title = request.POST.get('title', '').strip()
+        config.description = request.POST.get('description', '').strip()
+        config.save(update_fields=['title', 'description', 'updated_at'])
+        messages.success(request, f'Paramètres du formulaire enregistrés pour « {event.name} ».')
+        return redirect('dashboard:eposter_management_home')
+
+    context = {
+        'event': event,
+        'config': config,
+    }
+    return render(request, 'dashboard/eposter/form_settings.html', context)

@@ -153,6 +153,7 @@ urlpatterns = [
     path('contributions/create/<uuid:event_id>/', views_eposter_management.create_form_for_event, name='contributions_create_form_for_event'),
     path('contributions/<uuid:event_id>/enable/', views_eposter_management.eposter_enable_for_event, name='contributions_enable_for_event'),
     path('contributions/<uuid:event_id>/toggle/', views_eposter_management.eposter_form_toggle, name='contributions_form_toggle'),
+    path('contributions/<uuid:event_id>/settings/', views_eposter_management.eposter_form_settings, name='contributions_form_settings'),
     path('contributions/copy/<uuid:source_event_id>/<uuid:target_event_id>/', views_eposter_management.eposter_copy_settings, name='contributions_copy_settings'),
     
     # Scientific Contributions Management - Event Specific
