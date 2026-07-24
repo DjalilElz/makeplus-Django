@@ -7,22 +7,63 @@ session, question text only, no asker identity — the API never sends it
 (SessionQuestionSerializer.participant is write_only) and this view doesn't
 either, so there is nothing here that could deanonymize a participant even by
 accident.
+
+Access is scoped by RoomAssignment (not UserEventAssignment): a gestionnaire
+only sees/answers questions for sessions in rooms they're actually assigned
+to, not every room in the event. Staff/superusers can access anything.
 """
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from events.models import Session, SessionQuestion
-from .views import is_staff_user
+from events.models import RoomAssignment, Session, SessionQuestion
+
+
+def _can_manage_session_questions(user, session):
+    """Staff/superusers can access any session; gestionnaires only their assigned room(s)."""
+    if user.is_staff or user.is_superuser:
+        return True
+    return RoomAssignment.objects.filter(
+        user=user, room=session.room, role='gestionnaire_des_salles', is_active=True
+    ).exists()
 
 
 @login_required
-@user_passes_test(is_staff_user)
+def my_room_sessions(request):
+    """
+    A gestionnaire's own sessions (across every room they're assigned to),
+    each linking to that session's Q&A page. Staff/superusers land here too
+    if they follow the link, seeing only rooms they're personally assigned
+    to (use the full event/room admin screens for anything broader).
+    """
+    room_ids = RoomAssignment.objects.filter(
+        user=request.user, role='gestionnaire_des_salles', is_active=True
+    ).values_list('room_id', flat=True)
+
+    sessions = (
+        Session.objects
+        .filter(room_id__in=room_ids)
+        .select_related('room', 'event')
+        .order_by('start_time')
+    )
+
+    for session in sessions:
+        session.unanswered_count = session.questions.filter(is_answered=False).count()
+
+    context = {'sessions': sessions}
+    return render(request, 'dashboard/my_room_sessions.html', context)
+
+
+@login_required
 def session_questions(request, session_id):
     """List + answer questions for one session, oldest first."""
     session = get_object_or_404(Session.objects.select_related('event', 'room'), id=session_id)
+
+    if not _can_manage_session_questions(request.user, session):
+        raise PermissionDenied("You do not have access to this session's questions.")
 
     questions = (
         SessionQuestion.objects
@@ -41,11 +82,14 @@ def session_questions(request, session_id):
 
 
 @login_required
-@user_passes_test(is_staff_user)
 @require_POST
 def session_question_answer(request, question_id):
     """Answer a question, or clear its answer (leaves it visible as unanswered again)."""
-    question = get_object_or_404(SessionQuestion.objects.select_related('session'), id=question_id)
+    question = get_object_or_404(SessionQuestion.objects.select_related('session', 'session__room'), id=question_id)
+
+    if not _can_manage_session_questions(request.user, question.session):
+        raise PermissionDenied("You do not have access to this session's questions.")
+
     answer_text = request.POST.get('answer_text', '').strip()
 
     if answer_text:

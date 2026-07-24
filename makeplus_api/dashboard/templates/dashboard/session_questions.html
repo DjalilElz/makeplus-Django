@@ -15,9 +15,15 @@
                 {% endif %}
             </p>
         </div>
+        {% if request.user.is_staff or request.user.is_superuser %}
         <a href="{% url 'dashboard:event_detail' event.id %}#sessions" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Retour à l'événement
         </a>
+        {% else %}
+        <a href="{% url 'dashboard:my_room_sessions' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Mes sessions
+        </a>
+        {% endif %}
     </div>
 
     <div class="alert alert-light border d-flex align-items-center mb-4">

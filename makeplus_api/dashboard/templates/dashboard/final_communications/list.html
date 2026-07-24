@@ -68,6 +68,7 @@
             {% if is_staff_viewer %}
             <a href="{% url 'dashboard:event_detail' event.id %}"><i class="bi bi-arrow-left"></i> Back to Event</a>
             {% endif %}
+            <a href="{% url 'dashboard:my_room_sessions' %}"><i class="bi bi-chat-dots"></i> Mes sessions & questions</a>
             <a href="{% url 'dashboard:logout' %}"><i class="bi bi-box-arrow-right"></i> Logout</a>
         </div>
     </div>

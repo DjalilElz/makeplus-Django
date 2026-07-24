@@ -1195,7 +1195,19 @@ class SessionQuestionViewSet(viewsets.ModelViewSet):
     filterset_fields = ['session', 'participant', 'is_answered']
     ordering_fields = ['asked_at', 'answered_at']
     ordering = ['asked_at']
-    
+
+    def get_permissions(self):
+        """
+        Anyone authenticated can list/create (participants ask questions,
+        anyone can read the anonymous feed). Editing or deleting a question
+        outright is gestionnaire-only -- same as answering it -- there is no
+        "edit my own question" use case, and without this every authenticated
+        user could edit/delete any question, not just their own.
+        """
+        if self.action in ('update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsGestionnaire()]
+        return super().get_permissions()
+
     def get_queryset(self):
         """Filter by session"""
         queryset = SessionQuestion.objects.select_related('session', 'participant__user', 'answered_by')
