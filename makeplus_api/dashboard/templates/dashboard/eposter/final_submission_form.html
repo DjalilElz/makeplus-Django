@@ -1024,7 +1024,11 @@
                                 Votre {{ submission_label }} finale a été soumise avec succès.<br>
                                 Vous recevrez un email de confirmation sous peu.
                             </p>
-                            <a href="/" class="btn btn-primary mt-3">
+                            {% if submission_type == 'e_poster' %}
+                            <a href="{% url 'public_final_submission_eposter' event.id %}" class="btn btn-primary mt-3">
+                            {% else %}
+                            <a href="{% url 'public_final_submission_communication' event.id %}" class="btn btn-primary mt-3">
+                            {% endif %}
                                 <i class="bi bi-house me-2"></i> Retour à l'accueil
                             </a>
                         </div>
