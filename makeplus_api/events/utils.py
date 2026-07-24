@@ -125,6 +125,35 @@ def resolve_current_event(user):
     return None, None
 
 
+def get_accessible_event_ids(user):
+    """
+    Event IDs a user can access, combining both membership models: staff-type
+    roles via UserEventAssignment, and plain participants via
+    ParticipantEventRegistration (see resolve_current_event's docstring for
+    why both are needed -- participants never get a UserEventAssignment row).
+
+    Without this, any get_queryset() that only checks UserEventAssignment
+    returns zero rows for every plain participant, even when they're
+    genuinely registered for the event (sessions, rooms, etc. all
+    silently empty on the mobile client).
+    """
+    from .models import UserEventAssignment, Participant
+
+    assignment_event_ids = set(
+        UserEventAssignment.objects.filter(user=user, is_active=True)
+        .values_list('event_id', flat=True)
+    )
+
+    participant = Participant.objects.filter(user=user).first()
+    registration_event_ids = set()
+    if participant:
+        registration_event_ids = set(
+            participant.registrations.values_list('event_id', flat=True)
+        )
+
+    return assignment_event_ids | registration_event_ids
+
+
 def get_user_role_in_event(user, event):
     """
     Get user's role in a specific event

@@ -28,6 +28,7 @@ from .serializers import (
     SessionQuestionSerializer, RoomAssignmentSerializer, ExposantScanSerializer
 )
 from .permissions import IsGestionnaireOrReadOnly, IsGestionnaire, IsController, IsExposant, IsAnnonceOwner
+from .utils import get_accessible_event_ids
 
 
 class EventViewSet(viewsets.ModelViewSet):
@@ -52,12 +53,10 @@ class EventViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return Event.objects.all()
         
-        # Users see events they're assigned to
-        user_events = UserEventAssignment.objects.filter(
-            user=user,
-            is_active=True
-        ).values_list('event_id', flat=True)
-        
+        # Users see events they're assigned to (staff-type roles) or
+        # registered for (plain participants)
+        user_events = get_accessible_event_ids(user)
+
         return Event.objects.filter(id__in=user_events)
     
     def perform_create(self, serializer):
@@ -117,21 +116,19 @@ class RoomViewSet(viewsets.ModelViewSet):
         if event_id:
             queryset = queryset.filter(event_id=event_id)
         
-        # Filter by user's accessible events
+        # Filter by user's accessible events (staff-type roles via
+        # UserEventAssignment, plain participants via their registration)
         user = self.request.user
         if not user.is_staff:
-            user_events = UserEventAssignment.objects.filter(
-                user=user,
-                is_active=True
-            ).values_list('event_id', flat=True)
+            user_events = get_accessible_event_ids(user)
             queryset = queryset.filter(event_id__in=user_events)
-        
+
         return queryset
-    
+
     def perform_create(self, serializer):
         """Set created_by on creation"""
         serializer.save(created_by=self.request.user)
-    
+
     @action(detail=True, methods=['get'])
     def sessions(self, request, pk=None):
         """Get all sessions for this room"""
@@ -720,21 +717,20 @@ class SessionViewSet(viewsets.ModelViewSet):
         if room_id:
             queryset = queryset.filter(room_id=room_id)
         
-        # Filter by user's accessible events
+        # Filter by user's accessible events (staff-type roles via
+        # UserEventAssignment, plain participants via their registration)
         user = self.request.user
         if not user.is_staff:
-            user_events = UserEventAssignment.objects.filter(
-                user=user,
-                is_active=True
-            ).values_list('event_id', flat=True)
+            user_events = get_accessible_event_ids(user)
             queryset = queryset.filter(event_id__in=user_events)
-        
+
         return queryset
-    
+
     def perform_create(self, serializer):
         """Set created_by on creation"""
         serializer.save(created_by=self.request.user)
-    
+
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsGestionnaire])
     def mark_live(self, request, pk=None):
         """Mark session as live"""
