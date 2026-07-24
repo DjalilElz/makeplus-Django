@@ -879,24 +879,6 @@
 
                                 <div class="row g-4">
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Grade académique</label>
-                                        <select name="grade" class="form-select" required id="grade-select">
-                                            <option value="">Sélectionner...</option>
-                                            <option value="professeur">Professeur</option>
-                                            <option value="maitre_de_conference">Maître de conférences</option>
-                                            <option value="maitre_assistant">Maître assistant</option>
-                                            <option value="specialiste">Spécialiste</option>
-                                            <option value="resident">Résident</option>
-                                            <option value="doctorant">Doctorant</option>
-                                            <option value="autre">Autre</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6" id="grade-autre-container" style="display: none;">
-                                        <label class="form-label">Précisez le grade</label>
-                                        <input type="text" name="grade_autre" class="form-control"
-                                               placeholder="Veuillez préciser">
-                                    </div>
-                                    <div class="col-md-6">
                                         <label class="form-label required-field">Service</label>
                                         <input type="text" name="service" class="form-control" required
                                                placeholder="Votre service">
@@ -1230,16 +1212,6 @@
                 });
             });
             
-            // Grade "autre" field
-            document.getElementById('grade-select').addEventListener('change', function() {
-                const container = document.getElementById('grade-autre-container');
-                if (this.value === 'autre') {
-                    container.style.display = 'block';
-                } else {
-                    container.style.display = 'none';
-                }
-            });
-            
             // Add co-author
             let authorCount = 0;
             document.getElementById('add-author').addEventListener('click', function() {
@@ -1287,16 +1259,6 @@
                         authorDiv.remove();
                     }, 300);
                 });
-            });
-            
-            // Grade "autre" field
-            document.getElementById('grade-select').addEventListener('change', function() {
-                const container = document.getElementById('grade-autre-container');
-                if (this.value === 'autre') {
-                    container.style.display = 'block';
-                } else {
-                    container.style.display = 'none';
-                }
             });
             
             // Form submission

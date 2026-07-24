@@ -59,7 +59,7 @@ class ScientificContributionSubmission(models.Model):
     genre = models.CharField(max_length=10, choices=GENRE_CHOICES, verbose_name="Genre", blank=True, null=True)
     
     # --- PROFESSIONAL INFORMATION ---
-    grade = models.CharField(max_length=50, choices=GRADE_CHOICES, verbose_name="Grade")
+    grade = models.CharField(max_length=50, choices=GRADE_CHOICES, verbose_name="Grade", blank=True)
     grade_autre = models.CharField(max_length=100, blank=True, verbose_name="Autre grade (si autre)")
     service = models.CharField(max_length=200, verbose_name="Service")
     etablissement = models.CharField(max_length=200, verbose_name="Établissement")

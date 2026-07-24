@@ -114,10 +114,10 @@ def handle_final_submission(request, event, expected_type):
             }, status=400)
         
         # Validate required fields
-        if not all([contribution_number, nom, prenom, email, telephone, grade, service, etablissement, wilaya, titre, abstract_file]):
+        if not all([contribution_number, nom, prenom, email, telephone, service, etablissement, wilaya, titre, abstract_file]):
             return JsonResponse({
                 'success': False,
-                'error': 'All required fields must be filled'
+                'error': 'Tous les champs obligatoires doivent être remplis'
             }, status=400)
         
         # Validate file type (PDF only)
