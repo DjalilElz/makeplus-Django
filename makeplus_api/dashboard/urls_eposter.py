@@ -21,4 +21,7 @@ urlpatterns = [
     
     # Real-time validation status
     path('submissions/<uuid:submission_id>/realtime/', views_eposter.realtime_validation_status, name='eposter-realtime-status'),
+
+    # Public gallery (JSON) -- same data as the web public_gallery.html page
+    path('<uuid:event_id>/gallery/', views_eposter.eposter_gallery_api, name='eposter-gallery-api'),
 ]

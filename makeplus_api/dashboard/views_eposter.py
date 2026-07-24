@@ -18,7 +18,8 @@ from .models_eposter import (
     EPosterSubmission,
     EPosterValidation,
     EPosterCommitteeMember,
-    EPosterEmailTemplate
+    EPosterEmailTemplate,
+    EPosterFinalSubmission
 )
 from .serializers_eposter import (
     EPosterSubmissionSerializer,
@@ -576,3 +577,43 @@ def realtime_validation_status(request, submission_id):
         'validations_required': submission.validations_required,
         'can_be_approved': submission.get_validations_count() >= submission.validations_required
     })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def eposter_gallery_api(request, event_id):
+    """
+    JSON gallery of final E-Poster submissions for an event, for the mobile
+    app -- same queryset/search as the web public_gallery.html page
+    (eposter_public_gallery in views_eposter_final.py), just as JSON.
+    """
+    event = get_object_or_404(Event, id=event_id)
+
+    query = request.GET.get('q', '').strip()
+
+    submissions = EPosterFinalSubmission.objects.filter(
+        event=event,
+        original_submission__type_participation='e_poster'
+    ).select_related('original_submission').order_by('-submitted_at')
+
+    if query:
+        submissions = submissions.filter(
+            Q(titre__icontains=query) |
+            Q(auteurs__icontains=query) |
+            Q(nom__icontains=query)
+        )
+
+    results = [
+        {
+            'id': str(s.id),
+            'contribution_number': s.contribution_number,
+            'title': s.titre,
+            'authors': s.auteurs,
+            'co_authors': s.co_auteurs,
+            'submitted_at': s.submitted_at.isoformat(),
+            'pdf_url': request.build_absolute_uri(s.abstract_file.url) if s.abstract_file else None,
+        }
+        for s in submissions
+    ]
+
+    return Response({'count': len(results), 'results': results})
