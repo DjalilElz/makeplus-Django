@@ -213,10 +213,19 @@
                                 </label>
                             </div>
                         </div>
-                        
+
                         <div class="col-md-6 mb-3" id="price-field" style="display: none;">
                             <label for="{{ form.price.id_for_label }}" class="form-label">Price (DA)</label>
                             {{ form.price }}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                {{ form.is_active }}
+                                <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                    Active (visible on the public registration form)
+                                </label>
+                            </div>
                         </div>
                     </div>
                     
