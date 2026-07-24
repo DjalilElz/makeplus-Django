@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Final Submission {{ submission_label }} - {{ event.name }}</title>
+    <title>Soumission finale {{ submission_label }} - {{ event.name }}</title>
     
     <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -756,7 +756,7 @@
     <div class="elegant-banner">
         <div class="banner-content">
             <div class="event-eyebrow">
-                FINAL SUBMISSION - {{ submission_label|upper }}
+                SOUMISSION FINALE - {{ submission_label|upper }}
             </div>
             
             <!-- Logo and Event Name Row -->
@@ -774,22 +774,22 @@
             </div>
             
             <p class="event-subtitle">
-                Submit your final {{ submission_label }} file with updated information. 
-                Please ensure all details are accurate and your file meets the required specifications.
+                Soumettez votre fichier final {{ submission_label }} avec les informations à jour.
+                Veuillez vous assurer que tous les détails sont exacts et que votre fichier respecte les spécifications requises.
             </p>
             <div class="event-info-row">
                 <div class="event-info-item">
-                    <div class="event-info-label">EVENT DATES</div>
+                    <div class="event-info-label">DATES DE L'ÉVÉNEMENT</div>
                     <div class="event-info-value">{{ event.start_date|date:"d M Y" }} - {{ event.end_date|date:"d M Y" }}</div>
                 </div>
                 <div class="event-info-item">
-                    <div class="event-info-label">LOCATION</div>
-                    <div class="event-info-value">{{ event.location|default:"To be announced" }}</div>
+                    <div class="event-info-label">LIEU</div>
+                    <div class="event-info-value">{{ event.location|default:"À annoncer" }}</div>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <!-- Form Wrapper -->
     <div class="form-wrapper">
         <div class="form-container">
@@ -798,72 +798,72 @@
                 <div class="progress-steps">
                     <div class="step active" data-step="1">
                         <div class="step-circle">1</div>
-                        <div class="step-label">Personal Info</div>
+                        <div class="step-label">Informations personnelles</div>
                     </div>
                     <div class="step" data-step="2">
                         <div class="step-circle">2</div>
-                        <div class="step-label">Contribution Details</div>
+                        <div class="step-label">Détails de la contribution</div>
                     </div>
                     <div class="step" data-step="3">
                         <div class="step-circle">3</div>
-                        <div class="step-label">Final File Upload</div>
+                        <div class="step-label">Envoi du fichier final</div>
                     </div>
                 </div>
-                        
+
                         <form id="final-submission-form" enctype="multipart/form-data">
                             {% csrf_token %}
                             <input type="hidden" name="event" value="{{ event.id }}">
-                            
+
                             <!-- Step 1: Personal Information -->
                             <div class="form-step" id="step-1">
                                 <h2 class="section-title">
                                     <i class="bi bi-file-earmark-check"></i>
-                                    Contribution Identification
+                                    Identification de la contribution
                                 </h2>
-                                
+
                                 <div class="alert" style="background: var(--warm-white); border: 2px solid var(--light-gold); border-radius: 12px; margin-bottom: 30px;">
                                     <i class="bi bi-info-circle me-2" style="color: var(--gold-tan);"></i>
-                                    <span style="color: var(--deep-purple);">Please enter your {{ submission_label }} contribution number received in your acceptance email.</span>
+                                    <span style="color: var(--deep-purple);">Veuillez entrer votre numéro de contribution {{ submission_label }} reçu dans votre e-mail d'acceptation.</span>
                                 </div>
-                                
+
                                 <div class="row g-4">
                                     <div class="col-12">
-                                        <label class="form-label required-field">Contribution Number ({{ submission_label }})</label>
-                                        <input type="text" name="contribution_number" class="form-control" required 
-                                               placeholder="e.g., {% if submission_type == 'e_poster' %}EPOSTER-1876634C-001{% else %}COMORAL-1876634C-001{% endif %}"
+                                        <label class="form-label required-field">Numéro de contribution ({{ submission_label }})</label>
+                                        <input type="text" name="contribution_number" class="form-control" required
+                                               placeholder="ex. : {% if submission_type == 'e_poster' %}EPOSTER-1876634C-001{% else %}COMORAL-1876634C-001{% endif %}"
                                                style="font-family: monospace; font-size: 1.1rem; font-weight: 600;">
                                     </div>
                                 </div>
-                                
+
                                 <h2 class="section-title mt-5">
                                     <i class="bi bi-person-circle"></i>
-                                    Personal Information
+                                    Informations personnelles
                                 </h2>
-                                
+
                                 <div class="row g-4">
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Last Name</label>
-                                        <input type="text" name="nom" class="form-control" required 
-                                               placeholder="Enter your last name">
+                                        <label class="form-label required-field">Nom</label>
+                                        <input type="text" name="nom" class="form-control" required
+                                               placeholder="Entrez votre nom">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">First Name</label>
+                                        <label class="form-label required-field">Prénom</label>
                                         <input type="text" name="prenom" class="form-control" required
-                                               placeholder="Enter your first name">
+                                               placeholder="Entrez votre prénom">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Email Address</label>
+                                        <label class="form-label required-field">Adresse e-mail</label>
                                         <input type="email" name="email" class="form-control" required
-                                               placeholder="your.email@example.com">
-                                        <small class="text-muted">Use the same email as your initial submission</small>
+                                               placeholder="votre.email@exemple.com">
+                                        <small class="text-muted">Utilisez le même e-mail que votre soumission initiale</small>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Phone Number</label>
+                                        <label class="form-label required-field">Numéro de téléphone</label>
                                         <div class="phone-input-group">
-                                            <input type="tel" 
-                                                   id="telephone" 
-                                                   name="telephone" 
-                                                   class="form-control" 
+                                            <input type="tel"
+                                                   id="telephone"
+                                                   name="telephone"
+                                                   class="form-control"
                                                    required
                                                    placeholder="555 123 456">
                                         </div>
@@ -871,163 +871,163 @@
                                         <input type="hidden" name="country_code" id="country-code">
                                     </div>
                                 </div>
-                                
+
                                 <h2 class="section-title mt-5">
                                     <i class="bi bi-briefcase"></i>
-                                    Professional Information
+                                    Informations professionnelles
                                 </h2>
-                                
+
                                 <div class="row g-4">
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Academic Grade</label>
+                                        <label class="form-label required-field">Grade académique</label>
                                         <select name="grade" class="form-select" required id="grade-select">
-                                            <option value="">Select...</option>
-                                            <option value="professeur">Professor</option>
-                                            <option value="maitre_de_conference">Associate Professor</option>
-                                            <option value="maitre_assistant">Assistant Professor</option>
-                                            <option value="specialiste">Specialist</option>
-                                            <option value="resident">Resident</option>
-                                            <option value="doctorant">PhD Student</option>
-                                            <option value="autre">Other</option>
+                                            <option value="">Sélectionner...</option>
+                                            <option value="professeur">Professeur</option>
+                                            <option value="maitre_de_conference">Maître de conférences</option>
+                                            <option value="maitre_assistant">Maître assistant</option>
+                                            <option value="specialiste">Spécialiste</option>
+                                            <option value="resident">Résident</option>
+                                            <option value="doctorant">Doctorant</option>
+                                            <option value="autre">Autre</option>
                                         </select>
                                     </div>
                                     <div class="col-md-6" id="grade-autre-container" style="display: none;">
-                                        <label class="form-label">Specify Grade</label>
+                                        <label class="form-label">Précisez le grade</label>
                                         <input type="text" name="grade_autre" class="form-control"
-                                               placeholder="Please specify">
+                                               placeholder="Veuillez préciser">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Department</label>
+                                        <label class="form-label required-field">Service</label>
                                         <input type="text" name="service" class="form-control" required
-                                               placeholder="Your department">
+                                               placeholder="Votre service">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Institution</label>
+                                        <label class="form-label required-field">Établissement</label>
                                         <input type="text" name="etablissement" class="form-control" required
-                                               placeholder="Your institution">
+                                               placeholder="Votre établissement">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">City/Province</label>
+                                        <label class="form-label required-field">Ville/Wilaya</label>
                                         <input type="text" name="wilaya" class="form-control" required
-                                               placeholder="Your city">
+                                               placeholder="Votre ville">
                                     </div>
                                 </div>
-                                
+
                                 <div class="d-flex justify-content-end mt-5">
                                     <button type="button" class="btn btn-primary next-step">
-                                        Next Step <i class="bi bi-arrow-right ms-2"></i>
+                                        Étape suivante <i class="bi bi-arrow-right ms-2"></i>
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <!-- Step 2: Contribution Details -->
                             <div class="form-step d-none" id="step-2">
                                 <h2 class="section-title">
                                     <i class="bi bi-file-earmark-text"></i>
-                                    Contribution Details
+                                    Détails de la contribution
                                 </h2>
-                                
+
                                 <div class="row g-4">
                                     <div class="col-md-6">
-                                        <label class="form-label">Theme/Topic</label>
+                                        <label class="form-label">Thème/Sujet</label>
                                         <input type="text" name="theme" class="form-control"
-                                               placeholder="e.g., Cardiology, Oncology, Dermatology...">
-                                        <small class="text-muted">Optional</small>
+                                               placeholder="ex. : Cardiologie, Oncologie, Dermatologie...">
+                                        <small class="text-muted">Optionnel</small>
                                     </div>
                                     <div class="col-12">
-                                        <label class="form-label required-field">Title of Work</label>
+                                        <label class="form-label required-field">Titre du travail</label>
                                         <input type="text" name="titre" class="form-control" required
-                                               placeholder="Enter the complete title of your work">
+                                               placeholder="Entrez le titre complet de votre travail">
                                     </div>
                                 </div>
-                                
+
                                 <h2 class="section-title mt-5">
                                     <i class="bi bi-people-fill"></i>
-                                    Authors & Co-Authors
+                                    Auteurs & Co-auteurs
                                 </h2>
-                                
+
                                 <div class="alert" style="background: var(--warm-white); border: 2px solid var(--light-gold); border-radius: 12px;">
                                     <i class="bi bi-info-circle me-2" style="color: var(--gold-tan);"></i>
-                                    <span style="color: var(--deep-purple);">The main author is already registered above. Add co-authors below if applicable.</span>
+                                    <span style="color: var(--deep-purple);">L'auteur principal est déjà enregistré ci-dessus. Ajoutez des co-auteurs ci-dessous si applicable.</span>
                                 </div>
-                                
+
                                 <div id="authors-container">
                                     <!-- Co-authors will be added here -->
                                 </div>
-                                
+
                                 <button type="button" class="btn btn-outline-primary mb-4" id="add-author">
-                                    <i class="bi bi-plus-circle me-2"></i> Add Co-Author
+                                    <i class="bi bi-plus-circle me-2"></i> Ajouter un co-auteur
                                 </button>
-                                
+
                                 <div class="d-flex justify-content-between mt-5">
                                     <button type="button" class="btn btn-outline-secondary prev-step">
-                                        <i class="bi bi-arrow-left me-2"></i> Previous
+                                        <i class="bi bi-arrow-left me-2"></i> Précédent
                                     </button>
                                     <button type="button" class="btn btn-primary next-step">
-                                        Next Step <i class="bi bi-arrow-right ms-2"></i>
+                                        Étape suivante <i class="bi bi-arrow-right ms-2"></i>
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <!-- Step 3: Final File Upload -->
                             <div class="form-step d-none" id="step-3">
                                 <h2 class="section-title">
                                     <i class="bi bi-cloud-upload"></i>
-                                    Final File Upload
+                                    Envoi du fichier final
                                 </h2>
-                                
+
                                 <div class="alert" style="background: var(--warm-white); border: 2px solid var(--light-gold); border-radius: 12px; margin-bottom: 30px;">
                                     <i class="bi bi-info-circle me-2" style="color: var(--gold-tan);"></i>
                                     <span style="color: var(--deep-purple);">
                                         {% if submission_type == 'e_poster' %}
-                                        Upload your final version of the E-Poster in PDF format.
+                                        Téléversez votre version finale de l'E-Poster au format PDF.
                                         {% else %}
-                                        Upload your final version of the Communication Orale presentation in PDF format.
+                                        Téléversez votre version finale de la présentation de Communication Orale au format PDF.
                                         {% endif %}
                                     </span>
                                 </div>
-                                
+
                                 <div class="row g-4">
                                     <div class="col-12">
                                         <label class="form-label required-field">
                                             {% if submission_type == 'e_poster' %}
-                                            Upload Your Final E-Poster (PDF)
+                                            Téléversez votre E-Poster final (PDF)
                                             {% else %}
-                                            Upload Your Final Communication Orale Presentation (PDF)
+                                            Téléversez votre présentation finale de Communication Orale (PDF)
                                             {% endif %}
                                         </label>
                                         <input type="file" name="abstract_file" class="form-control" accept=".pdf" required>
-                                        <small class="text-muted">Accepted format: PDF only (Max 10MB)</small>
+                                        <small class="text-muted">Format accepté : PDF uniquement (Max 10 Mo)</small>
                                     </div>
                                 </div>
-                                
+
                                 <div class="alert alert-info mt-4" style="background: rgba(42, 31, 107, 0.05); border: 2px solid var(--lavender-light); border-radius: 12px;">
                                     <h6 style="color: var(--deep-purple); font-weight: 600;">
-                                        <i class="bi bi-check-circle me-2"></i>Before submitting, verify:
+                                        <i class="bi bi-check-circle me-2"></i>Avant de soumettre, vérifiez que :
                                     </h6>
                                     <ul class="mb-0" style="color: var(--deep-purple);">
-                                        <li>All information is correct</li>
-                                        <li>The PDF file is complete and readable</li>
-                                        <li>The title matches your work</li>
-                                        <li>The authors are correctly listed</li>
+                                        <li>Toutes les informations sont correctes</li>
+                                        <li>Le fichier PDF est complet et lisible</li>
+                                        <li>Le titre correspond à votre travail</li>
+                                        <li>Les auteurs sont correctement listés</li>
                                     </ul>
                                 </div>
-                                
+
                                 <div class="d-flex justify-content-between mt-5">
                                     <button type="button" class="btn btn-outline-secondary prev-step">
-                                        <i class="bi bi-arrow-left me-2"></i> Previous
+                                        <i class="bi bi-arrow-left me-2"></i> Précédent
                                     </button>
                                     <button type="submit" class="btn btn-primary btn-lg">
-                                        <i class="bi bi-send me-2"></i> Submit Final Version
+                                        <i class="bi bi-send me-2"></i> Soumettre la version finale
                                     </button>
                                 </div>
                             </div>
                         </form>
-                        
+
                         <!-- Success Message (hidden initially) -->
                         <div id="success-message" class="d-none">
                             <i class="bi bi-check-circle-fill"></i>
-                            <h2>Soumission Finale Réussie!</h2>
+                            <h2>Soumission finale réussie !</h2>
                             <p class="text-muted" style="font-size: 1.1rem; line-height: 1.6;">
                                 Votre {{ submission_label }} finale a été soumise avec succès.<br>
                                 Vous recevrez un email de confirmation sous peu.
@@ -1079,9 +1079,9 @@
                         autoPlaceholder: "aggressive",
                         formatOnDisplay: true,
                         utilsScript: "https://cdn.jsdelivr.net/npm/intl-tel-input@19.5.6/build/js/utils.js",
-                        searchPlaceholder: "Search country...",
+                        searchPlaceholder: "Rechercher un pays...",
                         i18n: {
-                            searchPlaceholder: "Search country..."
+                            searchPlaceholder: "Rechercher un pays..."
                         }
                     });
                     
@@ -1194,7 +1194,7 @@
                             valid = false;
                             phoneInput.classList.add('is-invalid');
                             phoneInput.style.borderColor = '#dc3545';
-                            alert('Please enter a valid phone number for the selected country.');
+                            alert('Veuillez entrer un numéro de téléphone valide pour le pays sélectionné.');
                             setTimeout(() => {
                                 phoneInput.style.borderColor = '';
                             }, 2000);
@@ -1250,21 +1250,21 @@
                 authorDiv.innerHTML = `
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <strong style="color: var(--deep-purple); font-size: 1rem;">
-                            <i class="bi bi-person me-2"></i>Co-Author ${authorCount}
+                            <i class="bi bi-person me-2"></i>Co-auteur ${authorCount}
                         </strong>
                         <button type="button" class="btn btn-sm btn-outline-danger remove-author">
-                            <i class="bi bi-trash"></i> Remove
+                            <i class="bi bi-trash"></i> Supprimer
                         </button>
                     </div>
                     <div class="row g-3">
                         <div class="col-md-4">
-                            <input type="text" class="form-control author-nom" placeholder="Last Name">
+                            <input type="text" class="form-control author-nom" placeholder="Nom">
                         </div>
                         <div class="col-md-4">
-                            <input type="text" class="form-control author-prenom" placeholder="First Name">
+                            <input type="text" class="form-control author-prenom" placeholder="Prénom">
                         </div>
                         <div class="col-md-4">
-                            <input type="text" class="form-control author-affiliation" placeholder="Institution">
+                            <input type="text" class="form-control author-affiliation" placeholder="Établissement">
                         </div>
                     </div>
                 `;
@@ -1305,7 +1305,7 @@
                 
                 // Validate and update full phone number
                 if (!iti.isValidNumber()) {
-                    alert('Please enter a valid phone number.');
+                    alert('Veuillez entrer un numéro de téléphone valide.');
                     phoneInput.focus();
                     return;
                 }
@@ -1334,7 +1334,7 @@
                 const submitBtn = form.querySelector('button[type="submit"]');
                 const originalHTML = submitBtn.innerHTML;
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Submitting...';
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Envoi en cours...';
                 
                 // Submit to current URL (POST to same endpoint)
                 fetch(window.location.href, {
@@ -1352,14 +1352,14 @@
                         document.getElementById('success-message').classList.remove('d-none');
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                     } else {
-                        alert(data.error || 'An error occurred. Please try again.');
+                        alert(data.error || 'Une erreur est survenue. Veuillez réessayer.');
                         submitBtn.disabled = false;
                         submitBtn.innerHTML = originalHTML;
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Connection error. Please check your internet and try again.');
+                    alert('Erreur de connexion. Veuillez vérifier votre connexion internet et réessayer.');
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalHTML;
                 });
