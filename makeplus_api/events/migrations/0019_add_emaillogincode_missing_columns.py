@@ -50,22 +50,22 @@ FORWARD_SQL = """
 
     DO $$
     BEGIN
-        IF NOT EXISTS (
-            SELECT 1 FROM pg_indexes WHERE indexname = 'events_emai_user_id_b75a1f_idx'
-        ) THEN
+        BEGIN
             CREATE INDEX events_emai_user_id_b75a1f_idx
             ON events_emaillogincode (user_id, event_id, is_used);
-        END IF;
+        EXCEPTION WHEN duplicate_table OR unique_violation THEN
+            NULL;
+        END;
     END $$;
 
     DO $$
     BEGIN
-        IF NOT EXISTS (
-            SELECT 1 FROM pg_indexes WHERE indexname = 'events_emai_code_ha_idx'
-        ) THEN
+        BEGIN
             CREATE INDEX events_emai_code_ha_idx
             ON events_emaillogincode (code_hash);
-        END IF;
+        EXCEPTION WHEN duplicate_table OR unique_violation THEN
+            NULL;
+        END;
     END $$;
 """
 
@@ -92,11 +92,16 @@ def _add_missing_columns(apps, schema_editor):
     pg_class_relname_nsp_index" on a deploy where this migration re-ran
     (this production database has repeatedly lost its django_migrations
     bookkeeping between deploys, same as the SeparateDatabaseAndState
-    migrations elsewhere in this app) -- Postgres index names are unique
-    per-schema, not per-table, and something about how that race played
-    out defeated IF NOT EXISTS here. Switched to the same explicit
-    pg_indexes existence check already used for the columns above, which
-    doesn't have that failure mode.
+    migrations elsewhere in this app). Switching to a `pg_indexes`
+    existence check (matching the column checks above) still wasn't
+    enough -- it hit the same duplicate-key error on a later deploy,
+    because the check-then-create isn't atomic: something (multiple
+    concurrent `migrate` invocations on Render, most likely) can pass
+    the "not exists" check on two attempts before either commits, so
+    both try to create the index and the second collides. Each CREATE
+    INDEX is now wrapped in its own nested BEGIN/EXCEPTION and swallows
+    duplicate_table/unique_violation at the point of creation itself,
+    which is safe under that race regardless of what causes it.
     """
     from django.db import connection
 
