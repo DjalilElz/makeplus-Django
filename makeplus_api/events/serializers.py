@@ -354,6 +354,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             banner_url = None
             if event.banner:
                 banner_url = request.build_absolute_uri(event.banner.url) if request else event.banner.url
+            programme_url = None
+            if event.programme_file:
+                programme_url = request.build_absolute_uri(event.programme_file.url) if request else event.programme_file.url
+            guide_url = None
+            if event.guide_file:
+                guide_url = request.build_absolute_uri(event.guide_file.url) if request else event.guide_file.url
 
             data['event'] = {
                 'id': str(event.id),
@@ -366,6 +372,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 'logo': logo_url,
                 'banner': banner_url,
                 'primary_color': event.primary_color,
+                'programme_file': programme_url,
+                'guide_file': guide_url,
             }
         else:
             data['event'] = None

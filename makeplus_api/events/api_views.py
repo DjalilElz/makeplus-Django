@@ -298,11 +298,34 @@ class UserProfileAPIView(APIView):
         
         # Add role and event if user has assignment
         if assignment:
+            event = assignment.event
+            logo_url = None
+            if event.logo:
+                logo_url = request.build_absolute_uri(event.logo.url)
+            banner_url = None
+            if event.banner:
+                banner_url = request.build_absolute_uri(event.banner.url)
+            programme_url = None
+            if event.programme_file:
+                programme_url = request.build_absolute_uri(event.programme_file.url)
+            guide_url = None
+            if event.guide_file:
+                guide_url = request.build_absolute_uri(event.guide_file.url)
+
             profile_data['role'] = assignment.role
             profile_data['event'] = {
-                'id': str(assignment.event.id),
-                'name': assignment.event.name,
-                'status': assignment.event.status
+                'id': str(event.id),
+                'name': event.name,
+                'description': event.description,
+                'start_date': event.start_date.isoformat() if event.start_date else None,
+                'end_date': event.end_date.isoformat() if event.end_date else None,
+                'location': event.location,
+                'status': event.status,
+                'logo': logo_url,
+                'banner': banner_url,
+                'primary_color': event.primary_color,
+                'programme_file': programme_url,
+                'guide_file': guide_url,
             }
         else:
             profile_data['role'] = None
