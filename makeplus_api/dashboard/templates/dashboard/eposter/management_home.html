@@ -135,6 +135,50 @@
                         </small>
                     </div>
 
+                    <!-- Final Submission URL: E-Poster -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-link-45deg"></i> Final Submission URL (E-Poster):
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input type="text"
+                                   class="form-control"
+                                   value="{{ request.scheme }}://{{ request.get_host }}/contributions/final-submission/eposter/{{ event.id }}/"
+                                   id="url-final-eposter-{{ event.id }}"
+                                   readonly>
+                            <button class="btn btn-outline-secondary"
+                                    type="button"
+                                    onclick="copyToClipboard('url-final-eposter-{{ event.id }}')">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                        <small class="text-muted">
+                            Share this link with accepted E-Poster authors for their final submission
+                        </small>
+                    </div>
+
+                    <!-- Final Submission URL: Communication Orale -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-link-45deg"></i> Final Submission URL (Communication Orale):
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input type="text"
+                                   class="form-control"
+                                   value="{{ request.scheme }}://{{ request.get_host }}/contributions/final-submission/communication/{{ event.id }}/"
+                                   id="url-final-communication-{{ event.id }}"
+                                   readonly>
+                            <button class="btn btn-outline-secondary"
+                                    type="button"
+                                    onclick="copyToClipboard('url-final-communication-{{ event.id }}')">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                        <small class="text-muted">
+                            Share this link with accepted Communication Orale authors for their final submission
+                        </small>
+                    </div>
+
                     <!-- Date Info -->
                     <div class="mb-3">
                         <small class="text-muted">
