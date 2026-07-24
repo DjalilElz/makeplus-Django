@@ -466,7 +466,15 @@ def public_eposter_submit(request, event_id):
     for key in request.data:
         data[key] = request.data[key]
     data['event'] = event.id
-    
+
+    # An untouched <input type="file"> still submits a part (with an empty
+    # filename) when serialized via FormData(form), so Django's multipart
+    # parser routes it into POST as '' rather than into FILES. Drop it so
+    # DRF's FileField sees the field as omitted -- both files are optional.
+    for file_field in ('fichier_resume', 'fichier_poster'):
+        if data.get(file_field) == '':
+            del data[file_field]
+
     # Handle auteurs JSON parsing if it's a string
     if 'auteurs' in data and isinstance(data['auteurs'], str):
         try:
