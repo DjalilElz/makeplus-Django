@@ -275,7 +275,7 @@ def eposter_validate_submission(request, event_id, submission_id):
     # Send decision email
     email_sent = False
     try:
-        email_sent = send_decision_email(submission)
+        email_sent = send_decision_email(submission, request=request)
         if email_sent:
             print(f"Decision email sent successfully for submission {submission.id}")
         else:
@@ -343,18 +343,17 @@ def eposter_set_status(request, event_id, submission_id):
     
     # Send email
     if new_status in ['accepted', 'rejected']:
-        send_decision_email(submission)
+        send_decision_email(submission, request=request)
     
     messages.success(request, f'Statut mis à jour: {submission.get_status_display()}')
     
     return redirect('dashboard:contributions_submission_detail', event_id=event_id, submission_id=submission_id)
 
 
-def send_decision_email(submission):
+def send_decision_email(submission, request=None):
     """Helper to send acceptance/rejection email using Brevo API"""
     from .email_sender import send_email
-    from django.conf import settings
-    
+
     try:
         # Determine template type based on submission type and decision
         decision = 'accepted' if submission.status == 'accepted' else 'rejected'
@@ -377,13 +376,20 @@ def send_decision_email(submission):
                 submission.generate_contribution_code()
                 submission.save(update_fields=['contribution_code'])
         
-        # Build final submission URL (only for types that require final submission)
+        # Build final submission URL (only for types that require final submission).
+        # Derived from the actual incoming request whenever one is available,
+        # not the SITE_URL setting -- that env var has drifted to a retired
+        # domain before (makeplus-platform.onrender.com) and silently sent
+        # dead links in acceptance emails until the env var itself is fixed.
         final_submission_url = ''
         show_final_submission = False
         if submission.status == 'accepted' and submission.requires_final_submission():
             show_final_submission = True
-            base_url = settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://makeplus-platform.onrender.com'
-            
+            if request is not None:
+                base_url = request.build_absolute_uri('/').rstrip('/')
+            else:
+                base_url = getattr(settings, 'SITE_URL', 'https://makeplus-events.onrender.com')
+
             # Generate URL based on submission type
             if submission.type_participation == 'e_poster':
                 final_submission_url = f"{base_url}/contributions/final-submission/eposter/{submission.event.id}/"
