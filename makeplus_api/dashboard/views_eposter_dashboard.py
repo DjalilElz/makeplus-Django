@@ -796,7 +796,7 @@ def eposter_export_csv(request, event_id):
     writer.writerow([
         'ID', 'Date soumission', 'Statut',
         'Nom', 'Prénom', 'Email', 'Téléphone', 'Genre',
-        'Grade', 'Service', 'Établissement', 'Wilaya',
+        'Grade', 'Secteur', 'Établissement', 'Wilaya',
         'Type', 'Thème', 'Titre',
         'Validations', 'Rejets'
     ])
@@ -805,7 +805,7 @@ def eposter_export_csv(request, event_id):
         writer.writerow([
             str(s.id), s.submitted_at.strftime('%Y-%m-%d %H:%M'), s.get_status_display(),
             s.nom, s.prenom, s.email, s.telephone, s.get_genre_display(),
-            s.get_grade_display(), s.service, s.etablissement, s.wilaya,
+            s.get_grade_display(), s.get_secteur_display(), s.etablissement, s.wilaya,
             s.get_type_participation_display(), s.theme, s.titre_travail,
             s.get_validations_count(), s.get_rejections_count()
         ])

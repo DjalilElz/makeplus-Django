@@ -31,6 +31,11 @@ class ScientificContributionSubmission(models.Model):
         ('femme', 'Femme'),
     ]
     
+    SECTEUR_CHOICES = [
+        ('public', 'Public'),
+        ('prive', 'Privé'),
+    ]
+
     GRADE_CHOICES = [
         ('professeur', 'Professeur'),
         ('maitre_de_conference', 'Maître de conférence'),
@@ -61,7 +66,7 @@ class ScientificContributionSubmission(models.Model):
     # --- PROFESSIONAL INFORMATION ---
     grade = models.CharField(max_length=50, choices=GRADE_CHOICES, verbose_name="Grade", blank=True)
     grade_autre = models.CharField(max_length=100, blank=True, verbose_name="Autre grade (si autre)")
-    service = models.CharField(max_length=200, verbose_name="Service")
+    secteur = models.CharField(max_length=200, choices=SECTEUR_CHOICES, verbose_name="Secteur")
     etablissement = models.CharField(max_length=200, verbose_name="Établissement")
     wilaya = models.CharField(max_length=100, verbose_name="Wilaya")
     

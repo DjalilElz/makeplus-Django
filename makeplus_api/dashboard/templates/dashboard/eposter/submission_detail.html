@@ -93,7 +93,7 @@
                         <br>
                         <small class="text-muted">
                             {{ submission.get_grade_display }}{% if submission.grade_autre %} - {{ submission.grade_autre }}{% endif %}
-                            | {{ submission.service }} | {{ submission.etablissement }}
+                            | {{ submission.get_secteur_display }} | {{ submission.etablissement }}
                         </small>
                         
                         {% if submission.auteurs %}
@@ -236,7 +236,7 @@
                     </p>
                     <hr>
                     <p class="mb-1"><strong>{{ submission.get_grade_display }}</strong></p>
-                    <p class="mb-1">{{ submission.service }}</p>
+                    <p class="mb-1">{{ submission.get_secteur_display }}</p>
                     <p class="mb-1">{{ submission.etablissement }}</p>
                     <p class="mb-0">{{ submission.wilaya }}</p>
                 </div>

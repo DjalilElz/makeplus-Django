@@ -879,9 +879,19 @@
 
                                 <div class="row g-4">
                                     <div class="col-md-6">
-                                        <label class="form-label required-field">Service</label>
-                                        <input type="text" name="service" class="form-control" required
-                                               placeholder="Votre service">
+                                        <label class="form-label required-field">Secteur</label>
+                                        <div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="secteur"
+                                                       id="secteur-public" value="public" required>
+                                                <label class="form-check-label" for="secteur-public">Public</label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="secteur"
+                                                       id="secteur-prive" value="prive" required>
+                                                <label class="form-check-label" for="secteur-prive">Privé</label>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label required-field">Établissement</label>

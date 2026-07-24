@@ -81,7 +81,7 @@ def handle_final_submission(request, event, expected_type):
         telephone = request.POST.get('telephone', '').strip()
         grade = request.POST.get('grade', '')
         grade_autre = request.POST.get('grade_autre', '').strip()
-        service = request.POST.get('service', '').strip()
+        secteur = request.POST.get('secteur', '').strip()
         etablissement = request.POST.get('etablissement', '').strip()
         wilaya = request.POST.get('wilaya', '').strip()
         theme = request.POST.get('theme', '').strip()
@@ -114,7 +114,7 @@ def handle_final_submission(request, event, expected_type):
             }, status=400)
         
         # Validate required fields
-        if not all([contribution_number, nom, prenom, email, telephone, service, etablissement, wilaya, titre, abstract_file]):
+        if not all([contribution_number, nom, prenom, email, telephone, secteur, etablissement, wilaya, titre, abstract_file]):
             return JsonResponse({
                 'success': False,
                 'error': 'Tous les champs obligatoires doivent être remplis'

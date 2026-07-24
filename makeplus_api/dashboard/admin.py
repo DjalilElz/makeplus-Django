@@ -145,7 +145,7 @@ class EPosterSubmissionAdmin(admin.ModelAdmin):
             'fields': ('nom', 'prenom', 'email', 'telephone', 'genre')
         }),
         ('Professional Information', {
-            'fields': ('grade', 'grade_autre', 'service', 'etablissement', 'wilaya')
+            'fields': ('grade', 'grade_autre', 'secteur', 'etablissement', 'wilaya')
         }),
         ('Submission Details', {
             'fields': ('event', 'type_participation', 'theme', 'titre_travail', 'auteurs')

@@ -28,7 +28,8 @@ class EPosterSubmissionSerializer(serializers.ModelSerializer):
     type_participation_display = serializers.CharField(source='get_type_participation_display', read_only=True)
     grade_display = serializers.CharField(source='get_grade_display', read_only=True)
     genre_display = serializers.CharField(source='get_genre_display', read_only=True)
-    
+    secteur_display = serializers.CharField(source='get_secteur_display', read_only=True)
+
     class Meta:
         model = EPosterSubmission
         fields = [
@@ -36,7 +37,7 @@ class EPosterSubmissionSerializer(serializers.ModelSerializer):
             # Personal info
             'nom', 'prenom', 'full_name', 'email', 'telephone', 'genre', 'genre_display',
             # Professional info
-            'grade', 'grade_display', 'grade_autre', 'service', 'etablissement', 'wilaya',
+            'grade', 'grade_display', 'grade_autre', 'secteur', 'secteur_display', 'etablissement', 'wilaya',
             # Submission details
             'type_participation', 'type_participation_display', 'theme', 'titre_travail',
             # Authors
@@ -96,7 +97,7 @@ class EPosterSubmissionCreateSerializer(serializers.ModelSerializer):
             # Personal info
             'nom', 'prenom', 'email', 'telephone', 'genre',
             # Professional info
-            'grade', 'grade_autre', 'service', 'etablissement', 'wilaya',
+            'grade', 'grade_autre', 'secteur', 'etablissement', 'wilaya',
             # Submission details
             'type_participation', 'theme', 'titre_travail',
             # Authors
