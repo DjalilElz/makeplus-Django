@@ -745,12 +745,13 @@ def eposter_email_template_edit(request, event_id, template_id):
     context = {
         'event': event,
         'template': template,
+        'template_type': template.template_type,
         'type_choices': EPosterEmailTemplate.TYPE_CHOICES,
         'defaults': {'subject': '', 'body_html': ''},  # Empty defaults for edit mode
         'show_contribution_number': show_contribution_number,
         'show_final_submission': show_final_submission,
     }
-    
+
     return render(request, 'dashboard/eposter/email_template_form_unlayer.html', context)
 
 
