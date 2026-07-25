@@ -79,19 +79,6 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.08);
             padding: 28px;
         }
-        .oral-notice {
-            background: var(--cream);
-            border: 1px solid var(--border-light);
-            border-radius: 14px;
-            padding: 16px 20px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin-bottom: 24px;
-            font-size: 0.88rem;
-            color: #555;
-        }
-        .oral-notice i { font-size: 1.4rem; color: var(--banner-1); }
         .question-card {
             background: var(--cream);
             border: 1px solid var(--border-light);
@@ -141,15 +128,6 @@
 
     <div class="page-wrapper">
         <div class="content-card">
-            <div class="oral-notice">
-                <i class="bi bi-mic-fill"></i>
-                <div>
-                    <strong>Questions anonymes, réponses orales.</strong>
-                    L'identité du participant n'est jamais transmise par l'API. Les réponses sont données
-                    oralement en salle ; utilisez le bouton pour marquer une question comme traitée.
-                </div>
-            </div>
-
             {% if questions %}
                 {% for q in questions %}
                 <div class="question-card {% if q.is_answered %}answered{% endif %}">
