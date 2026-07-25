@@ -92,9 +92,12 @@
         .question-card:hover { background: #fff; box-shadow: 0 4px 16px rgba(45, 27, 107, 0.1); }
         .question-card.answered { border-left-color: #0f5132; }
         .question-text { font-family: var(--font-serif); font-size: 1.35rem; font-weight: 600; line-height: 1.35; margin: 10px 0 12px; }
-        .modal-content { border-radius: 16px; border: none; }
-        .modal-header { border-bottom: 1px solid var(--border-light); align-items: flex-start; }
-        .modal-question-text { font-family: var(--font-serif); font-size: 1.5rem; font-weight: 600; line-height: 1.4; margin: 6px 0; }
+        .modal-dialog-question { max-width: min(1500px, 94vw); }
+        .modal-content { border-radius: 20px; border: none; }
+        .modal-header { border-bottom: 1px solid var(--border-light); align-items: flex-start; padding: 28px 32px; }
+        .modal-body { padding: 32px; }
+        .modal-footer { padding: 24px 32px; }
+        .modal-question-text { font-family: var(--font-serif); font-size: 2.4rem; font-weight: 600; line-height: 1.4; margin: 10px 0; }
         .badge-answered { background: #0f5132; }
         .badge-pending { background: var(--dusty-rose); color: #6b2f2f; }
         .btn-elegant {
@@ -196,7 +199,7 @@
     {% endcomment %}
     {% for q in questions %}
     <div class="modal fade" id="questionModal{{ forloop.counter }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-question">
             <div class="modal-content">
                 <div class="modal-header">
                     <div>
