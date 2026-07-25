@@ -18,6 +18,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from events.models import Session, SessionQuestion
@@ -80,6 +81,47 @@ def session_questions(request, session_id):
 
 
 @login_required
+def combined_session_questions(request):
+    """
+    Questions from several sessions at once (picked via checkboxes on
+    my_room_sessions), each question labeled with its own session. A
+    session the user isn't authorized for is silently dropped rather than
+    erroring out the whole page -- same spirit as session_questions'
+    per-session access check, just applied per item in the list.
+    """
+    session_ids = request.GET.getlist('session_ids')
+    if not session_ids:
+        messages.info(request, 'Sélectionnez au moins une session.')
+        return redirect('dashboard:my_room_sessions')
+
+    candidate_sessions = (
+        Session.objects
+        .filter(id__in=session_ids)
+        .select_related('room', 'event')
+    )
+    sessions = [s for s in candidate_sessions if _can_manage_session_questions(request.user, s)]
+
+    if not sessions:
+        messages.error(request, "Vous n'avez accès à aucune des sessions sélectionnées.")
+        return redirect('dashboard:my_room_sessions')
+
+    questions = (
+        SessionQuestion.objects
+        .filter(session__in=sessions)
+        .select_related('session', 'session__room', 'answered_by')
+        .order_by('session__start_time', 'asked_at')
+    )
+
+    context = {
+        'sessions': sessions,
+        'questions': questions,
+        'unanswered_count': questions.filter(is_answered=False).count(),
+        'return_url': request.get_full_path(),
+    }
+    return render(request, 'dashboard/combined_session_questions.html', context)
+
+
+@login_required
 @require_POST
 def session_question_answer(request, question_id):
     """Answer a question, or clear its answer (leaves it visible as unanswered again)."""
@@ -104,4 +146,10 @@ def session_question_answer(request, question_id):
         messages.info(request, 'Réponse retirée — question marquée comme non répondue.')
 
     question.save()
+
+    next_url = request.POST.get('next')
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(next_url)
     return redirect('dashboard:session_questions', session_id=question.session_id)

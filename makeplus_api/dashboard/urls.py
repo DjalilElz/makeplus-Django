@@ -78,6 +78,7 @@ urlpatterns = [
 
     # Session Q&A (anonymous — see views_questions.py)
     path('my-sessions/', views_questions.my_room_sessions, name='my_room_sessions'),
+    path('my-sessions/questions/', views_questions.combined_session_questions, name='combined_session_questions'),
     path('sessions/<uuid:session_id>/questions/', views_questions.session_questions, name='session_questions'),
     path('questions/<int:question_id>/answer/', views_questions.session_question_answer, name='session_question_answer'),
     
