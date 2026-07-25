@@ -154,6 +154,42 @@ def get_accessible_event_ids(user):
     return assignment_event_ids | registration_event_ids
 
 
+def get_assigned_room_ids(user):
+    """
+    Room IDs a gestionnaire_des_salles is assigned to, across every active
+    UserEventAssignment they hold.
+
+    Checked in the same order/priority as
+    UserEventAssignmentSerializer.get_room_assignment() (events/serializers.py):
+    the dashboard's own "assign a room" UI writes the room into
+    UserEventAssignment.metadata['assigned_room_id'] -- that's the primary,
+    actually-used mechanism today. The RoomAssignment table is only a
+    fallback for older records that predate that; querying RoomAssignment
+    alone (as an earlier version of the dashboard's session-questions
+    feature did) misses every gestionnaire assigned the current way and
+    wrongly reports them as having no room at all.
+    """
+    from .models import UserEventAssignment, RoomAssignment
+
+    room_ids = set()
+    assignments = UserEventAssignment.objects.filter(
+        user=user, role='gestionnaire_des_salles', is_active=True
+    )
+    for assignment in assignments:
+        room_id = None
+        if assignment.metadata and assignment.metadata.get('assigned_room_id'):
+            room_id = assignment.metadata['assigned_room_id']
+        else:
+            room_assignment = RoomAssignment.objects.filter(
+                user=user, event=assignment.event, is_active=True
+            ).first()
+            if room_assignment:
+                room_id = room_assignment.room_id
+        if room_id:
+            room_ids.add(str(room_id))
+    return room_ids
+
+
 def get_user_role_in_event(user, event):
     """
     Get user's role in a specific event

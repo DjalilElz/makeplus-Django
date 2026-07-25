@@ -8,9 +8,10 @@ session, question text only, no asker identity — the API never sends it
 either, so there is nothing here that could deanonymize a participant even by
 accident.
 
-Access is scoped by RoomAssignment (not UserEventAssignment): a gestionnaire
-only sees/answers questions for sessions in rooms they're actually assigned
-to, not every room in the event. Staff/superusers can access anything.
+Access is scoped by get_assigned_room_ids (not a raw RoomAssignment query):
+a gestionnaire only sees/answers questions for sessions in rooms they're
+actually assigned to, not every room in the event. Staff/superusers can
+access anything.
 """
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -19,16 +20,15 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from events.models import RoomAssignment, Session, SessionQuestion
+from events.models import Session, SessionQuestion
+from events.utils import get_assigned_room_ids
 
 
 def _can_manage_session_questions(user, session):
     """Staff/superusers can access any session; gestionnaires only their assigned room(s)."""
     if user.is_staff or user.is_superuser:
         return True
-    return RoomAssignment.objects.filter(
-        user=user, room=session.room, role='gestionnaire_des_salles', is_active=True
-    ).exists()
+    return str(session.room_id) in get_assigned_room_ids(user)
 
 
 @login_required
@@ -39,9 +39,7 @@ def my_room_sessions(request):
     if they follow the link, seeing only rooms they're personally assigned
     to (use the full event/room admin screens for anything broader).
     """
-    room_ids = RoomAssignment.objects.filter(
-        user=request.user, role='gestionnaire_des_salles', is_active=True
-    ).values_list('room_id', flat=True)
+    room_ids = get_assigned_room_ids(request.user)
 
     sessions = (
         Session.objects
