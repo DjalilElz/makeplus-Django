@@ -1260,19 +1260,24 @@ class SessionQuestionViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsGestionnaire])
     def answer(self, request, pk=None):
-        """Answer a question"""
+        """
+        Toggle a question's answered state. These are answered orally, in
+        the room -- there is nothing to type or store, just who/when
+        marked it. Calling this again on an already-answered question
+        unmarks it (matches the web dashboard's equivalent action).
+        """
         question = self.get_object()
-        answer_text = request.data.get('answer_text')
-        
-        if not answer_text:
-            return Response({'error': 'answer_text is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        question.answer_text = answer_text
-        question.is_answered = True
-        question.answered_by = request.user
-        question.answered_at = timezone.now()
+
+        if question.is_answered:
+            question.is_answered = False
+            question.answered_by = None
+            question.answered_at = None
+        else:
+            question.is_answered = True
+            question.answered_by = request.user
+            question.answered_at = timezone.now()
         question.save()
-        
+
         serializer = self.get_serializer(question)
         return Response(serializer.data)
 

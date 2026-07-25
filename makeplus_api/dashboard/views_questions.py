@@ -124,26 +124,26 @@ def combined_session_questions(request):
 @login_required
 @require_POST
 def session_question_answer(request, question_id):
-    """Answer a question, or clear its answer (leaves it visible as unanswered again)."""
+    """
+    Toggle a question's answered state. These questions are answered orally,
+    in the room -- there is nothing to type, so this just marks/unmarks
+    is_answered (who and when, not what was said).
+    """
     question = get_object_or_404(SessionQuestion.objects.select_related('session', 'session__room'), id=question_id)
 
     if not _can_manage_session_questions(request.user, question.session):
         raise PermissionDenied("You do not have access to this session's questions.")
 
-    answer_text = request.POST.get('answer_text', '').strip()
-
-    if answer_text:
-        question.answer_text = answer_text
-        question.is_answered = True
-        question.answered_by = request.user
-        question.answered_at = timezone.now()
-        messages.success(request, 'Réponse enregistrée.')
-    else:
-        question.answer_text = ''
+    if question.is_answered:
         question.is_answered = False
         question.answered_by = None
         question.answered_at = None
-        messages.info(request, 'Réponse retirée — question marquée comme non répondue.')
+        messages.info(request, 'Question marquée comme non répondue.')
+    else:
+        question.is_answered = True
+        question.answered_by = request.user
+        question.answered_at = timezone.now()
+        messages.success(request, 'Question marquée comme répondue.')
 
     question.save()
 

@@ -60,12 +60,6 @@
             align-items: center;
             gap: 5px;
         }
-        .answer-box {
-            background: #f0fdf4;
-            border-radius: 8px;
-            padding: 12px 14px;
-            margin-top: 12px;
-        }
     </style>
 </head>
 <body>
@@ -103,28 +97,24 @@
                 <small class="text-muted"><i class="bi bi-incognito"></i> Question anonyme</small>
 
                 {% if question.is_answered %}
-                    <div class="answer-box">
-                        <div class="small text-success fw-semibold mb-1">
-                            <i class="bi bi-check-circle-fill"></i> Répondu par {{ question.answered_by.get_full_name|default:question.answered_by.email }}
-                            &middot; {{ question.answered_at|date:"d/m/Y H:i" }}
-                        </div>
-                        <div>{{ question.answer_text }}</div>
+                    <div class="small text-success fw-semibold mt-2 mb-2">
+                        <i class="bi bi-check-circle-fill"></i> Marquée comme répondue par {{ question.answered_by.get_full_name|default:question.answered_by.email }}
+                        &middot; {{ question.answered_at|date:"d/m/Y H:i" }}
                     </div>
-                    <form method="post" action="{% url 'dashboard:session_question_answer' question.id %}" class="mt-2">
+                    <form method="post" action="{% url 'dashboard:session_question_answer' question.id %}">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ return_url }}">
-                        <button type="submit" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Retirer cette réponse ? La question redeviendra non répondue.');">
-                            <i class="bi bi-arrow-counterclockwise"></i> Retirer la réponse
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-arrow-counterclockwise"></i> Marquer comme non répondue
                         </button>
                     </form>
                 {% else %}
                     <form method="post" action="{% url 'dashboard:session_question_answer' question.id %}" class="mt-2">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ return_url }}">
-                        <div class="input-group">
-                            <textarea name="answer_text" class="form-control" rows="2" placeholder="Votre réponse..." required></textarea>
-                            <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Répondre</button>
-                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="bi bi-check-lg"></i> Marquer comme répondue
+                        </button>
                     </form>
                 {% endif %}
             </div>
