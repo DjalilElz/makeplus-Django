@@ -86,11 +86,12 @@
             border-radius: 14px;
             padding: 18px 20px;
             margin-bottom: 14px;
+            cursor: pointer;
+            transition: background 0.15s, box-shadow 0.15s;
         }
+        .question-card:hover { background: #fff; box-shadow: 0 4px 16px rgba(45, 27, 107, 0.1); }
         .question-card.answered { border-left-color: #0f5132; }
-        .question-text { font-family: var(--font-serif); font-size: 1.05rem; font-weight: 600; margin: 8px 0 10px; }
-        .question-clickable { cursor: pointer; border-radius: 10px; margin: -6px -8px; padding: 6px 8px; transition: background 0.15s; }
-        .question-clickable:hover { background: rgba(45, 27, 107, 0.05); }
+        .question-text { font-family: var(--font-serif); font-size: 1.35rem; font-weight: 600; line-height: 1.35; margin: 10px 0 12px; }
         .modal-content { border-radius: 16px; border: none; }
         .modal-header { border-bottom: 1px solid var(--border-light); align-items: flex-start; }
         .modal-question-text { font-family: var(--font-serif); font-size: 1.5rem; font-weight: 600; line-height: 1.4; margin: 6px 0; }
@@ -110,6 +111,7 @@
             border-radius: 10px;
         }
         .btn-outline-elegant:hover { background: var(--banner-1); color: #fff; }
+        .btn-answer-toggle { font-size: 0.72rem; padding: 3px 10px; }
     </style>
 </head>
 <body>
@@ -135,39 +137,37 @@
         <div class="content-card">
             {% if questions %}
                 {% for q in questions %}
-                <div class="question-card {% if q.is_answered %}answered{% endif %}">
-                    <div class="question-clickable" data-bs-toggle="modal" data-bs-target="#questionModal{{ forloop.counter }}">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <span class="text-muted small">
-                                <i class="bi bi-person-fill-lock"></i> Participant anonyme
-                                &middot; {{ q.asked_at|date:"H:i" }}
-                            </span>
-                            {% if q.is_answered %}
-                                <span class="badge badge-answered"><i class="bi bi-check-circle"></i> Répondu</span>
-                            {% else %}
-                                <span class="badge badge-pending">En attente</span>
-                            {% endif %}
-                        </div>
-
-                        <p class="question-text">{{ q.question_text }}</p>
-
+                <div class="question-card {% if q.is_answered %}answered{% endif %}" data-bs-toggle="modal" data-bs-target="#questionModal{{ forloop.counter }}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <span class="text-muted small">
+                            <i class="bi bi-person-fill-lock"></i> Participant anonyme
+                            &middot; {{ q.asked_at|date:"H:i" }}
+                        </span>
                         {% if q.is_answered %}
-                            <div class="small text-muted mb-2">
-                                <i class="bi bi-check-circle-fill text-success"></i> Marquée comme répondue
-                                {% if q.answered_by %}par {{ q.answered_by.get_full_name|default:q.answered_by.email }}{% endif %}
-                                &middot; {{ q.answered_at|date:"H:i" }}
-                            </div>
+                            <span class="badge badge-answered"><i class="bi bi-check-circle"></i> Répondu</span>
+                        {% else %}
+                            <span class="badge badge-pending">En attente</span>
                         {% endif %}
                     </div>
 
-                    <form method="post" action="{% url 'dashboard:session_question_answer' q.id %}">
+                    <p class="question-text">{{ q.question_text }}</p>
+
+                    {% if q.is_answered %}
+                        <div class="small text-muted mb-2">
+                            <i class="bi bi-check-circle-fill text-success"></i> Marquée comme répondue
+                            {% if q.answered_by %}par {{ q.answered_by.get_full_name|default:q.answered_by.email }}{% endif %}
+                            &middot; {{ q.answered_at|date:"H:i" }}
+                        </div>
+                    {% endif %}
+
+                    <form method="post" action="{% url 'dashboard:session_question_answer' q.id %}" onclick="event.stopPropagation()">
                         {% csrf_token %}
                         {% if q.is_answered %}
-                            <button type="submit" class="btn btn-sm btn-outline-elegant">
+                            <button type="submit" class="btn btn-sm btn-outline-elegant btn-answer-toggle">
                                 <i class="bi bi-arrow-counterclockwise"></i> Marquer comme non répondue
                             </button>
                         {% else %}
-                            <button type="submit" class="btn btn-sm btn-elegant">
+                            <button type="submit" class="btn btn-sm btn-elegant btn-answer-toggle">
                                 <i class="bi bi-check-lg"></i> Marquer comme répondue
                             </button>
                         {% endif %}
