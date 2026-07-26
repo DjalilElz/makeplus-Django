@@ -193,6 +193,15 @@ def event_owner_submissions(request, event_id):
     day_counts = Counter(order.created_at.date().isoformat() for order in orders)
     registrations_by_day = sorted(day_counts.items())
 
+    # "Mes événements" only makes sense when the owner actually has more than
+    # one event to switch between; with a single event there's nothing to go
+    # back to, so we hide it and just offer logout. Staff keep the link as a
+    # way back to their main dashboard.
+    owner_events_count = UserEventAssignment.objects.filter(
+        user=request.user, role='event_owner', is_active=True
+    ).count()
+    show_events_link = request.user.is_staff or request.user.is_superuser or owner_events_count > 1
+
     context = {
         'event': event,
         'orders': orders,
@@ -208,6 +217,7 @@ def event_owner_submissions(request, event_id):
         'item_filters': item_filters,
         'workshop_item_ids': workshop_item_ids,
         'registrations_by_day': registrations_by_day,
+        'show_events_link': show_events_link,
     }
     return render(request, 'dashboard/event_owner/submissions.html', context)
 

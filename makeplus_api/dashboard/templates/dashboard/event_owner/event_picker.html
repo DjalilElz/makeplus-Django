@@ -50,6 +50,9 @@
             filter: blur(60px);
         }
         .banner-content { position: relative; z-index: 2; max-width: 900px; margin: 0 auto; }
+        .banner-topbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+        .back-link { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.85rem; }
+        .back-link:hover { color: #fff; }
         .banner-eyebrow {
             font-size: 0.78rem;
             font-weight: 600;
@@ -84,6 +87,9 @@
 <body>
     <div class="elegant-banner">
         <div class="banner-content">
+            <div class="banner-topbar">
+                <a href="{% url 'dashboard:logout' %}" class="back-link"><i class="bi bi-box-arrow-right"></i> Déconnexion</a>
+            </div>
             <div class="banner-eyebrow">Espace organisateur</div>
             <h1 class="page-title">Mes événements</h1>
         </div>

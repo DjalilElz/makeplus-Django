@@ -108,6 +108,7 @@
         .items-list { font-size: 0.82rem; color: #555; margin: 0; padding-left: 1.1rem; }
         .back-link { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.85rem; }
         .back-link:hover { color: #fff; }
+        .banner-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; }
         .status-select {
             font-size: 0.78rem;
             font-weight: 700;
@@ -218,7 +219,14 @@
 <body>
     <div class="elegant-banner">
         <div class="banner-content">
-            <a href="{% url 'dashboard:event_owner_submissions_home' %}" class="back-link"><i class="bi bi-arrow-left"></i> Mes événements</a>
+            <div class="banner-topbar">
+                {% if show_events_link %}
+                <a href="{% url 'dashboard:event_owner_submissions_home' %}" class="back-link"><i class="bi bi-arrow-left"></i> Mes événements</a>
+                {% else %}
+                <span></span>
+                {% endif %}
+                <a href="{% url 'dashboard:logout' %}" class="back-link"><i class="bi bi-box-arrow-right"></i> Déconnexion</a>
+            </div>
             <div class="banner-eyebrow">Inscriptions</div>
             <h1 class="event-title">{{ event.name }}</h1>
         </div>
