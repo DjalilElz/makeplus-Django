@@ -1,61 +1,167 @@
-{% extends 'dashboard/base.html' %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - MakePlus</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #10b981;
+            --brand-purple: #872c7a;
+        }
 
-{% block title %}Login - MakePlus Dashboard{% endblock %}
+        * { box-sizing: border-box; }
 
-{% block content %}
-<div class="container">
-    <div class="row justify-content-center align-items-center" style="min-height: 80vh;">
-        <div class="col-md-5">
-            <div class="card shadow-lg border-0" style="border-radius: 15px;">
-                <div class="card-body p-5">
-                    <div class="text-center mb-4">
-                        <div class="mb-3">
-                            <i class="bi bi-grid-1x2-fill" style="font-size: 3rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i>
-                        </div>
-                        <h2 class="fw-bold">MakePlus Dashboard</h2>
-                        <p class="text-muted">Sign in to manage events</p>
-                    </div>
-                    
-                    <form method="post">
-                        {% csrf_token %}
-                        
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                                <input type="email" class="form-control" id="email" name="email" placeholder="your@email.com" required autofocus>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label for="password" class="form-label">Password</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                                <input type="password" class="form-control" id="password" name="password" required>
-                            </div>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary w-100 py-2">
-                            <i class="bi bi-box-arrow-in-right"></i> Sign In
-                        </button>
-                    </form>
-                    
-                    <div class="text-center mt-4">
-                        <small class="text-muted">Staff access only</small>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 440px;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+        }
+
+        .login-brand {
+            text-align: center;
+            padding: 40px 40px 24px;
+        }
+
+        .login-brand img {
+            height: 52px;
+            width: auto;
+            margin-bottom: 14px;
+        }
+
+        .brand-slogan {
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--brand-purple);
+        }
+
+        .login-body {
+            padding: 8px 40px 40px;
+        }
+
+        .login-subtitle {
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.95rem;
+            margin-bottom: 26px;
+        }
+
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+
+        .input-group-text {
+            background: #f8f9fa;
+            border-right: none;
+            color: #9ca3af;
+        }
+
+        .form-control {
+            border-left: none;
+            padding: 12px 14px;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: none;
+        }
+
+        .input-group:focus-within .input-group-text {
+            border-color: var(--primary-color);
+        }
+
+        .input-group:focus-within .form-control {
+            border-color: var(--primary-color);
+        }
+
+        .btn-signin {
+            background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 12px;
+            border-radius: 10px;
+            width: 100%;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .btn-signin:hover {
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
+        }
+
+        .alert {
+            border-radius: 10px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-brand">
+            <img src="{% static 'dashboard/images/Makeplus Full logo.svg' %}" alt="MakePlus">
+            <div class="brand-slogan">Events Management</div>
+        </div>
+
+        <div class="login-body">
+            <p class="login-subtitle">Sign in to manage your events</p>
+
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" role="alert">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                        <input type="email" class="form-control" id="email" name="email" placeholder="your@email.com" required autofocus>
                     </div>
                 </div>
-            </div>
+
+                <div class="mb-4">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-signin">
+                    <i class="bi bi-box-arrow-in-right"></i> Sign In
+                </button>
+            </form>
         </div>
     </div>
-</div>
-
-<style>
-    body {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    .main-content {
-        margin-left: 0 !important;
-    }
-</style>
-{% endblock %}
+</body>
+</html>
