@@ -122,7 +122,10 @@ def login_view(request):
         if caisse and caisse.check_password(password):
             request.session['caisse_id'] = caisse.id
             request.session['caisse_name'] = caisse.name
-            messages.success(request, f'Welcome to {caisse.name}!')
+            # No flash message here: the caisse dashboard is a standalone
+            # template with no messages block, so this would never be shown
+            # there and instead leaks onto the next page that does render
+            # messages (e.g. the dashboard login page after logout).
             return redirect('caisse:dashboard')
 
         # Find user by email
@@ -185,7 +188,6 @@ def login_view(request):
 def logout_view(request):
     """Logout"""
     logout(request)
-    messages.info(request, 'You have been logged out.')
     return redirect('dashboard:login')
 
 
