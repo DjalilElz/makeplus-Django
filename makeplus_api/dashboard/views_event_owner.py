@@ -108,9 +108,14 @@ def event_owner_submissions(request, event_id):
     }
     workshop_item_ids = [v for v in request.GET.getlist('item_workshops') if v]
 
+    # reviewed_by / reviewed_by_caisse are dereferenced per row in the
+    # template; without eager-loading them here every order fires two extra
+    # queries, and on a large event that N+1 blows past the gunicorn worker
+    # timeout (seen in prod as WORKER TIMEOUT -> 500 on this page).
     all_orders = list(
         RegistrationOrder.objects.filter(event=event).select_related(
             'period', 'form_submission__form',
+            'reviewed_by', 'reviewed_by_caisse',
         ).order_by('-created_at')
     )
 
