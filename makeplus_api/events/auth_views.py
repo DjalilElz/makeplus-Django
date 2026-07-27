@@ -41,18 +41,18 @@ class CustomLoginView(View):
         event_id = request.POST.get('event', '').strip()
         
         if not email:
-            messages.error(request, 'Email is required')
+            messages.error(request, "L'e-mail est obligatoire")
             return redirect('events:login')
         
         if not event_id:
-            messages.error(request, 'Please select an event')
+            messages.error(request, 'Veuillez sélectionner un événement')
             return redirect('events:login')
         
         # Get event
         try:
             event = Event.objects.get(id=event_id)
         except Event.DoesNotExist:
-            messages.error(request, 'Invalid event')
+            messages.error(request, 'Événement invalide')
             return redirect('events:login')
         
         # Try code-based login first (if code provided)
@@ -67,7 +67,7 @@ class CustomLoginView(View):
                 
                 # Log user in
                 login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-                messages.success(request, f'Welcome back, {user.first_name or user.username}!')
+                messages.success(request, f'Bon retour, {user.first_name or user.username} !')
                 
                 # Redirect to event or dashboard
                 return redirect('dashboard:dashboard_home')
@@ -81,14 +81,14 @@ class CustomLoginView(View):
             
             if user is not None:
                 login(request, user)
-                messages.success(request, f'Welcome back, {user.first_name or user.username}!')
+                messages.success(request, f'Bon retour, {user.first_name or user.username} !')
                 return redirect('dashboard:dashboard_home')
             else:
-                messages.error(request, 'Invalid email or password')
+                messages.error(request, 'E-mail ou mot de passe invalide')
                 return redirect('events:login')
         
         else:
-            messages.error(request, 'Please provide either a login code or password')
+            messages.error(request, 'Veuillez fournir un code de connexion ou un mot de passe')
             return redirect('events:login')
     
     def get_client_ip(self, request):
@@ -119,17 +119,17 @@ class RequestLoginCodeView(View):
         event_id = request.POST.get('event', '').strip()
         
         if not email or not event_id:
-            messages.error(request, 'Email and event are required')
+            messages.error(request, "L'e-mail et l'événement sont obligatoires")
             return redirect('events:request_login_code')
         
         try:
             user = User.objects.get(email=email)
             event = Event.objects.get(id=event_id)
         except User.DoesNotExist:
-            messages.error(request, 'User not found. Please register first.')
+            messages.error(request, "Utilisateur introuvable. Veuillez d'abord vous inscrire.")
             return redirect('events:request_login_code')
         except Event.DoesNotExist:
-            messages.error(request, 'Event not found')
+            messages.error(request, 'Événement introuvable')
             return redirect('events:request_login_code')
         
         # Generate new login code
@@ -169,10 +169,10 @@ class RequestLoginCodeView(View):
         )
         
         if success:
-            messages.success(request, f'Login code sent to {email}. Please check your inbox.')
+            messages.success(request, f'Code de connexion envoyé à {email}. Veuillez consulter votre boîte de réception.')
             return redirect('events:login')
         else:
-            messages.error(request, f'Failed to send email: {error}')
+            messages.error(request, f"Échec de l'envoi de l'e-mail : {error}")
             return redirect('events:request_login_code')
 
 
@@ -191,7 +191,7 @@ class LogoutView(View):
     def get(self, request):
         from django.contrib.auth import logout
         logout(request)
-        messages.success(request, 'You have been logged out successfully')
+        messages.success(request, 'Vous avez été déconnecté avec succès')
         return redirect('events:login')
 
 
@@ -227,20 +227,20 @@ class ChangePasswordView(View):
         confirm_password = request.POST.get('confirm_password', '')
         
         if not old_password or not new_password:
-            messages.error(request, 'All fields are required')
+            messages.error(request, 'Tous les champs sont obligatoires')
             return redirect('events:change_password')
         
         if new_password != confirm_password:
-            messages.error(request, 'New passwords do not match')
+            messages.error(request, 'Les nouveaux mots de passe ne correspondent pas')
             return redirect('events:change_password')
         
         if len(new_password) < 8:
-            messages.error(request, 'Password must be at least 8 characters')
+            messages.error(request, 'Le mot de passe doit comporter au moins 8 caractères')
             return redirect('events:change_password')
         
         user = request.user
         if not user.check_password(old_password):
-            messages.error(request, 'Current password is incorrect')
+            messages.error(request, 'Le mot de passe actuel est incorrect')
             return redirect('events:change_password')
         
         user.set_password(new_password)
@@ -250,7 +250,7 @@ class ChangePasswordView(View):
         from django.contrib.auth import update_session_auth_hash
         update_session_auth_hash(request, user)
         
-        messages.success(request, 'Password changed successfully')
+        messages.success(request, 'Mot de passe changé avec succès')
         return redirect('events:profile')
 
 

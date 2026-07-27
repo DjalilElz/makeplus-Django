@@ -1,16 +1,16 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}{% if is_edit %}Edit Session{% else %}Add Session{% endif %}{% endblock %}
+{% block page_title %}{% if is_edit %}Modifier la session{% else %}Ajouter une session{% endif %}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="mb-0">{% if is_edit %}Edit Session{% else %}Add Session{% endif %}</h2>
+            <h2 class="mb-0">{% if is_edit %}Modifier la session{% else %}Ajouter une session{% endif %}</h2>
             <p class="text-muted mb-0">{{ event.name }}</p>
         </div>
         <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Event
+            <i class="bi bi-arrow-left"></i> Retour à l'événement
         </a>
     </div>
 
@@ -23,7 +23,7 @@
                         
                         {% if form.errors %}
                             <div class="alert alert-danger">
-                                <strong>Please correct the errors below:</strong>
+                                <strong>Veuillez corriger les erreurs ci-dessous :</strong>
                                 <ul class="mb-0">
                                     {% for field in form %}
                                         {% for error in field.errors %}
@@ -36,7 +36,7 @@
 
                         <div class="row">
                             <div class="col-md-8 mb-3">
-                                <label for="{{ form.title.id_for_label }}" class="form-label">Session Title *</label>
+                                <label for="{{ form.title.id_for_label }}" class="form-label">Titre de la session *</label>
                                 {{ form.title }}
                             </div>
 
@@ -53,49 +53,49 @@
 
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label for="{{form.room.id_for_label }}" class="form-label">Room *</label>
+                                <label for="{{form.room.id_for_label }}" class="form-label">Salle *</label>
                                 {{ form.room }}
                             </div>
 
                             <div class="col-md-4 mb-3">
-                                <label for="{{ form.start_time.id_for_label }}" class="form-label">Start Time *</label>
+                                <label for="{{ form.start_time.id_for_label }}" class="form-label">Heure de début *</label>
                                 {{ form.start_time }}
                             </div>
 
                             <div class="col-md-4 mb-3">
-                                <label for="{{ form.end_time.id_for_label }}" class="form-label">End Time *</label>
+                                <label for="{{ form.end_time.id_for_label }}" class="form-label">Heure de fin *</label>
                                 {{ form.end_time }}
                             </div>
                         </div>
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="{{ form.speaker_name.id_for_label }}" class="form-label">Speaker Name</label>
+                                <label for="{{ form.speaker_name.id_for_label }}" class="form-label">Nom de l'intervenant</label>
                                 {{ form.speaker_name }}
                             </div>
 
                             <div class="col-md-6 mb-3">
-                                <label for="{{ form.speaker_title.id_for_label }}" class="form-label">Speaker Title</label>
+                                <label for="{{ form.speaker_title.id_for_label }}" class="form-label">Fonction de l'intervenant</label>
                                 {{ form.speaker_title }}
                             </div>
                         </div>
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="{{ form.theme.id_for_label }}" class="form-label">Theme</label>
+                                <label for="{{ form.theme.id_for_label }}" class="form-label">Thème</label>
                                 {{ form.theme }}
                             </div>
 
                             <div class="col-md-6 mb-3">
-                                <label for="{{ form.max_participants.id_for_label }}" class="form-label">Max Participants</label>
+                                <label for="{{ form.max_participants.id_for_label }}" class="form-label">Participants max</label>
                                 {{ form.max_participants }}
-                                <div class="form-text">Leave empty for unlimited</div>
+                                <div class="form-text">Laissez vide pour un nombre illimité</div>
                             </div>
                         </div>
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="{{ form.status.id_for_label }}" class="form-label">Status</label>
+                                <label for="{{ form.status.id_for_label }}" class="form-label">Statut</label>
                                 {{ form.status }}
                             </div>
 
@@ -103,7 +103,7 @@
                                 <div class="form-check" style="margin-top: 32px;">
                                     {{ form.is_paid }}
                                     <label class="form-check-label" for="{{ form.is_paid.id_for_label }}">
-                                        Paid Session
+                                        Session payante
                                     </label>
                                 </div>
                             </div>
@@ -111,7 +111,7 @@
 
                         <div class="row">
                             <div class="col-md-6 mb-3" id="price-field" style="display: none;">
-                                <label for="{{ form.price.id_for_label }}" class="form-label">Price (DA)</label>
+                                <label for="{{ form.price.id_for_label }}" class="form-label">Prix (DA)</label>
                                 {{ form.price }}
                             </div>
 
@@ -119,19 +119,19 @@
                                 <div class="form-check">
                                     {{ form.is_active }}
                                     <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-                                        Active (visible on the public registration form)
+                                        Active (visible sur le formulaire d'inscription public)
                                     </label>
                                 </div>
-                                <small class="text-muted">Uncheck to temporarily hide this session (e.g. speaker not confirmed yet) without deleting it.</small>
+                                <small class="text-muted">Décochez pour masquer temporairement cette session (par ex. intervenant pas encore confirmé) sans la supprimer.</small>
                             </div>
                         </div>
 
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-save"></i> Save Session
+                                <i class="bi bi-save"></i> Enregistrer la session
                             </button>
                             <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-secondary">
-                                Cancel
+                                Annuler
                             </a>
                         </div>
                     </form>

@@ -1,34 +1,34 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}Submitted Registrations - {{ event.name }}{% endblock %}
-{% block page_title %}Submitted Registrations{% endblock %}
+{% block title %}Inscriptions soumises - {{ event.name }}{% endblock %}
+{% block page_title %}Inscriptions soumises{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h4 class="mb-0">{{ event.name }}</h4>
-            <small class="text-muted">Paid registrations -- confirmed or rejected at the caisse on event day, not here</small>
+            <small class="text-muted">Inscriptions payantes -- confirmées ou rejetées à la caisse le jour de l'événement, pas ici</small>
         </div>
         <a href="{% url 'dashboard:blocs_config' event.id %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Configuration
+            <i class="bi bi-arrow-left"></i> Retour à la configuration
         </a>
     </div>
 
     <form method="get" class="row g-2 mb-4">
         <div class="col-md-6">
-            <input type="text" name="q" class="form-control" placeholder="Search by name or email..." value="{{ query }}">
+            <input type="text" name="q" class="form-control" placeholder="Rechercher par nom ou e-mail..." value="{{ query }}">
         </div>
         <div class="col-md-3">
             <select name="status" class="form-select">
-                <option value="">All statuses</option>
-                <option value="pending" {% if status == 'pending' %}selected{% endif %}>Reserved</option>
-                <option value="approved" {% if status == 'approved' %}selected{% endif %}>Confirmed</option>
-                <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Rejected</option>
+                <option value="">Tous les statuts</option>
+                <option value="pending" {% if status == 'pending' %}selected{% endif %}>Réservée</option>
+                <option value="approved" {% if status == 'approved' %}selected{% endif %}>Confirmée</option>
+                <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Rejetée</option>
             </select>
         </div>
         <div class="col-md-3">
-            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel"></i> Filter</button>
+            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel"></i> Filtrer</button>
         </div>
     </form>
 
@@ -38,8 +38,8 @@
             <table class="table table-hover align-middle">
                 <thead>
                     <tr>
-                        <th>Name</th><th>Email</th><th>Total (DZD)</th><th>Discount</th>
-                        <th>Receipt</th><th>Status</th><th>Submitted</th><th>Details</th>
+                        <th>Nom</th><th>E-mail</th><th>Total (DZD)</th><th>Réduction</th>
+                        <th>Quittance</th><th>Statut</th><th>Soumise le</th><th>Détails</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -56,19 +56,19 @@
                         <td>{% if order.total_discount_percent > 0 %}{{ order.total_discount_percent }}%{% else %}—{% endif %}</td>
                         <td>
                             {% if order.receipt_file %}
-                            <a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-arrow-down"></i> View</a>
+                            <a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-arrow-down"></i> Voir</a>
                             {% else %}—{% endif %}
                         </td>
                         <td>
-                            {% if order.status == 'pending' %}<span class="badge bg-secondary">Registered</span>
-                            {% elif order.status == 'reserved' %}<span class="badge bg-warning text-dark">Reserved</span>
-                            {% elif order.status == 'approved' %}<span class="badge bg-success">Confirmed</span>
-                            {% else %}<span class="badge bg-danger">Cancelled</span>{% endif %}
+                            {% if order.status == 'pending' %}<span class="badge bg-secondary">Inscrite</span>
+                            {% elif order.status == 'reserved' %}<span class="badge bg-warning text-dark">Réservée</span>
+                            {% elif order.status == 'approved' %}<span class="badge bg-success">Confirmée</span>
+                            {% else %}<span class="badge bg-danger">Annulée</span>{% endif %}
                         </td>
-                        <td><small>{{ order.created_at|date:"M d, Y H:i" }}</small></td>
+                        <td><small>{{ order.created_at|date:"d/m/Y H:i" }}</small></td>
                         <td>
                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#order-{{ order.id }}">
-                                <i class="bi bi-eye"></i> View
+                                <i class="bi bi-eye"></i> Voir
                             </button>
                         </td>
                     </tr>
@@ -77,7 +77,7 @@
             </table>
         </div>
         {% else %}
-        <p class="text-muted text-center py-4 mb-0">No registrations found.</p>
+        <p class="text-muted text-center py-4 mb-0">Aucune inscription trouvée.</p>
         {% endif %}
     </div>
 </div>
@@ -92,40 +92,40 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p><strong>Email:</strong> {{ order.email|default:"—" }}</p>
-                <h6>Selected items</h6>
+                <p><strong>E-mail :</strong> {{ order.email|default:"—" }}</p>
+                <h6>Articles sélectionnés</h6>
                 <ul>
                     {% for it in order.items_snapshot %}
                     <li>[{{ it.bloc }}] {{ it.name }} — {{ it.price }} DZD</li>
                     {% empty %}
-                    <li class="text-muted">None</li>
+                    <li class="text-muted">Aucun</li>
                     {% endfor %}
                 </ul>
-                <p class="mb-1">Total before reduction: <strong>{{ order.total_before_reduction }} DZD</strong></p>
-                <p class="mb-1">Discount: blocs {{ order.blocs_discount_percent }}% = <strong>{{ order.total_discount_percent }}%</strong> (item prices may already reflect per-period pricing)</p>
-                <p class="mb-3">Total to pay: <strong>{{ order.total_after_reduction }} DZD</strong></p>
+                <p class="mb-1">Total avant réduction : <strong>{{ order.total_before_reduction }} DZD</strong></p>
+                <p class="mb-1">Réduction : blocs {{ order.blocs_discount_percent }}% = <strong>{{ order.total_discount_percent }}%</strong> (les prix des articles peuvent déjà refléter la tarification par période)</p>
+                <p class="mb-3">Total à payer : <strong>{{ order.total_after_reduction }} DZD</strong></p>
                 {% if order.receipt_file %}
-                <p><a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark"></i> Open bank receipt</a></p>
+                <p><a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark"></i> Ouvrir la quittance bancaire</a></p>
                 {% endif %}
 
                 <hr>
                 <p class="mb-1">
-                    <strong>Status:</strong>
-                    {% if order.status == 'pending' %}<span class="badge bg-secondary">Registered -- awaiting review</span>
-                    {% elif order.status == 'reserved' %}<span class="badge bg-warning text-dark">Reserved</span>
-                    {% elif order.status == 'approved' %}<span class="badge bg-success">Confirmed</span>
-                    {% else %}<span class="badge bg-danger">Cancelled</span>{% endif %}
+                    <strong>Statut :</strong>
+                    {% if order.status == 'pending' %}<span class="badge bg-secondary">Inscrite -- en attente d'examen</span>
+                    {% elif order.status == 'reserved' %}<span class="badge bg-warning text-dark">Réservée</span>
+                    {% elif order.status == 'approved' %}<span class="badge bg-success">Confirmée</span>
+                    {% else %}<span class="badge bg-danger">Annulée</span>{% endif %}
                 </p>
                 {% if order.reviewed_by_caisse %}
-                <p class="mb-1 text-muted"><small>By {{ order.reviewed_by_caisse.name }} on {{ order.reviewed_at|date:"M d, Y H:i" }}</small></p>
+                <p class="mb-1 text-muted"><small>Par {{ order.reviewed_by_caisse.name }} le {{ order.reviewed_at|date:"d/m/Y H:i" }}</small></p>
                 {% elif order.reviewed_by %}
-                <p class="mb-1 text-muted"><small>By {{ order.reviewed_by.get_full_name|default:order.reviewed_by.email }} (event owner) on {{ order.reviewed_at|date:"M d, Y H:i" }}</small></p>
+                <p class="mb-1 text-muted"><small>Par {{ order.reviewed_by.get_full_name|default:order.reviewed_by.email }} (organisateur) le {{ order.reviewed_at|date:"d/m/Y H:i" }}</small></p>
                 {% endif %}
                 {% if order.admin_notes %}
-                <p class="mb-1"><strong>Notes:</strong> {{ order.admin_notes }}</p>
+                <p class="mb-1"><strong>Notes :</strong> {{ order.admin_notes }}</p>
                 {% endif %}
                 <p class="text-muted small mb-0">
-                    Confirming or rejecting this reservation happens at the caisse on event day, not here.
+                    La confirmation ou le rejet de cette réservation se fait à la caisse le jour de l'événement, pas ici.
                 </p>
             </div>
         </div>

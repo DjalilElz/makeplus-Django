@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}{{ form.name }} - Form Analytics{% endblock %}
+{% block page_title %}{{ form.name }} - Analyse du formulaire{% endblock %}
 
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -39,7 +39,7 @@
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-2">
-                    <li class="breadcrumb-item"><a href="{% url 'dashboard:form_list_with_stats' %}">Forms</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:form_list_with_stats' %}">Formulaires</a></li>
                     <li class="breadcrumb-item active">{{ form.name }}</li>
                 </ol>
             </nav>
@@ -48,7 +48,7 @@
         </div>
         <div>
             <a href="{% url 'dashboard:registration_form_edit' form.id %}" class="btn btn-primary">
-                <i class="bi bi-pencil"></i> Edit Form
+                <i class="bi bi-pencil"></i> Modifier le formulaire
             </a>
         </div>
     </div>
@@ -57,27 +57,27 @@
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="stat-card">
-                <div class="small">Total Views</div>
+                <div class="small">Total des vues</div>
                 <h2 class="mb-0">{{ total_views }}</h2>
             </div>
         </div>
         <div class="col-md-3">
             <div class="stat-card success">
-                <div class="small">Submissions</div>
+                <div class="small">Soumissions</div>
                 <h2 class="mb-0">{{ total_submissions }}</h2>
             </div>
         </div>
         <div class="col-md-3">
             <div class="stat-card info">
-                <div class="small">Conversion Rate</div>
+                <div class="small">Taux de conversion</div>
                 <h2 class="mb-0">{{ conversion_rate|floatformat:2 }}%</h2>
             </div>
         </div>
         <div class="col-md-3">
             <div class="stat-card warning">
-                <div class="small">Started Rate</div>
+                <div class="small">Taux de démarrage</div>
                 <h2 class="mb-0">{{ started_rate }}%</h2>
-                <small>Visitors who interacted</small>
+                <small>Visiteurs ayant interagi</small>
             </div>
         </div>
     </div>
@@ -89,7 +89,7 @@
                 <div class="card-body text-center">
                     <i class="bi bi-laptop text-primary fs-1"></i>
                     <h4 class="mt-2">{{ desktop_views }}</h4>
-                    <small class="text-muted">Desktop Views</small>
+                    <small class="text-muted">Vues sur ordinateur</small>
                 </div>
             </div>
         </div>
@@ -98,7 +98,7 @@
                 <div class="card-body text-center">
                     <i class="bi bi-phone text-success fs-1"></i>
                     <h4 class="mt-2">{{ mobile_views }}</h4>
-                    <small class="text-muted">Mobile Views</small>
+                    <small class="text-muted">Vues sur mobile</small>
                 </div>
             </div>
         </div>
@@ -107,7 +107,7 @@
                 <div class="card-body text-center">
                     <i class="bi bi-tablet text-info fs-1"></i>
                     <h4 class="mt-2">{{ tablet_views }}</h4>
-                    <small class="text-muted">Tablet Views</small>
+                    <small class="text-muted">Vues sur tablette</small>
                 </div>
             </div>
         </div>
@@ -118,7 +118,7 @@
         <div class="col-md-8 mb-4">
             <div class="card hover-shadow">
                 <div class="card-header bg-primary text-white">
-                    <i class="bi bi-graph-up"></i> Views Over Time
+                    <i class="bi bi-graph-up"></i> Vues au fil du temps
                 </div>
                 <div class="card-body">
                     <canvas id="viewsChart" height="80"></canvas>
@@ -130,7 +130,7 @@
         <div class="col-md-4 mb-4">
             <div class="card hover-shadow">
                 <div class="card-header bg-success text-white">
-                    <i class="bi bi-signpost"></i> Top Traffic Sources
+                    <i class="bi bi-signpost"></i> Principales sources de trafic
                 </div>
                 <div class="card-body">
                     {% if top_sources %}
@@ -146,7 +146,7 @@
                         </div>
                         {% endfor %}
                     {% else %}
-                        <p class="text-muted text-center">No traffic data yet</p>
+                        <p class="text-muted text-center">Aucune donnée de trafic pour le moment</p>
                     {% endif %}
                 </div>
             </div>
@@ -158,18 +158,18 @@
         <div class="col-md-12 mb-4">
             <div class="card hover-shadow">
                 <div class="card-header bg-info text-white">
-                    <i class="bi bi-ui-checks"></i> Field-Level Analytics
+                    <i class="bi bi-ui-checks"></i> Analyse au niveau des champs
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th>Field Name</th>
+                                    <th>Nom du champ</th>
                                     <th>Interactions</th>
-                                    <th>Avg Time (seconds)</th>
-                                    <th>Avg Changes</th>
-                                    <th>Completion Rate</th>
+                                    <th>Temps moyen (secondes)</th>
+                                    <th>Modifications moyennes</th>
+                                    <th>Taux de complétion</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -192,7 +192,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted">No field interaction data yet</td>
+                                    <td colspan="5" class="text-center text-muted">Aucune donnée d'interaction avec les champs pour le moment</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -208,16 +208,16 @@
         <div class="col-md-6 mb-4">
             <div class="card hover-shadow border-danger">
                 <div class="card-header bg-danger text-white">
-                    <i class="bi bi-exclamation-triangle"></i> High Dropout Fields
+                    <i class="bi bi-exclamation-triangle"></i> Champs à fort taux d'abandon
                 </div>
                 <div class="card-body">
-                    <p class="small text-muted">Fields where users frequently abandon the form</p>
+                    <p class="small text-muted">Champs où les utilisateurs abandonnent fréquemment le formulaire</p>
                     <div class="table-responsive">
                         <table class="table table-sm">
                             <thead>
                                 <tr>
-                                    <th>Field</th>
-                                    <th>Dropout Rate</th>
+                                    <th>Champ</th>
+                                    <th>Taux d'abandon</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -230,7 +230,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="2" class="text-center text-muted">No dropout data</td>
+                                    <td colspan="2" class="text-center text-muted">Aucune donnée d'abandon</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -244,16 +244,16 @@
         <div class="col-md-6 mb-4">
             <div class="card hover-shadow border-warning">
                 <div class="card-header bg-warning text-dark">
-                    <i class="bi bi-megaphone"></i> Top UTM Campaigns
+                    <i class="bi bi-megaphone"></i> Principales campagnes UTM
                 </div>
                 <div class="card-body">
-                    <p class="small text-muted">Marketing campaigns driving the most traffic</p>
+                    <p class="small text-muted">Campagnes marketing générant le plus de trafic</p>
                     <div class="table-responsive">
                         <table class="table table-sm">
                             <thead>
                                 <tr>
-                                    <th>Campaign</th>
-                                    <th>Views</th>
+                                    <th>Campagne</th>
+                                    <th>Vues</th>
                                     <th>Conversions</th>
                                 </tr>
                             </thead>
@@ -266,7 +266,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="3" class="text-center text-muted">No UTM data</td>
+                                    <td colspan="3" class="text-center text-muted">Aucune donnée UTM</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -282,7 +282,7 @@
         <div class="col-md-12 mb-4">
             <div class="card hover-shadow">
                 <div class="card-header bg-secondary text-white">
-                    <i class="bi bi-browser-chrome"></i> Browser Statistics
+                    <i class="bi bi-browser-chrome"></i> Statistiques des navigateurs
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -309,8 +309,8 @@
             <div class="card hover-shadow">
                 <div class="card-body text-center">
                     <i class="bi bi-clock text-primary fs-1"></i>
-                    <h3 class="mt-2">{{ avg_time|floatformat:1 }} seconds</h3>
-                    <p class="text-muted">Average Time on Form</p>
+                    <h3 class="mt-2">{{ avg_time|floatformat:1 }} secondes</h3>
+                    <p class="text-muted">Temps moyen sur le formulaire</p>
                 </div>
             </div>
         </div>
@@ -327,7 +327,7 @@ new Chart(viewsCtx, {
     data: {
         labels: viewsData.map(d => d.date),
         datasets: [{
-            label: 'Form Views',
+            label: 'Vues du formulaire',
             data: viewsData.map(d => d.count),
             borderColor: 'rgb(75, 192, 192)',
             backgroundColor: 'rgba(75, 192, 192, 0.1)',

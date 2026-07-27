@@ -13,7 +13,7 @@ def room_create(request, event_id):
             room = form.save(commit=False)
             room.event = event
             room.save()
-            messages.success(request, f'Room "{room.name}" created successfully!')
+            messages.success(request, f'Salle « {room.name} » créée avec succès !')
             return redirect('dashboard:event_detail', event_id=event.id)
     else:
         form = RoomForm()
@@ -38,7 +38,7 @@ def room_edit(request, room_id):
         form = RoomForm(request.POST, instance=room)
         if form.is_valid():
             form.save()
-            messages.success(request, f'Room "{room.name}" updated successfully!')
+            messages.success(request, f'Salle « {room.name} » mise à jour avec succès !')
             return redirect('dashboard:event_detail', event_id=event.id)
     else:
         form = RoomForm(instance=room)
@@ -63,10 +63,10 @@ def room_delete(request, room_id):
     
     if request.method == 'POST':
         room.delete()
-        messages.success(request, f'Room "{room_name}" deleted successfully!')
+        messages.success(request, f'Salle « {room_name} » supprimée avec succès !')
         return redirect('dashboard:event_detail', event_id=event_id)
     
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:event_detail', event_id=event_id)
 
 
@@ -84,7 +84,7 @@ def session_create(request, event_id):
             session = form.save(commit=False)
             session.event = event
             session.save()
-            messages.success(request, f'Session "{session.title}" created successfully!')
+            messages.success(request, f'Session « {session.title} » créée avec succès !')
             return redirect('dashboard:event_detail', event_id=event.id)
     else:
         form = SessionForm(event=event)
@@ -109,7 +109,7 @@ def session_edit(request, session_id):
         form = SessionForm(request.POST, instance=session, event=event)
         if form.is_valid():
             form.save()
-            messages.success(request, f'Session "{session.title}" updated successfully!')
+            messages.success(request, f'Session « {session.title} » mise à jour avec succès !')
             return redirect('dashboard:event_detail', event_id=event.id)
     else:
         form = SessionForm(instance=session, event=event)
@@ -134,8 +134,8 @@ def session_delete(request, session_id):
     
     if request.method == 'POST':
         session.delete()
-        messages.success(request, f'Session "{session_title}" deleted successfully!')
+        messages.success(request, f'Session « {session_title} » supprimée avec succès !')
         return redirect('dashboard:event_detail', event_id=event_id)
     
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:event_detail', event_id=event_id)

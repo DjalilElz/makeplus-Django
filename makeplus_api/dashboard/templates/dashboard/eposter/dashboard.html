@@ -1,14 +1,14 @@
 {% extends 'dashboard/base.html' %}
 {% load static %}
 
-{% block title %}Scientific Contributions Dashboard - {{ event.name }}{% endblock %}
+{% block title %}Tableau de bord des contributions scientifiques - {{ event.name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 mb-0">Scientific Contributions Dashboard</h1>
+            <h1 class="h3 mb-0">Tableau de bord des contributions scientifiques</h1>
             <p class="text-muted mb-0">{{ event.name }}</p>
         </div>
         <div>
@@ -24,7 +24,7 @@
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Total Soumissions</h6>
+                        <h6 class="text-muted mb-1">Total des soumissions</h6>
                         <h2 class="mb-0">{{ stats.total }}</h2>
                     </div>
                     <div class="stat-icon bg-primary bg-opacity-10 text-primary">
@@ -167,7 +167,7 @@
                     {% else %}
                         <p class="text-muted text-center mb-0">
                             Aucun membre dans le comité.<br>
-                            <small>Add committee members in event creation step 4</small>
+                            <small>Ajoutez des membres du comité à l'étape 4 de la création de l'événement</small>
                         </p>
                     {% endif %}
                 </div>
@@ -207,7 +207,7 @@
                     </a>
                     <!-- Committee management removed - members added in event creation step 4 -->
                     <a href="{% url 'dashboard:contributions_email_templates' event.id %}" class="list-group-item list-group-item-action">
-                        <i class="bi bi-envelope me-2"></i> Templates d'emails
+                        <i class="bi bi-envelope me-2"></i> Modèles d'e-mails
                     </a>
                     <a href="{% url 'dashboard:contributions_export_csv' event.id %}" class="list-group-item list-group-item-action">
                         <i class="bi bi-download me-2"></i> Exporter CSV

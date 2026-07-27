@@ -9,7 +9,7 @@
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_dashboard' event.id %}">Scientific Contributions</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_dashboard' event.id %}">Contributions scientifiques</a></li>
                     <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_submissions_list' event.id %}">Soumissions</a></li>
                     <li class="breadcrumb-item active">Détail</li>
                 </ol>
@@ -286,7 +286,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const submitBtn = form.querySelector('button[type="submit"]');
             if (window.ButtonStateManager && submitBtn) {
-                window.ButtonStateManager.setProcessing(submitBtn, 'Submitting...');
+                window.ButtonStateManager.setProcessing(submitBtn, 'Envoi...');
             }
             
             const formData = new FormData(form);

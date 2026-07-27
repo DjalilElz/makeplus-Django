@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -180,7 +180,7 @@
             </p>
         </div>
         <a href="{% url 'caisse:logout' %}" class="logout-btn">
-            <i class="bi bi-box-arrow-right"></i> Logout
+            <i class="bi bi-box-arrow-right"></i> Déconnexion
         </a>
     </div>
 
@@ -194,7 +194,7 @@
                             <i class="bi bi-cash-coin" style="font-size: 2.5rem; color: #10b981;"></i>
                         </div>
                         <div class="flex-grow-1 ms-3">
-                            <h6 class="text-muted mb-1">Total Amount</h6>
+                            <h6 class="text-muted mb-1">Montant total</h6>
                             <h3 class="mb-0" style="color: #10b981;">{{ total_amount|floatformat:2 }} DZD</h3>
                         </div>
                     </div>
@@ -234,15 +234,15 @@
                 <div class="participant-list">
                     <div class="search-box">
                         <h5 class="mb-3">
-                            <i class="bi bi-people"></i> All Participants
+                            <i class="bi bi-people"></i> Tous les participants
                             <span class="badge bg-primary ms-2" id="participantCount">{{ all_participants.count }}</span>
                         </h5>
                         <div class="input-group">
                             <span class="input-group-text">
                                 <i class="bi bi-search"></i>
                             </span>
-                            <input type="text" class="form-control" id="searchInput" 
-                                   placeholder="Filter by name, email, or QR code..." 
+                            <input type="text" class="form-control" id="searchInput"
+                                   placeholder="Filtrer par nom, e-mail ou code QR..."
                                    autocomplete="off">
                         </div>
                     </div>
@@ -271,11 +271,11 @@
                             <div>
                                 {% if participant.caisse_transactions.exists %}
                                     <span class="participant-badge bg-success text-white">
-                                        <i class="bi bi-check-circle"></i> Checked In
+                                        <i class="bi bi-check-circle"></i> Enregistré
                                     </span>
                                 {% else %}
                                     <span class="participant-badge bg-secondary text-white">
-                                        <i class="bi bi-clock"></i> Pending
+                                        <i class="bi bi-clock"></i> En attente
                                     </span>
                                 {% endif %}
                             </div>
@@ -283,7 +283,7 @@
                         {% empty %}
                         <p class="text-center text-muted py-5">
                             <i class="bi bi-inbox" style="font-size: 3rem; display: block; margin-bottom: 10px;"></i>
-                            No participants found for this event
+                            Aucun participant trouvé pour cet événement
                         </p>
                         {% endfor %}
                     </div>
@@ -295,22 +295,22 @@
                 <div class="transaction-panel">
                     <div id="participantDetails" style="display: none;">
                         <h5 class="mb-3">
-                            <i class="bi bi-receipt"></i> Process Transaction
+                            <i class="bi bi-receipt"></i> Traiter la transaction
                         </h5>
                         <div class="alert alert-info mb-3">
                             <div class="mb-2">
-                                <strong><i class="bi bi-person"></i> Name:</strong> <span id="participantName"></span>
+                                <strong><i class="bi bi-person"></i> Nom :</strong> <span id="participantName"></span>
                             </div>
                             <div class="mb-2">
-                                <strong><i class="bi bi-envelope"></i> Email:</strong> <span id="participantEmail"></span>
+                                <strong><i class="bi bi-envelope"></i> E-mail :</strong> <span id="participantEmail"></span>
                             </div>
                             <div>
-                                <strong><i class="bi bi-qr-code"></i> QR Code:</strong> <span id="participantQR"></span>
+                                <strong><i class="bi bi-qr-code"></i> Code QR :</strong> <span id="participantQR"></span>
                             </div>
                         </div>
 
                         <h6 class="mb-3">
-                            <i class="bi bi-cart-check"></i> Select Items:
+                            <i class="bi bi-cart-check"></i> Sélectionner les articles :
                         </h6>
                         <div id="payableItems" style="max-height: 300px; overflow-y: auto;">
                             {% for item in payable_items %}
@@ -331,36 +331,36 @@
                                 </div>
                             </div>
                             {% empty %}
-                            <p class="text-muted text-center py-3">No payable items available</p>
+                            <p class="text-muted text-center py-3">Aucun article payable disponible</p>
                             {% endfor %}
                         </div>
 
                         <div class="bg-light p-3 rounded mb-3 mt-3">
                             <div class="d-flex justify-content-between align-items-center">
-                                <strong>Total Amount:</strong> 
+                                <strong>Montant total :</strong>
                                 <span id="totalAmount" class="fs-4" style="color: #10b981; font-weight: 700;">0.00 DZD</span>
                             </div>
                         </div>
                         
                         <div class="mb-3">
                             <label for="notes" class="form-label">
-                                <i class="bi bi-pencil-square"></i> Notes (Optional)
+                                <i class="bi bi-pencil-square"></i> Notes (facultatif)
                             </label>
-                            <textarea class="form-control" id="notes" rows="2" placeholder="Add any notes about this transaction..."></textarea>
+                            <textarea class="form-control" id="notes" rows="2" placeholder="Ajoutez des notes sur cette transaction..."></textarea>
                         </div>
-                        
+
                         <button type="button" class="btn btn-success w-100 py-2" onclick="processTransaction()">
-                            <i class="bi bi-check-circle"></i> Process Transaction & Print Badge
+                            <i class="bi bi-check-circle"></i> Traiter la transaction et imprimer le badge
                         </button>
                         <button type="button" class="btn btn-outline-secondary w-100 mt-2" onclick="clearForm()">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle"></i> Annuler
                         </button>
                     </div>
                     
                     <div id="noParticipantSelected" class="no-participant-selected">
                         <i class="bi bi-hand-index" style="font-size: 3rem; display: block; margin-bottom: 15px; color: #d1d5db;"></i>
-                        <h6 class="text-muted">Select a participant from the list</h6>
-                        <p class="small text-muted">Click on any participant to process their transaction</p>
+                        <h6 class="text-muted">Sélectionnez un participant dans la liste</h6>
+                        <p class="small text-muted">Cliquez sur un participant pour traiter sa transaction</p>
                     </div>
                 </div>
             </div>
@@ -371,16 +371,16 @@
             <div class="col-12">
                 <div class="stat-card">
                     <h5 class="mb-3">
-                        <i class="bi bi-clock-history"></i> Recent Transactions
+                        <i class="bi bi-clock-history"></i> Transactions récentes
                     </h5>
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>
                                 <tr>
                                     <th><i class="bi bi-person"></i> Participant</th>
-                                    <th><i class="bi bi-cart"></i> Items</th>
-                                    <th><i class="bi bi-cash"></i> Amount</th>
-                                    <th><i class="bi bi-clock"></i> Time</th>
+                                    <th><i class="bi bi-cart"></i> Articles</th>
+                                    <th><i class="bi bi-cash"></i> Montant</th>
+                                    <th><i class="bi bi-clock"></i> Heure</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -401,14 +401,14 @@
                                         <span class="badge bg-success">{{ transaction.total_amount }} DZD</span>
                                     </td>
                                     <td>
-                                        <small class="text-muted">{{ transaction.created_at|date:"M d, Y H:i" }}</small>
+                                        <small class="text-muted">{{ transaction.created_at|date:"d/m/Y H:i" }}</small>
                                     </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
                                     <td colspan="4" class="text-center text-muted py-4">
                                         <i class="bi bi-inbox" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
-                                        No transactions yet
+                                        Aucune transaction pour le moment
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -484,15 +484,15 @@
         // Process transaction
         function processTransaction() {
             if (!selectedParticipantId) {
-                alert('Please select a participant');
+                alert('Veuillez sélectionner un participant');
                 return;
             }
-            
+
             const selectedItems = Array.from(document.querySelectorAll('#payableItems input[type="checkbox"]:checked'))
                 .map(cb => cb.value);
-            
+
             if (selectedItems.length === 0) {
-                alert('Please select at least one item');
+                alert('Veuillez sélectionner au moins un article');
                 return;
             }
             
@@ -513,18 +513,18 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Transaction processed successfully!');
+                    alert('Transaction traitée avec succès !');
                     // Open badge print window
                     window.open(`{% url 'caisse:print_badge' 0 %}`.replace('0', data.transaction_id), '_blank');
                     // Reload page to update stats
                     location.reload();
                 } else {
-                    alert('Error: ' + data.message);
+                    alert('Erreur : ' + data.message);
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Failed to process transaction');
+                alert('Échec du traitement de la transaction');
             });
         }
         

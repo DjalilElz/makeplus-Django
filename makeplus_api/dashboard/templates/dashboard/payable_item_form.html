@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}{% if is_edit %}Edit{% else %}Add{% endif %} Payable Item{% endblock %}
+{% block title %}{% if is_edit %}Modifier{% else %}Ajouter{% endif %} un article payable{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -9,17 +9,17 @@
             <div class="card-header bg-primary text-white">
                 <h4 class="mb-0">
                     <i class="bi bi-{% if is_edit %}pencil{% else %}plus-circle{% endif %}"></i>
-                    {% if is_edit %}Edit{% else %}Add{% endif %} Payable Item
+                    {% if is_edit %}Modifier{% else %}Ajouter{% endif %} un article payable
                 </h4>
             </div>
             <div class="card-body">
                 <p class="text-muted mb-4">
-                    <i class="bi bi-calendar-event"></i> Event: <strong>{{ event.name }}</strong>
+                    <i class="bi bi-calendar-event"></i> Événement : <strong>{{ event.name }}</strong>
                 </p>
 
                 {% if form.errors %}
                     <div class="alert alert-danger">
-                        <strong>Please correct the errors below:</strong>
+                        <strong>Veuillez corriger les erreurs ci-dessous :</strong>
                         <ul class="mb-0">
                             {% for field, errors in form.errors.items %}
                                 {% for error in errors %}
@@ -35,26 +35,26 @@
                     
                     <div class="mb-3">
                         <label for="id_name" class="form-label">
-                            <i class="bi bi-tag"></i> Item Name *
+                            <i class="bi bi-tag"></i> Nom de l'article *
                         </label>
                         {{ form.name }}
-                        <div class="form-text">e.g., Dinner, Access Badge, Conference Materials</div>
+                        <div class="form-text">par ex. Dîner, Badge d'accès, Matériel de conférence</div>
                     </div>
 
                     <div class="mb-4">
                         <label for="id_price" class="form-label">
-                            <i class="bi bi-cash"></i> Price (DZD) *
+                            <i class="bi bi-cash"></i> Prix (DZD) *
                         </label>
                         {{ form.price }}
-                        <div class="form-text">Enter the price in Algerian Dinars</div>
+                        <div class="form-text">Saisissez le prix en dinars algériens</div>
                     </div>
 
                     <div class="d-flex justify-content-between">
                         <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle"></i> Annuler
                         </a>
                         <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-circle"></i> {% if is_edit %}Update{% else %}Create{% endif %} Item
+                            <i class="bi bi-check-circle"></i> {% if is_edit %}Mettre à jour{% else %}Créer{% endif %} l'article
                         </button>
                     </div>
                 </form>

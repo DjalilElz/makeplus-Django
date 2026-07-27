@@ -1,19 +1,19 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}Payable Items - {{ event.name }}{% endblock %}
+{% block title %}Articles payables - {{ event.name }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h2><i class="bi bi-cart-check"></i> Payable Items</h2>
-        <p class="text-muted">Event: {{ event.name }}</p>
+        <h2><i class="bi bi-cart-check"></i> Articles payables</h2>
+        <p class="text-muted">Événement : {{ event.name }}</p>
     </div>
     <div>
         <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Event
+            <i class="bi bi-arrow-left"></i> Retour à l'événement
         </a>
         <a href="{% url 'dashboard:payable_item_create' event.id %}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Add Payable Item
+            <i class="bi bi-plus-circle"></i> Ajouter un article payable
         </a>
     </div>
 </div>
@@ -51,34 +51,34 @@
                 {% if item.session %}
                 <p class="mb-2">
                     <i class="bi bi-calendar-event text-muted"></i>
-                    <small>Linked to session: {{ item.session.name }}</small>
+                    <small>Liée à la session : {{ item.session.name }}</small>
                 </p>
                 {% endif %}
-                
+
                 <div class="mb-3">
                     <small class="text-muted">
-                        <i class="bi bi-clock"></i> Created: {{ item.created_at|date:"M d, Y H:i" }}
+                        <i class="bi bi-clock"></i> Créé le : {{ item.created_at|date:"d/m/Y H:i" }}
                     </small>
                 </div>
-                
+
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" disabled {% if item.is_active %}checked{% endif %}>
                     <label class="form-check-label">
                         {% if item.is_active %}
-                            <span class="badge bg-success">Active</span>
+                            <span class="badge bg-success">Actif</span>
                         {% else %}
-                            <span class="badge bg-secondary">Inactive</span>
+                            <span class="badge bg-secondary">Inactif</span>
                         {% endif %}
                     </label>
                 </div>
-                
+
                 <div class="btn-group w-100">
                     <a href="{% url 'dashboard:payable_item_edit' item.id %}" class="btn btn-outline-primary">
-                        <i class="bi bi-pencil"></i> Edit
+                        <i class="bi bi-pencil"></i> Modifier
                     </a>
-                    <button type="button" class="btn btn-outline-danger" 
+                    <button type="button" class="btn btn-outline-danger"
                             onclick="confirmDelete('{{ item.id }}', '{{ item.name }}')">
-                        <i class="bi bi-trash"></i> Delete
+                        <i class="bi bi-trash"></i> Supprimer
                     </button>
                 </div>
             </div>
@@ -88,8 +88,8 @@
 </div>
 {% else %}
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> No payable items found for this event.
-    <a href="{% url 'dashboard:payable_item_create' event.id %}" class="alert-link">Create one now</a>
+    <i class="bi bi-info-circle"></i> Aucun article payable trouvé pour cet événement.
+    <a href="{% url 'dashboard:payable_item_create' event.id %}" class="alert-link">Créez-en un maintenant</a>
 </div>
 {% endif %}
 
@@ -98,17 +98,17 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Confirm Delete</h5>
+                <h5 class="modal-title">Confirmer la suppression</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                Are you sure you want to delete the payable item "<span id="itemName"></span>"?
+                Êtes-vous sûr de vouloir supprimer l'article payable « <span id="itemName"></span> » ?
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                 <form id="deleteForm" method="post" style="display: inline;">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-danger">Delete</button>
+                    <button type="submit" class="btn btn-danger">Supprimer</button>
                 </form>
             </div>
         </div>

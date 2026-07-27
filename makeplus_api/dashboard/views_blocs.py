@@ -163,7 +163,7 @@ def blocs_config_save(request, event_id):
     config.require_payment_proof = bool(request.POST.get('require_payment_proof'))
 
     config.save()
-    messages.success(request, 'Registration configuration saved.')
+    messages.success(request, "Configuration de l'inscription enregistrée.")
     return redirect('dashboard:blocs_config', event_id=event.id)
 
 
@@ -183,7 +183,7 @@ def bloc_item_save(request, event_id):
 
     valid_blocs = [b for b, _ in CUSTOM_BLOC_CHOICES]
     if bloc not in valid_blocs or not name:
-        messages.error(request, 'A bloc and a name are required.')
+        messages.error(request, 'Un bloc et un nom sont obligatoires.')
         return redirect('dashboard:blocs_config', event_id=event.id)
 
     try:
@@ -199,10 +199,10 @@ def bloc_item_save(request, event_id):
         item.price = price
         item.order = order
         item.save()
-        messages.success(request, f'Item "{name}" updated.')
+        messages.success(request, f'Article « {name} » mis à jour.')
     else:
         BlocItem.objects.create(event=event, bloc=bloc, name=name, description=description, price=price, order=order)
-        messages.success(request, f'Item "{name}" added.')
+        messages.success(request, f'Article « {name} » ajouté.')
 
     return redirect('dashboard:blocs_config', event_id=event.id)
 
@@ -216,7 +216,7 @@ def bloc_item_delete(request, item_id):
     event_id = item.event_id
     name = item.name
     item.delete()
-    messages.success(request, f'Item "{name}" deleted.')
+    messages.success(request, f'Article « {name} » supprimé.')
     return redirect('dashboard:blocs_config', event_id=event_id)
 
 
@@ -336,7 +336,7 @@ def bloc_status_rules_save(request, event_id):
 
     _save_price_rule_cells(request, event, cells)
 
-    messages.success(request, 'Pricing rules saved.')
+    messages.success(request, 'Règles de tarification enregistrées.')
     return redirect('dashboard:blocs_config', event_id=event.id)
 
 
@@ -354,11 +354,11 @@ def reduction_period_save(request, event_id):
     discount = _parse_decimal(request.POST.get('discount_percent'))
 
     if not start_date or not end_date:
-        messages.error(request, 'Start and end dates are required for a period.')
+        messages.error(request, 'Les dates de début et de fin sont obligatoires pour une période.')
         return redirect('dashboard:blocs_config', event_id=event.id)
 
     if end_date < start_date:
-        messages.error(request, 'The period end date must be on or after the start date.')
+        messages.error(request, 'La date de fin de la période doit être postérieure ou égale à la date de début.')
         return redirect('dashboard:blocs_config', event_id=event.id)
 
     if period_id:
@@ -368,12 +368,12 @@ def reduction_period_save(request, event_id):
         period.end_date = end_date
         period.discount_percent = discount
         period.save()
-        messages.success(request, 'Reduction period updated.')
+        messages.success(request, 'Période de réduction mise à jour.')
     else:
         ReductionPeriod.objects.create(
             event=event, name=name, start_date=start_date, end_date=end_date, discount_percent=discount
         )
-        messages.success(request, 'Reduction period added.')
+        messages.success(request, 'Période de réduction ajoutée.')
 
     return redirect('dashboard:blocs_config', event_id=event.id)
 
@@ -386,7 +386,7 @@ def reduction_period_delete(request, period_id):
     period = get_object_or_404(ReductionPeriod, id=period_id)
     event_id = period.event_id
     period.delete()
-    messages.success(request, 'Reduction period deleted.')
+    messages.success(request, 'Période de réduction supprimée.')
     return redirect('dashboard:blocs_config', event_id=event_id)
 
 
@@ -413,7 +413,7 @@ def workshop_order_save(request, event_id):
             session.order = new_order
             session.save(update_fields=['order'])
 
-    messages.success(request, 'Workshop order updated.')
+    messages.success(request, "Ordre des ateliers mis à jour.")
     return redirect('dashboard:blocs_config', event_id=event.id)
 
 

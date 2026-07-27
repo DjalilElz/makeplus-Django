@@ -97,14 +97,14 @@ def create_form_for_event(request, event_id):
         if form_type == 'communicant':
             messages.success(
                 request, 
-                f'Call for Communicants form created for "{event.name}". '
-                f'Public URL: /contributions/{event.id}/'
+                f'Formulaire d\'appel à communications créé pour « {event.name} ». '
+                f'URL publique : /contributions/{event.id}/'
             )
             return redirect('dashboard:contributions_dashboard', event_id=event.id)
         else:
             messages.success(
                 request, 
-                f'Participant registration form created for "{event.name}".'
+                f'Formulaire d\'inscription des participants créé pour « {event.name} ».'
             )
             return redirect('dashboard:event_detail', event_id=event.id)
     
@@ -140,8 +140,8 @@ def eposter_enable_for_event(request, event_id):
         
         messages.success(
             request, 
-            f'Call for Communicants enabled for "{event.name}". '
-            f'Public URL: /contributions/{event.id}/'
+            f'Appel à communications activé pour « {event.name} ». '
+            f'URL publique : /contributions/{event.id}/'
         )
         return redirect('dashboard:eposter_dashboard', event_id=event.id)
     
@@ -216,10 +216,10 @@ def eposter_form_toggle(request, event_id):
     config.is_active = not config.is_active
     config.save()
     
-    status_text = "activated" if config.is_active else "deactivated"
+    status_text = "activé" if config.is_active else "désactivé"
     messages.success(
         request,
-        f'Call for Communicants form {status_text} for "{event.name}"'
+        f'Formulaire d\'appel à communications {status_text} pour « {event.name} »'
     )
     
     # Clear cache to ensure fresh data

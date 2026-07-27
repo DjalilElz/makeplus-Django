@@ -1,14 +1,14 @@
 {% extends 'dashboard/base.html' %}
 {% load static %}
 
-{% block title %}{% if form %}Edit {{ form.name }}{% else %}Create Registration Form{% endif %} - Form Builder{% endblock %}
+{% block title %}{% if form %}Modifier {{ form.name }}{% else %}Créer un formulaire d'inscription{% endif %} - Générateur de formulaire{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-12">
-            <h2><i class="bi bi-ui-checks me-2"></i>{% if form %}Edit {{ form.name }}{% else %}Create New Registration Form{% endif %}</h2>
-            <p class="text-muted">Build a custom registration form with reorderable fields</p>
+            <h2><i class="bi bi-ui-checks me-2"></i>{% if form %}Modifier {{ form.name }}{% else %}Créer un nouveau formulaire d'inscription{% endif %}</h2>
+            <p class="text-muted">Créez un formulaire d'inscription personnalisé avec des champs réorganisables</p>
         </div>
     </div>
 
@@ -21,38 +21,38 @@
                 <!-- Form Information Card -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Form Information</h5>
+                        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Informations du formulaire</h5>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label for="formName" class="form-label">Form Name *</label>
-                            <input type="text" class="form-control" id="formName" name="name" 
-                                   value="{% if form %}{{ form.name }}{% endif %}" required 
-                                   placeholder="e.g., Conference 2026 Registration">
+                            <label for="formName" class="form-label">Nom du formulaire *</label>
+                            <input type="text" class="form-control" id="formName" name="name"
+                                   value="{% if form %}{{ form.name }}{% endif %}" required
+                                   placeholder="par ex. Inscription Congrès 2026">
                         </div>
 
                         <div class="mb-3">
                             <label for="formSlug" class="form-label">Slug (URL) *</label>
                             <div class="input-group">
                                 <span class="input-group-text">/forms/</span>
-                                <input type="text" class="form-control" id="formSlug" name="slug" 
-                                       value="{% if form %}{{ form.slug }}{% endif %}" required 
+                                <input type="text" class="form-control" id="formSlug" name="slug"
+                                       value="{% if form %}{{ form.slug }}{% endif %}" required
                                        pattern="[a-z0-9-]+"
-                                       placeholder="conference-2026-registration">
+                                       placeholder="inscription-congres-2026">
                             </div>
-                            <small class="text-muted">Only lowercase letters, numbers, and hyphens</small>
+                            <small class="text-muted">Uniquement des lettres minuscules, chiffres et tirets</small>
                         </div>
 
                         <div class="mb-3">
                             <label for="formDescription" class="form-label">Description</label>
-                            <textarea class="form-control" id="formDescription" name="description" 
-                                      rows="2" placeholder="Describe this form...">{% if form %}{{ form.description }}{% endif %}</textarea>
+                            <textarea class="form-control" id="formDescription" name="description"
+                                      rows="2" placeholder="Décrivez ce formulaire...">{% if form %}{{ form.description }}{% endif %}</textarea>
                         </div>
 
                         <div class="mb-3">
-                            <label for="formEvent" class="form-label">Link to Event *</label>
+                            <label for="formEvent" class="form-label">Lier à un événement *</label>
                             <select class="form-select" id="formEvent" name="event_id" required>
-                                <option value="">-- Select Event --</option>
+                                <option value="">-- Sélectionner un événement --</option>
                                 {% for event in events %}
                                     <option value="{{ event.id }}" {% if form and form.event_id == event.id %}selected{% endif %}>
                                         {{ event.name }}
@@ -62,39 +62,39 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="successMessage" class="form-label">Success Message</label>
-                            <textarea class="form-control" id="successMessage" name="success_message" 
-                                      rows="2" placeholder="Thank you for submitting!">{% if form and form.success_message %}{{ form.success_message }}{% else %}Thank you for your submission!{% endif %}</textarea>
+                            <label for="successMessage" class="form-label">Message de succès</label>
+                            <textarea class="form-control" id="successMessage" name="success_message"
+                                      rows="2" placeholder="Merci pour votre soumission !">{% if form and form.success_message %}{{ form.success_message }}{% else %}Merci pour votre soumission !{% endif %}</textarea>
                         </div>
 
                         <!-- Countdown Settings -->
                         <div class="card bg-light mb-3">
                             <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-clock-history me-2"></i>Countdown Timer</h6>
-                                <p class="text-muted small">Display a countdown timer on the registration form</p>
-                                
+                                <h6 class="card-title"><i class="bi bi-clock-history me-2"></i>Compte à rebours</h6>
+                                <p class="text-muted small">Afficher un compte à rebours sur le formulaire d'inscription</p>
+
                                 <div class="form-check mb-3">
-                                    <input class="form-check-input" type="checkbox" id="countdownEnabled" name="countdown_enabled" 
+                                    <input class="form-check-input" type="checkbox" id="countdownEnabled" name="countdown_enabled"
                                            {% if form and form.countdown_enabled %}checked{% endif %}
                                            onchange="toggleCountdownFields()">
                                     <label class="form-check-label" for="countdownEnabled">
-                                        Enable countdown timer
+                                        Activer le compte à rebours
                                     </label>
                                 </div>
-                                
+
                                 <div id="countdownFields" style="display: {% if form and form.countdown_enabled %}block{% else %}none{% endif %};">
                                     <div class="mb-3">
-                                        <label for="countdownTitle" class="form-label">Countdown Title</label>
-                                        <input type="text" class="form-control" id="countdownTitle" name="countdown_title" 
-                                               value="{% if form and form.countdown_title %}{{ form.countdown_title }}{% else %}Event Starts In{% endif %}"
-                                               placeholder="e.g., Event Starts In">
+                                        <label for="countdownTitle" class="form-label">Titre du compte à rebours</label>
+                                        <input type="text" class="form-control" id="countdownTitle" name="countdown_title"
+                                               value="{% if form and form.countdown_title %}{{ form.countdown_title }}{% else %}L'événement commence dans{% endif %}"
+                                               placeholder="par ex. L'événement commence dans">
                                     </div>
-                                    
+
                                     <div class="mb-3">
-                                        <label for="countdownDate" class="form-label">Target Date & Time</label>
-                                        <input type="datetime-local" class="form-control" id="countdownDate" name="countdown_date" 
+                                        <label for="countdownDate" class="form-label">Date et heure cibles</label>
+                                        <input type="datetime-local" class="form-control" id="countdownDate" name="countdown_date"
                                                value="{% if form and form.countdown_date %}{{ form.countdown_date|date:'Y-m-d\TH:i' }}{% endif %}">
-                                        <small class="text-muted">The countdown will count down to this date and time</small>
+                                        <small class="text-muted">Le compte à rebours se terminera à cette date et heure</small>
                                     </div>
                                 </div>
                             </div>
@@ -103,32 +103,32 @@
                         <!-- Banner Image Settings -->
                         <div class="card bg-light mb-3">
                             <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-image me-2"></i>Banner Image</h6>
-                                <p class="text-muted small">Upload an image to use as the page header instead of the default designed banner. Toggle it on/off per event without losing the uploaded image.</p>
-                                <p class="text-muted small"><strong>Recommended size: 1600 &times; 500 px</strong> (ratio 3.2:1). Images are displayed cropped to this ratio, so exporting at that exact size avoids any cropping.</p>
+                                <h6 class="card-title"><i class="bi bi-image me-2"></i>Image de bannière</h6>
+                                <p class="text-muted small">Téléversez une image à utiliser comme en-tête de page à la place de la bannière conçue par défaut. Activez-la/désactivez-la par événement sans perdre l'image téléversée.</p>
+                                <p class="text-muted small"><strong>Taille recommandée : 1600 &times; 500 px</strong> (ratio 3.2:1). Les images sont affichées recadrées à ce ratio ; exporter à cette taille exacte évite tout recadrage.</p>
 
                                 <div class="form-check mb-3">
                                     <input class="form-check-input" type="checkbox" id="useBannerImage" name="use_banner_image"
                                            {% if form and form.use_banner_image %}checked{% endif %}>
                                     <label class="form-check-label" for="useBannerImage">
-                                        Use this image as the form header (instead of the default design)
+                                        Utiliser cette image comme en-tête du formulaire (au lieu du design par défaut)
                                     </label>
                                 </div>
 
                                 {% if form and form.banner_image %}
                                 <div class="mb-3">
-                                    <img src="{{ form.banner_image.url }}" alt="Current banner" class="img-fluid rounded mb-2" style="max-height: 150px;">
+                                    <img src="{{ form.banner_image.url }}" alt="Bannière actuelle" class="img-fluid rounded mb-2" style="max-height: 150px;">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="clearBanner" name="clear_banner">
                                         <label class="form-check-label" for="clearBanner">
-                                            Remove current banner image
+                                            Supprimer l'image de bannière actuelle
                                         </label>
                                     </div>
                                 </div>
                                 {% endif %}
 
                                 <div class="mb-3">
-                                    <label for="bannerImage" class="form-label">{% if form and form.banner_image %}Replace banner image{% else %}Upload banner image{% endif %}</label>
+                                    <label for="bannerImage" class="form-label">{% if form and form.banner_image %}Remplacer l'image de bannière{% else %}Téléverser une image de bannière{% endif %}</label>
                                     <input type="file" class="form-control" id="bannerImage" name="banner_image" accept="image/*">
                                 </div>
                             </div>
@@ -138,7 +138,7 @@
                             <input class="form-check-input" type="checkbox" id="isActive" name="is_active"
                                    {% if not form or form.is_active %}checked{% endif %}>
                             <label class="form-check-label" for="isActive">
-                                Form is active (users can submit)
+                                Formulaire actif (les utilisateurs peuvent soumettre)
                             </label>
                         </div>
                     </div>
@@ -147,36 +147,36 @@
                 <!-- Fields Builder Card -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Form Fields</h5>
+                        <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Champs du formulaire</h5>
                     </div>
                     <div class="card-body">
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle me-2"></i>
-                            <strong>Required Fields:</strong> Email, First Name, and Last Name are required to create participant accounts. 
-                            <br>These fields are always included in your form. Add custom fields below to collect additional information.
-                            <br><strong>Note:</strong> Users will receive a 6-digit login code via email after registration (passwordless authentication).
+                            <strong>Champs obligatoires :</strong> l'e-mail, le prénom et le nom sont requis pour créer les comptes des participants.
+                            <br>Ces champs sont toujours inclus dans votre formulaire. Ajoutez des champs personnalisés ci-dessous pour collecter des informations supplémentaires.
+                            <br><strong>Remarque :</strong> les utilisateurs recevront un code de connexion à 6 chiffres par e-mail après l'inscription (authentification sans mot de passe).
                         </div>
-                        
+
                         <!-- Required Fields (Non-removable) -->
-                        <h6 class="text-primary mb-3"><i class="bi bi-lock-fill me-2"></i>Required Fields</h6>
+                        <h6 class="text-primary mb-3"><i class="bi bi-lock-fill me-2"></i>Champs obligatoires</h6>
                         <div id="requiredFieldsContainer" class="mb-4">
                             <!-- Required fields will be rendered here by JavaScript -->
                         </div>
-                        
+
                         <!-- Custom Fields Header -->
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="mb-0 text-secondary"><i class="bi bi-plus-square me-2"></i>Custom Fields</h6>
+                            <h6 class="mb-0 text-secondary"><i class="bi bi-plus-square me-2"></i>Champs personnalisés</h6>
                             <button type="button" class="btn btn-sm btn-primary" id="addFieldBtn">
-                                <i class="bi bi-plus-circle me-1"></i>Add Custom Field
+                                <i class="bi bi-plus-circle me-1"></i>Ajouter un champ personnalisé
                             </button>
                         </div>
-                        
+
                         <div id="fieldsContainer">
                             <!-- Custom fields will be dynamically added here -->
                         </div>
-                        
+
                         <div id="noFieldsMessage" class="text-center text-muted py-3">
-                            <p>No custom fields added yet. Click "Add Custom Field" to add additional fields to your form.</p>
+                            <p>Aucun champ personnalisé ajouté pour le moment. Cliquez sur « Ajouter un champ personnalisé » pour ajouter des champs à votre formulaire.</p>
                         </div>
                     </div>
                 </div>
@@ -187,10 +187,10 @@
                 <!-- Action Buttons -->
                 <div class="mb-4">
                     <button type="submit" class="btn btn-primary btn-lg">
-                        <i class="bi bi-check-circle me-2"></i>Save Form
+                        <i class="bi bi-check-circle me-2"></i>Enregistrer le formulaire
                     </button>
                     <a href="{% url 'dashboard:registration_form_builder' %}" class="btn btn-secondary btn-lg">
-                        <i class="bi bi-x-circle me-2"></i>Cancel
+                        <i class="bi bi-x-circle me-2"></i>Annuler
                     </a>
                 </div>
             </div>
@@ -199,11 +199,11 @@
             <div class="col-lg-4">
                 <div class="card sticky-top" style="top: 80px;">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-eye me-2"></i>Live Preview</h5>
+                        <h5 class="mb-0"><i class="bi bi-eye me-2"></i>Aperçu en direct</h5>
                     </div>
                     <div class="card-body">
                         <div id="previewContainer">
-                            <p class="text-muted text-center">Preview will appear here as you add fields</p>
+                            <p class="text-muted text-center">L'aperçu apparaîtra ici au fur et à mesure que vous ajoutez des champs</p>
                         </div>
                     </div>
                 </div>
@@ -270,26 +270,26 @@ let formFields = [];
 let requiredFields = [
     {
         name: 'last_name',
-        label: 'Last Name',
+        label: 'Nom',
         type: 'text',
         required: true,
-        placeholder: 'Enter your last name',
+        placeholder: 'Saisissez votre nom',
         isSystemField: true
     },
     {
         name: 'first_name',
-        label: 'First Name',
+        label: 'Prénom',
         type: 'text',
         required: true,
-        placeholder: 'Enter your first name',
+        placeholder: 'Saisissez votre prénom',
         isSystemField: true
     },
     {
         name: 'email',
-        label: 'Email Address',
+        label: 'Adresse e-mail',
         type: 'email',
         required: true,
-        placeholder: 'Enter your email address',
+        placeholder: 'Saisissez votre adresse e-mail',
         isSystemField: true
     }
 ];
@@ -393,26 +393,26 @@ function renderRequiredField(field, index) {
                     <i class="bi bi-lock-fill text-primary me-2"></i>
                     <strong>${field.label}</strong>
                     <span class="badge bg-primary field-type-badge ms-2">${field.type}</span>
-                    <span class="badge bg-danger ms-1">Required</span>
+                    <span class="badge bg-danger ms-1">Obligatoire</span>
                 </div>
             </div>
-            
+
             <div class="row g-2">
                 <div class="col-md-6">
-                    <label class="form-label small">Label</label>
-                    <input type="text" class="form-control form-control-sm" 
-                           value="${field.label}" 
+                    <label class="form-label small">Libellé</label>
+                    <input type="text" class="form-control form-control-sm"
+                           value="${field.label}"
                            onchange="updateRequiredField(${index}, 'label', this.value)">
                 </div>
-                
+
                 <div class="col-md-6">
-                    <label class="form-label small">Field Name</label>
-                    <input type="text" class="form-control form-control-sm" 
+                    <label class="form-label small">Nom du champ</label>
+                    <input type="text" class="form-control form-control-sm"
                            value="${field.name}" disabled readonly>
                 </div>
-                
+
                 <div class="col-12">
-                    <label class="form-label small">Placeholder</label>
+                    <label class="form-label small">Texte indicatif</label>
                     <input type="text" class="form-control form-control-sm" 
                            value="${field.placeholder || ''}" 
                            onchange="updateRequiredField(${index}, 'placeholder', this.value)">
@@ -436,7 +436,7 @@ function updateRequiredField(index, property, value) {
 function addField() {
     const field = {
         name: `field_${fieldCounter}`,
-        label: `Field ${fieldCounter + 1}`,
+        label: `Champ ${fieldCounter + 1}`,
         type: 'text',
         required: false,
         placeholder: '',
@@ -468,11 +468,11 @@ function renderField(field, index) {
                     <span class="badge bg-secondary field-type-badge ms-2">${field.type}</span>
                 </div>
                 <div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Move up"
+                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Monter"
                             onclick="moveField(${index}, -1)" ${index === 0 ? 'disabled' : ''}>
                         <i class="bi bi-arrow-up"></i>
                     </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Move down"
+                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Descendre"
                             onclick="moveField(${index}, 1)" ${index === formFields.length - 1 ? 'disabled' : ''}>
                         <i class="bi bi-arrow-down"></i>
                     </button>
@@ -484,65 +484,65 @@ function renderField(field, index) {
             
             <div class="row g-2">
                 <div class="col-md-6">
-                    <label class="form-label small">Label</label>
-                    <input type="text" class="form-control form-control-sm" 
-                           value="${field.label}" 
+                    <label class="form-label small">Libellé</label>
+                    <input type="text" class="form-control form-control-sm"
+                           value="${field.label}"
                            onchange="updateField(${index}, 'label', this.value)">
                 </div>
-                
+
                 <div class="col-md-6">
-                    <label class="form-label small">Field Name</label>
+                    <label class="form-label small">Nom du champ</label>
                     <input type="text" class="form-control form-control-sm"
                            value="${field.name}"
                            onchange="updateField(${index}, 'name', this.value, this)">
                 </div>
-                
+
                 <div class="col-md-6">
                     <label class="form-label small">Type</label>
-                    <select class="form-select form-select-sm" 
+                    <select class="form-select form-select-sm"
                             onchange="updateFieldType(${index}, this.value)">
-                        <optgroup label="Text Inputs">
-                            <option value="text" ${field.type === 'text' ? 'selected' : ''}>Text</option>
-                            <option value="email" ${field.type === 'email' ? 'selected' : ''}>Email</option>
-                            <option value="tel" ${field.type === 'tel' ? 'selected' : ''}>Phone</option>
+                        <optgroup label="Champs texte">
+                            <option value="text" ${field.type === 'text' ? 'selected' : ''}>Texte</option>
+                            <option value="email" ${field.type === 'email' ? 'selected' : ''}>E-mail</option>
+                            <option value="tel" ${field.type === 'tel' ? 'selected' : ''}>Téléphone</option>
                             <option value="url" ${field.type === 'url' ? 'selected' : ''}>URL</option>
-                            <option value="textarea" ${field.type === 'textarea' ? 'selected' : ''}>Textarea</option>
+                            <option value="textarea" ${field.type === 'textarea' ? 'selected' : ''}>Zone de texte</option>
                         </optgroup>
-                        <optgroup label="Numbers">
-                            <option value="number" ${field.type === 'number' ? 'selected' : ''}>Number</option>
+                        <optgroup label="Nombres">
+                            <option value="number" ${field.type === 'number' ? 'selected' : ''}>Nombre</option>
                         </optgroup>
-                        <optgroup label="Date & Time">
+                        <optgroup label="Date et heure">
                             <option value="date" ${field.type === 'date' ? 'selected' : ''}>Date</option>
                         </optgroup>
-                        <optgroup label="Selection">
-                            <option value="select" ${field.type === 'select' ? 'selected' : ''}>Dropdown</option>
-                            <option value="checkbox" ${field.type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
-                            <option value="radio" ${field.type === 'radio' ? 'selected' : ''}>Radio</option>
+                        <optgroup label="Sélection">
+                            <option value="select" ${field.type === 'select' ? 'selected' : ''}>Liste déroulante</option>
+                            <option value="checkbox" ${field.type === 'checkbox' ? 'selected' : ''}>Case à cocher</option>
+                            <option value="radio" ${field.type === 'radio' ? 'selected' : ''}>Bouton radio</option>
                         </optgroup>
-                        <optgroup label="Other">
-                            <option value="file" ${field.type === 'file' ? 'selected' : ''}>File Upload</option>
+                        <optgroup label="Autre">
+                            <option value="file" ${field.type === 'file' ? 'selected' : ''}>Téléversement de fichier</option>
                         </optgroup>
                     </select>
                 </div>
-                
+
                 <div class="col-md-6">
                     <label class="form-label small">
-                        <input type="checkbox" ${field.required ? 'checked' : ''} 
+                        <input type="checkbox" ${field.required ? 'checked' : ''}
                                onchange="updateField(${index}, 'required', this.checked)">
-                        Required
+                        Obligatoire
                     </label>
                 </div>
-                
+
                 <div class="col-12">
-                    <label class="form-label small">Placeholder</label>
-                    <input type="text" class="form-control form-control-sm" 
-                           value="${field.placeholder || ''}" 
+                    <label class="form-label small">Texte indicatif</label>
+                    <input type="text" class="form-control form-control-sm"
+                           value="${field.placeholder || ''}"
                            onchange="updateField(${index}, 'placeholder', this.value)">
                 </div>
-                
+
                 ${['select', 'radio', 'checkbox'].includes(field.type) ? `
                 <div class="col-12">
-                    <label class="form-label small">Options (one per line)</label>
+                    <label class="form-label small">Options (une par ligne)</label>
                     <textarea class="form-control form-control-sm" rows="3" 
                               onchange="updateFieldOptions(${index}, this.value)">${(field.options || []).join('\n')}</textarea>
                 </div>
@@ -568,7 +568,7 @@ function updateField(index, property, value, sourceEl) {
         const systemNames = requiredFields.map(f => f.name);
         const takenByOther = formFields.some((f, i) => i !== index && f.name === trimmed);
         if (!trimmed || systemNames.includes(trimmed) || takenByOther) {
-            alert(`"${trimmed}" is already used by another field. Choose a different field name.`);
+            alert(`« ${trimmed} » est déjà utilisé par un autre champ. Choisissez un nom de champ différent.`);
             if (sourceEl) sourceEl.value = formFields[index].name;
             return;
         }
@@ -603,7 +603,7 @@ function updateFieldOptions(index, value) {
 
 // Remove field
 function removeField(index) {
-    if (confirm('Remove this field?')) {
+    if (confirm('Supprimer ce champ ?')) {
         formFields.splice(index, 1);
 
         // Re-render all fields
@@ -666,7 +666,7 @@ function updatePreview() {
             html += `<textarea class="form-control" placeholder="${field.placeholder || ''}"></textarea>`;
         } else if (field.type === 'select') {
             html += `<select class="form-select">`;
-            html += `<option value="">-- Select --</option>`;
+            html += `<option value="">-- Sélectionner --</option>`;
             (field.options || []).forEach(opt => {
                 html += `<option value="${opt}">${opt}</option>`;
             });

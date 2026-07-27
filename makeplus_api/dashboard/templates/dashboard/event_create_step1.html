@@ -1,7 +1,7 @@
 {% extends 'dashboard/base.html' %}
 <!-- Template updated: 2026-04-01 -->
 
-{% block page_title %}Create Event - Step 1{% endblock %}
+{% block page_title %}Créer un événement - Étape 1{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -9,11 +9,11 @@
     <div class="progress-steps">
         <div class="progress-step active">
             <div class="progress-step-circle">1</div>
-            <div>Event Details</div>
+            <div>Détails de l'événement</div>
         </div>
         <div class="progress-step">
             <div class="progress-step-circle">2</div>
-            <div>Rooms</div>
+            <div>Salles</div>
         </div>
         <div class="progress-step">
             <div class="progress-step-circle">3</div>
@@ -21,21 +21,21 @@
         </div>
         <div class="progress-step">
             <div class="progress-step-circle">4</div>
-            <div>Users</div>
+            <div>Utilisateurs</div>
         </div>
     </div>
-    
+
     <!-- Form Card -->
     <div class="row justify-content-center">
         <div class="col-lg-8">
             <div class="stat-card">
                 <h4 class="mb-4">
-                    <i class="bi bi-calendar-event"></i> Step 1: Event Details
+                    <i class="bi bi-calendar-event"></i> Étape 1 : Détails de l'événement
                 </h4>
-                
+
                 {% if form.errors %}
                     <div class="alert alert-danger">
-                        <strong>Please correct the following errors:</strong>
+                        <strong>Veuillez corriger les erreurs suivantes :</strong>
                         <ul class="mb-0">
                             {% for field, errors in form.errors.items %}
                                 {% for error in errors %}
@@ -51,7 +51,7 @@
                     
                     <div class="row">
                         <div class="col-md-12 mb-3">
-                            <label for="{{ form.name.id_for_label }}" class="form-label">Event Name *</label>
+                            <label for="{{ form.name.id_for_label }}" class="form-label">Nom de l'événement *</label>
                             {{ form.name }}
                             {% if form.name.errors %}
                                 <div class="text-danger small">{{ form.name.errors }}</div>
@@ -67,7 +67,7 @@
                         </div>
                         
                         <div class="col-md-6 mb-3">
-                            <label for="{{ form.start_date.id_for_label }}" class="form-label">Start Date *</label>
+                            <label for="{{ form.start_date.id_for_label }}" class="form-label">Date de début *</label>
                             {{ form.start_date }}
                             {% if form.start_date.errors %}
                                 <div class="text-danger small">{{ form.start_date.errors }}</div>
@@ -75,7 +75,7 @@
                         </div>
                         
                         <div class="col-md-6 mb-3">
-                            <label for="{{ form.end_date.id_for_label }}" class="form-label">End Date *</label>
+                            <label for="{{ form.end_date.id_for_label }}" class="form-label">Date de fin *</label>
                             {{ form.end_date }}
                             {% if form.end_date.errors %}
                                 <div class="text-danger small">{{ form.end_date.errors }}</div>
@@ -83,7 +83,7 @@
                         </div>
                         
                         <div class="col-md-6 mb-3">
-                            <label for="{{ form.location.id_for_label }}" class="form-label">Location *</label>
+                            <label for="{{ form.location.id_for_label }}" class="form-label">Lieu *</label>
                             {{ form.location }}
                             {% if form.location.errors %}
                                 <div class="text-danger small">{{ form.location.errors }}</div>
@@ -91,16 +91,16 @@
                         </div>
                         
                         <div class="col-md-6 mb-3">
-                            <label for="{{ form.location_url.id_for_label }}" class="form-label">Location URL (Google Maps)</label>
+                            <label for="{{ form.location_url.id_for_label }}" class="form-label">URL du lieu (Google Maps)</label>
                             {{ form.location_url }}
                             {% if form.location_url.errors %}
                                 <div class="text-danger small">{{ form.location_url.errors }}</div>
                             {% endif %}
-                            <div class="form-text">Optional: Google Maps link to the location</div>
+                            <div class="form-text">Facultatif : lien Google Maps vers le lieu</div>
                         </div>
                         
                         <div class="col-md-6 mb-3">
-                            <label for="{{ form.status.id_for_label }}" class="form-label">Status</label>
+                            <label for="{{ form.status.id_for_label }}" class="form-label">Statut</label>
                             {{ form.status }}
                             {% if form.status.errors %}
                                 <div class="text-danger small">{{ form.status.errors }}</div>
@@ -114,30 +114,30 @@
                         <!-- Image Uploads Section -->
                         <div class="col-12 mt-3">
                             <h5 class="mb-3">
-                                <i class="bi bi-image"></i> Event Images (Optional)
+                                <i class="bi bi-image"></i> Images de l'événement (facultatif)
                             </h5>
                         </div>
                         
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.logo.id_for_label }}" class="form-label">
-                                <i class="bi bi-award"></i> Logo Image
+                                <i class="bi bi-award"></i> Logo
                             </label>
                             {{ form.logo }}
                             {% if form.logo.errors %}
                                 <div class="text-danger small">{{ form.logo.errors }}</div>
                             {% endif %}
-                            <div class="form-text">Upload event logo (JPG, PNG, etc.)</div>
+                            <div class="form-text">Téléversez le logo de l'événement (JPG, PNG, etc.)</div>
                         </div>
                         
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.banner.id_for_label }}" class="form-label">
-                                <i class="bi bi-card-image"></i> Banner Image
+                                <i class="bi bi-card-image"></i> Bannière
                             </label>
                             {{ form.banner }}
                             {% if form.banner.errors %}
                                 <div class="text-danger small">{{ form.banner.errors }}</div>
                             {% endif %}
-                            <div class="form-text">Upload event banner (JPG, PNG, etc.)</div>
+                            <div class="form-text">Téléversez la bannière de l'événement (JPG, PNG, etc.)</div>
                         </div>
 
                         <div class="col-md-6 mb-3">
@@ -167,7 +167,7 @@
                         </div>
 
                         <div class="col-md-6 mb-3">
-                            <label for="{{ form.organizer_contact.id_for_label }}" class="form-label">Organizer Email</label>
+                            <label for="{{ form.organizer_contact.id_for_label }}" class="form-label">E-mail de l'organisateur</label>
                             {{ form.organizer_contact }}
                             {% if form.organizer_contact.errors %}
                                 <div class="text-danger small">{{ form.organizer_contact.errors }}</div>
@@ -175,18 +175,18 @@
                         </div>
                         
                         <div class="col-md-6 mb-3">
-                            <label for="{{ form.number_of_rooms.id_for_label }}" class="form-label">Number of Rooms/Salles *</label>
+                            <label for="{{ form.number_of_rooms.id_for_label }}" class="form-label">Nombre de salles *</label>
                             {{ form.number_of_rooms }}
                             {% if form.number_of_rooms.errors %}
                                 <div class="text-danger small">{{ form.number_of_rooms.errors }}</div>
                             {% endif %}
-                            <div class="form-text">How many rooms/salles will this event have?</div>
+                            <div class="form-text">Combien de salles cet événement comportera-t-il ?</div>
                         </div>
                         
                         <!-- PDF File Uploads Section -->
                         <div class="col-12 mt-3">
                             <h5 class="mb-3">
-                                <i class="bi bi-file-earmark-pdf"></i> Event Documents (Optional)
+                                <i class="bi bi-file-earmark-pdf"></i> Documents de l'événement (facultatif)
                             </h5>
                         </div>
                         
@@ -198,7 +198,7 @@
                             {% if form.programme_file.errors %}
                                 <div class="text-danger small">{{ form.programme_file.errors }}</div>
                             {% endif %}
-                            <div class="form-text">Upload event schedule/program (PDF only)</div>
+                            <div class="form-text">Téléversez le programme de l'événement (PDF uniquement)</div>
                         </div>
                         
                         <div class="col-md-6 mb-3">
@@ -209,16 +209,16 @@
                             {% if form.guide_file.errors %}
                                 <div class="text-danger small">{{ form.guide_file.errors }}</div>
                             {% endif %}
-                            <div class="form-text">Upload participant guide/handbook (PDF only)</div>
+                            <div class="form-text">Téléversez le guide du participant (PDF uniquement)</div>
                         </div>
                     </div>
                     
                     <div class="d-flex justify-content-between mt-4">
                         <a href="{% url 'dashboard:home' %}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle"></i> Annuler
                         </a>
                         <button type="submit" class="btn btn-primary">
-                            Next: Add Rooms <i class="bi bi-arrow-right"></i>
+                            Suivant : ajouter des salles <i class="bi bi-arrow-right"></i>
                         </button>
                     </div>
                 </form>

@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}Dashboard Home{% endblock %}
+{% block page_title %}Accueil du tableau de bord{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -10,7 +10,7 @@
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">Total Events</p>
+                        <p class="text-muted mb-1">Total des événements</p>
                         <h2 class="mb-0">{{ total_events }}</h2>
                     </div>
                     <div class="stat-icon primary">
@@ -24,7 +24,7 @@
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">Active Events</p>
+                        <p class="text-muted mb-1">Événements actifs</p>
                         <h2 class="mb-0">{{ active_events }}</h2>
                     </div>
                     <div class="stat-icon success">
@@ -38,7 +38,7 @@
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">Total Users</p>
+                        <p class="text-muted mb-1">Total des utilisateurs</p>
                         <h2 class="mb-0">{{ total_users }}</h2>
                     </div>
                     <div class="stat-icon warning">
@@ -52,7 +52,7 @@
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">Total Sessions</p>
+                        <p class="text-muted mb-1">Total des sessions</p>
                         <h2 class="mb-0">{{ total_sessions }}</h2>
                     </div>
                     <div class="stat-icon info">
@@ -68,9 +68,9 @@
         <div class="col-12">
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="bi bi-calendar-event"></i> All Events - ePoster Access</h5>
+                    <h5 class="mb-0"><i class="bi bi-calendar-event"></i> Tous les événements - Accès ePoster</h5>
                     <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-sm btn-primary">
-                        <i class="bi bi-plus"></i> New Event
+                        <i class="bi bi-plus"></i> Nouvel événement
                     </a>
                 </div>
                 
@@ -79,12 +79,12 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Event Name</th>
-                                <th>Status</th>
+                                <th>Nom de l'événement</th>
+                                <th>Statut</th>
                                 <th>Dates</th>
-                                <th>Location</th>
+                                <th>Lieu</th>
                                 <th>Participants</th>
-                                <th>Rooms</th>
+                                <th>Salles</th>
                                 <th>Sessions</th>
                                 <th>Actions</th>
                             </tr>
@@ -97,17 +97,17 @@
                                 </td>
                                 <td>
                                     {% if event.status == 'active' %}
-                                        <span class="badge bg-success">Active</span>
+                                        <span class="badge bg-success">Actif</span>
                                     {% elif event.status == 'upcoming' %}
-                                        <span class="badge bg-primary">Upcoming</span>
+                                        <span class="badge bg-primary">À venir</span>
                                     {% elif event.status == 'completed' %}
-                                        <span class="badge bg-secondary">Completed</span>
+                                        <span class="badge bg-secondary">Terminé</span>
                                     {% else %}
-                                        <span class="badge bg-danger">Cancelled</span>
+                                        <span class="badge bg-danger">Annulé</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <small>{{ event.start_date|date:"M d, Y" }}</small>
+                                    <small>{{ event.start_date|date:"d/m/Y" }}</small>
                                 </td>
                                 <td>
                                     <small>{{ event.location }}</small>
@@ -122,16 +122,16 @@
                                     <span class="badge bg-secondary">{{ event.sessions.count }}</span>
                                 </td>
                                 <td>
-                                    <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-sm btn-outline-primary" title="View Event">
+                                    <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-sm btn-outline-primary" title="Voir l'événement">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    <a href="{% url 'dashboard:event_edit' event.id %}" class="btn btn-sm btn-outline-secondary" title="Edit Event">
+                                    <a href="{% url 'dashboard:event_edit' event.id %}" class="btn btn-sm btn-outline-secondary" title="Modifier l'événement">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    <button type="button" class="btn btn-sm btn-outline-danger delete-event-btn" 
-                                            data-event-id="{{ event.id }}" 
+                                    <button type="button" class="btn btn-sm btn-outline-danger delete-event-btn"
+                                            data-event-id="{{ event.id }}"
                                             data-event-name="{{ event.name }}"
-                                            title="Delete Event">
+                                            title="Supprimer l'événement">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </td>
@@ -143,9 +143,9 @@
                 {% else %}
                 <div class="text-center py-5">
                     <i class="bi bi-calendar-x" style="font-size: 3rem; color: #ccc;"></i>
-                    <p class="text-muted mt-3">No events yet. Create your first event!</p>
+                    <p class="text-muted mt-3">Aucun événement pour le moment. Créez votre premier événement !</p>
                     <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Create Event
+                        <i class="bi bi-plus-circle"></i> Créer un événement
                     </a>
                 </div>
                 {% endif %}
@@ -163,7 +163,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const eventId = button.getAttribute('data-event-id');
             const eventName = button.getAttribute('data-event-name');
             
-            if (confirm(`Are you sure you want to delete "${eventName}"?\n\nThis action cannot be undone. All associated rooms, sessions, and participant assignments will also be deleted.`)) {
+            if (confirm(`Êtes-vous sûr de vouloir supprimer « ${eventName} » ?\n\nCette action est irréversible. Toutes les salles, sessions et affectations de participants associées seront également supprimées.`)) {
                 // Get CSRF token
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
                 if (!csrfToken) {
@@ -215,14 +215,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 300);
                 
                 // Show success message
-                showMessage('Event deleted successfully!', 'success');
+                showMessage('Événement supprimé avec succès !', 'success');
             } else {
                 throw new Error('Deletion failed');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            showMessage('Error deleting event. Please try again.', 'danger');
+            showMessage('Erreur lors de la suppression de l\'événement. Veuillez réessayer.', 'danger');
             button.disabled = false;
             button.innerHTML = '<i class="bi bi-trash"></i>';
         });

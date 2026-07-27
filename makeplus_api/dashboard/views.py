@@ -135,7 +135,7 @@ def login_view(request):
             print(f"  Found user: {username}")
         except User.DoesNotExist:
             print(f"  User with email {email} not found")
-            messages.error(request, 'Invalid email or password.')
+            messages.error(request, 'E-mail ou mot de passe invalide.')
             return render(request, 'dashboard/login.html')
         
         # Authenticate with username
@@ -156,13 +156,13 @@ def login_view(request):
             ).exists()
             if user.is_staff or user.is_superuser or is_committee or is_room_manager or is_event_owner:
                 login(request, user)
-                welcome_msg = f'Welcome back, {user.get_full_name() or user.email}!'
+                welcome_msg = f'Bon retour, {user.get_full_name() or user.email} !'
                 if is_committee and not user.is_staff:
-                    welcome_msg += ' (Committee Member)'
+                    welcome_msg += ' (Membre du comité)'
                 elif is_room_manager and not user.is_staff:
-                    welcome_msg += ' (Room Manager)'
+                    welcome_msg += ' (Gestionnaire de salle)'
                 elif is_event_owner and not user.is_staff:
-                    welcome_msg += ' (Event Owner)'
+                    welcome_msg += ' (Organisateur)'
                 messages.success(request, welcome_msg)
 
                 # Redirect committee members directly to ePoster management
@@ -176,10 +176,10 @@ def login_view(request):
                     return redirect('dashboard:event_owner_submissions_home')
                 return redirect('dashboard:home')
             else:
-                messages.error(request, 'You do not have permission to access the dashboard.')
+                messages.error(request, "Vous n'avez pas l'autorisation d'accéder au tableau de bord.")
         else:
             print(f"  Authentication FAILED")
-            messages.error(request, 'Invalid email or password.')
+            messages.error(request, 'E-mail ou mot de passe invalide.')
     
     return render(request, 'dashboard/login.html')
 
@@ -460,11 +460,11 @@ def event_create_step1(request):
             request.session['current_room'] = 0
             request.session['rooms_data'] = []
             
-            messages.success(request, f'Event "{event.name}" created! Now let\'s add rooms.')
+            messages.success(request, f'Événement « {event.name} » créé ! Ajoutons maintenant des salles.')
             return redirect('dashboard:event_create_step2')
         else:
             # Show validation errors
-            messages.error(request, 'Please fix the errors below.')
+            messages.error(request, 'Veuillez corriger les erreurs ci-dessous.')
     else:
         form = EventDetailsForm()
     
@@ -484,7 +484,7 @@ def event_create_step2(request):
     
     event_id = request.session.get('event_id')
     if not event_id:
-        messages.error(request, 'Please start from Step 1.')
+        messages.error(request, "Veuillez commencer à l'étape 1.")
         return redirect('dashboard:event_create_step1')
     
     event = get_object_or_404(Event, id=event_id)
@@ -508,12 +508,12 @@ def event_create_step2(request):
             # Check if we need more rooms
             if len(rooms_data) < number_of_rooms:
                 request.session['current_room'] = len(rooms_data)
-                messages.success(request, f'Room "{room.name}" added! ({len(rooms_data)}/{number_of_rooms})')
+                messages.success(request, f'Salle « {room.name} » ajoutée ! ({len(rooms_data)}/{number_of_rooms})')
                 return redirect('dashboard:event_create_step2')
             else:
                 # All rooms added, move to sessions
                 request.session['current_room_for_sessions'] = 0
-                messages.success(request, 'All rooms added! Now let\'s add sessions.')
+                messages.success(request, 'Toutes les salles ont été ajoutées ! Ajoutons maintenant des sessions.')
                 return redirect('dashboard:event_create_step3')
     else:
         form = RoomForm()
@@ -540,7 +540,7 @@ def event_create_step3(request):
     rooms_data = request.session.get('rooms_data', [])
     
     if not event_id or not rooms_data:
-        messages.error(request, 'Please complete previous steps.')
+        messages.error(request, 'Veuillez compléter les étapes précédentes.')
         return redirect('dashboard:event_create_step1')
     
     event = get_object_or_404(Event, id=event_id)
@@ -548,7 +548,7 @@ def event_create_step3(request):
     
     # Check if we're done with all rooms
     if current_room_index >= len(rooms_data):
-        messages.success(request, 'All sessions added! Now let\'s add users.')
+        messages.success(request, 'Toutes les sessions ont été ajoutées ! Ajoutons maintenant des utilisateurs.')
         return redirect('dashboard:event_create_step4')
     
     current_room_id = rooms_data[current_room_index]
@@ -572,7 +572,7 @@ def event_create_step3(request):
                 session.status = 'pas_encore'  # Set default status
                 session.created_by = request.user
                 session.save()
-                messages.success(request, f'Session "{session.title}" added to {current_room.name}!')
+                messages.success(request, f'Session « {session.title} » ajoutée à {current_room.name} !')
                 return redirect('dashboard:event_create_step3')
             else:
                 # Show form errors
@@ -585,16 +585,16 @@ def event_create_step3(request):
             request.session['current_room_for_sessions'] = current_room_index + 1
             
             if current_room_index + 1 >= len(rooms_data):
-                messages.success(request, 'All sessions configured!')
+                messages.success(request, 'Toutes les sessions sont configurées !')
                 return redirect('dashboard:event_create_step4')
             else:
-                messages.info(request, f'Moving to next room...')
+                messages.info(request, 'Passage à la salle suivante...')
                 return redirect('dashboard:event_create_step3')
         
         elif action == 'skip_room':
             # Skip this room
             request.session['current_room_for_sessions'] = current_room_index + 1
-            messages.info(request, f'Skipped sessions for {current_room.name}')
+            messages.info(request, f'Sessions ignorées pour {current_room.name}')
             return redirect('dashboard:event_create_step3')
     
     form = SessionForm(initial={'start_time': event.start_date, 'end_time': event.start_date}, event=event)
@@ -630,7 +630,7 @@ def event_create_step4(request):
     
     event_id = request.session.get('event_id')
     if not event_id:
-        messages.error(request, 'Please complete previous steps.')
+        messages.error(request, 'Veuillez compléter les étapes précédentes.')
         return redirect('dashboard:event_create_step1')
     
     event = get_object_or_404(Event, id=event_id)
@@ -674,7 +674,7 @@ def event_create_step4(request):
                         is_active=True,
                         assigned_by=request.user
                     )
-                    messages.success(request, f'Committee member "{user.get_full_name()}" created successfully!')
+                    messages.success(request, f'Membre du comité « {user.get_full_name()} » créé avec succès !')
                 
                 # Assign room if role is gestionnaire_des_salles
                 assigned_room = form.cleaned_data.get('assigned_room')
@@ -682,9 +682,9 @@ def event_create_step4(request):
                     assignment.metadata = assignment.metadata or {}
                     assignment.metadata['assigned_room_id'] = str(assigned_room.id)
                     assignment.save()
-                    messages.success(request, f'User "{user.get_full_name()}" created with role: {role} and assigned to room: {assigned_room.name}')
+                    messages.success(request, f'Utilisateur « {user.get_full_name()} » créé avec le rôle : {role} et affecté à la salle : {assigned_room.name}')
                 else:
-                    messages.success(request, f'User "{user.get_full_name()}" created with role: {role}')
+                    messages.success(request, f'Utilisateur « {user.get_full_name()} » créé avec le rôle : {role}')
                 
                 # Create participant profile (one per user, can register for multiple events)
                 participant, created = Participant.objects.get_or_create(
@@ -724,7 +724,7 @@ def event_create_step4(request):
             request.session.pop('rooms_data', None)
             request.session.pop('current_room_for_sessions', None)
             
-            messages.success(request, f'Event "{event.name}" created successfully! 🎉')
+            messages.success(request, f'Événement « {event.name} » créé avec succès ! 🎉')
             return redirect('dashboard:event_detail', event_id=event.id)
         
         elif action == 'skip':
@@ -735,7 +735,7 @@ def event_create_step4(request):
             request.session.pop('rooms_data', None)
             request.session.pop('current_room_for_sessions', None)
             
-            messages.info(request, 'Event created! You can add users later.')
+            messages.info(request, 'Événement créé ! Vous pourrez ajouter des utilisateurs plus tard.')
             return redirect('dashboard:event_detail', event_id=event.id)
     
     # Create form for GET requests or if POST with errors
@@ -885,7 +885,7 @@ def user_create(request):
                         is_active=True,
                         assigned_by=request.user
                     )
-                    messages.success(request, f'Committee member "{user.get_full_name()}" created successfully!')
+                    messages.success(request, f'Membre du comité « {user.get_full_name()} » créé avec succès !')
                 
                 # Assign room if role is gestionnaire_des_salles
                 assigned_room = form.cleaned_data.get('assigned_room')
@@ -893,9 +893,9 @@ def user_create(request):
                     assignment.metadata = assignment.metadata or {}
                     assignment.metadata['assigned_room_id'] = str(assigned_room.id)
                     assignment.save()
-                    messages.success(request, f'User "{user.get_full_name()}" created with role: {role} and assigned to room: {assigned_room.name}')
+                    messages.success(request, f'Utilisateur « {user.get_full_name()} » créé avec le rôle : {role} et affecté à la salle : {assigned_room.name}')
                 else:
-                    messages.success(request, f'User "{user.get_full_name()}" created with role: {role}')
+                    messages.success(request, f'Utilisateur « {user.get_full_name()} » créé avec le rôle : {role}')
                 
                 # Create participant profile (one per user, can register for multiple events)
                 participant, created = Participant.objects.get_or_create(
@@ -1085,11 +1085,11 @@ def user_delete(request, user_id):
     if request.method == 'POST':
         # Don't allow deleting superusers or current user
         if user.is_superuser:
-            messages.error(request, 'Cannot delete superuser accounts.')
+            messages.error(request, 'Impossible de supprimer les comptes superutilisateur.')
             return redirect('dashboard:user_detail', user_id=user.id)
         
         if user == request.user:
-            messages.error(request, 'You cannot delete your own account.')
+            messages.error(request, 'Vous ne pouvez pas supprimer votre propre compte.')
             return redirect('dashboard:user_detail', user_id=user.id)
         
         user_name = user.get_full_name() or user.username
@@ -1097,11 +1097,11 @@ def user_delete(request, user_id):
         # Delete the user (cascading deletes will handle related objects)
         user.delete()
         
-        messages.success(request, f'User "{user_name}" has been permanently deleted.')
+        messages.success(request, f'Utilisateur « {user_name} » supprimé définitivement.')
         return redirect('dashboard:user_list')
     
     # If GET request, redirect to user detail
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:user_detail', user_id=user.id)
 
 
@@ -1118,7 +1118,7 @@ def user_change_role(request, assignment_id):
         # Validate role
         valid_roles = ['organisateur', 'gestionnaire_des_salles', 'controlleur_des_badges', 'exposant', 'participant']
         if new_role not in valid_roles:
-            messages.error(request, 'Invalid role selected.')
+            messages.error(request, 'Rôle sélectionné invalide.')
             return redirect('dashboard:user_detail', user_id=assignment.user.id)
         
         old_role = assignment.get_role_display()
@@ -1129,11 +1129,11 @@ def user_change_role(request, assignment_id):
         invalidate_event_cache(assignment.event.id)
         
         new_role_display = assignment.get_role_display()
-        messages.success(request, f'User role changed from {old_role} to {new_role_display} for event "{assignment.event.name}".')
+        messages.success(request, f'Rôle de l\'utilisateur changé de {old_role} à {new_role_display} pour l\'événement « {assignment.event.name} ».')
         return redirect('dashboard:user_detail', user_id=assignment.user.id)
     
     # If GET request, redirect to user detail
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:user_detail', user_id=assignment.user.id)
 
 
@@ -1277,11 +1277,11 @@ def event_user_delete(request, event_id, user_id):
         # Invalidate cache
         invalidate_event_cache(event.id)
         
-        messages.success(request, f'User "{user_name}" has been removed from this event.')
+        messages.success(request, f'Utilisateur « {user_name} » retiré de cet événement.')
         return redirect('dashboard:event_detail', event_id=event.id)
     
     # If GET request, redirect to event detail
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:event_detail', event_id=event.id)
 
 
@@ -1300,7 +1300,7 @@ def event_edit(request, event_id):
     try:
         event = Event.objects.get(id=event_id)
     except Event.DoesNotExist:
-        messages.error(request, 'Event not found.')
+        messages.error(request, 'Événement introuvable.')
         return redirect('dashboard:home')
     
     if request.method == 'POST':
@@ -1317,7 +1317,7 @@ def event_edit(request, event_id):
             # Step 5: Close connection to force fresh queries
             connection.close()
             
-            messages.success(request, f'Event "{updated_event.name}" updated successfully!')
+            messages.success(request, f'Événement « {updated_event.name} » mis à jour avec succès !')
             
             # Step 6: Redirect with timestamp to prevent browser cache
             return redirect(f"/dashboard/events/{updated_event.id}/?t={int(time.time())}")
@@ -1369,11 +1369,11 @@ def event_delete(request, event_id):
         # Invalidate cache
         invalidate_event_cache(event_id)
         cache.delete('dashboard_home')
-        messages.success(request, f'Event "{event_name}" deleted successfully!')
+        messages.success(request, f'Événement « {event_name} » supprimé avec succès !')
         return redirect('dashboard:home')
     
     # If accessed via GET (shouldn't happen with modal), redirect to event detail
-    messages.warning(request, 'Invalid request. Use the delete button to delete an event.')
+    messages.warning(request, 'Requête invalide. Utilisez le bouton de suppression pour supprimer un événement.')
     return redirect('dashboard:event_detail', event_id=event.id)
 
 
@@ -1437,7 +1437,7 @@ def caisse_create(request):
         form = CaisseForm(request.POST)
         if form.is_valid():
             caisse = form.save()
-            messages.success(request, f'Caisse "{caisse.name}" created successfully!')
+            messages.success(request, f'Caisse « {caisse.name} » créée avec succès !')
             if event_id:
                 return redirect('dashboard:event_detail', event_id=event_id)
             return redirect('dashboard:caisse_list')
@@ -1466,7 +1466,7 @@ def caisse_edit(request, caisse_id):
         form = CaisseForm(request.POST, instance=caisse)
         if form.is_valid():
             form.save()
-            messages.success(request, f'Caisse "{caisse.name}" updated successfully!')
+            messages.success(request, f'Caisse « {caisse.name} » mise à jour avec succès !')
             return redirect('dashboard:caisse_list')
     else:
         form = CaisseForm(instance=caisse)
@@ -1491,10 +1491,10 @@ def caisse_delete(request, caisse_id):
     if request.method == 'POST':
         caisse_name = caisse.name
         caisse.delete()
-        messages.success(request, f'Caisse "{caisse_name}" deleted successfully!')
+        messages.success(request, f'Caisse « {caisse_name} » supprimée avec succès !')
         return redirect('dashboard:caisse_list')
     
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:caisse_list')
 
 
@@ -1612,7 +1612,7 @@ def payable_item_create(request, event_id):
         form = PayableItemForm(request.POST, event=event)
         if form.is_valid():
             item = form.save()
-            messages.success(request, f'Item "{item.name}" created successfully!')
+            messages.success(request, f'Article « {item.name} » créé avec succès !')
             return redirect('dashboard:event_detail', event_id=event.id)
     else:
         form = PayableItemForm(event=event)
@@ -1639,7 +1639,7 @@ def payable_item_edit(request, item_id):
         form = PayableItemForm(request.POST, instance=item, event=item.event)
         if form.is_valid():
             form.save()
-            messages.success(request, f'Item "{item.name}" updated successfully!')
+            messages.success(request, f'Article « {item.name} » mis à jour avec succès !')
             return redirect('dashboard:event_detail', event_id=item.event.id)
     else:
         form = PayableItemForm(instance=item, event=item.event)
@@ -1666,10 +1666,10 @@ def payable_item_delete(request, item_id):
     if request.method == 'POST':
         item_name = item.name
         item.delete()
-        messages.success(request, f'Item "{item_name}" deleted successfully!')
+        messages.success(request, f'Article « {item_name} » supprimé avec succès !')
         return redirect('dashboard:event_detail', event_id=event_id)
     
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:event_detail', event_id=event_id)
 
 
@@ -1774,7 +1774,7 @@ def room_create(request, event_id):
             room.event = event
             room.save()
             invalidate_event_cache(event.id)
-            messages.success(request, f'Room "{room.name}" created successfully!')
+            messages.success(request, f'Salle « {room.name} » créée avec succès !')
             return redirect('dashboard:event_detail', event_id=event.id)
     else:
         form = RoomForm()
@@ -1799,7 +1799,7 @@ def room_edit(request, room_id):
         if form.is_valid():
             form.save()
             invalidate_event_cache(event.id)
-            messages.success(request, f'Room "{room.name}" updated successfully!')
+            messages.success(request, f'Salle « {room.name} » mise à jour avec succès !')
             return redirect('dashboard:event_detail', event_id=event.id)
     else:
         form = RoomForm(instance=room)
@@ -1820,7 +1820,7 @@ def room_delete(request, room_id):
     try:
         room = Room.objects.get(id=room_id)
     except Room.DoesNotExist:
-        messages.error(request, 'Room not found or already deleted.')
+        messages.error(request, 'Salle introuvable ou déjà supprimée.')
         # Try to redirect back, or go to dashboard home
         referer = request.META.get('HTTP_REFERER')
         if referer and '/events/' in referer:
@@ -1837,10 +1837,10 @@ def room_delete(request, room_id):
         room_name = room.name
         room.delete()
         invalidate_event_cache(event_id)
-        messages.success(request, f'Room "{room_name}" deleted successfully!')
+        messages.success(request, f'Salle « {room_name} » supprimée avec succès !')
         return redirect('dashboard:event_detail', event_id=event_id)
     
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:event_detail', event_id=event_id)
 
 
@@ -1865,7 +1865,7 @@ def session_create(request, event_id):
         if action == 'add_session':
             # Add a session to the selected room
             if not selected_room_id:
-                messages.error(request, 'Please select a room first.')
+                messages.error(request, "Veuillez d'abord sélectionner une salle.")
                 return redirect('dashboard:session_create', event_id=event_id)
             
             form = SessionForm(request.POST, event=event)
@@ -1875,7 +1875,7 @@ def session_create(request, event_id):
                 session.room_id = selected_room_id
                 session.save()
                 invalidate_event_cache(event.id)
-                messages.success(request, f'Session "{session.title}" added successfully!')
+                messages.success(request, f'Session « {session.title} » ajoutée avec succès !')
                 # Stay on the same page to add more sessions
                 return redirect('dashboard:session_create', event_id=event_id)
             else:
@@ -1890,7 +1890,7 @@ def session_create(request, event_id):
             if f'session_create_room_{event_id}' in request.session:
                 del request.session[f'session_create_room_{event_id}']
             
-            messages.success(request, 'Sessions added successfully!')
+            messages.success(request, 'Sessions ajoutées avec succès !')
             return redirect('dashboard:event_detail', event_id=event_id)
         
         elif action == 'change_room':
@@ -1945,7 +1945,7 @@ def session_edit(request, session_id):
     try:
         session = Session.objects.get(id=session_id)
     except Session.DoesNotExist:
-        messages.error(request, 'Session not found.')
+        messages.error(request, 'Session introuvable.')
         return redirect('dashboard:home')
     
     event = session.event
@@ -1964,7 +1964,7 @@ def session_edit(request, session_id):
             # Step 5: Close connection to force fresh queries
             connection.close()
             
-            messages.success(request, f'Session "{updated_session.title}" updated successfully!')
+            messages.success(request, f'Session « {updated_session.title} » mise à jour avec succès !')
             
             # Step 6: Redirect with timestamp to prevent browser cache
             return redirect(f"/dashboard/events/{event.id}/?t={int(time.time())}")
@@ -2005,7 +2005,7 @@ def session_delete(request, session_id):
     try:
         session = Session.objects.get(id=session_id)
     except Session.DoesNotExist:
-        messages.error(request, 'Session not found or already deleted.')
+        messages.error(request, 'Session introuvable ou déjà supprimée.')
         # Try to redirect back
         referer = request.META.get('HTTP_REFERER')
         if referer and '/events/' in referer:
@@ -2021,10 +2021,10 @@ def session_delete(request, session_id):
         session_title = session.title
         session.delete()
         invalidate_event_cache(event_id)
-        messages.success(request, f'Session "{session_title}" deleted successfully!')
+        messages.success(request, f'Session « {session_title} » supprimée avec succès !')
         return redirect('dashboard:event_detail', event_id=event_id)
     
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:event_detail', event_id=event_id)
 
 
@@ -2100,7 +2100,7 @@ def approve_registration(request, registration_id):
     
     if request.method == 'POST':
         if registration.user:
-            messages.warning(request, 'User account already exists for this registration.')
+            messages.warning(request, 'Un compte utilisateur existe déjà pour cette inscription.')
             return redirect('dashboard:event_registrations', event_id=registration.event.id)
         
         try:
@@ -2139,14 +2139,14 @@ def approve_registration(request, registration_id):
             registration.is_confirmed = True
             registration.save()
             
-            messages.success(request, f'User account created for {registration.get_full_name()}!')
+            messages.success(request, f'Compte utilisateur créé pour {registration.get_full_name()} !')
             
         except Exception as e:
-            messages.error(request, f'Error creating user account: {str(e)}')
+            messages.error(request, f'Erreur lors de la création du compte utilisateur : {str(e)}')
         
         return redirect('dashboard:event_registrations', event_id=registration.event.id)
     
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:event_registrations', event_id=registration.event.id)
 
 
@@ -2162,10 +2162,10 @@ def delete_registration(request, registration_id):
     if request.method == 'POST':
         registration_name = registration.get_full_name()
         registration.delete()
-        messages.success(request, f'Registration for {registration_name} deleted successfully!')
+        messages.success(request, f'Inscription de {registration_name} supprimée avec succès !')
         return redirect('dashboard:event_registrations', event_id=event_id)
     
-    messages.warning(request, 'Invalid request.')
+    messages.warning(request, 'Requête invalide.')
     return redirect('dashboard:event_registrations', event_id=event_id)
 
 

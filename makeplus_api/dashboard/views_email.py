@@ -162,7 +162,7 @@ def email_template_create(request):
         is_active = request.POST.get('is_active', 'true') == 'true'
         
         if not all([name, subject, body_html]):
-            messages.error(request, 'Please fill in all required fields and design your email.')
+            messages.error(request, "Veuillez remplir tous les champs obligatoires et concevoir votre e-mail.")
             return redirect('dashboard:email_template_create')
         
         template = EmailTemplate.objects.create(
@@ -178,7 +178,7 @@ def email_template_create(request):
             created_by=request.user
         )
         
-        messages.success(request, f'Email template "{template.name}" created successfully!')
+        messages.success(request, f'Modèle d\'e-mail « {template.name} » créé avec succès !')
         return redirect('dashboard:email_template_list')
     
     # Available template variables
@@ -217,7 +217,7 @@ def email_template_edit(request, template_id):
         template.is_active = is_active
         template.save()
         
-        messages.success(request, f'Email template "{template.name}" updated successfully!')
+        messages.success(request, f'Modèle d\'e-mail « {template.name} » mis à jour avec succès !')
         return redirect('dashboard:email_template_list')
     
     # Available template variables
@@ -243,7 +243,7 @@ def email_template_delete(request, template_id):
         template = get_object_or_404(EmailTemplate, id=template_id)
         name = template.name
         template.delete()
-        messages.success(request, f'Email template "{name}" deleted successfully!')
+        messages.success(request, f'Modèle d\'e-mail « {name} » supprimé avec succès !')
     
     return redirect('dashboard:email_template_list')
 
@@ -345,7 +345,7 @@ def event_email_template_create(request, event_id):
         is_active = request.POST.get('is_active', 'true') == 'true'
         
         if not all([name, subject, body_html]):
-            messages.error(request, 'Please fill in all required fields and design your email.')
+            messages.error(request, "Veuillez remplir tous les champs obligatoires et concevoir votre e-mail.")
             return redirect('dashboard:event_email_template_create', event_id=event.id)
         
         base_template = None
@@ -365,7 +365,7 @@ def event_email_template_create(request, event_id):
             created_by=request.user
         )
         
-        messages.success(request, f'Event email template "{event_template.name}" created successfully!')
+        messages.success(request, f'Modèle d\'e-mail d\'événement « {event_template.name} » créé avec succès !')
         return redirect('dashboard:event_email_templates', event_id=event.id)
     
     # If base_template_id is provided, pre-fill from global template
@@ -411,7 +411,7 @@ def event_email_template_edit(request, event_id, template_id):
         event_template.is_active = is_active
         event_template.save()
         
-        messages.success(request, f'Event email template "{event_template.name}" updated successfully!')
+        messages.success(request, f'Modèle d\'e-mail d\'événement « {event_template.name} » mis à jour avec succès !')
         return redirect('dashboard:event_email_templates', event_id=event.id)
     
     # Available template variables. {{payment_link}} only resolves for the
@@ -439,7 +439,7 @@ def event_email_template_delete(request, event_id, template_id):
         template = get_object_or_404(EventEmailTemplate, id=template_id, event=event)
         name = template.name
         template.delete()
-        messages.success(request, f'Event email template "{name}" deleted successfully!')
+        messages.success(request, f'Modèle d\'e-mail d\'événement « {name} » supprimé avec succès !')
     
     return redirect('dashboard:event_email_templates', event_id=event_id)
 
@@ -482,7 +482,7 @@ def send_event_email(request, event_id, template_id):
         # else: all_participants (default, no filter)
         
         if not event_registrations.exists():
-            messages.warning(request, 'No participants match the selected criteria.')
+            messages.warning(request, 'Aucun participant ne correspond aux critères sélectionnés.')
             return redirect('dashboard:send_event_email', event_id=event.id, template_id=template.id)
         
         # Create email log
@@ -549,9 +549,9 @@ def send_event_email(request, event_id, template_id):
         email_log.save()
         
         if sent_count > 0:
-            messages.success(request, f'Email sent to {sent_count} participant(s) successfully!')
+            messages.success(request, f'E-mail envoyé à {sent_count} participant(s) avec succès !')
         if failed_count > 0:
-            messages.warning(request, f'Failed to send to {failed_count} participant(s).')
+            messages.warning(request, f"Échec de l'envoi à {failed_count} participant(s).")
         
         return redirect('dashboard:event_email_logs', event_id=event.id)
     
@@ -619,7 +619,7 @@ def send_email_to_registrants(request, event_id, template_id):
         # else: all_registrants (default, no filter)
         
         if not registrations.exists():
-            messages.warning(request, 'No registrants match the selected criteria.')
+            messages.warning(request, 'Aucun inscrit ne correspond aux critères sélectionnés.')
             return redirect('dashboard:send_email_to_registrants', event_id=event.id, template_id=template.id)
         
         # Send emails
@@ -662,9 +662,9 @@ def send_email_to_registrants(request, event_id, template_id):
                 errors.append(f"{registration.email}: {str(e)}")
         
         if sent_count > 0:
-            messages.success(request, f'Email sent to {sent_count} registrant(s) successfully!')
+            messages.success(request, f'E-mail envoyé à {sent_count} inscrit(s) avec succès !')
         if failed_count > 0:
-            messages.warning(request, f'Failed to send to {failed_count} registrant(s). Errors: {"; ".join(errors[:3])}')
+            messages.warning(request, f"Échec de l'envoi à {failed_count} inscrit(s). Erreurs : {'; '.join(errors[:3])}")
         
         return redirect('dashboard:event_email_templates', event_id=event.id)
     
@@ -696,7 +696,7 @@ def email_template_test(request, template_id):
         test_email = request.POST.get('test_email')
         
         if not test_email:
-            messages.error(request, 'Please provide a test email address.')
+            messages.error(request, 'Veuillez fournir une adresse e-mail de test.')
             return redirect('dashboard:email_template_list')
         
         # Create sample context data for testing
@@ -742,9 +742,9 @@ def email_template_test(request, template_id):
                 sent_by=request.user
             )
             
-            messages.success(request, f'Test email sent successfully to {test_email}!')
+            messages.success(request, f'E-mail de test envoyé avec succès à {test_email} !')
         except Exception as e:
-            messages.error(request, f'Failed to send test email: {str(e)}')
+            messages.error(request, f"Échec de l'envoi de l'e-mail de test : {str(e)}")
             EmailLog.objects.create(
                 template_name=template.name,
                 recipient_email=test_email,
@@ -767,7 +767,7 @@ def email_template_send(request, template_id):
         event_id = request.POST.get('event_id')
         
         if not event_id:
-            messages.error(request, 'Please select an event.')
+            messages.error(request, 'Veuillez sélectionner un événement.')
             return redirect('dashboard:email_template_list')
         
         event = get_object_or_404(Event, id=event_id)
@@ -780,7 +780,7 @@ def email_template_send(request, template_id):
         )
         
         if not registrations.exists():
-            messages.warning(request, f'No approved registrations found for {event.name}.')
+            messages.warning(request, f'Aucune inscription approuvée trouvée pour {event.name}.')
             return redirect('dashboard:email_template_list')
         
         sent_count = 0
@@ -844,9 +844,9 @@ def email_template_send(request, template_id):
                 failed_count += 1
         
         if sent_count > 0:
-            messages.success(request, f'Successfully sent {sent_count} emails to {event.name} registrations!')
+            messages.success(request, f'{sent_count} e-mails envoyés avec succès aux inscriptions de {event.name} !')
         if failed_count > 0:
-            messages.warning(request, f'{failed_count} emails failed to send.')
+            messages.warning(request, f"Échec de l'envoi de {failed_count} e-mails.")
     
     return redirect('dashboard:email_template_list')
 
@@ -900,7 +900,7 @@ def email_template_archive(request, template_id):
         template = get_object_or_404(EmailTemplate, id=template_id)
         template.is_active = False
         template.save()
-        messages.success(request, f'Email template "{template.name}" has been archived.')
+        messages.success(request, f'Modèle d\'e-mail « {template.name} » archivé.')
     
     return redirect('dashboard:email_template_list')
 
@@ -953,28 +953,28 @@ def registration_form_create(request):
         
         # Validate
         if not name:
-            messages.error(request, 'Form name is required.')
+            messages.error(request, 'Le nom du formulaire est obligatoire.')
             return redirect('dashboard:registration_form_create')
         
         if not event_id:
-            messages.error(request, 'Event is required. Each form must be linked to an event.')
+            messages.error(request, "L'événement est obligatoire. Chaque formulaire doit être lié à un événement.")
             return redirect('dashboard:registration_form_create')
         
         # Check if event already has a form (one-to-one relationship)
         if FormConfiguration.objects.filter(event_id=event_id).exists():
-            messages.error(request, 'This event already has a registration form. Each event can only have one form.')
+            messages.error(request, "Cet événement a déjà un formulaire d'inscription. Chaque événement ne peut avoir qu'un seul formulaire.")
             return redirect('dashboard:registration_form_create')
         
         # Check slug uniqueness
         if FormConfiguration.objects.filter(slug=slug).exists():
-            messages.error(request, f'A form with slug "{slug}" already exists.')
+            messages.error(request, f'Un formulaire avec le slug « {slug} » existe déjà.')
             return redirect('dashboard:registration_form_create')
         
         import json
         try:
             fields_config = json.loads(fields_config)
         except:
-            messages.error(request, 'Invalid field configuration.')
+            messages.error(request, 'Configuration des champs invalide.')
             return redirect('dashboard:registration_form_create')
         
         # Create form
@@ -1005,8 +1005,8 @@ def registration_form_create(request):
 
         form.save()
 
-        messages.success(request, f'Form "{form.name}" created successfully!')
-        messages.info(request, f'Public URL: {request.build_absolute_uri(form.get_public_url())}')
+        messages.success(request, f'Formulaire « {form.name} » créé avec succès !')
+        messages.info(request, f'URL publique : {request.build_absolute_uri(form.get_public_url())}')
         return redirect('dashboard:registration_form_builder')
     
     # GET request
@@ -1047,13 +1047,13 @@ def registration_form_edit(request, form_id):
         
         # Validate event is required
         if not event_id:
-            messages.error(request, 'Event is required. Each form must be linked to an event.')
+            messages.error(request, "L'événement est obligatoire. Chaque formulaire doit être lié à un événement.")
             return redirect('dashboard:registration_form_edit', form_id=form.id)
         
         # Check if trying to assign to an event that already has a different form
         existing_form = FormConfiguration.objects.filter(event_id=event_id).exclude(id=form.id).first()
         if existing_form:
-            messages.error(request, f'Event already has a form: "{existing_form.name}". Each event can only have one form.')
+            messages.error(request, f"L'événement a déjà un formulaire : « {existing_form.name} ». Chaque événement ne peut avoir qu'un seul formulaire.")
             return redirect('dashboard:registration_form_edit', form_id=form.id)
         
         form.event_id = event_id
@@ -1062,7 +1062,7 @@ def registration_form_edit(request, form_id):
         new_slug = request.POST.get('slug') or slugify(form.name)
         if new_slug != form.slug:
             if FormConfiguration.objects.filter(slug=new_slug).exclude(id=form.id).exists():
-                messages.error(request, f'A form with slug "{new_slug}" already exists.')
+                messages.error(request, f'Un formulaire avec le slug « {new_slug} » existe déjà.')
                 return redirect('dashboard:registration_form_edit', form_id=form.id)
             form.slug = new_slug
         
@@ -1071,7 +1071,7 @@ def registration_form_edit(request, form_id):
         try:
             form.fields_config = json.loads(fields_config)
         except:
-            messages.error(request, 'Invalid field configuration.')
+            messages.error(request, 'Configuration des champs invalide.')
             return redirect('dashboard:registration_form_edit', form_id=form.id)
         
         form.success_message = request.POST.get('success_message', 'Thank you for your registration!')
@@ -1095,7 +1095,7 @@ def registration_form_edit(request, form_id):
 
         form.save()
         
-        messages.success(request, f'Form "{form.name}" updated successfully!')
+        messages.success(request, f'Formulaire « {form.name} » mis à jour avec succès !')
         return redirect('dashboard:registration_form_builder')
     
     # GET request
@@ -1132,7 +1132,7 @@ def registration_form_delete(request, form_id):
         form = get_object_or_404(FormConfiguration, id=form_id)
         name = form.name
         form.delete()
-        messages.success(request, f'Form "{name}" deleted successfully!')
+        messages.success(request, f'Formulaire « {name} » supprimé avec succès !')
     
     return redirect('dashboard:registration_form_builder')
 
@@ -1161,8 +1161,8 @@ def registration_form_toggle(request, form_id):
         form.refresh_from_db()
         print(f"DEBUG TOGGLE: Form '{form.name}' new status: is_active={form.is_active}")
         
-        status = "activated" if form.is_active else "deactivated"
-        messages.success(request, f'Form "{form.name}" has been {status}!')
+        status = "activé" if form.is_active else "désactivé"
+        messages.success(request, f'Formulaire « {form.name} » {status} !')
         
         # Clear all caches
         from django.core.cache import cache
@@ -1245,7 +1245,7 @@ def campaign_create(request):
         body_text = request.POST.get('body_text', '')
         
         if not body_html:
-            messages.error(request, 'Please design your email content using the editor.')
+            messages.error(request, "Veuillez concevoir le contenu de votre e-mail à l'aide de l'éditeur.")
             return redirect('dashboard:campaign_create')
         
         if form.is_valid():
@@ -1257,11 +1257,11 @@ def campaign_create(request):
             campaign.status = 'draft'
             campaign.save()
             
-            messages.success(request, f'Campaign "{campaign.name}" created successfully!')
-            messages.info(request, 'Next step: Add recipients to your campaign.')
+            messages.success(request, f'Campagne « {campaign.name} » créée avec succès !')
+            messages.info(request, 'Étape suivante : ajoutez des destinataires à votre campagne.')
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
         else:
-            messages.error(request, 'Please correct the errors below.')
+            messages.error(request, 'Veuillez corriger les erreurs ci-dessous.')
     else:
         form = EmailCampaignForm()
     
@@ -1337,7 +1337,7 @@ def campaign_edit(request, campaign_id):
     
     # Don't allow editing if campaign is sent
     if campaign.status in ['sent', 'sending']:
-        messages.warning(request, 'Cannot edit a campaign that has been sent or is being sent.')
+        messages.warning(request, "Impossible de modifier une campagne déjà envoyée ou en cours d'envoi.")
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     
     if request.method == 'POST':
@@ -1349,7 +1349,7 @@ def campaign_edit(request, campaign_id):
         body_text = request.POST.get('body_text', '')
         
         if not body_html:
-            messages.error(request, 'Please design your email content using the editor.')
+            messages.error(request, "Veuillez concevoir le contenu de votre e-mail à l'aide de l'éditeur.")
             return redirect('dashboard:campaign_edit', campaign_id=campaign.id)
         
         if form.is_valid():
@@ -1359,10 +1359,10 @@ def campaign_edit(request, campaign_id):
             campaign.builder_config = builder_config  # Save the Unlayer design JSON
             campaign.save()
             
-            messages.success(request, f'Campaign "{campaign.name}" updated successfully!')
+            messages.success(request, f'Campagne « {campaign.name} » mise à jour avec succès !')
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
         else:
-            messages.error(request, 'Please correct the errors below.')
+            messages.error(request, 'Veuillez corriger les erreurs ci-dessous.')
     else:
         form = EmailCampaignForm(instance=campaign)
     
@@ -1489,10 +1489,10 @@ def campaign_delete(request, campaign_id):
             
             logger.info(f"Campaign {campaign_name} deleted successfully")
             
-            messages.success(request, f'Campaign "{campaign_name}" has been permanently deleted.')
+            messages.success(request, f'Campagne « {campaign_name} » supprimée définitivement.')
         except Exception as e:
             logger.error(f"Error deleting campaign {campaign_id}: {str(e)}")
-            messages.error(request, f'Error deleting campaign: {str(e)}')
+            messages.error(request, f'Erreur lors de la suppression de la campagne : {str(e)}')
     
     return redirect('dashboard:campaign_list_with_stats')
 
@@ -1506,7 +1506,7 @@ def campaign_archive(request, campaign_id):
         campaign = get_object_or_404(EmailCampaign, id=campaign_id)
         campaign.status = 'archived'
         campaign.save()
-        messages.success(request, f'Campaign "{campaign.name}" has been archived.')
+        messages.success(request, f'Campagne « {campaign.name} » archivée.')
     
     return redirect('dashboard:campaign_detail', campaign_id=campaign_id)
 
@@ -1520,7 +1520,7 @@ def campaign_unarchive(request, campaign_id):
         campaign = get_object_or_404(EmailCampaign, id=campaign_id)
         campaign.status = 'draft'
         campaign.save()
-        messages.success(request, f'Campaign "{campaign.name}" has been unarchived.')
+        messages.success(request, f'Campagne « {campaign.name} » désarchivée.')
     
     return redirect('dashboard:campaign_detail', campaign_id=campaign_id)
 
@@ -1538,12 +1538,12 @@ def campaign_add_recipient(request, campaign_id):
         name = request.POST.get('name', '')
         
         if not email:
-            messages.error(request, 'Email is required.')
+            messages.error(request, "L'e-mail est obligatoire.")
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
         
         # Check if recipient already exists
         if EmailRecipient.objects.filter(campaign=campaign, email=email).exists():
-            messages.warning(request, f'Recipient {email} already exists in this campaign.')
+            messages.warning(request, f'Le destinataire {email} existe déjà dans cette campagne.')
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
         
         # Create recipient with tracking token
@@ -1559,7 +1559,7 @@ def campaign_add_recipient(request, campaign_id):
         campaign.recipient_count = campaign.recipients.count()
         campaign.save()
         
-        messages.success(request, f'Recipient {email} added successfully!')
+        messages.success(request, f'Destinataire {email} ajouté avec succès !')
     
     return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
 
@@ -1629,9 +1629,9 @@ def campaign_bulk_add_recipients(request, campaign_id):
         campaign.save()
         
         if added_count > 0:
-            messages.success(request, f'Added {added_count} recipient(s) successfully!')
+            messages.success(request, f'{added_count} destinataire(s) ajouté(s) avec succès !')
         if skipped_count > 0:
-            messages.info(request, f'Skipped {skipped_count} duplicate(s).')
+            messages.info(request, f'{skipped_count} doublon(s) ignoré(s).')
     
     return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
 
@@ -1672,21 +1672,21 @@ def campaign_import_form_submissions(request, campaign_id):
     if request.method == 'POST':
         # Check if campaign has an event
         if not campaign.event:
-            messages.error(request, 'This campaign is not linked to an event.')
+            messages.error(request, "Cette campagne n'est pas liée à un événement.")
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
         
         # Find the registration form for this event
         form_config = FormConfiguration.objects.filter(event=campaign.event, is_active=True).first()
         
         if not form_config:
-            messages.error(request, f'No active registration form found for event "{campaign.event.name}".')
+            messages.error(request, f"Aucun formulaire d'inscription actif trouvé pour l'événement « {campaign.event.name} ».")
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
         
         # Get all form submissions
         submissions = FormSubmission.objects.filter(form=form_config, status='approved')
         
         if not submissions.exists():
-            messages.warning(request, 'No approved form submissions found.')
+            messages.warning(request, 'Aucune soumission de formulaire approuvée trouvée.')
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
         
         added_count = 0
@@ -1730,9 +1730,9 @@ def campaign_import_form_submissions(request, campaign_id):
         campaign.save()
         
         if added_count > 0:
-            messages.success(request, f'Successfully imported {added_count} recipient(s) from form submissions!')
+            messages.success(request, f'{added_count} destinataire(s) importé(s) avec succès depuis les soumissions de formulaire !')
         if skipped_count > 0:
-            messages.info(request, f'Skipped {skipped_count} submission(s) (duplicates or missing email).')
+            messages.info(request, f'{skipped_count} soumission(s) ignorée(s) (doublons ou e-mail manquant).')
     
     return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
 
@@ -1810,13 +1810,13 @@ def campaign_send(request, campaign_id):
     
     # Only allow sending from draft status
     if campaign.status != 'draft':
-        messages.warning(request, 'This campaign has already been sent.')
+        messages.warning(request, 'Cette campagne a déjà été envoyée.')
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     
     # Check if there are recipients
     recipients = list(campaign.recipients.filter(status='pending'))
     if not recipients:
-        messages.error(request, 'No recipients found for this campaign. Please add recipients first.')
+        messages.error(request, "Aucun destinataire trouvé pour cette campagne. Veuillez d'abord ajouter des destinataires.")
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     
     if request.method == 'POST':
@@ -1958,7 +1958,7 @@ def campaign_send(request, campaign_id):
                         recipient.error_message = f"Campaign send error: {str(e)}"[:500]
                         recipient.save()
                     
-                    messages.error(request, f'Failed to send campaign: {str(e)}')
+                    messages.error(request, f"Échec de l'envoi de la campagne : {str(e)}")
         
         else:
             # Use Transactional Email API (individual emails, less branding)
@@ -2010,9 +2010,9 @@ def campaign_send(request, campaign_id):
             campaign.save()
             
             if failed_count > 0:
-                messages.warning(request, f'Campaign sent to {sent_count} recipients. {failed_count} failed.')
+                messages.warning(request, f'Campagne envoyée à {sent_count} destinataires. {failed_count} échec(s).')
             else:
-                messages.success(request, f'Campaign successfully sent to {sent_count} recipients!')
+                messages.success(request, f'Campagne envoyée avec succès à {sent_count} destinataires !')
 
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     

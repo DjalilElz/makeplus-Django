@@ -1,29 +1,29 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}User Management{% endblock %}
+{% block page_title %}Gestion des utilisateurs{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-people"></i> User Management</h2>
+        <h2><i class="bi bi-people"></i> Gestion des utilisateurs</h2>
         <a href="{% url 'dashboard:user_create' %}" class="btn btn-primary">
-            <i class="bi bi-person-plus"></i> Create User
+            <i class="bi bi-person-plus"></i> Créer un utilisateur
         </a>
     </div>
-    
+
     <!-- Search and Event Filter -->
     <div class="row mb-4">
         <div class="col-md-6">
             <form method="get" class="d-flex gap-2">
-                <input type="text" name="search" class="form-control" placeholder="Search by name, email, or username..." value="{{ search_query }}">
+                <input type="text" name="search" class="form-control" placeholder="Rechercher par nom, e-mail ou nom d'utilisateur..." value="{{ search_query }}">
                 <input type="hidden" name="role" value="{{ role_filter }}">
                 <input type="hidden" name="event" value="{{ event_filter }}">
                 <button type="submit" class="btn btn-outline-primary">
-                    <i class="bi bi-search"></i> Search
+                    <i class="bi bi-search"></i> Rechercher
                 </button>
                 {% if search_query %}
                 <a href="?role={{ role_filter }}&event={{ event_filter }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-x-circle"></i> Clear
+                    <i class="bi bi-x-circle"></i> Effacer
                 </a>
                 {% endif %}
             </form>
@@ -31,7 +31,7 @@
         <div class="col-md-6">
             <form method="get" class="d-flex gap-2">
                 <select name="event" class="form-select" onchange="this.form.submit()">
-                    <option value="all">All Events</option>
+                    <option value="all">Tous les événements</option>
                     {% for event in events %}
                     <option value="{{ event.id }}" {% if event_filter == event.id|stringformat:"s" %}selected{% endif %}>
                         {{ event.name }}
@@ -48,19 +48,19 @@
     <div class="mb-4">
         <div class="btn-group" role="group">
             <a href="?role=all&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                <i class="bi bi-people"></i> All Users ({{ role_counts.all }})
+                <i class="bi bi-people"></i> Tous les utilisateurs ({{ role_counts.all }})
             </a>
             <a href="?role=organisateur&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'organisateur' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                <i class="bi bi-person-badge"></i> Organizers ({{ role_counts.organisateur }})
+                <i class="bi bi-person-badge"></i> Organisateurs ({{ role_counts.organisateur }})
             </a>
             <a href="?role=gestionnaire_des_salles&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'gestionnaire_des_salles' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                <i class="bi bi-door-open"></i> Room Managers ({{ role_counts.gestionnaire_des_salles }})
+                <i class="bi bi-door-open"></i> Gestionnaires de salle ({{ role_counts.gestionnaire_des_salles }})
             </a>
             <a href="?role=controlleur_des_badges&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'controlleur_des_badges' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                <i class="bi bi-qr-code-scan"></i> Controllers ({{ role_counts.controlleur_des_badges }})
+                <i class="bi bi-qr-code-scan"></i> Contrôleurs ({{ role_counts.controlleur_des_badges }})
             </a>
             <a href="?role=exposant&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'exposant' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                <i class="bi bi-shop"></i> Exhibitors ({{ role_counts.exposant }})
+                <i class="bi bi-shop"></i> Exposants ({{ role_counts.exposant }})
             </a>
             <a href="?role=participant&event={{ event_filter }}&search={{ search_query }}" class="btn {% if role_filter == 'participant' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 <i class="bi bi-person"></i> Participants ({{ role_counts.participant }})
@@ -74,15 +74,15 @@
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>Full Name</th>
-                        <th>Username</th>
-                        <th>Email</th>
-                        <th>Badge ID</th>
-                        <th>Phone</th>
-                        <th>Events</th>
-                        <th>Roles</th>
-                        <th>Joined Date</th>
-                        <th>Status</th>
+                        <th>Nom complet</th>
+                        <th>Nom d'utilisateur</th>
+                        <th>E-mail</th>
+                        <th>ID du badge</th>
+                        <th>Téléphone</th>
+                        <th>Événements</th>
+                        <th>Rôles</th>
+                        <th>Date d'inscription</th>
+                        <th>Statut</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -92,11 +92,11 @@
                         <td>
                             <strong>{{ user.first_name }} {{ user.last_name }}</strong>
                             {% if not user.first_name and not user.last_name %}
-                                <span class="text-muted">Not set</span>
+                                <span class="text-muted">Non défini</span>
                             {% endif %}
                         </td>
                         <td><code>{{ user.username }}</code></td>
-                        <td>{{ user.email|default:"No email" }}</td>
+                        <td>{{ user.email|default:"Aucun e-mail" }}</td>
                         <td>
                             {% if user.profile.qr_code_data %}
                                 <code class="small text-primary">{{ user.profile.qr_code_data.badge_id }}</code>
@@ -106,7 +106,7 @@
                         </td>
                         <td>
                             {% if user.participations.first %}
-                                <span class="text-muted">In profile</span>
+                                <span class="text-muted">Dans le profil</span>
                             {% else %}
                                 <span class="text-muted">-</span>
                             {% endif %}
@@ -121,7 +121,7 @@
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                <span class="text-muted">None</span>
+                                <span class="text-muted">Aucun</span>
                             {% endif %}
                         </td>
                         <td>
@@ -129,15 +129,15 @@
                                 <div class="d-flex flex-column gap-1">
                                     {% for assignment in user.event_assignments.all %}
                                         {% if assignment.role == 'organisateur' %}
-                                            <span class="badge bg-primary">Organizer</span>
+                                            <span class="badge bg-primary">Organisateur</span>
                                         {% elif assignment.role == 'gestionnaire_des_salles' %}
-                                            <span class="badge bg-info">Room Manager</span>
+                                            <span class="badge bg-info">Gestionnaire de salle</span>
                                         {% elif assignment.role == 'controlleur_des_badges' %}
-                                            <span class="badge bg-warning">Controller</span>
+                                            <span class="badge bg-warning">Contrôleur</span>
                                         {% elif assignment.role == 'committee' %}
-                                            <span class="badge bg-purple">Committee</span>
+                                            <span class="badge bg-purple">Comité</span>
                                         {% elif assignment.role == 'exposant' %}
-                                            <span class="badge bg-success">Exhibitor</span>
+                                            <span class="badge bg-success">Exposant</span>
                                         {% elif assignment.role == 'participant' %}
                                             <span class="badge bg-secondary">Participant</span>
                                         {% endif %}
@@ -146,15 +146,15 @@
                             {% elif user.participant_profile %}
                                 <span class="badge bg-secondary">Participant</span>
                             {% else %}
-                                <span class="text-muted">No role</span>
+                                <span class="text-muted">Aucun rôle</span>
                             {% endif %}
                         </td>
-                        <td><small>{{ user.date_joined|date:"M d, Y" }}</small></td>
+                        <td><small>{{ user.date_joined|date:"d/m/Y" }}</small></td>
                         <td>
                             {% if user.is_active %}
-                                <span class="badge bg-success">Active</span>
+                                <span class="badge bg-success">Actif</span>
                             {% else %}
-                                <span class="badge bg-danger">Inactive</span>
+                                <span class="badge bg-danger">Inactif</span>
                             {% endif %}
                             {% if user.is_staff %}
                                 <span class="badge bg-dark">Staff</span>
@@ -162,7 +162,7 @@
                         </td>
                         <td>
                             <a href="{% url 'dashboard:user_detail' user.id %}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i> Details
+                                <i class="bi bi-eye"></i> Détails
                             </a>
                         </td>
                     </tr>
@@ -173,9 +173,9 @@
         {% else %}
         <div class="text-center py-5">
             <i class="bi bi-person-x" style="font-size: 3rem; color: #ccc;"></i>
-            <p class="text-muted mt-3">No users yet.</p>
+            <p class="text-muted mt-3">Aucun utilisateur pour le moment.</p>
             <a href="{% url 'dashboard:user_create' %}" class="btn btn-primary">
-                <i class="bi bi-person-plus"></i> Create First User
+                <i class="bi bi-person-plus"></i> Créer le premier utilisateur
             </a>
         </div>
         {% endif %}

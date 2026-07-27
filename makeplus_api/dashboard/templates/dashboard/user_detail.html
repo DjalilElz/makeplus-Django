@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}{{ user.get_full_name|default:user.username }} - Details{% endblock %}
+{% block page_title %}{{ user.get_full_name|default:user.username }} - Détails{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -9,80 +9,80 @@
         <h2><i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}</h2>
         <div>
             <a href="{% url 'dashboard:user_list' %}" class="btn btn-outline-secondary me-2">
-                <i class="bi bi-arrow-left"></i> Back to Users
+                <i class="bi bi-arrow-left"></i> Retour aux utilisateurs
             </a>
             <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteUserModal">
-                <i class="bi bi-trash"></i> Delete User
+                <i class="bi bi-trash"></i> Supprimer l'utilisateur
             </button>
         </div>
     </div>
-    
+
     <div class="row">
         <!-- Left Column: User Info & Assignments -->
         <div class="col-lg-8">
             <!-- Basic Information Card -->
             <div class="stat-card mb-4">
-                <h4 class="mb-4"><i class="bi bi-info-circle"></i> Basic Information</h4>
-                
+                <h4 class="mb-4"><i class="bi bi-info-circle"></i> Informations de base</h4>
+
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label text-muted small">Full Name</label>
-                        <p class="fw-bold">{{ user.first_name }} {{ user.last_name|default:"Not set" }}</p>
+                        <label class="form-label text-muted small">Nom complet</label>
+                        <p class="fw-bold">{{ user.first_name }} {{ user.last_name|default:"Non défini" }}</p>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label text-muted small">Username</label>
+                        <label class="form-label text-muted small">Nom d'utilisateur</label>
                         <p class="fw-bold"><code>{{ user.username }}</code></p>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label text-muted small">Email</label>
-                        <p class="fw-bold">{{ user.email|default:"Not set" }}</p>
+                        <label class="form-label text-muted small">E-mail</label>
+                        <p class="fw-bold">{{ user.email|default:"Non défini" }}</p>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label text-muted small">Badge ID</label>
+                        <label class="form-label text-muted small">ID du badge</label>
                         <p class="fw-bold"><code class="text-primary">{{ qr_data.badge_id }}</code></p>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label text-muted small">Joined Date</label>
-                        <p>{{ user.date_joined|date:"F d, Y" }}</p>
+                        <label class="form-label text-muted small">Date d'inscription</label>
+                        <p>{{ user.date_joined|date:"d F Y" }}</p>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label text-muted small">Account Status</label>
+                        <label class="form-label text-muted small">Statut du compte</label>
                         <p>
                             {% if user.is_active %}
-                                <span class="badge bg-success">Active</span>
+                                <span class="badge bg-success">Actif</span>
                             {% else %}
-                                <span class="badge bg-danger">Inactive</span>
+                                <span class="badge bg-danger">Inactif</span>
                             {% endif %}
                             {% if user.is_staff %}
                                 <span class="badge bg-dark">Staff</span>
                             {% endif %}
                             {% if user.is_superuser %}
-                                <span class="badge bg-danger">Superuser</span>
+                                <span class="badge bg-danger">Superutilisateur</span>
                             {% endif %}
                         </p>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Event Assignments Card -->
             <div class="stat-card mb-4">
                 {% if participant %}
-                <h4 class="mb-3"><i class="bi bi-calendar-check"></i> Event Registrations ({{ event_registrations_count }})</h4>
+                <h4 class="mb-3"><i class="bi bi-calendar-check"></i> Inscriptions aux événements ({{ event_registrations_count }})</h4>
                 {% else %}
-                <h4 class="mb-3"><i class="bi bi-calendar-check"></i> Event Assignments ({{ assignments.count }})</h4>
+                <h4 class="mb-3"><i class="bi bi-calendar-check"></i> Affectations aux événements ({{ assignments.count }})</h4>
                 {% endif %}
-                
+
                 {% if assignments %}
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Event</th>
-                                <th>Role</th>
-                                <th>Assigned Room</th>
-                                <th>Assigned By</th>
+                                <th>Événement</th>
+                                <th>Rôle</th>
+                                <th>Salle affectée</th>
+                                <th>Affecté par</th>
                                 <th>Date</th>
-                                <th>Status</th>
+                                <th>Statut</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -93,20 +93,20 @@
                                 <td>
                                     <a href="{% url 'dashboard:event_detail' assignment.event.id %}" class="text-decoration-none">
                                         <strong>{{ assignment.event.name }}</strong><br>
-                                        <small class="text-muted">{{ assignment.event.start_date|date:"M d, Y" }}</small>
+                                        <small class="text-muted">{{ assignment.event.start_date|date:"d/m/Y" }}</small>
                                     </a>
                                 </td>
                                 <td>
                                     {% if assignment.role == 'organisateur' %}
-                                        <span class="badge bg-primary">Organizer</span>
+                                        <span class="badge bg-primary">Organisateur</span>
                                     {% elif assignment.role == 'gestionnaire_des_salles' %}
-                                        <span class="badge bg-info">Room Manager</span>
+                                        <span class="badge bg-info">Gestionnaire de salle</span>
                                     {% elif assignment.role == 'controlleur_des_badges' %}
-                                        <span class="badge bg-warning text-dark">Controller</span>
+                                        <span class="badge bg-warning text-dark">Contrôleur</span>
                                     {% elif assignment.role == 'committee' %}
-                                        <span class="badge bg-purple">Committee</span>
+                                        <span class="badge bg-purple">Comité</span>
                                     {% elif assignment.role == 'exposant' %}
-                                        <span class="badge bg-success">Exhibitor</span>
+                                        <span class="badge bg-success">Exposant</span>
                                     {% elif assignment.role == 'participant' %}
                                         <span class="badge bg-secondary">Participant</span>
                                     {% endif %}
@@ -117,19 +117,19 @@
                                             <i class="bi bi-door-open"></i> {{ assigned_room.name }}
                                         </span>
                                     {% elif assignment.role in 'organisateur,gestionnaire_des_salles,controlleur_des_badges' %}
-                                        <span class="text-muted small">No room assigned</span>
+                                        <span class="text-muted small">Aucune salle affectée</span>
                                     {% else %}
-                                        <span class="text-muted small">N/A</span>
+                                        <span class="text-muted small">N/D</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if assignment.assigned_by %}
                                         {{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.username }}
                                     {% else %}
-                                        <span class="text-muted">System</span>
+                                        <span class="text-muted">Système</span>
                                     {% endif %}
                                 </td>
-                                <td><small>{{ assignment.assigned_at|date:"M d, Y" }}</small></td>
+                                <td><small>{{ assignment.assigned_at|date:"d/m/Y" }}</small></td>
                                 <td>
                                     {% if assignment.is_active %}
                                         <span class="badge bg-success">Active</span>
@@ -138,7 +138,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#changeRoleModal{{ assignment.id }}" title="Change Role">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#changeRoleModal{{ assignment.id }}" title="Changer le rôle">
                                         <i class="bi bi-pencil"></i>
                                     </button>
                                 </td>
@@ -149,36 +149,36 @@
                                 <div class="modal-dialog">
                                     <div class="modal-content">
                                         <div class="modal-header">
-                                            <h5 class="modal-title">Change Role - {{ assignment.event.name }}</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            <h5 class="modal-title">Changer le rôle - {{ assignment.event.name }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
                                         </div>
                                         <form method="post" action="{% url 'dashboard:user_change_role' assignment.id %}">
                                             {% csrf_token %}
                                             <div class="modal-body">
                                                 <div class="mb-3">
-                                                    <label class="form-label">User:</label>
+                                                    <label class="form-label">Utilisateur :</label>
                                                     <p class="fw-bold">{{ user.get_full_name|default:user.username }}</p>
                                                 </div>
                                                 <div class="mb-3">
-                                                    <label class="form-label">Event:</label>
+                                                    <label class="form-label">Événement :</label>
                                                     <p class="fw-bold">{{ assignment.event.name }}</p>
                                                 </div>
                                                 <div class="mb-3">
-                                                    <label for="role{{ assignment.id }}" class="form-label">New Role</label>
+                                                    <label for="role{{ assignment.id }}" class="form-label">Nouveau rôle</label>
                                                     <select class="form-select" id="role{{ assignment.id }}" name="role" required>
-                                                        <option value="organisateur" {% if assignment.role == 'organisateur' %}selected{% endif %}>Organizer</option>
-                                                        <option value="gestionnaire_des_salles" {% if assignment.role == 'gestionnaire_des_salles' %}selected{% endif %}>Room Manager</option>
-                                                        <option value="controlleur_des_badges" {% if assignment.role == 'controlleur_des_badges' %}selected{% endif %}>Controller</option>
-                                                        <option value="committee" {% if assignment.role == 'committee' %}selected{% endif %}>Committee</option>
-                                                        <option value="exposant" {% if assignment.role == 'exposant' %}selected{% endif %}>Exhibitor</option>
+                                                        <option value="organisateur" {% if assignment.role == 'organisateur' %}selected{% endif %}>Organisateur</option>
+                                                        <option value="gestionnaire_des_salles" {% if assignment.role == 'gestionnaire_des_salles' %}selected{% endif %}>Gestionnaire de salle</option>
+                                                        <option value="controlleur_des_badges" {% if assignment.role == 'controlleur_des_badges' %}selected{% endif %}>Contrôleur</option>
+                                                        <option value="committee" {% if assignment.role == 'committee' %}selected{% endif %}>Comité</option>
+                                                        <option value="exposant" {% if assignment.role == 'exposant' %}selected{% endif %}>Exposant</option>
                                                         <option value="participant" {% if assignment.role == 'participant' %}selected{% endif %}>Participant</option>
                                                     </select>
                                                 </div>
                                             </div>
                                             <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                                                 <button type="submit" class="btn btn-primary">
-                                                    <i class="bi bi-check-circle"></i> Change Role
+                                                    <i class="bi bi-check-circle"></i> Changer le rôle
                                                 </button>
                                             </div>
                                         </form>
@@ -192,11 +192,11 @@
                 </div>
                 {% elif participant %}
                 <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> This participant has not registered for any events yet.
+                    <i class="bi bi-info-circle"></i> Ce participant ne s'est encore inscrit à aucun événement.
                 </div>
                 {% else %}
                 <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> This user has no event assignments yet.
+                    <i class="bi bi-info-circle"></i> Cet utilisateur n'a encore aucune affectation à un événement.
                 </div>
                 {% endif %}
             </div>
@@ -206,15 +206,15 @@
             {% for data in participant_data %}
             <div class="stat-card mb-4">
                 <h4 class="mb-3">
-                    <i class="bi bi-ticket-perforated"></i> Participant Details - {{ data.event.name }}
+                    <i class="bi bi-ticket-perforated"></i> Détails du participant - {{ data.event.name }}
                 </h4>
-                
+
                 <!-- Participant Stats Row -->
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">
                         <div class="stat-mini-card text-center">
                             <h5 class="mb-1">{{ data.total_spent|floatformat:2 }} DA</h5>
-                            <p class="text-muted small mb-0">Total Spent</p>
+                            <p class="text-muted small mb-0">Total dépensé</p>
                         </div>
                     </div>
                     <div class="col-md-4">
@@ -225,34 +225,34 @@
                     </div>
                     <div class="col-md-4">
                         <div class="stat-mini-card text-center">
-                            <h5 class="mb-1">{% if data.event_registration.is_checked_in %}<i class="bi bi-check-circle-fill text-success"></i> Checked In{% else %}<i class="bi bi-clock text-warning"></i> Not Checked In{% endif %}</h5>
-                            <p class="text-muted small mb-0">Check-in Status</p>
+                            <h5 class="mb-1">{% if data.event_registration.is_checked_in %}<i class="bi bi-check-circle-fill text-success"></i> Enregistré{% else %}<i class="bi bi-clock text-warning"></i> Non enregistré{% endif %}</h5>
+                            <p class="text-muted small mb-0">Statut d'enregistrement</p>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Check-in Status -->
                 <div class="alert {% if data.event_registration.is_checked_in %}alert-success{% else %}alert-warning{% endif %}">
                     <i class="bi {% if data.event_registration.is_checked_in %}bi-check-circle-fill{% else %}bi-clock{% endif %}"></i>
                     {% if data.event_registration.is_checked_in %}
-                        Checked in on {{ data.event_registration.checked_in_at|date:"M d, Y H:i" }}
+                        Enregistré le {{ data.event_registration.checked_in_at|date:"d/m/Y H:i" }}
                     {% else %}
-                        Not checked in yet
+                        Pas encore enregistré
                     {% endif %}
                 </div>
-                
+
                 <!-- Paid Sessions Section - Only show if there are actual transactions -->
                 {% if data.transactions %}
-                <h5 class="mt-4"><i class="bi bi-cash-coin"></i> Paid Workshops/Ateliers</h5>
+                <h5 class="mt-4"><i class="bi bi-cash-coin"></i> Ateliers payants</h5>
                 <hr>
                 <div class="table-responsive">
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Workshop</th>
-                                <th>Room</th>
-                                <th>Date & Time</th>
-                                <th>Amount Paid</th>
+                                <th>Atelier</th>
+                                <th>Salle</th>
+                                <th>Date et heure</th>
+                                <th>Montant payé</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -262,7 +262,7 @@
                                     <tr>
                                         <td><strong>{{ item.name }}</strong></td>
                                         <td>{{ item.session.room.name|default:"-" }}</td>
-                                        <td><small>{{ item.session.start_time|date:"M d, Y H:i"|default:"-" }}</small></td>
+                                        <td><small>{{ item.session.start_time|date:"d/m/Y H:i"|default:"-" }}</small></td>
                                         <td><span class="badge bg-success">{{ item.price }} DA</span></td>
                                     </tr>
                                     {% endif %}
@@ -273,7 +273,7 @@
                 </div>
                 
                 <!-- Transactions Section -->
-                <h5 class="mt-4"><i class="bi bi-receipt"></i> Payment Transactions</h5>
+                <h5 class="mt-4"><i class="bi bi-receipt"></i> Transactions de paiement</h5>
                 <hr>
                 <div class="table-responsive">
                     <table class="table table-sm">
@@ -281,23 +281,23 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Caisse</th>
-                                <th>Items</th>
-                                <th>Amount</th>
-                                <th>Method</th>
+                                <th>Articles</th>
+                                <th>Montant</th>
+                                <th>Méthode</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for trans in data.transactions %}
                             <tr>
-                                <td><small>{{ trans.created_at|date:"M d, H:i" }}</small></td>
+                                <td><small>{{ trans.created_at|date:"d/m H:i" }}</small></td>
                                 <td>{{ trans.caisse.name }}</td>
-                                <td>{{ trans.items.all|length }} item(s)</td>
+                                <td>{{ trans.items.all|length }} article(s)</td>
                                 <td><strong>{{ trans.total_amount }} DA</strong></td>
                                 <td>
                                     {% if trans.payment_method == 'cash' %}
-                                        <span class="badge bg-success">Cash</span>
+                                        <span class="badge bg-success">Espèces</span>
                                     {% elif trans.payment_method == 'card' %}
-                                        <span class="badge bg-primary">Card</span>
+                                        <span class="badge bg-primary">Carte</span>
                                     {% else %}
                                         <span class="badge bg-secondary">{{ trans.payment_method }}</span>
                                     {% endif %}
@@ -316,52 +316,52 @@
         <!-- Right Column: QR Code & Quick Stats -->
         <div class="col-lg-4">
             <div class="stat-card text-center mb-4">
-                <h5 class="mb-3"><i class="bi bi-qr-code"></i> User QR Code</h5>
-                <p class="text-muted small">Universal badge for all events</p>
+                <h5 class="mb-3"><i class="bi bi-qr-code"></i> Code QR de l'utilisateur</h5>
+                <p class="text-muted small">Badge universel pour tous les événements</p>
                 
                 <img src="data:image/png;base64,{{ qr_image }}" class="img-fluid mb-3" style="max-width: 250px; border: 3px solid #dee2e6; border-radius: 8px; padding: 10px;">
                 
                 <div class="mb-3">
-                    <p class="small mb-1 text-muted">Badge ID:</p>
+                    <p class="small mb-1 text-muted">ID du badge :</p>
                     <code class="text-primary fs-6">{{ qr_data.badge_id }}</code>
                 </div>
-                
+
                 <div class="d-grid">
                     <a href="{% url 'dashboard:download_qr_code' user.id %}" class="btn btn-primary">
-                        <i class="bi bi-download"></i> Download QR Code
+                        <i class="bi bi-download"></i> Télécharger le code QR
                     </a>
                 </div>
             </div>
             
             <!-- Quick Stats Card -->
             <div class="stat-card">
-                <h5 class="mb-3"><i class="bi bi-graph-up"></i> Quick Statistics</h5>
+                <h5 class="mb-3"><i class="bi bi-graph-up"></i> Statistiques rapides</h5>
                 <div class="d-flex flex-column gap-3">
                     {% if participant %}
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="text-muted">Events:</span>
+                        <span class="text-muted">Événements :</span>
                         <strong>{{ event_registrations_count }}</strong>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="text-muted">Active Roles:</span>
+                        <span class="text-muted">Rôles actifs :</span>
                         <strong>1</strong>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="text-muted">Participant in:</span>
-                        <strong>{{ event_registrations_count }} event(s)</strong>
+                        <span class="text-muted">Participant à :</span>
+                        <strong>{{ event_registrations_count }} événement(s)</strong>
                     </div>
                     {% else %}
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="text-muted">Events:</span>
+                        <span class="text-muted">Événements :</span>
                         <strong>{{ assignments.count }}</strong>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="text-muted">Active Roles:</span>
+                        <span class="text-muted">Rôles actifs :</span>
                         <strong>{{ assignments|length }}</strong>
                     </div>
                     {% endif %}
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="text-muted">Account Age:</span>
+                        <span class="text-muted">Ancienneté du compte :</span>
                         <strong>{{ user.date_joined|timesince }}</strong>
                     </div>
                 </div>
@@ -376,31 +376,31 @@
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title" id="deleteUserModalLabel">
-                    <i class="bi bi-exclamation-triangle"></i> Confirm Delete User
+                    <i class="bi bi-exclamation-triangle"></i> Confirmer la suppression de l'utilisateur
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-3">Are you sure you want to <strong>permanently delete</strong> this user?</p>
+                <p class="mb-3">Êtes-vous sûr de vouloir <strong>supprimer définitivement</strong> cet utilisateur ?</p>
                 <div class="alert alert-warning mb-3">
-                    <strong>User:</strong> {{ user.get_full_name|default:user.username }}<br>
-                    <strong>Email:</strong> {{ user.email }}<br>
-                    <strong>Username:</strong> {{ user.username }}<br>
-                    <strong>Badge ID:</strong> {{ qr_data.badge_id }}
+                    <strong>Utilisateur :</strong> {{ user.get_full_name|default:user.username }}<br>
+                    <strong>E-mail :</strong> {{ user.email }}<br>
+                    <strong>Nom d'utilisateur :</strong> {{ user.username }}<br>
+                    <strong>ID du badge :</strong> {{ qr_data.badge_id }}
                 </div>
                 <p class="text-danger small mb-0">
-                    <i class="bi bi-exclamation-circle"></i> 
-                    <strong>Warning:</strong> This action cannot be undone. All user data, event assignments, participant profiles, transactions, and access records will be permanently deleted.
+                    <i class="bi bi-exclamation-circle"></i>
+                    <strong>Attention :</strong> cette action est irréversible. Toutes les données de l'utilisateur, les affectations aux événements, les profils de participant, les transactions et les enregistrements d'accès seront définitivement supprimés.
                 </p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle"></i> Cancel
+                    <i class="bi bi-x-circle"></i> Annuler
                 </button>
                 <form method="post" action="{% url 'dashboard:user_delete' user.id %}" style="display: inline;">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash"></i> Yes, Delete User
+                        <i class="bi bi-trash"></i> Oui, supprimer l'utilisateur
                     </button>
                 </form>
             </div>

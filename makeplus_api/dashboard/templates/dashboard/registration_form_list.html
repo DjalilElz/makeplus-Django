@@ -1,23 +1,23 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}Registration Forms{% endblock %}
+{% block page_title %}Formulaires d'inscription{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-ui-checks"></i> Registration Forms</h2>
+        <h2><i class="bi bi-ui-checks"></i> Formulaires d'inscription</h2>
         <div>
             <button class="btn btn-outline-secondary me-2" onclick="location.reload()">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
+                <i class="bi bi-arrow-clockwise"></i> Actualiser
             </button>
             <a href="{% url 'dashboard:registration_form_create' %}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Create New Form
+                <i class="bi bi-plus-circle"></i> Créer un nouveau formulaire
             </a>
         </div>
     </div>
-    
+
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> <strong>Custom Registration Forms:</strong> Create customizable forms with any fields you need. Each form gets its own public URL that anyone can access to register.
+        <i class="bi bi-info-circle"></i> <strong>Formulaires d'inscription personnalisés :</strong> Créez des formulaires personnalisables avec les champs de votre choix. Chaque formulaire dispose de sa propre URL publique accessible à tous pour s'inscrire.
     </div>
     
     {% if forms %}
@@ -44,73 +44,73 @@
                         <hr>
                         
                         <div class="mb-2">
-                            <strong>Public URL:</strong><br>
+                            <strong>URL publique :</strong><br>
                             <a href="{{ form.get_public_url }}" target="_blank" class="small text-break">
                                 {{ request.scheme }}://{{ request.get_host }}{{ form.get_public_url }}
                             </a>
-                            <button class="btn btn-sm btn-outline-secondary ms-1" 
-                                    onclick="copyToClipboard('{{ request.scheme }}://{{ request.get_host }}{{ form.get_public_url }}')" 
-                                    title="Copy URL">
+                            <button class="btn btn-sm btn-outline-secondary ms-1"
+                                    onclick="copyToClipboard('{{ request.scheme }}://{{ request.get_host }}{{ form.get_public_url }}')"
+                                    title="Copier l'URL">
                                 <i class="bi bi-clipboard"></i>
                             </button>
                         </div>
-                        
+
                         <div class="mb-2">
-                            <strong>Fields:</strong> {{ form.fields_config|length }}
+                            <strong>Champs :</strong> {{ form.fields_config|length }}
                         </div>
-                        
+
                         <div class="mb-2">
-                            <strong>Submissions:</strong> 
+                            <strong>Soumissions :</strong>
                             <span class="badge bg-info">{{ form.actual_submission_count }}</span>
                         </div>
-                        
+
                         {% if form.event %}
                         <div class="mb-2">
-                            <strong>Event:</strong> {{ form.event.name }}
+                            <strong>Événement :</strong> {{ form.event.name }}
                         </div>
                         {% endif %}
                     </div>
                     
                     <div class="card-footer bg-light">
                         <small class="text-muted">
-                            {% if form.created_by %}<i class="bi bi-person"></i> {{ form.created_by.username }} |{% endif %} 
-                            <i class="bi bi-calendar"></i> {{ form.created_at|date:"M d, Y" }}
+                            {% if form.created_by %}<i class="bi bi-person"></i> {{ form.created_by.username }} |{% endif %}
+                            <i class="bi bi-calendar"></i> {{ form.created_at|date:"d/m/Y" }}
                         </small>
-                        
+
                         <div class="d-grid gap-2 mt-2">
                             <!-- Toggle Active/Inactive Button -->
                             <form method="post" action="{% url 'dashboard:registration_form_toggle' form.id %}" style="display: inline;">
                                 {% csrf_token %}
                                 {% if form.is_active %}
-                                    <button type="submit" class="btn btn-sm btn-warning w-100" title="Deactivate Form">
-                                        <i class="bi bi-pause-circle"></i> Deactivate Form
+                                    <button type="submit" class="btn btn-sm btn-warning w-100" title="Désactiver le formulaire">
+                                        <i class="bi bi-pause-circle"></i> Désactiver le formulaire
                                     </button>
                                 {% else %}
-                                    <button type="submit" class="btn btn-sm btn-success w-100" title="Activate Form">
-                                        <i class="bi bi-play-circle"></i> Activate Form
+                                    <button type="submit" class="btn btn-sm btn-success w-100" title="Activer le formulaire">
+                                        <i class="bi bi-play-circle"></i> Activer le formulaire
                                     </button>
                                 {% endif %}
                             </form>
-                            
+
                             <div class="btn-group" role="group">
-                                <a href="{{ form.get_public_url }}" target="_blank" 
-                                   class="btn btn-sm btn-outline-info" title="View Public Form">
-                                    <i class="bi bi-eye"></i> View
+                                <a href="{{ form.get_public_url }}" target="_blank"
+                                   class="btn btn-sm btn-outline-info" title="Voir le formulaire public">
+                                    <i class="bi bi-eye"></i> Voir
                                 </a>
-                                <a href="{% url 'dashboard:registration_form_submissions' form.id %}" 
-                                   class="btn btn-sm btn-outline-success" title="View Submissions">
-                                    <i class="bi bi-list-check"></i> Submissions
+                                <a href="{% url 'dashboard:registration_form_submissions' form.id %}"
+                                   class="btn btn-sm btn-outline-success" title="Voir les soumissions">
+                                    <i class="bi bi-list-check"></i> Soumissions
                                 </a>
                             </div>
                             <div class="btn-group" role="group">
-                                <a href="{% url 'dashboard:registration_form_edit' form.id %}" 
-                                   class="btn btn-sm btn-outline-primary" title="Edit Form">
-                                    <i class="bi bi-pencil"></i> Edit
+                                <a href="{% url 'dashboard:registration_form_edit' form.id %}"
+                                   class="btn btn-sm btn-outline-primary" title="Modifier le formulaire">
+                                    <i class="bi bi-pencil"></i> Modifier
                                 </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger" 
-                                        onclick="deleteForm('{{ form.id }}', '{{ form.name|escapejs }}')" 
-                                        title="Delete Form">
-                                    <i class="bi bi-trash"></i> Delete
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        onclick="deleteForm('{{ form.id }}', '{{ form.name|escapejs }}')"
+                                        title="Supprimer le formulaire">
+                                    <i class="bi bi-trash"></i> Supprimer
                                 </button>
                             </div>
                         </div>
@@ -126,8 +126,8 @@
         </div>
     {% else %}
         <div class="alert alert-warning">
-            <i class="bi bi-exclamation-circle"></i> No forms created yet. 
-            <a href="{% url 'dashboard:registration_form_create' %}" class="alert-link">Create your first form</a>.
+            <i class="bi bi-exclamation-circle"></i> Aucun formulaire créé pour le moment.
+            <a href="{% url 'dashboard:registration_form_create' %}" class="alert-link">Créez votre premier formulaire</a>.
         </div>
     {% endif %}
 </div>
@@ -154,7 +154,7 @@ function copyToClipboard(text) {
                 button.disabled = false;
             }, 2000);
         } else {
-            alert('URL copied to clipboard!');
+            alert('URL copiée dans le presse-papiers !');
         }
     }).catch(function(err) {
         // Reset button on error
@@ -168,16 +168,16 @@ function copyToClipboard(text) {
         textarea.select();
         try {
             document.execCommand('copy');
-            alert('URL copied to clipboard!');
+            alert('URL copiée dans le presse-papiers !');
         } catch(e) {
-            alert('Failed to copy URL. Please copy manually: ' + text);
+            alert('Échec de la copie de l\'URL. Veuillez la copier manuellement : ' + text);
         }
         document.body.removeChild(textarea);
     });
 }
 
 function deleteForm(formId, formName) {
-    if (confirm(`Are you sure you want to DELETE "${formName}"?\n\nThis will also delete all submissions!`)) {
+    if (confirm(`Êtes-vous sûr de vouloir SUPPRIMER « ${formName} » ?\n\nCela supprimera également toutes les soumissions !`)) {
         document.getElementById(`delete-form-${formId}`).submit();
     }
 }

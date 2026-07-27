@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}Send Campaign - {{ campaign.name }}{% endblock %}
+{% block page_title %}Envoyer la campagne - {{ campaign.name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -9,48 +9,48 @@
             <!-- Breadcrumb -->
             <nav aria-label="breadcrumb" class="mb-4">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{% url 'dashboard:campaign_list_with_stats' %}">Campaigns</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard:campaign_list_with_stats' %}">Campagnes</a></li>
                     <li class="breadcrumb-item"><a href="{% url 'dashboard:campaign_detail' campaign.id %}">{{ campaign.name }}</a></li>
-                    <li class="breadcrumb-item active">Send Campaign</li>
+                    <li class="breadcrumb-item active">Envoyer la campagne</li>
                 </ol>
             </nav>
 
             <!-- Warning Card -->
             <div class="card border-warning shadow-lg mb-4">
                 <div class="card-header bg-warning text-dark">
-                    <h4 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Confirm Campaign Send</h4>
+                    <h4 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Confirmer l'envoi de la campagne</h4>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-warning mb-4">
-                        <i class="bi bi-info-circle"></i> 
-                        <strong>Important:</strong> Once you send this campaign, it cannot be undone. Make sure you have reviewed all details.
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Important :</strong> une fois cette campagne envoyée, l'action est irréversible. Assurez-vous d'avoir vérifié tous les détails.
                     </div>
 
                     <!-- Campaign Details -->
                     <div class="mb-4">
-                        <h5 class="mb-3"><i class="bi bi-megaphone"></i> Campaign Details</h5>
+                        <h5 class="mb-3"><i class="bi bi-megaphone"></i> Détails de la campagne</h5>
                         <table class="table table-bordered">
                             <tbody>
                                 <tr>
-                                    <th width="30%">Campaign Name</th>
+                                    <th width="30%">Nom de la campagne</th>
                                     <td>{{ campaign.name }}</td>
                                 </tr>
                                 <tr>
-                                    <th>Subject Line</th>
+                                    <th>Objet</th>
                                     <td>{{ campaign.subject }}</td>
                                 </tr>
                                 <tr>
-                                    <th>From Email</th>
-                                    <td>{{ campaign.from_email|default:"Default Email" }}</td>
+                                    <th>E-mail d'expéditeur</th>
+                                    <td>{{ campaign.from_email|default:"E-mail par défaut" }}</td>
                                 </tr>
                                 {% if campaign.event %}
                                 <tr>
-                                    <th>Associated Event</th>
+                                    <th>Événement associé</th>
                                     <td>{{ campaign.event.name }}</td>
                                 </tr>
                                 {% endif %}
                                 <tr>
-                                    <th>Total Recipients</th>
+                                    <th>Total des destinataires</th>
                                     <td><strong class="text-primary fs-5">{{ recipient_count }}</strong></td>
                                 </tr>
                             </tbody>
@@ -59,10 +59,10 @@
 
                     <!-- Preview -->
                     <div class="mb-4">
-                        <h5 class="mb-3"><i class="bi bi-eye"></i> Email Preview</h5>
+                        <h5 class="mb-3"><i class="bi bi-eye"></i> Aperçu de l'e-mail</h5>
                         <div class="border rounded p-3 bg-light">
                             <div class="mb-2">
-                                <strong>Subject:</strong> {{ campaign.subject }}
+                                <strong>Objet :</strong> {{ campaign.subject }}
                             </div>
                             <hr>
                             <div style="max-height: 300px; overflow-y: auto;">
@@ -73,48 +73,48 @@
 
                     <!-- Checklist -->
                     <div class="mb-4">
-                        <h5 class="mb-3"><i class="bi bi-check2-square"></i> Pre-Send Checklist</h5>
+                        <h5 class="mb-3"><i class="bi bi-check2-square"></i> Liste de vérification avant envoi</h5>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="check1">
                             <label class="form-check-label" for="check1">
-                                I have reviewed the campaign content and subject line
+                                J'ai vérifié le contenu de la campagne et l'objet
                             </label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="check2">
                             <label class="form-check-label" for="check2">
-                                I have sent a test email and verified it looks correct
+                                J'ai envoyé un e-mail de test et vérifié qu'il s'affiche correctement
                             </label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="check3">
                             <label class="form-check-label" for="check3">
-                                I have verified the recipient list is correct ({{ recipient_count }} recipients)
+                                J'ai vérifié que la liste des destinataires est correcte ({{ recipient_count }} destinataires)
                             </label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="check4">
                             <label class="form-check-label" for="check4">
-                                I understand this action cannot be undone
+                                Je comprends que cette action est irréversible
                             </label>
                         </div>
                     </div>
 
                     <!-- Batch Sending Info -->
                     <div class="alert alert-info mb-4">
-                        <i class="bi bi-info-circle"></i> 
-                        <strong>Batch Sending:</strong> Emails will be sent in batches of 10 to ensure reliable delivery. If you have more recipients, you'll need to click "Send" multiple times.
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Envoi par lots :</strong> les e-mails seront envoyés par lots de 10 pour garantir une livraison fiable. Si vous avez davantage de destinataires, vous devrez cliquer sur « Envoyer » plusieurs fois.
                     </div>
 
                     <!-- Action Buttons -->
                     <div class="d-flex gap-3 justify-content-end">
                         <a href="{% url 'dashboard:campaign_detail' campaign.id %}" class="btn btn-secondary btn-lg">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle"></i> Annuler
                         </a>
                         <form method="post" id="sendForm">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-success btn-lg" id="sendButton" disabled>
-                                <i class="bi bi-send"></i> Send Campaign Now
+                                <i class="bi bi-send"></i> Envoyer la campagne maintenant
                             </button>
                         </form>
                     </div>
@@ -141,7 +141,7 @@ checkboxes.forEach(cb => {
 
 // Final confirmation before sending
 sendForm.addEventListener('submit', function(e) {
-    if (!confirm('Are you absolutely sure you want to send this campaign to {{ recipient_count }} recipients? This action CANNOT be undone.')) {
+    if (!confirm('Êtes-vous absolument sûr de vouloir envoyer cette campagne à {{ recipient_count }} destinataires ? Cette action est IRRÉVERSIBLE.')) {
         e.preventDefault();
     }
 });

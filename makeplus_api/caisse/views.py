@@ -212,7 +212,7 @@ def caisse_required(view_func):
     def wrapper(request, *args, **kwargs):
         caisse_id = request.session.get('caisse_id')
         if not caisse_id:
-            messages.warning(request, 'Please log in to continue.')
+            messages.warning(request, 'Veuillez vous connecter pour continuer.')
             return redirect('caisse:login')
         
         try:
@@ -220,7 +220,7 @@ def caisse_required(view_func):
             request.caisse = caisse
         except Caisse.DoesNotExist:
             del request.session['caisse_id']
-            messages.error(request, 'Your caisse session is invalid. Please log in again.')
+            messages.error(request, 'Votre session de caisse est invalide. Veuillez vous reconnecter.')
             return redirect('caisse:login')
         
         return view_func(request, *args, **kwargs)
@@ -244,12 +244,12 @@ def caisse_login(request):
             if caisse.check_password(password):
                 request.session['caisse_id'] = caisse.id
                 request.session['caisse_name'] = caisse.name
-                messages.success(request, f'Welcome to {caisse.name}!')
+                messages.success(request, f'Bienvenue à {caisse.name} !')
                 return redirect('caisse:dashboard')
             else:
-                messages.error(request, 'Invalid email or password.')
+                messages.error(request, 'E-mail ou mot de passe invalide.')
         except Caisse.DoesNotExist:
-            messages.error(request, 'Invalid email or password.')
+            messages.error(request, 'E-mail ou mot de passe invalide.')
     
     return render(request, 'caisse/login.html')
 
@@ -261,7 +261,7 @@ def caisse_logout(request):
     del request.session['caisse_id']
     if 'caisse_name' in request.session:
         del request.session['caisse_name']
-    messages.success(request, f'Logged out from {caisse_name}.')
+    messages.success(request, f'Déconnecté de {caisse_name}.')
     return redirect('caisse:login')
 
 
@@ -1264,10 +1264,10 @@ def print_badge(request, participant_id):
         participant = Participant.objects.select_related('user').get(id=participant_id)
         # Verify participant is registered for this event
         if not participant.is_registered_for_event(caisse.event):
-            messages.error(request, 'Participant not registered for this event')
+            messages.error(request, "Participant non inscrit à cet événement")
             return redirect('caisse:dashboard')
     except Participant.DoesNotExist:
-        messages.error(request, 'Participant not found')
+        messages.error(request, 'Participant introuvable')
         return redirect('caisse:dashboard')
     
     # Generate QR code image

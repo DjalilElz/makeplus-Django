@@ -1,6 +1,6 @@
 {% extends 'caisse/base.html' %}
 
-{% block title %}Caisse Login{% endblock %}
+{% block title %}Connexion Caisse{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -11,8 +11,8 @@
                     <div class="icon-container">
                         <i class="bi bi-cash-register"></i>
                     </div>
-                    <h2 class="mb-2">Caisse Login</h2>
-                    <p class="text-muted">Enter your credentials to access the cash register system</p>
+                    <h2 class="mb-2">Connexion Caisse</h2>
+                    <p class="text-muted">Saisissez vos identifiants pour accéder au système de caisse</p>
                 </div>
 
                 {% if messages %}
@@ -29,7 +29,7 @@
                     {% csrf_token %}
                     <div class="mb-4">
                         <label for="email" class="form-label">
-                            <i class="bi bi-envelope me-1"></i> Email Address
+                            <i class="bi bi-envelope me-1"></i> Adresse e-mail
                         </label>
                         <div class="input-group">
                             <span class="input-group-text">
@@ -47,38 +47,38 @@
                     
                     <div class="mb-4">
                         <label for="password" class="form-label">
-                            <i class="bi bi-lock me-1"></i> Password
+                            <i class="bi bi-lock me-1"></i> Mot de passe
                         </label>
                         <div class="input-group">
                             <span class="input-group-text">
                                 <i class="bi bi-key"></i>
                             </span>
-                            <input type="password" 
-                                   class="form-control" 
-                                   id="password" 
-                                   name="password" 
-                                   placeholder="Enter your password"
+                            <input type="password"
+                                   class="form-control"
+                                   id="password"
+                                   name="password"
+                                   placeholder="Saisissez votre mot de passe"
                                    required>
                         </div>
                     </div>
                     
                     <button type="submit" class="btn btn-primary w-100" id="loginBtn">
-                        <i class="bi bi-box-arrow-in-right me-2"></i> 
-                        <span>Login to Caisse</span>
+                        <i class="bi bi-box-arrow-in-right me-2"></i>
+                        <span>Se connecter à la caisse</span>
                     </button>
                 </form>
 
                 <div class="text-center mt-4">
                     <small class="text-muted">
-                        <i class="bi bi-shield-lock"></i> Secure caisse operator access
+                        <i class="bi bi-shield-lock"></i> Accès sécurisé opérateur de caisse
                     </small>
                 </div>
             </div>
-            
+
             <div class="footer-text">
                 <p class="mb-0">
-                    <i class="bi bi-info-circle"></i> 
-                    Need help? Contact your event administrator
+                    <i class="bi bi-info-circle"></i>
+                    Besoin d'aide ? Contactez l'administrateur de votre événement
                 </p>
             </div>
         </div>

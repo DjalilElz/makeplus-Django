@@ -1,22 +1,22 @@
 {% extends 'dashboard/base.html' %}
 {% load form_filters %}
 
-{% block page_title %}Scientific Contributions{% endblock %}
+{% block page_title %}Contributions scientifiques{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="mb-1">📄 Scientific Contributions</h2>
+            <h2 class="mb-1">📄 Contributions scientifiques</h2>
             <p class="text-muted mb-0">
-                Manage Scientific Contribution forms for your events
+                Gérez les formulaires de contribution scientifique de vos événements
             </p>
         </div>
         {% if user.is_staff or user.is_superuser %}
         <div>
             <a href="{% url 'dashboard:home' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Back
+                <i class="bi bi-arrow-left"></i> Retour
             </a>
         </div>
         {% endif %}
@@ -37,41 +37,41 @@
                         <div>
                             {% if event.committee_members_count > 0 %}
                                 <span class="badge bg-light text-success">
-                                    <i class="bi bi-people-fill"></i> {{ event.committee_members_count }} Committee
+                                    <i class="bi bi-people-fill"></i> {{ event.committee_members_count }} membre(s) du comité
                                 </span>
                             {% else %}
                                 <span class="badge bg-warning text-dark">
-                                    <i class="bi bi-exclamation-triangle-fill"></i> No Committee
+                                    <i class="bi bi-exclamation-triangle-fill"></i> Aucun comité
                                 </span>
                             {% endif %}
                         </div>
                     </div>
                     <small>
                         {% if event.status == 'active' %}
-                            <span class="badge bg-light text-success">Active</span>
+                            <span class="badge bg-light text-success">Actif</span>
                         {% elif event.status == 'upcoming' %}
-                            <span class="badge bg-light text-primary">Upcoming</span>
+                            <span class="badge bg-light text-primary">À venir</span>
                         {% elif event.status == 'completed' %}
-                            <span class="badge bg-light text-secondary">Completed</span>
+                            <span class="badge bg-light text-secondary">Terminé</span>
                         {% else %}
-                            <span class="badge bg-light text-danger">Cancelled</span>
+                            <span class="badge bg-light text-danger">Annulé</span>
                         {% endif %}
-                        
+
                         {% if event.id in user_committee_events %}
                             <span class="badge bg-warning text-dark ms-2">
-                                <i class="bi bi-person-check"></i> You are a committee member
+                                <i class="bi bi-person-check"></i> Vous êtes membre du comité
                             </span>
                         {% endif %}
-                        
+
                         <!-- Form Status Badge -->
                         {% with config=form_configs|lookup:event.id %}
                             {% if config.is_active %}
                                 <span class="badge bg-success text-white ms-2">
-                                    <i class="bi bi-check-circle-fill"></i> Form Active
+                                    <i class="bi bi-check-circle-fill"></i> Formulaire actif
                                 </span>
                             {% else %}
                                 <span class="badge bg-danger text-white ms-2">
-                                    <i class="bi bi-x-circle-fill"></i> Form Inactive
+                                    <i class="bi bi-x-circle-fill"></i> Formulaire inactif
                                 </span>
                             {% endif %}
                         {% endwith %}
@@ -84,31 +84,31 @@
                         <div class="col-6">
                             <div class="stat-card bg-light text-center p-2">
                                 <h4 class="mb-0">{{ event.total_submissions }}</h4>
-                                <small class="text-muted">Total Submissions</small>
+                                <small class="text-muted">Total des soumissions</small>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="stat-card bg-light text-center p-2">
                                 <h4 class="mb-0">{{ event.committee_members_count }}</h4>
-                                <small class="text-muted">Committee Members</small>
+                                <small class="text-muted">Membres du comité</small>
                             </div>
                         </div>
                         <div class="col-4">
                             <div class="stat-card text-center p-2" style="background: #e8f5e9;">
                                 <h5 class="mb-0 text-success">{{ event.accepted_submissions }}</h5>
-                                <small class="text-muted">Accepted</small>
+                                <small class="text-muted">Acceptées</small>
                             </div>
                         </div>
                         <div class="col-4">
                             <div class="stat-card text-center p-2" style="background: #fff3e0;">
                                 <h5 class="mb-0 text-warning">{{ event.pending_submissions }}</h5>
-                                <small class="text-muted">Pending</small>
+                                <small class="text-muted">En attente</small>
                             </div>
                         </div>
                         <div class="col-4">
                             <div class="stat-card text-center p-2" style="background: #ffebee;">
                                 <h5 class="mb-0 text-danger">{{ event.rejected_submissions }}</h5>
-                                <small class="text-muted">Rejected</small>
+                                <small class="text-muted">Rejetées</small>
                             </div>
                         </div>
                     </div>
@@ -116,7 +116,7 @@
                     <!-- Public URL -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">
-                            <i class="bi bi-link-45deg"></i> Public URL (for Participants):
+                            <i class="bi bi-link-45deg"></i> URL publique (pour les participants) :
                         </label>
                         <div class="input-group input-group-sm">
                             <input type="text" 
@@ -127,18 +127,18 @@
                             <button class="btn btn-outline-secondary" 
                                     type="button"
                                     onclick="copyToClipboard('url-{{ event.id }}')">
-                                <i class="bi bi-clipboard"></i> Copy
+                                <i class="bi bi-clipboard"></i> Copier
                             </button>
                         </div>
                         <small class="text-muted">
-                            Share this link with people who want to submit their work
+                            Partagez ce lien avec les personnes souhaitant soumettre leur travail
                         </small>
                     </div>
 
                     <!-- Final Submission URL: E-Poster -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">
-                            <i class="bi bi-link-45deg"></i> Final Submission URL (E-Poster):
+                            <i class="bi bi-link-45deg"></i> URL de soumission finale (E-Poster) :
                         </label>
                         <div class="input-group input-group-sm">
                             <input type="text"
@@ -149,18 +149,18 @@
                             <button class="btn btn-outline-secondary"
                                     type="button"
                                     onclick="copyToClipboard('url-final-eposter-{{ event.id }}')">
-                                <i class="bi bi-clipboard"></i> Copy
+                                <i class="bi bi-clipboard"></i> Copier
                             </button>
                         </div>
                         <small class="text-muted">
-                            Share this link with accepted E-Poster authors for their final submission
+                            Partagez ce lien avec les auteurs d'E-Poster acceptés pour leur soumission finale
                         </small>
                     </div>
 
                     <!-- Final Submission URL: Communication Orale -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">
-                            <i class="bi bi-link-45deg"></i> Final Submission URL (Communication Orale):
+                            <i class="bi bi-link-45deg"></i> URL de soumission finale (Communication Orale) :
                         </label>
                         <div class="input-group input-group-sm">
                             <input type="text"
@@ -171,11 +171,11 @@
                             <button class="btn btn-outline-secondary"
                                     type="button"
                                     onclick="copyToClipboard('url-final-communication-{{ event.id }}')">
-                                <i class="bi bi-clipboard"></i> Copy
+                                <i class="bi bi-clipboard"></i> Copier
                             </button>
                         </div>
                         <small class="text-muted">
-                            Share this link with accepted Communication Orale authors for their final submission
+                            Partagez ce lien avec les auteurs de Communication Orale acceptés pour leur soumission finale
                         </small>
                     </div>
 
@@ -193,7 +193,7 @@
                     {% if event.committee_members_count == 0 %}
                         <!-- No committee yet -->
                         <div class="alert alert-warning mb-2 p-2">
-                            <small><i class="bi bi-info-circle"></i> No committee members - <a href="{% url 'dashboard:user_create' %}">Create committee users</a></small>
+                            <small><i class="bi bi-info-circle"></i> Aucun membre du comité - <a href="{% url 'dashboard:user_create' %}">Créer des utilisateurs du comité</a></small>
                         </div>
                     {% endif %}
                     
@@ -205,20 +205,20 @@
                                     {% csrf_token %}
                                     {% if config.is_active %}
                                         <button type="submit" class="btn btn-warning btn-sm w-100">
-                                            <i class="bi bi-pause-circle"></i> Deactivate Form
+                                            <i class="bi bi-pause-circle"></i> Désactiver le formulaire
                                         </button>
                                     {% else %}
                                         <button type="submit" class="btn btn-success btn-sm w-100">
-                                            <i class="bi bi-play-circle"></i> Activate Form
+                                            <i class="bi bi-play-circle"></i> Activer le formulaire
                                         </button>
                                     {% endif %}
                                 </form>
                             {% endwith %}
-                            
+
                             <!-- Always show dashboard link -->
-                            <a href="{% url 'dashboard:contributions_dashboard' event.id %}" 
+                            <a href="{% url 'dashboard:contributions_dashboard' event.id %}"
                                class="btn btn-primary btn-sm">
-                                <i class="bi bi-speedometer2"></i> Manage Submissions
+                                <i class="bi bi-speedometer2"></i> Gérer les soumissions
                             </a>
                         {% endif %}
                         
@@ -226,8 +226,8 @@
                             {% if event.total_submissions > 0 %}
                                 <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" 
                                    class="btn btn-outline-success btn-sm">
-                                    <i class="bi bi-list-check"></i> 
-                                    View Submissions ({{ event.total_submissions }})
+                                    <i class="bi bi-list-check"></i>
+                                    Voir les soumissions ({{ event.total_submissions }})
                                 </a>
                             {% endif %}
                         {% endif %}
@@ -255,13 +255,13 @@
     <!-- Empty State - No events yet -->
     <div class="text-center py-5">
         <i class="bi bi-calendar-x" style="font-size: 4rem; color: #6c757d;"></i>
-        <h3 class="mt-4">No Events Found</h3>
+        <h3 class="mt-4">Aucun événement trouvé</h3>
         <p class="text-muted mb-4">
-            Create an event first, then add committee users to manage submissions.
+            Créez d'abord un événement, puis ajoutez des utilisateurs du comité pour gérer les soumissions.
         </p>
         {% if is_admin %}
         <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-primary btn-lg">
-            <i class="bi bi-plus-circle"></i> Create Event
+            <i class="bi bi-plus-circle"></i> Créer un événement
         </a>
         {% endif %}
     </div>
@@ -285,7 +285,7 @@ function copyToClipboard(elementId) {
     navigator.clipboard.writeText(input.value).then(function() {
         // Show success feedback
         const originalHTML = button.innerHTML;
-        button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        button.innerHTML = '<i class="bi bi-check"></i> Copié !';
         button.classList.remove('btn-outline-secondary');
         button.classList.add('btn-success');
         
@@ -298,7 +298,7 @@ function copyToClipboard(elementId) {
     }).catch(function(err) {
         // Show error and reset
         const originalHTML = button.innerHTML;
-        button.innerHTML = '<i class="bi bi-x"></i> Error';
+        button.innerHTML = '<i class="bi bi-x"></i> Erreur';
         button.classList.add('btn-danger');
         
         setTimeout(() => {
@@ -310,7 +310,7 @@ function copyToClipboard(elementId) {
         // Fallback: try execCommand
         try {
             document.execCommand('copy');
-            button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+            button.innerHTML = '<i class="bi bi-check"></i> Copié !';
             button.classList.add('btn-success');
             setTimeout(() => {
                 button.innerHTML = originalHTML;

@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}{% if template %}Modifier{% else %}Créer{% endif %} Template Email - {{ event.name }}{% endblock %}
+{% block title %}{% if template %}Modifier{% else %}Créer{% endif %} un modèle d'e-mail - {{ event.name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -8,12 +8,12 @@
     <div class="mb-4">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_dashboard' event.id %}">Scientific Contributions</a></li>
-                <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_email_templates' event.id %}">Templates</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_dashboard' event.id %}">Contributions scientifiques</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_email_templates' event.id %}">Modèles</a></li>
                 <li class="breadcrumb-item active">{% if template %}Modifier{% else %}Créer{% endif %}</li>
             </ol>
         </nav>
-        <h1 class="h3 mb-0">{% if template %}Modifier le template{% else %}Créer un template{% endif %}</h1>
+        <h1 class="h3 mb-0">{% if template %}Modifier le modèle{% else %}Créer un modèle{% endif %}</h1>
     </div>
 
     <!-- Info -->
@@ -32,7 +32,7 @@
                         
                         {% if not template %}
                         <div class="mb-3">
-                            <label class="form-label">Type de template</label>
+                            <label class="form-label">Type de modèle</label>
                             <select name="template_type" class="form-select" required>
                                 {% for value, label in type_choices %}
                                 <option value="{{ value }}" {% if template_type == value %}selected{% endif %}>
@@ -74,7 +74,7 @@
                             <div class="form-check">
                                 <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
                                        {% if template.is_active %}checked{% endif %}>
-                                <label class="form-check-label" for="is_active">Template actif</label>
+                                <label class="form-check-label" for="is_active">Modèle actif</label>
                             </div>
                         </div>
                         {% endif %}

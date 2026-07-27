@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -313,7 +313,7 @@
             </h5>
         </div>
         <a href="{% url 'caisse:logout' %}" class="logout-btn">
-            <i class="bi bi-box-arrow-right"></i> Logout
+            <i class="bi bi-box-arrow-right"></i> Déconnexion
         </a>
     </div>
 
@@ -324,15 +324,15 @@
                 <div class="participant-list">
                     <div class="search-box">
                         <h5 class="mb-3">
-                            <i class="bi bi-people"></i> All Participants
+                            <i class="bi bi-people"></i> Tous les participants
                             <span class="badge bg-primary ms-2" id="participantCount">{{ all_participants.count }}</span>
                         </h5>
                         <div class="input-group">
                             <span class="input-group-text">
                                 <i class="bi bi-search"></i>
                             </span>
-                            <input type="text" class="form-control" id="searchInput" 
-                                   placeholder="Filter by name, email, or QR code..." 
+                            <input type="text" class="form-control" id="searchInput"
+                                   placeholder="Filtrer par nom, e-mail ou code QR..."
                                    autocomplete="off">
                         </div>
                     </div>
@@ -362,7 +362,7 @@
                         {% empty %}
                         <p class="text-center text-muted py-5">
                             <i class="bi bi-inbox" style="font-size: 3rem; display: block; margin-bottom: 10px;"></i>
-                            No participants found for this event
+                            Aucun participant trouvé pour cet événement
                         </p>
                         {% endfor %}
                     </div>
@@ -374,7 +374,7 @@
                 <div class="transaction-panel">
                     <div id="participantDetails" style="display: none;">
                         <h5 class="mb-2 d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-receipt"></i> Process Transaction</span>
+                            <span><i class="bi bi-receipt"></i> Traiter la transaction</span>
                             <span class="text-muted fs-6 fw-normal" id="participantNameInline"></span>
                         </h5>
                         <!-- Name/Email/QR Code are already shown on the selected participant card
@@ -384,12 +384,12 @@
                         <div id="reservedSummary" class="alert alert-primary mb-3 py-2" style="display: none;">
                             <div id="reservedSummaryText"></div>
                             <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="rejectReservationBtn" onclick="rejectReservation()">
-                                <i class="bi bi-x-circle"></i> Reject Reservation (invalid payment proof)
+                                <i class="bi bi-x-circle"></i> Rejeter la réservation (preuve de paiement invalide)
                             </button>
                         </div>
 
                         <h6 class="mb-2">
-                            <i class="bi bi-cart-check"></i> Select Items:
+                            <i class="bi bi-cart-check"></i> Sélectionner les articles :
                         </h6>
                         <div id="payableItems" style="max-height: 520px; overflow-y: auto;">
                             {% for group in bloc_groups %}
@@ -398,7 +398,7 @@
                                     <span class="badge bg-secondary">Bloc {{ forloop.counter }}</span>
                                     <strong>{{ group.label }}</strong>
                                     <small class="text-muted">
-                                        {% if group.select_mode == 'single' %}(pick one){% else %}(pick any number){% endif %}
+                                        {% if group.select_mode == 'single' %}(en choisir un){% else %}(en choisir plusieurs){% endif %}
                                     </small>
                                 </div>
                                 {% for item_data in group.items %}
@@ -411,8 +411,8 @@
                             <div class="bloc-group mb-3">
                                 {% if bloc_groups %}
                                 <div class="d-flex align-items-center gap-2 mb-2">
-                                    <span class="badge bg-secondary">Other</span>
-                                    <strong>Other Items</strong>
+                                    <span class="badge bg-secondary">Autre</span>
+                                    <strong>Autres articles</strong>
                                 </div>
                                 {% endif %}
                                 {% for item_data in other_items %}
@@ -422,55 +422,55 @@
                             {% endif %}
 
                             {% if not bloc_groups and not other_items %}
-                            <p class="text-muted text-center py-3">No payable items available</p>
+                            <p class="text-muted text-center py-3">Aucun article payable disponible</p>
                             {% endif %}
                         </div>
 
                         <div class="bg-light p-3 rounded mb-3 mt-3">
                             <div class="d-flex justify-content-between align-items-center mb-2" id="alreadyPaidRow" style="display: none;">
-                                <span class="text-muted"><i class="bi bi-check-circle"></i> Already paid (not charged again):</span>
+                                <span class="text-muted"><i class="bi bi-check-circle"></i> Déjà payé (non facturé à nouveau) :</span>
                                 <span id="alreadyPaidAmount" class="text-muted">0.00 DZD</span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-1" id="beforeReductionRow" style="display: none;">
-                                <span class="text-muted">Amount before reduction:</span>
+                                <span class="text-muted">Montant avant réduction :</span>
                                 <span id="beforeReductionAmount" class="text-muted">0.00 DZD</span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-2" id="reductionRow" style="display: none;">
-                                <span class="text-muted">Reduction:</span>
+                                <span class="text-muted">Réduction :</span>
                                 <span id="reductionPercent" class="text-muted fw-bold">0%</span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center">
-                                <strong>Amount charged (this transaction):</strong>
+                                <strong>Montant facturé (cette transaction) :</strong>
                                 <span id="totalAmount" class="fs-4" style="color: #10b981; font-weight: 700;">0.00 DZD</span>
                             </div>
                         </div>
 
                         <div class="mb-3">
                             <label for="notes" class="form-label">
-                                <i class="bi bi-pencil-square"></i> Notes (Optional)
+                                <i class="bi bi-pencil-square"></i> Notes (facultatif)
                             </label>
-                            <textarea class="form-control" id="notes" rows="2" placeholder="Add any notes about this transaction..."></textarea>
+                            <textarea class="form-control" id="notes" rows="2" placeholder="Ajoutez des notes sur cette transaction..."></textarea>
                         </div>
                         
                         <div class="row g-2">
                             <div class="col-6">
                                 <button type="button" class="btn btn-primary w-100 py-2" onclick="processTransaction('process')">
-                                    <i class="bi bi-cash-coin"></i> Process Transaction
+                                    <i class="bi bi-cash-coin"></i> Traiter la transaction
                                 </button>
                             </div>
                             <div class="col-6">
                                 <button type="button" class="btn btn-info w-100 py-2" onclick="processTransaction('print_badge')">
-                                    <i class="bi bi-printer"></i> Print Badge
+                                    <i class="bi bi-printer"></i> Imprimer le badge
                                 </button>
                             </div>
                             <div class="col-12">
                                 <button type="button" class="btn btn-success w-100 py-2" onclick="processTransaction('process_and_print')">
-                                    <i class="bi bi-check-circle"></i> Process & Print Badge
+                                    <i class="bi bi-check-circle"></i> Traiter et imprimer le badge
                                 </button>
                             </div>
                             <div class="col-12">
                                 <button type="button" class="btn btn-outline-secondary w-100" onclick="clearForm()">
-                                    <i class="bi bi-x-circle"></i> Cancel
+                                    <i class="bi bi-x-circle"></i> Annuler
                                 </button>
                             </div>
                         </div>
@@ -478,8 +478,8 @@
                     
                     <div id="noParticipantSelected" class="no-participant-selected">
                         <i class="bi bi-hand-index" style="font-size: 3rem; display: block; margin-bottom: 15px; color: #d1d5db;"></i>
-                        <h6 class="text-muted">Select a participant from the list</h6>
-                        <p class="small text-muted">Click on any participant to process their transaction</p>
+                        <h6 class="text-muted">Sélectionnez un participant dans la liste</h6>
+                        <p class="small text-muted">Cliquez sur un participant pour traiter sa transaction</p>
                     </div>
                 </div>
             </div>
@@ -494,7 +494,7 @@
                             <i class="bi bi-cash-coin" style="font-size: 2.5rem; color: #10b981;"></i>
                         </div>
                         <div class="flex-grow-1 ms-3">
-                            <h6 class="text-muted mb-1">Total Amount</h6>
+                            <h6 class="text-muted mb-1">Montant total</h6>
                             <h3 class="mb-0" style="color: #10b981;">{{ total_amount|floatformat:2 }} DZD</h3>
                         </div>
                     </div>
@@ -534,14 +534,14 @@
                 <div class="stat-card">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="mb-0">
-                            <i class="bi bi-clock-history"></i> Recent Transactions
+                            <i class="bi bi-clock-history"></i> Transactions récentes
                         </h5>
                         <div class="input-group" style="max-width: 300px;">
                             <span class="input-group-text">
                                 <i class="bi bi-search"></i>
                             </span>
-                            <input type="text" class="form-control" id="transactionSearchInput" 
-                                   placeholder="Search transactions..." 
+                            <input type="text" class="form-control" id="transactionSearchInput"
+                                   placeholder="Rechercher des transactions..."
                                    autocomplete="off">
                         </div>
                     </div>
@@ -550,9 +550,9 @@
                             <thead>
                                 <tr>
                                     <th><i class="bi bi-person"></i> Participant</th>
-                                    <th><i class="bi bi-cart"></i> Items</th>
-                                    <th><i class="bi bi-cash"></i> Amount</th>
-                                    <th><i class="bi bi-clock"></i> Time</th>
+                                    <th><i class="bi bi-cart"></i> Articles</th>
+                                    <th><i class="bi bi-cash"></i> Montant</th>
+                                    <th><i class="bi bi-clock"></i> Heure</th>
                                     <th><i class="bi bi-gear"></i> Actions</th>
                                 </tr>
                             </thead>
@@ -575,11 +575,11 @@
                                         <span class="badge bg-success">{{ transaction.total_amount }} DZD</span>
                                     </td>
                                     <td>
-                                        <small class="text-muted">{{ transaction.created_at|date:"M d, Y H:i" }}</small>
+                                        <small class="text-muted">{{ transaction.created_at|date:"d/m/Y H:i" }}</small>
                                     </td>
                                     <td>
                                         <button class="btn btn-sm btn-outline-danger" onclick="confirmCancelTransaction({{ transaction.id }}, '{{ transaction.participant.user.get_full_name|default:transaction.participant.user.username }}', '{{ transaction.total_amount }}')">
-                                            <i class="bi bi-x-circle"></i> Cancel
+                                            <i class="bi bi-x-circle"></i> Annuler
                                         </button>
                                     </td>
                                 </tr>
@@ -587,7 +587,7 @@
                                 <tr>
                                     <td colspan="5" class="text-center text-muted py-4">
                                         <i class="bi bi-inbox" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
-                                        No transactions yet
+                                        Aucune transaction pour le moment
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -664,7 +664,7 @@
             return new Promise((resolve) => {
                 showCustomModal(title, `<p>${message}</p>`, [
                     {
-                        text: 'Cancel',
+                        text: 'Annuler',
                         className: 'custom-modal-btn-secondary',
                         callback: () => resolve(false)
                     },
@@ -678,17 +678,17 @@
         }
         
         // Custom Prompt
-        function customPrompt(message, title = 'Input Required', defaultValue = '') {
+        function customPrompt(message, title = 'Saisie requise', defaultValue = '') {
             return new Promise((resolve) => {
                 const inputId = 'customPromptInput';
                 const body = `
                     <p>${message}</p>
-                    <input type="text" id="${inputId}" class="custom-modal-input" value="${defaultValue}" placeholder="Enter text...">
+                    <input type="text" id="${inputId}" class="custom-modal-input" value="${defaultValue}" placeholder="Saisissez le texte...">
                 `;
-                
+
                 showCustomModal(title, body, [
                     {
-                        text: 'Cancel',
+                        text: 'Annuler',
                         className: 'custom-modal-btn-secondary',
                         callback: () => resolve(null)
                     },
@@ -798,24 +798,24 @@
 
             const lines = orders.map(function(order) {
                 const hasDiscount = parseFloat(order.discount_percent) > 0;
-                let html = '<div class="mb-2"><i class="bi bi-bookmark-check"></i> <strong>Reserved registration</strong></div>';
-                html += `<div>Amount before reduction: <strong>${fmtPrice(parseFloat(order.total_before))}</strong></div>`;
+                let html = '<div class="mb-2"><i class="bi bi-bookmark-check"></i> <strong>Inscription réservée</strong></div>';
+                html += `<div>Montant avant réduction : <strong>${fmtPrice(parseFloat(order.total_before))}</strong></div>`;
 
                 if (hasDiscount) {
                     const parts = [];
                     if (parseFloat(order.period_discount_percent) > 0) {
-                        parts.push(`period ${order.period_discount_percent}%`);
+                        parts.push(`période ${order.period_discount_percent}%`);
                     }
                     if (parseFloat(order.blocs_discount_percent) > 0) {
                         parts.push(`blocs ${order.blocs_discount_percent}%`);
                     }
                     const breakdown = parts.length > 0 ? ` (${parts.join(' + ')})` : '';
-                    html += `<div>Reduction: <strong>${order.discount_percent}%</strong>${breakdown}</div>`;
+                    html += `<div>Réduction : <strong>${order.discount_percent}%</strong>${breakdown}</div>`;
                 } else {
-                    html += '<div>Reduction: none</div>';
+                    html += '<div>Réduction : aucune</div>';
                 }
 
-                html += `<div>Amount after reduction (already paid by bank transfer): `
+                html += `<div>Montant après réduction (déjà payé par virement bancaire) : `
                     + `<strong>${fmtPrice(parseFloat(order.total_after))}</strong></div>`;
                 return `<div class="mb-2">${html}</div>`;
             });
@@ -830,14 +830,14 @@
             if (!selectedParticipantId) return;
 
             const confirmed = await customConfirm(
-                'Reject this participant\'s reservation? This cannot be undone -- '
-                + 'they will need to register again if this was a mistake.',
-                'Reject Reservation'
+                'Rejeter la réservation de ce participant ? Cette action est irréversible -- '
+                + 'il devra s\'inscrire à nouveau en cas d\'erreur.',
+                'Rejeter la réservation'
             );
             if (!confirmed) return;
 
             const reason = await customPrompt(
-                'Reason for rejecting (optional):', 'Reject Reservation', ''
+                'Motif du rejet (facultatif) :', 'Rejeter la réservation', ''
             );
 
             try {
@@ -854,13 +854,13 @@
                 });
                 const data = await response.json();
                 if (data.success) {
-                    await customAlert(data.message, 'Reservation Rejected');
+                    await customAlert(data.message, 'Réservation rejetée');
                     window.location.reload();
                 } else {
-                    await customAlert(data.message, 'Error');
+                    await customAlert(data.message, 'Erreur');
                 }
             } catch (err) {
-                await customAlert('Failed to reject reservation: ' + err, 'Error');
+                await customAlert('Échec du rejet de la réservation : ' + err, 'Erreur');
             }
         }
 
@@ -910,7 +910,7 @@
         }
         
         // Calculate total amount
-        function fmtPrice(n) { return n <= 0 ? 'Free' : n.toFixed(2) + ' DZD'; }
+        function fmtPrice(n) { return n <= 0 ? 'Gratuit' : n.toFixed(2) + ' DZD'; }
 
         function calculateTotal() {
             const checkedIds = new Set(
@@ -1002,7 +1002,7 @@
         // Process transaction
         function processTransaction(action) {
             if (!selectedParticipantId) {
-                customAlert('Please select a participant', 'Error');
+                customAlert('Veuillez sélectionner un participant', 'Erreur');
                 return;
             }
             
@@ -1012,7 +1012,7 @@
             
             // Validate items for process and process_and_print actions
             if ((action === 'process' || action === 'process_and_print') && selectedItems.length === 0) {
-                customAlert('Please select at least one item to process', 'Error');
+                customAlert('Veuillez sélectionner au moins un article à traiter', 'Erreur');
                 return;
             }
             
@@ -1031,7 +1031,7 @@
             if (buttonElement) {
                 buttonElement.disabled = true;
                 const originalHTML = buttonElement.innerHTML;
-                buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+                buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement...';
                 
                 // Store reference for re-enabling
                 buttonElement.originalHTML = originalHTML;
@@ -1060,28 +1060,28 @@
                     }
                     
                     // Show success message
-                    let message = 'Action completed successfully!';
+                    let message = 'Action effectuée avec succès !';
                     if (action === 'process') {
-                        message = 'Transaction processed successfully! Access granted.';
+                        message = 'Transaction traitée avec succès ! Accès accordé.';
                     } else if (action === 'print_badge') {
-                        message = 'Print window opened!';
+                        message = 'Fenêtre d\'impression ouverte !';
                     } else if (action === 'process_and_print') {
-                        message = 'Transaction processed and print window opened!';
+                        message = 'Transaction traitée et fenêtre d\'impression ouverte !';
                     }
 
                     if ((action === 'process' || action === 'process_and_print') && data.total_before_reduction) {
-                        message += `<br><br>Amount before reduction: <strong>${fmtPrice(data.total_before_reduction)}</strong>`;
+                        message += `<br><br>Montant avant réduction : <strong>${fmtPrice(data.total_before_reduction)}</strong>`;
                         if (data.total_discount_percent > 0.01) {
-                            message += `<br>Reduction: <strong>${data.total_discount_percent.toFixed(2)}%</strong>`;
+                            message += `<br>Réduction : <strong>${data.total_discount_percent.toFixed(2)}%</strong>`;
                         }
-                        message += `<br>Amount charged: <strong>${fmtPrice(data.total_amount)}</strong>`;
+                        message += `<br>Montant facturé : <strong>${fmtPrice(data.total_amount)}</strong>`;
                     }
 
-                    customAlert(message, 'Success').then(() => {
+                    customAlert(message, 'Succès').then(() => {
                         location.reload();
                     });
                 } else {
-                    customAlert('Error: ' + data.message, 'Error');
+                    customAlert('Erreur : ' + data.message, 'Erreur');
                     // Re-enable button on error
                     if (buttonElement) {
                         buttonElement.disabled = false;
@@ -1091,7 +1091,7 @@
             })
             .catch(error => {
                 console.error('Error:', error);
-                customAlert('Failed to process request', 'Error');
+                customAlert('Échec du traitement de la demande', 'Erreur');
                 // Re-enable button on error
                 if (buttonElement) {
                     buttonElement.disabled = false;
@@ -1134,12 +1134,12 @@
         // Cancel transaction functions
         async function confirmCancelTransaction(transactionId, participantName, amount) {
             const confirmed = await customConfirm(
-                `Are you sure you want to cancel this transaction?\n\nParticipant: ${participantName}\nAmount: ${amount} DZD\n\nThis action cannot be undone.`,
-                'Cancel Transaction'
+                `Êtes-vous sûr de vouloir annuler cette transaction ?\n\nParticipant : ${participantName}\nMontant : ${amount} DZD\n\nCette action est irréversible.`,
+                'Annuler la transaction'
             );
-            
+
             if (confirmed) {
-                const reason = await customPrompt('Please enter the reason for cancellation:', 'Cancellation Reason');
+                const reason = await customPrompt('Veuillez saisir le motif de l\'annulation :', 'Motif de l\'annulation');
                 if (reason !== null) {
                     cancelTransaction(transactionId, reason);
                 }
@@ -1154,7 +1154,7 @@
                     'X-CSRFToken': '{{ csrf_token }}'
                 },
                 body: JSON.stringify({
-                    reason: reason || 'No reason provided'
+                    reason: reason || 'Aucun motif fourni'
                 })
             })
             .then(response => {
@@ -1165,16 +1165,16 @@
             })
             .then(data => {
                 if (data.success) {
-                    customAlert(data.message || 'Transaction cancelled successfully and access revoked!', 'Success').then(() => {
+                    customAlert(data.message || 'Transaction annulée avec succès et accès révoqué !', 'Succès').then(() => {
                         location.reload(true);
                     });
                 } else {
-                    customAlert('Error: ' + data.message, 'Error');
+                    customAlert('Erreur : ' + data.message, 'Erreur');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                customAlert('Failed to cancel transaction: ' + error.message, 'Error');
+                customAlert('Échec de l\'annulation de la transaction : ' + error.message, 'Erreur');
             });
         }
     </script>

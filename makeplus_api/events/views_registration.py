@@ -72,7 +72,7 @@ def event_registration_page(request, event_id):
     
     # Check if event is already completed
     if event.status == 'completed':
-        messages.warning(request, "This event has already ended. Registration is closed.")
+        messages.warning(request, "Cet événement est déjà terminé. Les inscriptions sont fermées.")
         return render(request, 'events/registration_closed.html', {'event': event})
     
     # Get sessions grouped by day for workshop selection

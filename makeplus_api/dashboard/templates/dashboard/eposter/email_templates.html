@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}Scientific Contributions Email Templates - {{ event.name }}{% endblock %}
+{% block title %}Modèles d'e-mail des contributions scientifiques - {{ event.name }}{% endblock %}
 
 {% block extra_head %}
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -16,10 +16,10 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_dashboard' event.id %}">Contributions</a></li>
-                    <li class="breadcrumb-item active">Templates Email</li>
+                    <li class="breadcrumb-item active">Modèles d'e-mail</li>
                 </ol>
             </nav>
-            <h1 class="h3 mb-0">Scientific Contributions Email Templates</h1>
+            <h1 class="h3 mb-0">Modèles d'e-mail des contributions scientifiques</h1>
             <p class="text-muted mb-0">{{ event.name }}</p>
         </div>
     </div>
@@ -38,7 +38,7 @@
                 <div class="card-header bg-white">
                     <h5 class="mb-0">
                         <i class="bi bi-envelope me-2"></i>
-                        Templates configurés
+                        Modèles configurés
                     </h5>
                 </div>
                 <div class="card-body p-0">
@@ -83,7 +83,7 @@
                                         </a>
                                         <a href="{% url 'dashboard:contributions_email_template_delete' event.id template.id %}" 
                                            class="btn btn-sm btn-outline-danger"
-                                           onclick="return confirm('Supprimer ce template?')">
+                                           onclick="return confirm('Supprimer ce modèle ?')">
                                             <i class="bi bi-trash"></i>
                                         </a>
                                     </td>
@@ -109,12 +109,12 @@
                 <div class="card-header bg-white">
                     <h5 class="mb-0">
                         <i class="bi bi-plus-circle me-2"></i>
-                        Créer un template
+                        Créer un modèle
                     </h5>
                 </div>
                 <div class="card-body">
                     {% if missing_types %}
-                        <p class="text-muted mb-3">Templates manquants:</p>
+                        <p class="text-muted mb-3">Modèles manquants :</p>
                         {% for type_value, type_label in missing_types %}
                         <a href="{% url 'dashboard:contributions_email_template_create' event.id %}?type={{ type_value }}" 
                            class="btn btn-outline-primary w-100 mb-2">
@@ -124,7 +124,7 @@
                     {% else %}
                         <div class="text-center text-muted">
                             <i class="bi bi-check-circle fs-1 d-block mb-2 text-success"></i>
-                            Tous les templates sont configurés!
+                            Tous les modèles sont configurés !
                         </div>
                     {% endif %}
                 </div>

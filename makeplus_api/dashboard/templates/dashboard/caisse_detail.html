@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}{{ caisse.name }} - Details & Reports{% endblock %}
+{% block page_title %}{{ caisse.name }} - Détails et rapports{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -18,10 +18,10 @@
         </div>
         <div>
             <a href="{% url 'dashboard:caisse_edit' caisse.id %}" class="btn btn-outline-primary">
-                <i class="bi bi-pencil"></i> Edit
+                <i class="bi bi-pencil"></i> Modifier
             </a>
             <a href="{% url 'dashboard:caisse_list' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Back to List
+                <i class="bi bi-arrow-left"></i> Retour à la liste
             </a>
         </div>
     </div>
@@ -32,7 +32,7 @@
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">Total Amount Collected</p>
+                        <p class="text-muted mb-1">Montant total collecté</p>
                         <h3 class="mb-0 text-success">{{ total_amount|floatformat:2 }} DZD</h3>
                     </div>
                     <div class="stat-icon success">
@@ -46,7 +46,7 @@
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">Participants Processed</p>
+                        <p class="text-muted mb-1">Participants traités</p>
                         <h3 class="mb-0 text-primary">{{ total_participants }}</h3>
                     </div>
                     <div class="stat-icon primary">
@@ -60,7 +60,7 @@
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">Completed Transactions</p>
+                        <p class="text-muted mb-1">Transactions effectuées</p>
                         <h3 class="mb-0 text-info">{{ transaction_count }}</h3>
                     </div>
                     <div class="stat-icon info">
@@ -74,7 +74,7 @@
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">Cancelled</p>
+                        <p class="text-muted mb-1">Annulées</p>
                         <h3 class="mb-0 text-danger">{{ cancelled_count }}</h3>
                         <small class="text-muted">{{ cancelled_amount|floatformat:2 }} DZD</small>
                     </div>
@@ -91,7 +91,7 @@
     <div class="row mb-4">
         <div class="col-12">
             <div class="stat-card">
-                <h5 class="mb-3"><i class="bi bi-pie-chart"></i> Revenue Breakdown by Item Type</h5>
+                <h5 class="mb-3"><i class="bi bi-pie-chart"></i> Répartition du revenu par type d'article</h5>
                 <div class="row">
                     {% for item_type, data in revenue_by_type.items %}
                     <div class="col-md-4 mb-3">
@@ -110,32 +110,32 @@
 
     <!-- Filters -->
     <div class="stat-card mb-4">
-        <h5 class="mb-3"><i class="bi bi-funnel"></i> Filter Transactions</h5>
+        <h5 class="mb-3"><i class="bi bi-funnel"></i> Filtrer les transactions</h5>
         <form method="get" class="row g-3">
             <div class="col-md-3">
-                <label for="status" class="form-label">Status</label>
+                <label for="status" class="form-label">Statut</label>
                 <select name="status" id="status" class="form-select">
-                    <option value="">All Statuses</option>
-                    <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
-                    <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                    <option value="">Tous les statuts</option>
+                    <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Effectuée</option>
+                    <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Annulée</option>
                 </select>
             </div>
             <div class="col-md-3">
-                <label for="date_from" class="form-label">From Date</label>
+                <label for="date_from" class="form-label">Date de début</label>
                 <input type="date" name="date_from" id="date_from" class="form-control" value="{{ date_from }}">
             </div>
             <div class="col-md-3">
-                <label for="date_to" class="form-label">To Date</label>
+                <label for="date_to" class="form-label">Date de fin</label>
                 <input type="date" name="date_to" id="date_to" class="form-control" value="{{ date_to }}">
             </div>
             <div class="col-md-3">
                 <label class="form-label">&nbsp;</label>
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary flex-fill">
-                        <i class="bi bi-search"></i> Filter
+                        <i class="bi bi-search"></i> Filtrer
                     </button>
                     <a href="{% url 'dashboard:caisse_detail' caisse.id %}" class="btn btn-outline-secondary">
-                        <i class="bi bi-x"></i> Clear
+                        <i class="bi bi-x"></i> Effacer
                     </a>
                 </div>
             </div>
@@ -145,9 +145,9 @@
     <!-- All Transactions -->
     <div class="stat-card">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0"><i class="bi bi-receipt"></i> All Transactions</h5>
+            <h5 class="mb-0"><i class="bi bi-receipt"></i> Toutes les transactions</h5>
             <a href="{% url 'dashboard:event_detail' caisse.event.id %}#payable-items" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-gear"></i> Manage Payable Items
+                <i class="bi bi-gear"></i> Gérer les articles payables
             </a>
         </div>
 
@@ -156,11 +156,11 @@
                 <table class="table table-hover">
                     <thead class="table-light">
                         <tr>
-                            <th>Date/Time</th>
+                            <th>Date/Heure</th>
                             <th>Participant</th>
-                            <th>Items</th>
-                            <th>Amount</th>
-                            <th>Status</th>
+                            <th>Articles</th>
+                            <th>Montant</th>
+                            <th>Statut</th>
                             <th>Notes</th>
                         </tr>
                     </thead>
@@ -168,7 +168,7 @@
                         {% for transaction in transactions %}
                         <tr>
                             <td>
-                                <small>{{ transaction.created_at|date:"M d, Y H:i" }}</small>
+                                <small>{{ transaction.created_at|date:"d/m/Y H:i" }}</small>
                             </td>
                             <td>
                                 <strong>{{ transaction.participant.user.get_full_name|default:transaction.participant.user.username }}</strong>
@@ -188,9 +188,9 @@
                             </td>
                             <td>
                                 {% if transaction.status == 'completed' %}
-                                    <span class="badge bg-success">Completed</span>
+                                    <span class="badge bg-success">Effectuée</span>
                                 {% else %}
-                                    <span class="badge bg-danger">Cancelled</span>
+                                    <span class="badge bg-danger">Annulée</span>
                                 {% endif %}
                             </td>
                             <td>
@@ -209,7 +209,7 @@
             </div>
         {% else %}
             <div class="alert alert-info mb-0">
-                <i class="bi bi-info-circle"></i> No transactions found with the selected filters.
+                <i class="bi bi-info-circle"></i> Aucune transaction trouvée avec les filtres sélectionnés.
             </div>
         {% endif %}
     </div>

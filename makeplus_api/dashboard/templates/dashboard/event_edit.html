@@ -1,18 +1,18 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}Edit Event - {{ event.name }}{% endblock %}
+{% block page_title %}Modifier l'événement - {{ event.name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="mb-0">Edit Event</h2>
-            <p class="text-muted mb-0">Update details for {{ event.name }}</p>
+            <h2 class="mb-0">Modifier l'événement</h2>
+            <p class="text-muted mb-0">Mettre à jour les détails de {{ event.name }}</p>
         </div>
         <div>
             <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Back to Details
+                <i class="bi bi-arrow-left"></i> Retour aux détails
             </a>
         </div>
     </div>
@@ -22,12 +22,12 @@
         <div class="col-lg-8">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title mb-4">Event Information</h5>
-                    
+                    <h5 class="card-title mb-4">Informations sur l'événement</h5>
+
                     <!-- Display form errors -->
                     {% if form.errors %}
                         <div class="alert alert-danger" role="alert">
-                            <h6 class="alert-heading">Please correct the following errors:</h6>
+                            <h6 class="alert-heading">Veuillez corriger les erreurs suivantes :</h6>
                             <ul class="mb-0">
                                 {% for field in form %}
                                     {% for error in field.errors %}
@@ -48,7 +48,7 @@
                             <!-- Event Name -->
                             <div class="col-md-12 mb-3">
                                 <label for="{{ form.name.id_for_label }}" class="form-label">
-                                    Event Name <span class="text-danger">*</span>
+                                    Nom de l'événement <span class="text-danger">*</span>
                                 </label>
                                 {{ form.name }}
                                 {% if form.name.errors %}
@@ -74,7 +74,7 @@
                             <!-- Start Date -->
                             <div class="col-md-6 mb-3">
                                 <label for="{{ form.start_date.id_for_label }}" class="form-label">
-                                    Start Date <span class="text-danger">*</span>
+                                    Date de début <span class="text-danger">*</span>
                                 </label>
                                 {{ form.start_date }}
                                 {% if form.start_date.errors %}
@@ -87,7 +87,7 @@
                             <!-- End Date -->
                             <div class="col-md-6 mb-3">
                                 <label for="{{ form.end_date.id_for_label }}" class="form-label">
-                                    End Date <span class="text-danger">*</span>
+                                    Date de fin <span class="text-danger">*</span>
                                 </label>
                                 {{ form.end_date }}
                                 {% if form.end_date.errors %}
@@ -100,7 +100,7 @@
                             <!-- Location -->
                             <div class="col-md-12 mb-3">
                                 <label for="{{ form.location.id_for_label }}" class="form-label">
-                                    Location <span class="text-danger">*</span>
+                                    Lieu <span class="text-danger">*</span>
                                 </label>
                                 {{ form.location }}
                                 {% if form.location.errors %}
@@ -113,7 +113,7 @@
                             <!-- Location URL -->
                             <div class="col-md-12 mb-3">
                                 <label for="{{ form.location_url.id_for_label }}" class="form-label">
-                                    Location URL (Google Maps)
+                                    URL du lieu (Google Maps)
                                 </label>
                                 {{ form.location_url }}
                                 {% if form.location_url.errors %}
@@ -121,13 +121,13 @@
                                         {{ form.location_url.errors.0 }}
                                     </div>
                                 {% endif %}
-                                <div class="form-text">Optional: Link to Google Maps or other location service</div>
+                                <div class="form-text">Facultatif : lien Google Maps ou autre service de localisation</div>
                             </div>
 
                             <!-- Status -->
                             <div class="col-md-6 mb-3">
                                 <label for="{{ form.status.id_for_label }}" class="form-label">
-                                    Status <span class="text-danger">*</span>
+                                    Statut <span class="text-danger">*</span>
                                 </label>
                                 {{ form.status }}
                                 {% if form.status.errors %}
@@ -140,7 +140,7 @@
                             <!-- Organizer Contact -->
                             <div class="col-md-6 mb-3">
                                 <label for="{{ form.organizer_contact.id_for_label }}" class="form-label">
-                                    Organizer Contact Email
+                                    E-mail de contact de l'organisateur
                                 </label>
                                 {{ form.organizer_contact }}
                                 {% if form.organizer_contact.errors %}
@@ -153,18 +153,18 @@
                             <!-- Image Uploads Section -->
                             <div class="col-12 mt-3">
                                 <h5 class="mb-3">
-                                    <i class="bi bi-image"></i> Event Images (Optional)
+                                    <i class="bi bi-image"></i> Images de l'événement (facultatif)
                                 </h5>
                             </div>
 
                             <!-- Logo -->
                             <div class="col-md-6 mb-3">
                                 <label for="{{ form.logo.id_for_label }}" class="form-label">
-                                    <i class="bi bi-award"></i> Logo Image
+                                    <i class="bi bi-award"></i> Logo
                                 </label>
                                 {% if event.logo %}
                                     <div class="mb-2">
-                                        <img src="{{ event.logo.url }}" alt="Current Logo" class="img-thumbnail" style="max-height: 100px;">
+                                        <img src="{{ event.logo.url }}" alt="Logo actuel" class="img-thumbnail" style="max-height: 100px;">
                                     </div>
                                 {% endif %}
                                 {{ form.logo }}
@@ -175,20 +175,20 @@
                                 {% endif %}
                                 {% if event.logo %}
                                     <div class="form-text">
-                                        Current: <a href="{{ event.logo.url }}" target="_blank">View Image <i class="bi bi-box-arrow-up-right"></i></a>
+                                        Actuel : <a href="{{ event.logo.url }}" target="_blank">Voir l'image <i class="bi bi-box-arrow-up-right"></i></a>
                                     </div>
                                 {% endif %}
-                                <div class="form-text">Upload event logo (JPG, PNG, etc.)</div>
+                                <div class="form-text">Téléversez le logo de l'événement (JPG, PNG, etc.)</div>
                             </div>
 
                             <!-- Banner -->
                             <div class="col-md-6 mb-3">
                                 <label for="{{ form.banner.id_for_label }}" class="form-label">
-                                    <i class="bi bi-card-image"></i> Banner Image
+                                    <i class="bi bi-card-image"></i> Bannière
                                 </label>
                                 {% if event.banner %}
                                     <div class="mb-2">
-                                        <img src="{{ event.banner.url }}" alt="Current Banner" class="img-thumbnail" style="max-height: 100px;">
+                                        <img src="{{ event.banner.url }}" alt="Bannière actuelle" class="img-thumbnail" style="max-height: 100px;">
                                     </div>
                                 {% endif %}
                                 {{ form.banner }}
@@ -199,10 +199,10 @@
                                 {% endif %}
                                 {% if event.banner %}
                                     <div class="form-text">
-                                        Current: <a href="{{ event.banner.url }}" target="_blank">View Image <i class="bi bi-box-arrow-up-right"></i></a>
+                                        Actuelle : <a href="{{ event.banner.url }}" target="_blank">Voir l'image <i class="bi bi-box-arrow-up-right"></i></a>
                                     </div>
                                 {% endif %}
-                                <div class="form-text">Upload event banner (JPG, PNG, etc.)</div>
+                                <div class="form-text">Téléversez la bannière de l'événement (JPG, PNG, etc.)</div>
                             </div>
 
                             <!-- Primary color -->
@@ -240,7 +240,7 @@
                             <!-- PDF Files Section -->
                             <div class="col-12 mt-3">
                                 <h5 class="mb-3">
-                                    <i class="bi bi-file-earmark-pdf"></i> Event Documents (Optional)
+                                    <i class="bi bi-file-earmark-pdf"></i> Documents de l'événement (facultatif)
                                 </h5>
                             </div>
 
@@ -257,10 +257,10 @@
                                 {% endif %}
                                 {% if event.programme_file %}
                                     <div class="form-text">
-                                        Current: <a href="{{ event.programme_file.url }}" target="_blank">View PDF <i class="bi bi-box-arrow-up-right"></i></a>
+                                        Actuel : <a href="{{ event.programme_file.url }}" target="_blank">Voir le PDF <i class="bi bi-box-arrow-up-right"></i></a>
                                     </div>
                                 {% endif %}
-                                <div class="form-text">Upload event schedule/program (PDF only)</div>
+                                <div class="form-text">Téléversez le programme de l'événement (PDF uniquement)</div>
                             </div>
 
                             <!-- Guide File -->
@@ -276,10 +276,10 @@
                                 {% endif %}
                                 {% if event.guide_file %}
                                     <div class="form-text">
-                                        Current: <a href="{{ event.guide_file.url }}" target="_blank">View PDF <i class="bi bi-box-arrow-up-right"></i></a>
+                                        Actuel : <a href="{{ event.guide_file.url }}" target="_blank">Voir le PDF <i class="bi bi-box-arrow-up-right"></i></a>
                                     </div>
                                 {% endif %}
-                                <div class="form-text">Upload participant guide/handbook (PDF only)</div>
+                                <div class="form-text">Téléversez le guide du participant (PDF uniquement)</div>
                             </div>
 
                             <div class="col-12">
@@ -289,10 +289,10 @@
                             <!-- Action Buttons -->
                             <div class="d-flex justify-content-end gap-2 mt-4">
                                 <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-secondary">
-                                    Cancel
+                                    Annuler
                                 </a>
                                 <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-save"></i> Save Changes
+                                    <i class="bi bi-save"></i> Enregistrer les modifications
                                 </button>
                             </div>
                         </div>
@@ -307,28 +307,28 @@
             <div class="card shadow-sm mb-3">
                 <div class="card-body">
                     <h6 class="card-title">
-                        <i class="bi bi-bar-chart"></i> Event Statistics
+                        <i class="bi bi-bar-chart"></i> Statistiques de l'événement
                     </h6>
                     <hr>
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Total Rooms:</span>
+                        <span class="text-muted">Total des salles :</span>
                         <strong>{{ event.total_rooms }}</strong>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Total Participants:</span>
+                        <span class="text-muted">Total des participants :</span>
                         <strong>{{ event.total_participants }}</strong>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Total Exhibitors:</span>
+                        <span class="text-muted">Total des exposants :</span>
                         <strong>{{ event.total_exhibitors }}</strong>
                     </div>
                     <div class="d-flex justify-content-between mb-0">
-                        <span class="text-muted">Registration:</span>
+                        <span class="text-muted">Inscription :</span>
                         <strong>
                             {% if event.registration_enabled %}
-                                <span class="badge bg-success">Enabled</span>
+                                <span class="badge bg-success">Activée</span>
                             {% else %}
-                                <span class="badge bg-secondary">Disabled</span>
+                                <span class="badge bg-secondary">Désactivée</span>
                             {% endif %}
                         </strong>
                     </div>
@@ -339,29 +339,29 @@
             <div class="card shadow-sm mb-3">
                 <div class="card-body">
                     <h6 class="card-title">
-                        <i class="bi bi-info-circle"></i> Event Information
+                        <i class="bi bi-info-circle"></i> Informations sur l'événement
                     </h6>
                     <hr>
                     <p class="small mb-2">
-                        <strong>Event ID:</strong><br>
+                        <strong>ID de l'événement :</strong><br>
                         <code class="text-muted">{{ event.id }}</code>
                     </p>
                     <p class="small mb-2">
-                        <strong>Created:</strong><br>
-                        {{ event.created_at|date:"M d, Y H:i" }}
+                        <strong>Créé le :</strong><br>
+                        {{ event.created_at|date:"d/m/Y H:i" }}
                     </p>
                     <p class="small mb-2">
-                        <strong>Last Updated:</strong><br>
-                        {{ event.updated_at|date:"M d, Y H:i" }}
+                        <strong>Dernière mise à jour :</strong><br>
+                        {{ event.updated_at|date:"d/m/Y H:i" }}
                     </p>
                     <p class="small mb-0">
-                        <strong>Created By:</strong><br>
-                        {% if event.created_by %}{{ event.created_by.get_full_name|default:event.created_by.username }}{% else %}N/A{% endif %}
+                        <strong>Créé par :</strong><br>
+                        {% if event.created_by %}{{ event.created_by.get_full_name|default:event.created_by.username }}{% else %}N/D{% endif %}
                     </p>
                     {% if event.president %}
                     <hr>
                     <p class="small mb-0">
-                        <strong>President:</strong><br>
+                        <strong>Président :</strong><br>
                         {{ event.president.get_full_name|default:event.president.username }}
                     </p>
                     {% endif %}
@@ -370,11 +370,11 @@
 
             <div class="alert alert-info">
                 <h6 class="alert-heading">
-                    <i class="bi bi-info-circle"></i> Note
+                    <i class="bi bi-info-circle"></i> Remarque
                 </h6>
                 <p class="small mb-0">
-                    Editing the event will not affect existing rooms, sessions, or participants. 
-                    To modify those, use their respective management sections.
+                    La modification de l'événement n'affectera pas les salles, sessions ou participants existants.
+                    Pour les modifier, utilisez leurs sections de gestion respectives.
                 </p>
             </div>
         </div>

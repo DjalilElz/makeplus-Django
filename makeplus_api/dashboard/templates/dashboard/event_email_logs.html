@@ -1,43 +1,43 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}Email History - {{ event.name }}{% endblock %}
+{% block page_title %}Historique des e-mails - {{ event.name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="mb-4">
         <a href="{% url 'dashboard:event_email_templates' event.id %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Templates
+            <i class="bi bi-arrow-left"></i> Retour aux modèles
         </a>
     </div>
-    
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2><i class="bi bi-clock-history"></i> Email Sending History</h2>
+            <h2><i class="bi bi-clock-history"></i> Historique d'envoi des e-mails</h2>
             <p class="text-muted mb-0">{{ event.name }}</p>
         </div>
     </div>
-    
+
     {% if logs %}
     <div class="table-responsive">
         <table class="table table-hover">
             <thead>
                 <tr>
                     <th>Date</th>
-                    <th>Template</th>
-                    <th>Subject</th>
-                    <th>Target</th>
-                    <th>Recipients</th>
-                    <th>Sent</th>
-                    <th>Failed</th>
-                    <th>Status</th>
-                    <th>Sent By</th>
+                    <th>Modèle</th>
+                    <th>Objet</th>
+                    <th>Cible</th>
+                    <th>Destinataires</th>
+                    <th>Envoyés</th>
+                    <th>Échoués</th>
+                    <th>Statut</th>
+                    <th>Envoyé par</th>
                 </tr>
             </thead>
             <tbody>
                 {% for log in logs %}
                 <tr>
                     <td>
-                        <small>{{ log.created_at|date:"M d, Y H:i" }}</small>
+                        <small>{{ log.created_at|date:"d/m/Y H:i" }}</small>
                     </td>
                     <td>
                         {% if log.template %}
@@ -49,15 +49,15 @@
                     <td>{{ log.subject|truncatewords:8 }}</td>
                     <td>
                         {% if log.target_type == 'all_participants' %}
-                            <span class="badge bg-primary">All Participants</span>
+                            <span class="badge bg-primary">Tous les participants</span>
                         {% elif log.target_type == 'attended' %}
-                            <span class="badge bg-success">Attended</span>
+                            <span class="badge bg-success">Présents</span>
                         {% elif log.target_type == 'not_attended' %}
-                            <span class="badge bg-warning text-dark">Not Attended</span>
+                            <span class="badge bg-warning text-dark">Absents</span>
                         {% elif log.target_type == 'paid' %}
-                            <span class="badge bg-info">Paid</span>
+                            <span class="badge bg-info">Payé</span>
                         {% elif log.target_type == 'not_paid' %}
-                            <span class="badge bg-secondary">Not Paid</span>
+                            <span class="badge bg-secondary">Non payé</span>
                         {% else %}
                             <span class="badge bg-dark">{{ log.target_type }}</span>
                         {% endif %}
@@ -69,11 +69,11 @@
                     </td>
                     <td>
                         {% if log.status == 'sent' %}
-                            <span class="badge bg-success">Sent</span>
+                            <span class="badge bg-success">Envoyé</span>
                         {% elif log.status == 'sending' %}
-                            <span class="badge bg-info">Sending...</span>
+                            <span class="badge bg-info">Envoi...</span>
                         {% elif log.status == 'failed' %}
-                            <span class="badge bg-danger">Failed</span>
+                            <span class="badge bg-danger">Échoué</span>
                         {% else %}
                             <span class="badge bg-secondary">{{ log.status|title }}</span>
                         {% endif %}
@@ -90,7 +90,7 @@
                 <tr>
                     <td colspan="9" class="bg-light">
                         <small class="text-danger">
-                            <i class="bi bi-exclamation-triangle"></i> <strong>Errors:</strong>
+                            <i class="bi bi-exclamation-triangle"></i> <strong>Erreurs :</strong>
                             <pre class="mb-0 mt-1" style="white-space: pre-wrap;">{{ log.error_message }}</pre>
                         </small>
                     </td>
@@ -102,7 +102,7 @@
     </div>
     {% else %}
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> No emails have been sent for this event yet.
+        <i class="bi bi-info-circle"></i> Aucun e-mail n'a encore été envoyé pour cet événement.
     </div>
     {% endif %}
 </div>

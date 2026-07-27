@@ -1,47 +1,47 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}{{ event.name }} - Users{% endblock %}
+{% block page_title %}{{ event.name }} - Utilisateurs{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2><i class="bi bi-people"></i> Event Users</h2>
+            <h2><i class="bi bi-people"></i> Utilisateurs de l'événement</h2>
             <p class="text-muted mb-0">{{ event.name }}</p>
         </div>
         <div>
             <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary me-2">
-                <i class="bi bi-arrow-left"></i> Back to Event
+                <i class="bi bi-arrow-left"></i> Retour à l'événement
             </a>
             <a href="{% url 'dashboard:user_create' %}?event={{ event.id }}" class="btn btn-primary">
-                <i class="bi bi-person-plus"></i> Add User
+                <i class="bi bi-person-plus"></i> Ajouter un utilisateur
             </a>
         </div>
     </div>
-    
+
     <!-- Search Bar -->
     <div class="mb-4">
-        <input type="text" id="userSearchInput" class="form-control" placeholder="Search by name, email, or username...">
+        <input type="text" id="userSearchInput" class="form-control" placeholder="Rechercher par nom, e-mail ou nom d'utilisateur...">
     </div>
-    
+
     <!-- Role Filter Buttons -->
     <div class="mb-4">
         <div class="btn-group" role="group">
             <button type="button" class="btn btn-primary" data-role="all">
-                <i class="bi bi-people"></i> All ({{ role_counts.all }})
+                <i class="bi bi-people"></i> Tous ({{ role_counts.all }})
             </button>
             <button type="button" class="btn btn-outline-primary" data-role="organisateur">
-                <i class="bi bi-person-badge"></i> Organizers ({{ role_counts.organisateur }})
+                <i class="bi bi-person-badge"></i> Organisateurs ({{ role_counts.organisateur }})
             </button>
             <button type="button" class="btn btn-outline-primary" data-role="gestionnaire_des_salles">
-                <i class="bi bi-door-open"></i> Room Managers ({{ role_counts.gestionnaire_des_salles }})
+                <i class="bi bi-door-open"></i> Gestionnaires de salle ({{ role_counts.gestionnaire_des_salles }})
             </button>
             <button type="button" class="btn btn-outline-primary" data-role="controlleur_des_badges">
-                <i class="bi bi-qr-code-scan"></i> Controllers ({{ role_counts.controlleur_des_badges }})
+                <i class="bi bi-qr-code-scan"></i> Contrôleurs ({{ role_counts.controlleur_des_badges }})
             </button>
             <button type="button" class="btn btn-outline-primary" data-role="exposant">
-                <i class="bi bi-shop"></i> Exhibitors ({{ role_counts.exposant }})
+                <i class="bi bi-shop"></i> Exposants ({{ role_counts.exposant }})
             </button>
             <button type="button" class="btn btn-outline-primary" data-role="participant">
                 <i class="bi bi-person"></i> Participants ({{ role_counts.participant }})
@@ -56,19 +56,19 @@
             <table class="table table-hover" id="usersTable">
                 <thead>
                     <tr>
-                        <th>User</th>
-                        <th>Email</th>
-                        <th>Badge ID</th>
-                        <th>Role</th>
-                        <th>Check-in Status</th>
+                        <th>Utilisateur</th>
+                        <th>E-mail</th>
+                        <th>ID du badge</th>
+                        <th>Rôle</th>
+                        <th>Statut d'enregistrement</th>
                         {% if role_filter == 'participant' or role_filter == 'all' %}
-                        <th>Spent</th>
+                        <th>Dépensé</th>
                         <th>Transactions</th>
-                        <th>Accesses</th>
+                        <th>Accès</th>
                         <th>Scans</th>
                         {% endif %}
-                        <th>Assigned By</th>
-                        <th>Assigned Date</th>
+                        <th>Affecté par</th>
+                        <th>Date d'affectation</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -79,7 +79,7 @@
                             <strong>{{ stat.user.first_name }} {{ stat.user.last_name }}</strong><br>
                             <small class="text-muted">@{{ stat.user.username }}</small>
                         </td>
-                        <td>{{ stat.user.email|default:"No email" }}</td>
+                        <td>{{ stat.user.email|default:"Aucun e-mail" }}</td>
                         <td>
                             {% if stat.user.profile.qr_code_data %}
                                 <code class="small text-primary">{{ stat.user.profile.qr_code_data.badge_id }}</code>
@@ -89,15 +89,15 @@
                         </td>
                         <td>
                             {% if stat.assignment.role == 'organisateur' %}
-                                <span class="badge bg-primary">Organizer</span>
+                                <span class="badge bg-primary">Organisateur</span>
                             {% elif stat.assignment.role == 'gestionnaire_des_salles' %}
-                                <span class="badge bg-info">Room Manager</span>
+                                <span class="badge bg-info">Gestionnaire de salle</span>
                             {% elif stat.assignment.role == 'controlleur_des_badges' %}
-                                <span class="badge bg-warning text-dark">Controller</span>
+                                <span class="badge bg-warning text-dark">Contrôleur</span>
                             {% elif stat.assignment.role == 'committee' %}
-                                <span class="badge bg-purple">Committee</span>
+                                <span class="badge bg-purple">Comité</span>
                             {% elif stat.assignment.role == 'exposant' %}
-                                <span class="badge bg-success">Exhibitor</span>
+                                <span class="badge bg-success">Exposant</span>
                             {% elif stat.assignment.role == 'participant' %}
                                 <span class="badge bg-secondary">Participant</span>
                             {% endif %}
@@ -106,12 +106,12 @@
                             {% if stat.participant %}
                                 {% if stat.is_checked_in %}
                                     <span class="badge bg-success">
-                                        <i class="bi bi-check-circle"></i> Checked In
+                                        <i class="bi bi-check-circle"></i> Enregistré
                                     </span><br>
-                                    <small class="text-muted">{{ stat.checked_in_at|date:"M d, H:i" }}</small>
+                                    <small class="text-muted">{{ stat.checked_in_at|date:"d/m H:i" }}</small>
                                 {% else %}
                                     <span class="badge bg-warning text-dark">
-                                        <i class="bi bi-clock"></i> Not Checked In
+                                        <i class="bi bi-clock"></i> Non enregistré
                                     </span>
                                 {% endif %}
                             {% else %}
@@ -152,16 +152,16 @@
                             {% if stat.assignment.assigned_by %}
                                 {{ stat.assignment.assigned_by.get_full_name|default:stat.assignment.assigned_by.username }}
                             {% else %}
-                                <span class="text-muted">System</span>
+                                <span class="text-muted">Système</span>
                             {% endif %}
                         </td>
-                        <td><small>{{ stat.assignment.assigned_at|date:"M d, Y H:i" }}</small></td>
+                        <td><small>{{ stat.assignment.assigned_at|date:"d/m/Y H:i" }}</small></td>
                         <td>
                             <div class="btn-group" role="group">
-                                <a href="{% url 'dashboard:user_detail' stat.user.id %}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                <a href="{% url 'dashboard:user_detail' stat.user.id %}" class="btn btn-sm btn-outline-primary" title="Voir les détails">
                                     <i class="bi bi-eye"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-user-btn" data-user-id="{{ stat.user.id }}" data-user-name="{{ stat.user.get_full_name|default:stat.user.username }}" data-event-id="{{ event.id }}" title="Remove from Event">
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-user-btn" data-user-id="{{ stat.user.id }}" data-user-name="{{ stat.user.get_full_name|default:stat.user.username }}" data-event-id="{{ event.id }}" title="Retirer de l'événement">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
@@ -174,9 +174,9 @@
         {% else %}
         <div class="text-center py-5">
             <i class="bi bi-person-x" style="font-size: 3rem; color: #ccc;"></i>
-            <p class="text-muted mt-3">No users assigned to this event yet.</p>
+            <p class="text-muted mt-3">Aucun utilisateur affecté à cet événement pour le moment.</p>
             <a href="{% url 'dashboard:user_create' %}?event={{ event.id }}" class="btn btn-primary">
-                <i class="bi bi-person-plus"></i> Add First User
+                <i class="bi bi-person-plus"></i> Ajouter le premier utilisateur
             </a>
         </div>
         {% endif %}
@@ -188,7 +188,7 @@
         <div class="col-md-3">
             <div class="stat-card text-center">
                 <h4 class="text-primary">{{ role_counts.all }}</h4>
-                <p class="text-muted mb-0">Total Users</p>
+                <p class="text-muted mb-0">Total des utilisateurs</p>
             </div>
         </div>
         <div class="col-md-3">
@@ -200,13 +200,13 @@
         <div class="col-md-3">
             <div class="stat-card text-center">
                 <h4 class="text-info">{{ role_counts.controlleur_des_badges }}</h4>
-                <p class="text-muted mb-0">Controllers</p>
+                <p class="text-muted mb-0">Contrôleurs</p>
             </div>
         </div>
         <div class="col-md-3">
             <div class="stat-card text-center">
                 <h4 class="text-warning">{{ role_counts.exposant }}</h4>
-                <p class="text-muted mb-0">Exhibitors</p>
+                <p class="text-muted mb-0">Exposants</p>
             </div>
         </div>
     </div>
@@ -277,7 +277,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const userName = button.getAttribute('data-user-name');
             const eventId = button.getAttribute('data-event-id');
             
-            if (confirm(`Are you sure you want to remove "${userName}" from this event?\n\nThis will remove their assignment and access to this event.`)) {
+            if (confirm(`Êtes-vous sûr de vouloir retirer « ${userName} » de cet événement ?\n\nCela supprimera son affectation et son accès à cet événement.`)) {
                 // Create form dynamically
                 const form = document.createElement('form');
                 form.method = 'POST';

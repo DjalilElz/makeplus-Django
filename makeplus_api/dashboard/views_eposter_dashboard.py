@@ -50,7 +50,7 @@ def eposter_dashboard(request, event_id):
     
     # Check access permission
     if not check_event_access(request.user, event):
-        messages.error(request, "You don't have access to this event.")
+        messages.error(request, "Vous n'avez pas accès à cet événement.")
         return redirect('dashboard:contributions_management_home')
     
     # Get statistics
@@ -101,7 +101,7 @@ def eposter_submissions_list(request, event_id):
     
     # Check access permission
     if not check_event_access(request.user, event):
-        messages.error(request, "You don't have access to this event.")
+        messages.error(request, "Vous n'avez pas accès à cet événement.")
         return redirect('dashboard:contributions_management_home')
     
     # Clear cache to ensure fresh data
@@ -168,7 +168,7 @@ def eposter_submission_detail(request, event_id, submission_id):
     
     # Check access permission
     if not check_event_access(request.user, event):
-        messages.error(request, "You don't have access to this event.")
+        messages.error(request, "Vous n'avez pas accès à cet événement.")
         return redirect('dashboard:contributions_management_home')
     
     submission = get_object_or_404(
@@ -474,7 +474,7 @@ def eposter_committee_list(request, event_id):
     """
     # Committee list management is admin only
     if not request.user.is_staff and not request.user.is_superuser:
-        messages.error(request, "Only administrators can manage committee members.")
+        messages.error(request, "Seuls les administrateurs peuvent gérer les membres du comité.")
         return redirect('dashboard:contributions_management_home')
     
     event = get_object_or_404(Event, id=event_id)
@@ -518,7 +518,7 @@ def eposter_committee_add(request, event_id):
     """
     # Admin only
     if not request.user.is_staff and not request.user.is_superuser:
-        messages.error(request, "Only administrators can manage committee members.")
+        messages.error(request, "Seuls les administrateurs peuvent gérer les membres du comité.")
         return redirect('dashboard:contributions_management_home')
     
     if request.method != 'POST':
@@ -558,7 +558,7 @@ def eposter_committee_remove(request, event_id, member_id):
     """
     # Admin only
     if not request.user.is_staff and not request.user.is_superuser:
-        messages.error(request, "Only administrators can manage committee members.")
+        messages.error(request, "Seuls les administrateurs peuvent gérer les membres du comité.")
         return redirect('dashboard:contributions_management_home')
     
     event = get_object_or_404(Event, id=event_id)
@@ -579,7 +579,7 @@ def eposter_email_templates(request, event_id):
     """
     # Admin only
     if not request.user.is_staff and not request.user.is_superuser:
-        messages.error(request, "Only administrators can manage email templates.")
+        messages.error(request, "Seuls les administrateurs peuvent gérer les modèles d'e-mail.")
         return redirect('dashboard:contributions_management_home')
     
     event = get_object_or_404(Event, id=event_id)
@@ -626,7 +626,7 @@ def eposter_email_template_create(request, event_id):
     """
     # Admin only
     if not request.user.is_staff and not request.user.is_superuser:
-        messages.error(request, "Only administrators can manage email templates.")
+        messages.error(request, "Seuls les administrateurs peuvent gérer les modèles d'e-mail.")
         return redirect('dashboard:contributions_management_home')
     
     event = get_object_or_404(Event, id=event_id)
@@ -650,7 +650,7 @@ def eposter_email_template_create(request, event_id):
         
         # Check if already exists
         if EPosterEmailTemplate.objects.filter(event=event, template_type=template_type).exists():
-            messages.error(request, 'Un template de ce type existe déjà')
+            messages.error(request, 'Un modèle de ce type existe déjà')
             return redirect('dashboard:contributions_email_templates', event_id=event_id)
         
         # Create template
@@ -670,11 +670,11 @@ def eposter_email_template_create(request, event_id):
             from django.core.cache import cache
             cache.clear()
             
-            messages.success(request, 'Template créé avec succès')
+            messages.success(request, 'Modèle créé avec succès')
             return redirect('dashboard:contributions_email_templates', event_id=event_id)
         except Exception as e:
             print(f"Error creating template: {e}")
-            messages.error(request, f'Erreur lors de la création du template: {str(e)}')
+            messages.error(request, f'Erreur lors de la création du modèle : {str(e)}')
             return redirect('dashboard:contributions_email_template_create', event_id=event_id) + f'?type={template_type}'
     
     # GET - show create form
@@ -727,7 +727,7 @@ def eposter_email_template_edit(request, event_id, template_id):
     """
     # Admin only
     if not request.user.is_staff and not request.user.is_superuser:
-        messages.error(request, "Only administrators can manage email templates.")
+        messages.error(request, "Seuls les administrateurs peuvent gérer les modèles d'e-mail.")
         return redirect('dashboard:contributions_management_home')
     
     event = get_object_or_404(Event, id=event_id)
@@ -741,7 +741,7 @@ def eposter_email_template_edit(request, event_id, template_id):
         template.is_active = request.POST.get('is_active') == 'on'
         template.save()
         
-        messages.success(request, 'Template mis à jour')
+        messages.success(request, 'Modèle mis à jour')
         return redirect('dashboard:contributions_email_templates', event_id=event_id)
     
     # Determine which variables to show based on template type
@@ -769,14 +769,14 @@ def eposter_email_template_delete(request, event_id, template_id):
     """
     # Admin only
     if not request.user.is_staff and not request.user.is_superuser:
-        messages.error(request, "Only administrators can manage email templates.")
+        messages.error(request, "Seuls les administrateurs peuvent gérer les modèles d'e-mail.")
         return redirect('dashboard:contributions_management_home')
     
     event = get_object_or_404(Event, id=event_id)
     template = get_object_or_404(EPosterEmailTemplate, id=template_id, event=event)
     
     template.delete()
-    messages.success(request, 'Template supprimé')
+    messages.success(request, 'Modèle supprimé')
     
     return redirect('dashboard:contributions_email_templates', event_id=event_id)
 
@@ -790,7 +790,7 @@ def eposter_export_csv(request, event_id):
     
     # Check access permission
     if not check_event_access(request.user, event):
-        messages.error(request, "You don't have access to this event.")
+        messages.error(request, "Vous n'avez pas accès à cet événement.")
         return redirect('dashboard:contributions_management_home')
     
     submissions = EPosterSubmission.objects.filter(event=event).order_by('-submitted_at')

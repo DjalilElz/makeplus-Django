@@ -1,16 +1,16 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}{% if is_edit %}Edit Room{% else %}Add Room{% endif %}{% endblock %}
+{% block page_title %}{% if is_edit %}Modifier la salle{% else %}Ajouter une salle{% endif %}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="mb-0">{% if is_edit %}Edit Room{% else %}Add Room{% endif %}</h2>
+            <h2 class="mb-0">{% if is_edit %}Modifier la salle{% else %}Ajouter une salle{% endif %}</h2>
             <p class="text-muted mb-0">{{ event.name }}</p>
         </div>
         <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Event
+            <i class="bi bi-arrow-left"></i> Retour à l'événement
         </a>
     </div>
 
@@ -23,7 +23,7 @@
                         
                         {% if form.errors %}
                             <div class="alert alert-danger">
-                                <strong>Please correct the errors below:</strong>
+                                <strong>Veuillez corriger les erreurs ci-dessous :</strong>
                                 <ul class="mb-0">
                                     {% for field in form %}
                                         {% for error in field.errors %}
@@ -35,17 +35,17 @@
                         {% endif %}
 
                         <div class="mb-3">
-                            <label for="{{ form.name.id_for_label }}" class="form-label">Room Name *</label>
+                            <label for="{{ form.name.id_for_label }}" class="form-label">Nom de la salle *</label>
                             {{ form.name }}
                         </div>
 
                         <div class="mb-3">
-                            <label for="{{ form.location.id_for_label }}" class="form-label">Location</label>
+                            <label for="{{ form.location.id_for_label }}" class="form-label">Emplacement</label>
                             {{ form.location }}
                         </div>
 
                         <div class="mb-3">
-                            <label for="{{ form.capacity.id_for_label }}" class="form-label">Capacity *</label>
+                            <label for="{{ form.capacity.id_for_label }}" class="form-label">Capacité *</label>
                             {{ form.capacity }}
                         </div>
 
@@ -56,10 +56,10 @@
 
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-save"></i> Save Room
+                                <i class="bi bi-save"></i> Enregistrer la salle
                             </button>
                             <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-secondary">
-                                Cancel
+                                Annuler
                             </a>
                         </div>
                     </form>

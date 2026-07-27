@@ -55,7 +55,7 @@ def event_owner_submissions_home(request):
     if not assignments.exists():
         if request.user.is_staff or request.user.is_superuser:
             return redirect('dashboard:home')
-        messages.error(request, "You don't have access to any event as an event owner.")
+        messages.error(request, "Vous n'avez accès à aucun événement en tant qu'organisateur.")
         return redirect('dashboard:login')
 
     if assignments.count() == 1:
@@ -239,34 +239,34 @@ def registration_status_save(request, order_id):
 
     new_status = request.POST.get('status', '').strip()
     if new_status not in STATUS_LABELS:
-        messages.error(request, 'Invalid status.')
+        messages.error(request, 'Statut invalide.')
         return redirect('dashboard:event_owner_submissions', event_id=order.event_id)
 
     if new_status != order.status:
         if new_status == 'approved':
             try:
                 confirm_registration_order(order, confirmed_by=request.user)
-                messages.success(request, 'Registration confirmed -- the participant now has real paid access.')
+                messages.success(request, "Inscription confirmée -- le participant dispose désormais d'un accès payé réel.")
             except ValueError as exc:
                 messages.error(request, str(exc))
         elif new_status == 'rejected':
             cancel_registration_order(order, cancelled_by=request.user)
-            messages.success(request, 'Registration cancelled.')
+            messages.success(request, 'Inscription annulée.')
         elif order.status == 'approved':
             # Un-confirming isn't a plain label change -- it has to go
             # through cancel_registration_order to void the real
             # transaction, so route it through "Cancelled" instead.
             messages.error(
                 request,
-                'This registration is already Confirmed (real payment on file). '
-                'Cancel it first if you need to revert it.',
+                'Cette inscription est déjà confirmée (paiement réel enregistré). '
+                'Annulez-la d\'abord si vous devez revenir en arrière.',
             )
         else:
             order.status = new_status
             order.reviewed_by = request.user
             order.reviewed_at = timezone.now()
             order.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
-            messages.success(request, 'Registration status updated.')
+            messages.success(request, "Statut de l'inscription mis à jour.")
 
     return redirect('dashboard:event_owner_submissions', event_id=order.event_id)
 
@@ -393,8 +393,8 @@ def registration_delete(request, order_id):
     if order.status == 'approved' and not request.POST.get('confirm_paid'):
         messages.error(
             request,
-            'This registration was already Confirmed (real payment on file). '
-            'Cancel it first, or explicitly confirm the delete if you understand this.',
+            'Cette inscription était déjà confirmée (paiement réel enregistré). '
+            'Annulez-la d\'abord, ou confirmez explicitement la suppression si vous comprenez cette action.',
         )
         return redirect('dashboard:event_owner_submissions', event_id=order.event_id)
 
@@ -422,5 +422,5 @@ def registration_delete(request, order_id):
             ParticipantEventRegistration.objects.filter(participant=participant, event_id=event_id).delete()
 
     order.delete()
-    messages.success(request, 'Registration deleted.')
+    messages.success(request, 'Inscription supprimée.')
     return redirect('dashboard:event_owner_submissions', event_id=event_id)

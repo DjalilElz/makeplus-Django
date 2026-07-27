@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Request Login Code - MakePlus Events</title>
+    <title>Demander un code de connexion - MakePlus Events</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
@@ -63,8 +63,8 @@
         <div class="request-container">
             <div class="request-card">
                 <div class="request-header">
-                    <h1><i class="bi bi-envelope-plus-fill me-2"></i>Request Code</h1>
-                    <p>Get a new 6-digit login code</p>
+                    <h1><i class="bi bi-envelope-plus-fill me-2"></i>Demander un code</h1>
+                    <p>Recevez un nouveau code de connexion à 6 chiffres</p>
                 </div>
 
                 {% if messages %}
@@ -82,10 +82,10 @@
                     <!-- Event Selection -->
                     <div class="mb-3">
                         <label for="event" class="form-label">
-                            <i class="bi bi-calendar-event me-1"></i>Event
+                            <i class="bi bi-calendar-event me-1"></i>Événement
                         </label>
                         <select class="form-select" id="event" name="event" required>
-                            <option value="">-- Select Event --</option>
+                            <option value="">-- Sélectionner un événement --</option>
                             {% for event in events %}
                                 <option value="{{ event.id }}">{{ event.name }}</option>
                             {% endfor %}
@@ -95,42 +95,42 @@
                     <!-- Email -->
                     <div class="mb-4">
                         <label for="email" class="form-label">
-                            <i class="bi bi-envelope me-1"></i>Email Address
+                            <i class="bi bi-envelope me-1"></i>Adresse e-mail
                         </label>
-                        <input 
-                            type="email" 
-                            class="form-control" 
-                            id="email" 
-                            name="email" 
-                            placeholder="your@email.com"
+                        <input
+                            type="email"
+                            class="form-control"
+                            id="email"
+                            name="email"
+                            placeholder="vous@email.com"
                             required
                         >
-                        <small class="text-muted">Enter the email you used to register</small>
+                        <small class="text-muted">Saisissez l'e-mail utilisé lors de votre inscription</small>
                     </div>
 
                     <div class="d-grid gap-2 mb-3">
                         <button type="submit" class="btn btn-primary btn-request">
-                            <i class="bi bi-send-fill me-2"></i>Send Code
+                            <i class="bi bi-send-fill me-2"></i>Envoyer le code
                         </button>
                     </div>
 
                     <div class="text-center">
                         <a href="{% url 'login' %}" class="text-decoration-none">
-                            <i class="bi bi-arrow-left me-1"></i>Back to Login
+                            <i class="bi bi-arrow-left me-1"></i>Retour à la connexion
                         </a>
                     </div>
                 </form>
 
                 <div class="alert alert-info mt-4">
                     <i class="bi bi-info-circle me-2"></i>
-                    <strong>Note:</strong>
-                    <br><small>You must be registered for the selected event to receive a login code.</small>
+                    <strong>Remarque :</strong>
+                    <br><small>Vous devez être inscrit à l'événement sélectionné pour recevoir un code de connexion.</small>
                 </div>
             </div>
 
             <div class="text-center mt-4">
                 <p class="text-white small mb-0">
-                    Powered by MakePlus Events Management
+                    Propulsé par MakePlus Events Management
                 </p>
             </div>
         </div>

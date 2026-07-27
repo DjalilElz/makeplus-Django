@@ -2,7 +2,7 @@
 {% load static %}
 {% load form_filters %}
 
-{% block title %}{{ form.name }} - Submissions{% endblock %}
+{% block title %}{{ form.name }} - Soumissions{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -11,15 +11,15 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h2><i class="bi bi-inbox-fill me-2"></i>{{ form.name }} - Submissions</h2>
+                    <h2><i class="bi bi-inbox-fill me-2"></i>{{ form.name }} - Soumissions</h2>
                     <p class="text-muted mb-0">
                         <a href="{% url 'dashboard:registration_form_builder' %}" class="text-decoration-none">
-                            <i class="bi bi-arrow-left me-1"></i>Back to Forms
+                            <i class="bi bi-arrow-left me-1"></i>Retour aux formulaires
                         </a>
                     </p>
                 </div>
                 <div>
-                    <span class="badge bg-primary fs-5">{{ submissions|length }} Submission{{ submissions|length|pluralize }}</span>
+                    <span class="badge bg-primary fs-5">{{ submissions|length }} soumission{{ submissions|length|pluralize }}</span>
                 </div>
             </div>
         </div>
@@ -36,7 +36,7 @@
                     {% endif %}
                     <p class="mb-0">
                         <span class="badge bg-{{ form.is_active|yesno:'success,secondary' }} me-2">
-                            {{ form.is_active|yesno:'Active,Inactive' }}
+                            {{ form.is_active|yesno:'Actif,Inactif' }}
                         </span>
                         {% if form.event %}
                             <span class="badge bg-info me-2">
@@ -47,7 +47,7 @@
                 </div>
                 <div class="col-md-4 text-end">
                     <div class="mb-2">
-                        <strong>Public URL:</strong>
+                        <strong>URL publique :</strong>
                     </div>
                     <div class="input-group">
                         <input type="text" class="form-control" id="formUrl" 
@@ -67,7 +67,7 @@
             <div class="row align-items-center">
                 <div class="col-md-12 text-end">
                     <button class="btn btn-success" onclick="exportToCSV()">
-                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>Export to CSV
+                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>Exporter en CSV
                     </button>
                 </div>
             </div>
@@ -86,8 +86,8 @@
                                 {% for field in form_fields %}
                                     <th>{{ field.label }}</th>
                                 {% endfor %}
-                                <th>Email</th>
-                                <th>Submitted</th>
+                                <th>E-mail</th>
+                                <th>Soumise le</th>
                                 <th width="10%">Actions</th>
                             </tr>
                         </thead>
@@ -110,11 +110,11 @@
                                     {% endfor %}
                                     <td>{{ submission.email|default:"-" }}</td>
                                     <td>
-                                        <small>{{ submission.submitted_at|date:"M d, Y H:i" }}</small>
+                                        <small>{{ submission.submitted_at|date:"d/m/Y H:i" }}</small>
                                     </td>
                                     <td>
                                         <button class="btn btn-outline-info btn-sm" onclick="viewDetails('{{ submission.id }}')">
-                                            <i class="bi bi-eye"></i> View
+                                            <i class="bi bi-eye"></i> Voir
                                         </button>
                                     </td>
                                 </tr>
@@ -128,10 +128,10 @@
         <div class="card">
             <div class="card-body text-center py-5">
                 <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
-                <h4 class="mt-3 text-muted">No Submissions Yet</h4>
-                <p class="text-muted">Share the form URL to start receiving submissions.</p>
+                <h4 class="mt-3 text-muted">Aucune soumission pour le moment</h4>
+                <p class="text-muted">Partagez l'URL du formulaire pour commencer à recevoir des soumissions.</p>
                 <button class="btn btn-primary" onclick="copyUrl()">
-                    <i class="bi bi-clipboard me-2"></i>Copy Form URL
+                    <i class="bi bi-clipboard me-2"></i>Copier l'URL du formulaire
                 </button>
             </div>
         </div>
@@ -143,14 +143,14 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Submission Details</h5>
+                <h5 class="modal-title">Détails de la soumission</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="detailsContent">
                 <!-- Details will be loaded here -->
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
             </div>
         </div>
     </div>
@@ -189,7 +189,7 @@ function copyUrl() {
     }).catch(() => {
         // Reset on error
         if (btn) btn.disabled = false;
-        alert('Failed to copy. Please copy manually.');
+        alert('Échec de la copie. Veuillez copier manuellement.');
     });
 }
 
@@ -200,20 +200,20 @@ function viewDetails(submissionId) {
     
     let html = '<div class="row">';
     html += '<div class="col-12 mb-3">';
-    html += '<h6>Submission Information</h6>';
+    html += '<h6>Informations de la soumission</h6>';
     html += '<table class="table table-sm">';
-    
+
     // Add all form fields
     {% for field in form_fields %}
         html += '<tr><th width="30%">{{ field.label }}</th><td>' + (submission.data['{{ field.name }}'] || '-') + '</td></tr>';
     {% endfor %}
-    
-    html += '<tr><th>Email</th><td>' + (submission.email || '-') + '</td></tr>';
-    html += '<tr><th>IP Address</th><td>' + (submission.ip_address || '-') + '</td></tr>';
-    html += '<tr><th>Submitted At</th><td>' + new Date(submission.submitted_at).toLocaleString() + '</td></tr>';
-    
+
+    html += '<tr><th>E-mail</th><td>' + (submission.email || '-') + '</td></tr>';
+    html += '<tr><th>Adresse IP</th><td>' + (submission.ip_address || '-') + '</td></tr>';
+    html += '<tr><th>Soumis le</th><td>' + new Date(submission.submitted_at).toLocaleString() + '</td></tr>';
+
     if (submission.admin_notes) {
-        html += '<tr><th>Admin Notes</th><td>' + submission.admin_notes + '</td></tr>';
+        html += '<tr><th>Notes admin</th><td>' + submission.admin_notes + '</td></tr>';
     }
     
     html += '</table>';
@@ -232,7 +232,7 @@ function exportToCSV() {
     {% for field in form_fields %}
         headers.push('{{ field.label }}');
     {% endfor %}
-    headers.push('Email', 'Submitted At');
+    headers.push('E-mail', 'Soumis le');
     csv.push(headers.join(','));
     
     // Data rows

@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}{% if is_edit %}Edit Campaign{% else %}Create Campaign{% endif %}{% endblock %}
+{% block page_title %}{% if is_edit %}Modifier la campagne{% else %}Créer une campagne{% endif %}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -114,19 +114,19 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
                 <a href="{% if is_edit %}{% url 'dashboard:campaign_detail' campaign.id %}{% else %}{% url 'dashboard:campaign_list_with_stats' %}{% endif %}" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-left"></i> Back
+                    <i class="bi bi-arrow-left"></i> Retour
                 </a>
                 <h3 class="mb-0">
-                    <i class="bi bi-megaphone"></i> 
-                    {% if is_edit %}Edit Campaign{% else %}Create New Campaign{% endif %}
+                    <i class="bi bi-megaphone"></i>
+                    {% if is_edit %}Modifier la campagne{% else %}Créer une nouvelle campagne{% endif %}
                 </h3>
             </div>
             <div class="d-flex gap-2">
                 <button type="button" class="btn btn-outline-primary" id="previewBtn">
-                    <i class="bi bi-eye"></i> Preview
+                    <i class="bi bi-eye"></i> Aperçu
                 </button>
                 <button type="submit" class="btn btn-success" id="saveBtn">
-                    <i class="bi bi-check-circle"></i> {% if is_edit %}Update{% else %}Create{% endif %} Campaign
+                    <i class="bi bi-check-circle"></i> {% if is_edit %}Mettre à jour{% else %}Créer{% endif %} la campagne
                 </button>
             </div>
         </div>
@@ -137,23 +137,23 @@
             <div class="col-12">
                 <div class="form-section mb-3">
                     <div class="section-title">
-                        <i class="bi bi-info-circle"></i> Campaign Info
+                        <i class="bi bi-info-circle"></i> Informations de la campagne
                     </div>
-                    
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.name.id_for_label }}" class="form-label fw-bold">
-                                Name <span class="text-danger">*</span>
+                                Nom <span class="text-danger">*</span>
                             </label>
                             {{ form.name }}
                             {% if form.name.errors %}
                                 <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
                             {% endif %}
                         </div>
-                        
+
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.event.id_for_label }}" class="form-label fw-bold">
-                                Event
+                                Événement
                             </label>
                             {{ form.event }}
                             {% if form.event.errors %}
@@ -165,17 +165,17 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.subject.id_for_label }}" class="form-label fw-bold">
-                                Subject <span class="text-danger">*</span>
+                                Objet <span class="text-danger">*</span>
                             </label>
                             {{ form.subject }}
                             {% if form.subject.errors %}
                                 <div class="text-danger small mt-1">{{ form.subject.errors.0 }}</div>
                             {% endif %}
                         </div>
-                        
+
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.from_email.id_for_label }}" class="form-label fw-bold">
-                                From Email <span class="text-danger">*</span>
+                                E-mail d'expéditeur <span class="text-danger">*</span>
                             </label>
                             {{ form.from_email }}
                             {% if form.from_email.errors %}
@@ -187,17 +187,17 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.from_name.id_for_label }}" class="form-label fw-bold">
-                                From Name
+                                Nom d'expéditeur
                             </label>
                             {{ form.from_name }}
                             {% if form.from_name.errors %}
                                 <div class="text-danger small mt-1">{{ form.from_name.errors.0 }}</div>
                             {% endif %}
                         </div>
-                        
+
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.reply_to.id_for_label }}" class="form-label fw-bold">
-                                Reply-To
+                                Répondre à
                             </label>
                             {{ form.reply_to }}
                             {% if form.reply_to.errors %}
@@ -208,17 +208,17 @@
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold d-block">Tracking Options</label>
+                            <label class="form-label fw-bold d-block">Options de suivi</label>
                             <div class="form-check">
                                 {{ form.track_opens }}
                                 <label class="form-check-label" for="{{ form.track_opens.id_for_label }}">
-                                    Track Opens
+                                    Suivre les ouvertures
                                 </label>
                             </div>
                             <div class="form-check">
                                 {{ form.track_clicks }}
                                 <label class="form-check-label" for="{{ form.track_clicks.id_for_label }}">
-                                    Track Clicks
+                                    Suivre les clics
                                 </label>
                             </div>
                         </div>
@@ -235,10 +235,10 @@
                     <div class="section-title">
                         <i class="bi bi-code-square"></i> Variables
                     </div>
-                    <p class="small text-muted mb-2">Click to copy</p>
-                    
+                    <p class="small text-muted mb-2">Cliquez pour copier</p>
+
                     <div id="variablesContainer">
-                        <h6 class="small fw-bold text-primary mb-2">Event Info</h6>
+                        <h6 class="small fw-bold text-primary mb-2">Infos de l'événement</h6>
                         <div class="mb-3">
                             {% verbatim %}
                             <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{event_name}}">{{event_name}}</button>
@@ -248,7 +248,7 @@
                             {% endverbatim %}
                         </div>
                         
-                        <h6 class="small fw-bold text-success mb-2">Recipient Info</h6>
+                        <h6 class="small fw-bold text-success mb-2">Infos du destinataire</h6>
                         <div class="mb-3">
                             {% verbatim %}
                             <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{first_name}}">{{first_name}}</button>
@@ -267,7 +267,7 @@
             <div class="col-lg-9">
                 <div class="form-section">
                     <div class="section-title">
-                        <i class="bi bi-brush"></i> Design Your Email
+                        <i class="bi bi-brush"></i> Concevez votre e-mail
                     </div>
                     <div class="editor-wrapper">
                         <div id="email-editor-container"></div>
@@ -275,8 +275,8 @@
                         <div class="editor-loading-overlay" id="editorLoadingOverlay">
                             <div class="text-center">
                                 <div class="spinner-border text-success" style="width: 3rem; height: 3rem;" role="status"></div>
-                                <p class="mt-3 fw-bold">Loading Unlayer Email Editor...</p>
-                                <small class="text-muted">This may take a few seconds</small>
+                                <p class="mt-3 fw-bold">Chargement de l'éditeur d'e-mail Unlayer...</p>
+                                <small class="text-muted">Cela peut prendre quelques secondes</small>
                             </div>
                         </div>
                     </div>
@@ -291,12 +291,12 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-eye"></i> Email Preview</h5>
+                <h5 class="modal-title"><i class="bi bi-eye"></i> Aperçu de l'e-mail</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3 p-3 bg-light border-bottom">
-                    <strong>Subject:</strong> <span id="previewSubject"></span>
+                    <strong>Objet :</strong> <span id="previewSubject"></span>
                 </div>
                 <iframe id="previewFrame" style="width: 100%; height: 600px; border: none;"></iframe>
             </div>
@@ -345,74 +345,74 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         mergeTags: {
             name: {
-                name: "Recipient Name",
+                name: "Nom du destinataire",
                 value: "{{name}}",
-                sample: "John Doe"
+                sample: "Jean Dupont"
             },
             email: {
-                name: "Email Address",
+                name: "Adresse e-mail",
                 value: "{{email}}",
-                sample: "john@example.com"
+                sample: "jean@exemple.com"
             },
             first_name: {
-                name: "First Name",
+                name: "Prénom",
                 value: "{{first_name}}",
-                sample: "John"
+                sample: "Jean"
             },
             last_name: {
-                name: "Last Name",
+                name: "Nom",
                 value: "{{last_name}}",
-                sample: "Doe"
+                sample: "Dupont"
             },
             telephone: {
-                name: "Phone Number",
+                name: "Numéro de téléphone",
                 value: "{{telephone}}",
                 sample: "+1234567890"
             },
             etablissement: {
-                name: "Organization",
+                name: "Établissement",
                 value: "{{etablissement}}",
                 sample: "Acme Corp"
             },
             event_name: {
-                name: "Event Name",
+                name: "Nom de l'événement",
                 value: "{{event_name}}",
                 sample: "MakePlus Summit 2026"
             },
             event_location: {
-                name: "Event Location",
+                name: "Lieu de l'événement",
                 value: "{{event_location}}",
-                sample: "Conference Center, Algiers"
+                sample: "Centre de conférences, Alger"
             },
             event_start_date: {
-                name: "Event Start Date",
+                name: "Date de début de l'événement",
                 value: "{{event_start_date}}",
-                sample: "January 1, 2026"
+                sample: "1 janvier 2026"
             },
             event_end_date: {
-                name: "Event End Date",
+                name: "Date de fin de l'événement",
                 value: "{{event_end_date}}",
-                sample: "January 3, 2026"
+                sample: "3 janvier 2026"
             },
             participant_name: {
-                name: "Participant Name",
+                name: "Nom du participant",
                 value: "{{participant_name}}",
-                sample: "John Doe"
+                sample: "Jean Dupont"
             },
             badge_id: {
-                name: "Badge ID",
+                name: "ID du badge",
                 value: "{{badge_id}}",
                 sample: "BADGE-12345"
             },
             qr_code_url: {
-                name: "QR Code URL",
+                name: "URL du code QR",
                 value: "{{qr_code_url}}",
-                sample: "https://example.com/qr/12345.png"
+                sample: "https://exemple.com/qr/12345.png"
             },
             unsubscribe_url: {
-                name: "Unsubscribe Link",
+                name: "Lien de désabonnement",
                 value: "{{unsubscribe_url}}",
-                sample: "https://example.com/unsubscribe"
+                sample: "https://exemple.com/desabonnement"
             }
         }
     });
@@ -455,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const previewSubject = document.getElementById('previewSubject');
             
             // Get subject from form
-            const subject = document.getElementById('{{ form.subject.id_for_label }}').value || 'No subject';
+            const subject = document.getElementById('{{ form.subject.id_for_label }}').value || 'Sans objet';
             previewSubject.textContent = subject;
             
             // Load HTML into iframe
@@ -476,7 +476,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const fromEmail = document.getElementById('{{ form.from_email.id_for_label }}').value;
         
         if (!name || !subject || !fromEmail) {
-            alert('Please fill in all required fields (Campaign Name, Subject, From Email)');
+            alert('Veuillez remplir tous les champs obligatoires (nom de la campagne, objet, e-mail d\'expéditeur)');
             return;
         }
         
@@ -484,13 +484,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const saveBtn = document.getElementById('saveBtn');
         const originalText = saveBtn.innerHTML;
         saveBtn.disabled = true;
-        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
-        
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enregistrement...';
+
         // Set timeout to reset button if something goes wrong
         const resetTimeout = setTimeout(() => {
             saveBtn.disabled = false;
             saveBtn.innerHTML = originalText;
-            alert('Operation timed out. Please try again.');
+            alert('L\'opération a expiré. Veuillez réessayer.');
         }, 30000);
         
         // Export HTML from Unlayer
@@ -516,7 +516,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Export failed:', error);
             saveBtn.disabled = false;
             saveBtn.innerHTML = originalText;
-            alert('Failed to export email content. Please try again.');
+            alert('Échec de l\'export du contenu de l\'e-mail. Veuillez réessayer.');
         }
     });
     
@@ -526,7 +526,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const varText = this.dataset.var;
             navigator.clipboard.writeText(varText).then(function() {
                 const originalText = pill.textContent;
-                pill.textContent = '✓ Copied!';
+                pill.textContent = '✓ Copié !';
                 pill.style.background = '#28a745';
                 pill.style.color = 'white';
                 
@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 1500);
             }).catch(function(err) {
                 console.error('Could not copy text: ', err);
-                alert('Copied: ' + varText);
+                alert('Copié : ' + varText);
             });
         });
     });
@@ -562,7 +562,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Change to green
                     this.classList.remove('btn-outline-secondary');
                     this.classList.add('btn-success');
-                    this.innerHTML = '✓ Copied!';
+                    this.innerHTML = '✓ Copié !';
                     
                     // Reset after 2 seconds
                     setTimeout(() => {
@@ -572,7 +572,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }, 2000);
                 }).catch(err => {
                     console.error('Could not copy text: ', err);
-                    alert('Copied: ' + varText);
+                    alert('Copié : ' + varText);
                 });
             });
         });
@@ -605,7 +605,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.fields && data.fields.length > 0) {
-                    let html = '<h6 class="small fw-bold text-danger mb-2">Registration Fields (Event: ' + (data.event_name || 'Selected') + ')</h6><div class="mb-3">';
+                    let html = '<h6 class="small fw-bold text-danger mb-2">Champs d\'inscription (événement : ' + (data.event_name || 'Sélectionné') + ')</h6><div class="mb-3">';
                     
                     data.fields.forEach((field, index) => {
                         const fieldName = field.name || 'field_' + index;
@@ -623,12 +623,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Re-setup button listeners
                     setupVariableButtons();
                 } else {
-                    document.getElementById('dynamicFieldsContainer').innerHTML = '<p class="small text-muted">No registration form fields for this event</p>';
+                    document.getElementById('dynamicFieldsContainer').innerHTML = '<p class="small text-muted">Aucun champ de formulaire d\'inscription pour cet événement</p>';
                 }
             })
             .catch(err => {
                 console.error('Error loading dynamic fields:', err);
-                document.getElementById('dynamicFieldsContainer').innerHTML = '<p class="small text-danger">Error loading fields</p>';
+                document.getElementById('dynamicFieldsContainer').innerHTML = '<p class="small text-danger">Erreur lors du chargement des champs</p>';
             });
     }
 });

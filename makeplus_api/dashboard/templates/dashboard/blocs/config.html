@@ -1,22 +1,22 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}Registration & Blocs - {{ event.name }}{% endblock %}
-{% block page_title %}Registration & Blocs{% endblock %}
+{% block title %}Inscription et blocs - {{ event.name }}{% endblock %}
+{% block page_title %}Inscription et blocs{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h4 class="mb-0">{{ event.name }}</h4>
-            <small class="text-muted">Paid registration configuration</small>
+            <small class="text-muted">Configuration de l'inscription payante</small>
         </div>
         <div>
             <a href="{% url 'dashboard:registration_orders' event.id %}" class="btn btn-outline-primary">
-                <i class="bi bi-inbox"></i> Submitted Registrations
+                <i class="bi bi-inbox"></i> Inscriptions soumises
                 {% if pending_orders %}<span class="badge bg-danger">{{ pending_orders }}</span>{% endif %}
             </a>
             <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Back to Event
+                <i class="bi bi-arrow-left"></i> Retour à l'événement
             </a>
         </div>
     </div>
@@ -25,7 +25,7 @@
     <form method="post" action="{% url 'dashboard:blocs_config_save' event.id %}">
         {% csrf_token %}
         <div class="stat-card mb-4">
-            <h5><i class="bi bi-toggles"></i> Blocs shown on the registration form</h5>
+            <h5><i class="bi bi-toggles"></i> Blocs affichés sur le formulaire d'inscription</h5>
             <hr>
             <div class="row">
                 <div class="col-md-3">
@@ -53,14 +53,14 @@
                 <div class="col-md-3">
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" name="show_workshops" id="show_workshops" {% if config.show_workshops %}checked{% endif %}>
-                        <label class="form-check-label" for="show_workshops"><strong>Workshops</strong></label>
+                        <label class="form-check-label" for="show_workshops"><strong>Ateliers</strong></label>
                     </div>
-                    <small class="text-muted">Uses paid Sessions</small>
+                    <small class="text-muted">Utilise les sessions payantes</small>
                 </div>
                 <div class="col-md-3">
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" name="show_social_event" id="show_social_event" {% if config.show_social_event %}checked{% endif %}>
-                        <label class="form-check-label" for="show_social_event"><strong>Social Event</strong></label>
+                        <label class="form-check-label" for="show_social_event"><strong>Événement social</strong></label>
                     </div>
                     <select name="social_event_select_mode" class="form-select form-select-sm">
                         {% for val, label in select_mode_choices %}
@@ -72,52 +72,52 @@
         </div>
 
         <div class="stat-card mb-4">
-            <h5><i class="bi bi-percent"></i> Reductions</h5>
+            <h5><i class="bi bi-percent"></i> Réductions</h5>
             <hr>
             <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="reduction_by_period_enabled" id="rp" {% if config.reduction_by_period_enabled %}checked{% endif %}>
-                <label class="form-check-label" for="rp"><strong>Reduction by period</strong> (define periods below)</label>
+                <label class="form-check-label" for="rp"><strong>Réduction par période</strong> (définissez les périodes ci-dessous)</label>
             </div>
             <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="reduction_by_blocs_enabled" id="rb" {% if config.reduction_by_blocs_enabled %}checked{% endif %}>
-                <label class="form-check-label" for="rb"><strong>Reduction by number of selected blocs</strong></label>
+                <label class="form-check-label" for="rb"><strong>Réduction selon le nombre de blocs sélectionnés</strong></label>
             </div>
             <div class="row">
                 <div class="col-md-6">
-                    <label class="form-label small">2 blocs selected → % off</label>
+                    <label class="form-label small">2 blocs sélectionnés → % de réduction</label>
                     <input type="number" step="0.01" min="0" max="100" name="reduction_2_blocs" value="{{ config.reduction_2_blocs }}" class="form-control form-control-sm">
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label small">3 blocs selected (maximum) → % off</label>
+                    <label class="form-label small">3 blocs sélectionnés (maximum) → % de réduction</label>
                     <input type="number" step="0.01" min="0" max="100" name="reduction_3_blocs" value="{{ config.reduction_3_blocs }}" class="form-control form-control-sm">
                 </div>
             </div>
             <small class="text-muted d-block mt-2">
-                1 bloc selected is always 0%. Status doesn't count as a bloc, so 3 (Restauration/Workshops/Social
-                Event) is the real maximum reachable. When both reductions are active, they add up.
+                1 bloc sélectionné est toujours à 0 %. Le Statut ne compte pas comme un bloc, donc 3 (Restauration/Ateliers/Événement
+                social) est le maximum réellement atteignable. Lorsque les deux réductions sont actives, elles s'additionnent.
             </small>
         </div>
 
         <div class="stat-card mb-4">
-            <h5><i class="bi bi-receipt"></i> Payment proof</h5>
+            <h5><i class="bi bi-receipt"></i> Preuve de paiement</h5>
             <hr>
             <div class="form-check form-switch mb-2">
                 <input class="form-check-input" type="checkbox" name="require_payment_proof" id="rpp" {% if config.require_payment_proof %}checked{% endif %}>
-                <label class="form-check-label" for="rpp"><strong>Require a bank receipt upload</strong> to submit a paid registration</label>
+                <label class="form-check-label" for="rpp"><strong>Exiger le téléversement d'une quittance bancaire</strong> pour soumettre une inscription payante</label>
             </div>
             <small class="text-muted d-block">
-                When off, the registration form never asks for a receipt or conditions acceptance, regardless of price.
-                A fully free (0 DZD) selection never requires one either way.
+                Lorsque désactivé, le formulaire d'inscription ne demande jamais de quittance ni d'acceptation des conditions, quel que soit le prix.
+                Une sélection entièrement gratuite (0 DZD) n'en exige jamais non plus.
             </small>
         </div>
 
-        <button type="submit" class="btn btn-primary mb-4"><i class="bi bi-save"></i> Save configuration</button>
+        <button type="submit" class="btn btn-primary mb-4"><i class="bi bi-save"></i> Enregistrer la configuration</button>
     </form>
 
     <!-- Custom bloc items -->
     {% for bloc in blocs %}
     <div class="stat-card mb-4">
-        <h5><i class="bi bi-list-ul"></i> {{ bloc.label }} items</h5>
+        <h5><i class="bi bi-list-ul"></i> Articles de {{ bloc.label }}</h5>
         <hr>
         {% for item in bloc.items %}
         <div class="border rounded p-2 mb-2">
@@ -125,101 +125,101 @@
                 {% csrf_token %}
                 <input type="hidden" name="item_id" value="{{ item.id }}">
                 <input type="hidden" name="bloc" value="{{ bloc.key }}">
-                <input type="text" name="name" value="{{ item.name }}" class="form-control form-control-sm" style="max-width:280px" placeholder="Item name">
-                <input type="number" step="0.01" min="0" name="price" value="{{ item.price }}" class="form-control form-control-sm" style="max-width:120px" title="Price (DZD)">
-                <input type="number" name="order" value="{{ item.order }}" class="form-control form-control-sm" style="max-width:70px" title="Order">
-                <button type="submit" class="btn btn-sm btn-outline-primary" title="Save"><i class="bi bi-check-lg"></i></button>
-                <textarea name="description" class="form-control form-control-sm w-100 mt-1" rows="2" placeholder="Optional description shown on the registration page">{{ item.description }}</textarea>
+                <input type="text" name="name" value="{{ item.name }}" class="form-control form-control-sm" style="max-width:280px" placeholder="Nom de l'article">
+                <input type="number" step="0.01" min="0" name="price" value="{{ item.price }}" class="form-control form-control-sm" style="max-width:120px" title="Prix (DZD)">
+                <input type="number" name="order" value="{{ item.order }}" class="form-control form-control-sm" style="max-width:70px" title="Ordre">
+                <button type="submit" class="btn btn-sm btn-outline-primary" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
+                <textarea name="description" class="form-control form-control-sm w-100 mt-1" rows="2" placeholder="Description facultative affichée sur la page d'inscription">{{ item.description }}</textarea>
             </form>
-            <form method="post" action="{% url 'dashboard:bloc_item_delete' item.id %}" onsubmit="return confirm('Delete {{ item.name|escapejs }}?')" class="text-end mt-1">
+            <form method="post" action="{% url 'dashboard:bloc_item_delete' item.id %}" onsubmit="return confirm('Supprimer {{ item.name|escapejs }} ?')" class="text-end mt-1">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i> Delete</button>
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i> Supprimer</button>
             </form>
         </div>
         {% empty %}
-        <p class="text-muted">No items yet.</p>
+        <p class="text-muted">Aucun article pour le moment.</p>
         {% endfor %}
 
         <form method="post" action="{% url 'dashboard:bloc_item_save' event.id %}" class="border rounded p-2 mt-3">
             {% csrf_token %}
             <input type="hidden" name="bloc" value="{{ bloc.key }}">
             <div class="d-flex align-items-center gap-2 flex-wrap">
-                <input type="text" name="name" placeholder="New item name" class="form-control form-control-sm" style="max-width:280px" required>
-                <input type="number" step="0.01" min="0" name="price" value="0" class="form-control form-control-sm" style="max-width:120px" title="Price (DZD)">
-                <input type="number" name="order" value="0" class="form-control form-control-sm" style="max-width:70px" title="Order">
-                <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Add</button>
+                <input type="text" name="name" placeholder="Nom du nouvel article" class="form-control form-control-sm" style="max-width:280px" required>
+                <input type="number" step="0.01" min="0" name="price" value="0" class="form-control form-control-sm" style="max-width:120px" title="Prix (DZD)">
+                <input type="number" name="order" value="0" class="form-control form-control-sm" style="max-width:70px" title="Ordre">
+                <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Ajouter</button>
             </div>
-            <textarea name="description" class="form-control form-control-sm w-100 mt-1" rows="2" placeholder="Optional description shown on the registration page"></textarea>
+            <textarea name="description" class="form-control form-control-sm w-100 mt-1" rows="2" placeholder="Description facultative affichée sur la page d'inscription"></textarea>
         </form>
     </div>
     {% endfor %}
 
     <!-- Reduction periods -->
     <div class="stat-card mb-4">
-        <h5><i class="bi bi-calendar-range"></i> Reduction periods</h5>
+        <h5><i class="bi bi-calendar-range"></i> Périodes de réduction</h5>
         <hr>
         <p class="text-muted small">
-            Periods no longer apply a flat % off the cart -- add a period here to define a date range, then set
-            each item's actual price for that period below, in the pricing matrices.
+            Les périodes n'appliquent plus un % forfaitaire sur le panier -- ajoutez une période ici pour définir une plage de dates, puis définissez
+            le prix réel de chaque article pour cette période ci-dessous, dans les matrices de tarification.
         </p>
         {% for p in periods %}
         <div class="border rounded p-2 mb-2">
             <form method="post" action="{% url 'dashboard:reduction_period_save' event.id %}" class="d-flex align-items-center gap-2 flex-wrap">
                 {% csrf_token %}
                 <input type="hidden" name="period_id" value="{{ p.id }}">
-                <input type="text" name="name" value="{{ p.name }}" placeholder="e.g. Early bird" class="form-control form-control-sm" style="max-width:200px">
+                <input type="text" name="name" value="{{ p.name }}" placeholder="par ex. Tarif préférentiel" class="form-control form-control-sm" style="max-width:200px">
                 <input type="date" name="start_date" value="{{ p.start_date|date:'Y-m-d' }}" class="form-control form-control-sm" required>
                 <input type="date" name="end_date" value="{{ p.end_date|date:'Y-m-d' }}" class="form-control form-control-sm" required>
-                <button type="submit" class="btn btn-sm btn-outline-primary" title="Save"><i class="bi bi-check-lg"></i></button>
+                <button type="submit" class="btn btn-sm btn-outline-primary" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
             </form>
-            <form method="post" action="{% url 'dashboard:reduction_period_delete' p.id %}" onsubmit="return confirm('Delete this period? Its per-item prices below will be lost too.')" class="text-end mt-1">
+            <form method="post" action="{% url 'dashboard:reduction_period_delete' p.id %}" onsubmit="return confirm('Supprimer cette période ? Ses prix par article ci-dessous seront également perdus.')" class="text-end mt-1">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i> Delete</button>
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i> Supprimer</button>
             </form>
         </div>
         {% empty %}
-        <p class="text-muted">No periods defined.</p>
+        <p class="text-muted">Aucune période définie.</p>
         {% endfor %}
 
         <form method="post" action="{% url 'dashboard:reduction_period_save' event.id %}" class="d-flex align-items-end gap-2 flex-wrap mt-2">
             {% csrf_token %}
             <div>
-                <label class="form-label small mb-0">Label</label>
-                <input type="text" name="name" placeholder="e.g. Early bird" class="form-control form-control-sm">
+                <label class="form-label small mb-0">Libellé</label>
+                <input type="text" name="name" placeholder="par ex. Tarif préférentiel" class="form-control form-control-sm">
             </div>
             <div>
-                <label class="form-label small mb-0">Start</label>
+                <label class="form-label small mb-0">Début</label>
                 <input type="date" name="start_date" class="form-control form-control-sm" required>
             </div>
             <div>
-                <label class="form-label small mb-0">End</label>
+                <label class="form-label small mb-0">Fin</label>
                 <input type="date" name="end_date" class="form-control form-control-sm" required>
             </div>
-            <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Add period</button>
+            <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Ajouter une période</button>
         </form>
     </div>
 
     <!-- Status-dependent + period pricing rules -->
     {% if status_items and target_rows or period_matrices %}
     <div class="stat-card mb-4">
-        <h5><i class="bi bi-diagram-3"></i> Pricing rules</h5>
+        <h5><i class="bi bi-diagram-3"></i> Règles de tarification</h5>
         <hr>
         <form method="post" action="{% url 'dashboard:bloc_status_rules_save' event.id %}">
             {% csrf_token %}
 
             {% if status_items and target_rows %}
-            <h6>Status-dependent rules</h6>
+            <h6>Règles dépendantes du statut</h6>
             <p class="text-muted small">
-                Make items in Restauration / Social Event / Workshops depend on which Status the participant picks.
-                Uncheck "visible" to hide an item entirely for a status, or set a custom price to charge that status
-                differently for it. Leave a cell at its default (checked, no price) for normal behavior -- nothing is
-                stored for cells you don't customize.
+                Faites dépendre les articles de Restauration / Événement social / Ateliers du Statut choisi par le participant.
+                Décochez « visible » pour masquer entièrement un article pour un statut, ou définissez un prix personnalisé pour facturer ce statut
+                différemment. Laissez une cellule à sa valeur par défaut (cochée, sans prix) pour un comportement normal -- rien n'est
+                enregistré pour les cellules que vous ne personnalisez pas.
             </p>
             <div class="table-responsive mb-4">
                 <table class="table table-sm table-bordered align-middle">
                     <thead>
                         <tr>
-                            <th>Item</th>
+                            <th>Article</th>
                             {% for status_item in status_items %}
                             <th class="text-center">{{ status_item.name }}</th>
                             {% endfor %}
@@ -235,12 +235,12 @@
                                     <input type="checkbox" class="form-check-input"
                                            name="visible_{{ cell.status_id }}_any_{{ cell.target_key }}"
                                            {% if cell.visible %}checked{% endif %}
-                                           title="Visible for this status">
+                                           title="Visible pour ce statut">
                                 </div>
                                 <input type="number" step="0.01" min="0" class="form-control form-control-sm"
                                        name="price_{{ cell.status_id }}_any_{{ cell.target_key }}"
                                        value="{{ cell.price|default_if_none:'' }}"
-                                       placeholder="normal price" title="Override price (blank = normal price)">
+                                       placeholder="prix normal" title="Prix personnalisé (vide = prix normal)">
                             </td>
                             {% endfor %}
                         </tr>
@@ -251,18 +251,18 @@
             {% endif %}
 
             {% for matrix in period_matrices %}
-            <h6>Period pricing -- {{ matrix.period.name|default:"Period" }} ({{ matrix.period.start_date }} to {{ matrix.period.end_date }})</h6>
+            <h6>Tarification par période -- {{ matrix.period.name|default:"Période" }} ({{ matrix.period.start_date }} au {{ matrix.period.end_date }})</h6>
             <p class="text-muted small">
-                Set each item's actual price during this period. "Any status" applies regardless of which Status is
-                picked (or before one is picked); a specific status column overrides it. Leave a cell at its default
-                (checked, no price) to keep the item's normal price during this period.
+                Définissez le prix réel de chaque article pendant cette période. « Tout statut » s'applique quel que soit le Statut
+                choisi (ou avant d'en choisir un) ; une colonne de statut spécifique le remplace. Laissez une cellule à sa valeur par défaut
+                (cochée, sans prix) pour conserver le prix normal de l'article pendant cette période.
             </p>
             <div class="table-responsive mb-4">
                 <table class="table table-sm table-bordered align-middle">
                     <thead>
                         <tr>
-                            <th>Item</th>
-                            <th class="text-center">Any status</th>
+                            <th>Article</th>
+                            <th class="text-center">Tout statut</th>
                             {% for status_item in status_items %}
                             <th class="text-center">{{ status_item.name }}</th>
                             {% endfor %}
@@ -278,12 +278,12 @@
                                     <input type="checkbox" class="form-check-input"
                                            name="visible_{{ cell.status_key }}_{{ matrix.period.id }}_{{ cell.target_key }}"
                                            {% if cell.visible %}checked{% endif %}
-                                           title="Visible during this period">
+                                           title="Visible pendant cette période">
                                 </div>
                                 <input type="number" step="0.01" min="0" class="form-control form-control-sm"
                                        name="price_{{ cell.status_key }}_{{ matrix.period.id }}_{{ cell.target_key }}"
                                        value="{{ cell.price|default_if_none:'' }}"
-                                       placeholder="normal price" title="Price during this period (blank = normal price)">
+                                       placeholder="prix normal" title="Prix pendant cette période (vide = prix normal)">
                             </td>
                             {% endfor %}
                         </tr>
@@ -293,24 +293,24 @@
             </div>
             {% endfor %}
 
-            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Save pricing rules</button>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Enregistrer les règles de tarification</button>
         </form>
     </div>
     {% endif %}
 
     <!-- Paid sessions (workshops) reference + display order -->
     <div class="stat-card mb-4">
-        <h6><i class="bi bi-mortarboard"></i> Workshops = paid Sessions ({{ paid_sessions.count }})</h6>
+        <h6><i class="bi bi-mortarboard"></i> Ateliers = sessions payantes ({{ paid_sessions.count }})</h6>
         <hr>
         {% if paid_sessions %}
         <p class="text-muted small">
-            Controls the order workshops appear in on the public registration form only -- the schedule/agenda
-            still sorts by start time. Lower shows first.
+            Contrôle uniquement l'ordre d'apparition des ateliers sur le formulaire d'inscription public -- le programme/l'agenda
+            reste trié par heure de début. Une valeur plus basse s'affiche en premier.
         </p>
         <form method="post" action="{% url 'dashboard:workshop_order_save' event.id %}">
             {% csrf_token %}
             <table class="table table-sm align-middle">
-                <thead><tr><th style="width:100px">Order</th><th>Workshop</th><th>Price</th></tr></thead>
+                <thead><tr><th style="width:100px">Ordre</th><th>Atelier</th><th>Prix</th></tr></thead>
                 <tbody>
                     {% for s in paid_sessions %}
                     <tr>
@@ -321,10 +321,10 @@
                     {% endfor %}
                 </tbody>
             </table>
-            <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Save workshop order</button>
+            <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Enregistrer l'ordre des ateliers</button>
         </form>
         {% else %}
-        <p class="text-muted mb-0">No paid sessions. Mark sessions as paid to populate the Workshops bloc.</p>
+        <p class="text-muted mb-0">Aucune session payante. Marquez des sessions comme payantes pour remplir le bloc Ateliers.</p>
         {% endif %}
     </div>
 </div>

@@ -41,7 +41,7 @@ def my_final_communications_home(request):
     if not assignments.exists():
         if request.user.is_staff or request.user.is_superuser:
             return redirect('dashboard:home')
-        messages.error(request, "You don't have access to any event as a room manager.")
+        messages.error(request, "Vous n'avez accès à aucun événement en tant que gestionnaire de salle.")
         return redirect('dashboard:login')
 
     if assignments.count() == 1:

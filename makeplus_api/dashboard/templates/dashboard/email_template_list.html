@@ -1,34 +1,34 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}Email Templates & Campaigns{% endblock %}
+{% block page_title %}Modèles et campagnes e-mail{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-envelope"></i> Email Templates & Campaigns</h2>
+        <h2><i class="bi bi-envelope"></i> Modèles et campagnes e-mail</h2>
         <div>
             <a href="{% url 'dashboard:form_list_with_stats' %}" class="btn btn-outline-info me-2">
-                <i class="bi bi-ui-checks"></i> Form Analytics
+                <i class="bi bi-ui-checks"></i> Analyse des formulaires
             </a>
             <a href="{% url 'dashboard:registration_form_builder' %}" class="btn btn-info me-2">
-                <i class="bi bi-plus-circle"></i> Build Form
+                <i class="bi bi-plus-circle"></i> Créer un formulaire
             </a>
             <a href="{% url 'dashboard:campaign_create' %}" class="btn btn-success me-2">
-                <i class="bi bi-megaphone"></i> Create Campaign
+                <i class="bi bi-megaphone"></i> Créer une campagne
             </a>
             <a href="{% url 'dashboard:email_template_create' %}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Create Template
+                <i class="bi bi-plus-circle"></i> Créer un modèle
             </a>
         </div>
     </div>
-    
+
     <!-- Email Campaigns Section (Mailerlite Style) -->
     {% if campaigns and campaign_count > 0 %}
     <div class="mb-5">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4><i class="bi bi-graph-up text-success"></i> Email Campaigns ({{ campaign_count }})</h4>
+            <h4><i class="bi bi-graph-up text-success"></i> Campagnes e-mail ({{ campaign_count }})</h4>
             <a href="{% url 'dashboard:campaign_list_with_stats' %}" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-list-ul"></i> View All Campaigns
+                <i class="bi bi-list-ul"></i> Voir toutes les campagnes
             </a>
         </div>
         
@@ -53,19 +53,19 @@
                         <!-- Compact Stats Cards -->
                         <div class="d-flex gap-1 mb-2">
                             <div class="bg-light rounded text-center flex-fill" style="padding: 2px 4px;">
-                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Rcpt</div>
+                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Dest.</div>
                                 <div class="fw-bold" style="font-size: 11px; line-height: 1.1;">{{ campaign.total_sent|default:0 }}</div>
                             </div>
                             <div class="bg-light rounded text-center flex-fill" style="padding: 2px 4px;">
-                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Sent</div>
+                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Env.</div>
                                 <div class="fw-bold text-success" style="font-size: 11px; line-height: 1.1;">{{ campaign.total_delivered|default:0 }}</div>
                             </div>
                             <div class="bg-info bg-opacity-10 rounded text-center flex-fill" style="padding: 2px 4px;">
-                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Open</div>
+                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Ouv.</div>
                                 <div class="fw-bold text-info" style="font-size: 11px; line-height: 1.1;">{{ campaign.get_open_rate }}%</div>
                             </div>
                             <div class="bg-success bg-opacity-10 rounded text-center flex-fill" style="padding: 2px 4px;">
-                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Click</div>
+                                <div class="text-muted" style="font-size: 9px; line-height: 1;">Clic</div>
                                 <div class="fw-bold text-success" style="font-size: 11px; line-height: 1.1;">{{ campaign.get_click_rate }}%</div>
                             </div>
                         </div>
@@ -78,7 +78,7 @@
                     </div>
                     <div class="card-footer bg-white border-top-0 py-1 px-2">
                         <small class="text-muted" style="font-size: 0.65rem;">
-                            <i class="bi bi-calendar"></i> {{ campaign.created_at|date:"M d" }}
+                            <i class="bi bi-calendar"></i> {{ campaign.created_at|date:"d/m" }}
                             {% if campaign.event %} | {{ campaign.event.name|truncatewords:2 }}{% endif %}
                         </small>
                     </div>
@@ -91,10 +91,10 @@
     
     <!-- Email Templates Section -->
     <div class="mb-3">
-        <h4><i class="bi bi-envelope-fill text-primary"></i> Email Templates ({{ template_count }})</h4>
+        <h4><i class="bi bi-envelope-fill text-primary"></i> Modèles d'e-mail ({{ template_count }})</h4>
         <p class="text-muted small">
-            <i class="bi bi-info-circle"></i> Reusable templates that can be customized for each event. 
-            Use template variables like <code>{{event_name}}</code>, <code>{{participant_name}}</code>, etc.
+            <i class="bi bi-info-circle"></i> Modèles réutilisables qui peuvent être personnalisés pour chaque événement.
+            Utilisez des variables de modèle comme {% verbatim %}<code>{{event_name}}</code>, <code>{{participant_name}}</code>{% endverbatim %}, etc.
         </p>
     </div>
     
@@ -111,9 +111,9 @@
                         <p class="text-muted small">{{ template.description }}</p>
                         {% endif %}
                         <hr>
-                        <p class="mb-2"><strong>Subject:</strong></p>
+                        <p class="mb-2"><strong>Objet :</strong></p>
                         <p class="text-muted small">{{ template.subject }}</p>
-                        <p class="mb-2 mt-3"><strong>Body Preview:</strong></p>
+                        <p class="mb-2 mt-3"><strong>Aperçu du corps :</strong></p>
                         <p class="text-muted small" style="max-height: 100px; overflow: hidden;">
                             {{ template.body|truncatewords:30 }}
                         </p>
@@ -121,41 +121,41 @@
                     <div class="card-footer bg-light">
                         <div class="mb-2">
                             <small class="text-muted">
-                                {% if template.created_by %}<i class="bi bi-person"></i> {{ template.created_by.username }} |{% endif %} 
-                                <i class="bi bi-calendar"></i> {{ template.created_at|date:"M d, Y" }}
+                                {% if template.created_by %}<i class="bi bi-person"></i> {{ template.created_by.username }} |{% endif %}
+                                <i class="bi bi-calendar"></i> {{ template.created_at|date:"d/m/Y" }}
                             </small>
                         </div>
                         <div class="d-grid gap-2">
                             <div class="btn-group" role="group">
-                                <button type="button" class="btn btn-sm btn-outline-info" 
-                                        onclick="openTestEmailModal({{ template.id }}, '{{ template.name|escapejs }}')" 
-                                        title="Test Email">
+                                <button type="button" class="btn btn-sm btn-outline-info"
+                                        onclick="openTestEmailModal({{ template.id }}, '{{ template.name|escapejs }}')"
+                                        title="E-mail de test">
                                     <i class="bi bi-envelope-check"></i> Test
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-success" 
-                                        onclick="openSendEmailModal({{ template.id }}, '{{ template.name|escapejs }}')" 
-                                        title="Send to Registered Users">
-                                    <i class="bi bi-send"></i> Send
+                                <button type="button" class="btn btn-sm btn-outline-success"
+                                        onclick="openSendEmailModal({{ template.id }}, '{{ template.name|escapejs }}')"
+                                        title="Envoyer aux utilisateurs inscrits">
+                                    <i class="bi bi-send"></i> Envoyer
                                 </button>
-                                <a href="{% url 'dashboard:email_template_stats' template.id %}" 
-                                   class="btn btn-sm btn-outline-warning" title="Statistics">
+                                <a href="{% url 'dashboard:email_template_stats' template.id %}"
+                                   class="btn btn-sm btn-outline-warning" title="Statistiques">
                                     <i class="bi bi-bar-chart"></i> Stats
                                 </a>
                             </div>
                             <div class="btn-group" role="group">
-                                <a href="{% url 'dashboard:email_template_edit' template.id %}" 
-                                   class="btn btn-sm btn-outline-primary" title="Edit">
-                                    <i class="bi bi-pencil"></i> Edit
+                                <a href="{% url 'dashboard:email_template_edit' template.id %}"
+                                   class="btn btn-sm btn-outline-primary" title="Modifier">
+                                    <i class="bi bi-pencil"></i> Modifier
                                 </a>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" 
-                                        onclick="archiveTemplate({{ template.id }}, '{{ template.name|escapejs }}')" 
-                                        title="Archive">
-                                    <i class="bi bi-archive"></i> Archive
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        onclick="archiveTemplate({{ template.id }}, '{{ template.name|escapejs }}')"
+                                        title="Archiver">
+                                    <i class="bi bi-archive"></i> Archiver
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger" 
-                                        onclick="deleteTemplate({{ template.id }}, '{{ template.name|escapejs }}')" 
-                                        title="Delete">
-                                    <i class="bi bi-trash"></i> Delete
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        onclick="deleteTemplate({{ template.id }}, '{{ template.name|escapejs }}')"
+                                        title="Supprimer">
+                                    <i class="bi bi-trash"></i> Supprimer
                                 </button>
                             </div>
                         </div>
@@ -174,8 +174,8 @@
         </div>
     {% else %}
         <div class="alert alert-warning">
-            <i class="bi bi-exclamation-circle"></i> No email templates created yet. 
-            <a href="{% url 'dashboard:email_template_create' %}" class="alert-link">Create your first template</a>.
+            <i class="bi bi-exclamation-circle"></i> Aucun modèle d'e-mail créé pour le moment.
+            <a href="{% url 'dashboard:email_template_create' %}" class="alert-link">Créez votre premier modèle</a>.
         </div>
     {% endif %}
 </div>
@@ -186,27 +186,27 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="testEmailModalLabel">
-                    <i class="bi bi-envelope-check"></i> Test Email: <span id="testEmailTemplateName"></span>
+                    <i class="bi bi-envelope-check"></i> E-mail de test : <span id="testEmailTemplateName"></span>
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
             </div>
             <form id="testEmailForm" method="post" action="">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> Send a test email to verify your template design and content.
+                        <i class="bi bi-info-circle"></i> Envoyez un e-mail de test pour vérifier le design et le contenu de votre modèle.
                     </div>
                     <div class="mb-3">
-                        <label for="testEmailAddress" class="form-label">Test Email Address *</label>
-                        <input type="email" class="form-control" id="testEmailAddress" name="test_email" 
-                               placeholder="yourname@example.com" required>
-                        <div class="form-text">Enter the email address where you want to send the test.</div>
+                        <label for="testEmailAddress" class="form-label">Adresse e-mail de test *</label>
+                        <input type="email" class="form-control" id="testEmailAddress" name="test_email"
+                               placeholder="votrenom@exemple.com" required>
+                        <div class="form-text">Saisissez l'adresse e-mail à laquelle envoyer le test.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                     <button type="submit" class="btn btn-info">
-                        <i class="bi bi-send"></i> Send Test Email
+                        <i class="bi bi-send"></i> Envoyer l'e-mail de test
                     </button>
                 </div>
             </form>
@@ -220,32 +220,32 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="sendEmailModalLabel">
-                    <i class="bi bi-send"></i> Send Email: <span id="sendEmailTemplateName"></span>
+                    <i class="bi bi-send"></i> Envoyer l'e-mail : <span id="sendEmailTemplateName"></span>
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
             </div>
             <form id="sendEmailForm" method="post" action="">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i> <strong>Warning:</strong> This will send the email to all registered users for the selected event.
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Attention :</strong> cela enverra l'e-mail à tous les utilisateurs inscrits à l'événement sélectionné.
                     </div>
                     <div class="mb-3">
-                        <label for="sendEventSelect" class="form-label">Select Event *</label>
+                        <label for="sendEventSelect" class="form-label">Sélectionner un événement *</label>
                         <select class="form-select" id="sendEventSelect" name="event_id" required>
-                            <option value="">-- Choose an event --</option>
+                            <option value="">-- Choisir un événement --</option>
                             <!-- Events will be loaded via JavaScript or backend -->
                         </select>
-                        <div class="form-text">Choose the event whose registered users will receive this email.</div>
+                        <div class="form-text">Choisissez l'événement dont les utilisateurs inscrits recevront cet e-mail.</div>
                     </div>
                     <div id="recipientCount" class="alert alert-info" style="display:none;">
-                        <i class="bi bi-people"></i> This email will be sent to <strong><span id="recipientNumber">0</span></strong> registered users.
+                        <i class="bi bi-people"></i> Cet e-mail sera envoyé à <strong><span id="recipientNumber">0</span></strong> utilisateurs inscrits.
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                     <button type="submit" class="btn btn-success">
-                        <i class="bi bi-send-check"></i> Send to All Registered Users
+                        <i class="bi bi-send-check"></i> Envoyer à tous les utilisateurs inscrits
                     </button>
                 </div>
             </form>
@@ -270,7 +270,7 @@ function openSendEmailModal(templateId, templateName) {
         .then(response => response.json())
         .then(data => {
             const select = document.getElementById('sendEventSelect');
-            select.innerHTML = '<option value="">-- Choose an event --</option>';
+            select.innerHTML = '<option value="">-- Choisir un événement --</option>';
             data.events.forEach(event => {
                 const option = document.createElement('option');
                 option.value = event.id;
@@ -296,13 +296,13 @@ document.getElementById('sendEventSelect')?.addEventListener('change', function(
 });
 
 function archiveTemplate(templateId, templateName) {
-    if (confirm(`Archive the template "${templateName}"?\n\nArchived templates won\'t be deleted but will be hidden from the main list.`)) {
+    if (confirm(`Archiver le modèle « ${templateName} » ?\n\nLes modèles archivés ne sont pas supprimés mais masqués de la liste principale.`)) {
         document.getElementById(`archive-template-${templateId}`).submit();
     }
 }
 
 function deleteTemplate(templateId, templateName) {
-    if (confirm(`Are you sure you want to DELETE "${templateName}"?\n\nThis action cannot be undone!`)) {
+    if (confirm(`Êtes-vous sûr de vouloir SUPPRIMER « ${templateName} » ?\n\nCette action est irréversible !`)) {
         document.getElementById(`delete-template-${templateId}`).submit();
     }
 }

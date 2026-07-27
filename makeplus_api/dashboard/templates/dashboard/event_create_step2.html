@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}Create Event - Step 2: Rooms{% endblock %}
+{% block page_title %}Créer un événement - Étape 2 : Salles{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -8,11 +8,11 @@
     <div class="progress-steps">
         <div class="progress-step completed">
             <div class="progress-step-circle"><i class="bi bi-check"></i></div>
-            <div>Event Details</div>
+            <div>Détails de l'événement</div>
         </div>
         <div class="progress-step active">
             <div class="progress-step-circle">2</div>
-            <div>Rooms</div>
+            <div>Salles</div>
         </div>
         <div class="progress-step">
             <div class="progress-step-circle">3</div>
@@ -20,15 +20,15 @@
         </div>
         <div class="progress-step">
             <div class="progress-step-circle">4</div>
-            <div>Users</div>
+            <div>Utilisateurs</div>
         </div>
     </div>
-    
+
     <!-- Event Info -->
     <div class="alert alert-info mb-4">
-        <strong><i class="bi bi-info-circle"></i> Event:</strong> {{ event.name }}
+        <strong><i class="bi bi-info-circle"></i> Événement :</strong> {{ event.name }}
         <span class="float-end">
-            <strong>Progress:</strong> Room {{ current_room }} of {{ total_rooms }}
+            <strong>Progression :</strong> Salle {{ current_room }} sur {{ total_rooms }}
         </span>
     </div>
     
@@ -53,16 +53,16 @@
                     
                     <div class="row">
                         <div class="col-md-8 mb-3">
-                            <label for="{{ form.name.id_for_label }}" class="form-label">Room Name *</label>
+                            <label for="{{ form.name.id_for_label }}" class="form-label">Nom de la salle *</label>
                             {{ form.name }}
-                            <div class="form-text">e.g., Salle Principale, Auditorium A, Workshop Room</div>
+                            <div class="form-text">par ex. Salle Principale, Auditorium A, Salle d'atelier</div>
                             {% if form.name.errors %}
                                 <div class="text-danger small">{{ form.name.errors }}</div>
                             {% endif %}
                         </div>
                         
                         <div class="col-md-4 mb-3">
-                            <label for="{{ form.capacity.id_for_label }}" class="form-label">Capacity *</label>
+                            <label for="{{ form.capacity.id_for_label }}" class="form-label">Capacité *</label>
                             {{ form.capacity }}
                             {% if form.capacity.errors %}
                                 <div class="text-danger small">{{ form.capacity.errors }}</div>
@@ -70,9 +70,9 @@
                         </div>
                         
                         <div class="col-md-12 mb-3">
-                            <label for="{{ form.location.id_for_label }}" class="form-label">Location *</label>
+                            <label for="{{ form.location.id_for_label }}" class="form-label">Emplacement *</label>
                             {{ form.location }}
-                            <div class="form-text">Location within venue (e.g., Ground Floor, Building A, Section 2)</div>
+                            <div class="form-text">Emplacement dans le lieu (par ex. Rez-de-chaussée, Bâtiment A, Section 2)</div>
                             {% if form.location.errors %}
                                 <div class="text-danger small">{{ form.location.errors }}</div>
                             {% endif %}
@@ -81,7 +81,7 @@
                         <div class="col-md-12 mb-3">
                             <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
                             {{ form.description }}
-                            <div class="form-text">Describe the room features, equipment, and purpose</div>
+                            <div class="form-text">Décrivez les caractéristiques, l'équipement et l'usage de la salle</div>
                             {% if form.description.errors %}
                                 <div class="text-danger small">{{ form.description.errors }}</div>
                             {% endif %}
@@ -90,13 +90,13 @@
                     
                     <div class="d-flex justify-content-between mt-4">
                         <a href="{% url 'dashboard:home' %}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle"></i> Annuler
                         </a>
                         <button type="submit" class="btn btn-primary">
                             {% if current_room < total_rooms %}
-                                Add Room & Continue <i class="bi bi-arrow-right"></i>
+                                Ajouter la salle et continuer <i class="bi bi-arrow-right"></i>
                             {% else %}
-                                Finish Rooms & Add Sessions <i class="bi bi-arrow-right"></i>
+                                Terminer les salles et ajouter des sessions <i class="bi bi-arrow-right"></i>
                             {% endif %}
                         </button>
                     </div>

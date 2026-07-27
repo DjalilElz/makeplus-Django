@@ -1,18 +1,18 @@
 {% extends 'dashboard/base.html' %}
 
-{% block page_title %}Create Form - {{ event.name }}{% endblock %}
+{% block page_title %}Créer un formulaire - {{ event.name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="mb-1">📝 Create Form for {{ event.name }}</h2>
-            <p class="text-muted mb-0">Choose the type of form you want to create</p>
+            <h2 class="mb-1">📝 Créer un formulaire pour {{ event.name }}</h2>
+            <p class="text-muted mb-0">Choisissez le type de formulaire à créer</p>
         </div>
         <div>
             <a href="{% url 'dashboard:contributions_management_home' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Back
+                <i class="bi bi-arrow-left"></i> Retour
             </a>
         </div>
     </div>
@@ -20,15 +20,15 @@
     <!-- Existing Configurations -->
     {% if existing_configs %}
     <div class="alert alert-info mb-4">
-        <h5><i class="bi bi-info-circle"></i> Existing Forms for this Event</h5>
+        <h5><i class="bi bi-info-circle"></i> Formulaires existants pour cet événement</h5>
         <ul class="mb-0">
             {% for config in existing_configs %}
             <li>
                 <strong>{{ config.get_form_type_display }}</strong>
                 {% if config.is_active %}
-                    <span class="badge bg-success">Active</span>
+                    <span class="badge bg-success">Actif</span>
                 {% else %}
-                    <span class="badge bg-secondary">Inactive</span>
+                    <span class="badge bg-secondary">Inactif</span>
                 {% endif %}
             </li>
             {% endfor %}
@@ -42,39 +42,39 @@
         <div class="col-md-6 mb-4">
             <div class="card h-100 border-primary">
                 <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0"><i class="bi bi-person-plus"></i> Participant Registration Form</h4>
+                    <h4 class="mb-0"><i class="bi bi-person-plus"></i> Formulaire d'inscription des participants</h4>
                 </div>
                 <div class="card-body">
                     <p class="card-text">
-                        Create a registration form for event participants. This form collects basic information 
-                        from people who want to attend your event.
+                        Créez un formulaire d'inscription pour les participants de l'événement. Ce formulaire recueille les informations de base
+                        des personnes souhaitant assister à votre événement.
                     </p>
-                    <h6>Features:</h6>
+                    <h6>Fonctionnalités :</h6>
                     <ul>
-                        <li>Collect participant personal information</li>
-                        <li>Track registrations and attendance</li>
-                        <li>Generate badges and certificates</li>
-                        <li>Send confirmation emails</li>
+                        <li>Collecter les informations personnelles des participants</li>
+                        <li>Suivre les inscriptions et la présence</li>
+                        <li>Générer des badges et des certificats</li>
+                        <li>Envoyer des e-mails de confirmation</li>
                     </ul>
-                    
+
                     <form method="post" action="{% url 'dashboard:create_form_for_event' event.id %}">
                         {% csrf_token %}
                         <input type="hidden" name="form_type" value="participant">
-                        
+
                         <div class="mb-3">
-                            <label class="form-label">Form Title (optional)</label>
-                            <input type="text" name="title" class="form-control" 
-                                   placeholder="e.g., Registration for {{ event.name }}">
+                            <label class="form-label">Titre du formulaire (facultatif)</label>
+                            <input type="text" name="title" class="form-control"
+                                   placeholder="par ex. Inscription à {{ event.name }}">
                         </div>
-                        
+
                         <div class="mb-3">
-                            <label class="form-label">Description (optional)</label>
+                            <label class="form-label">Description (facultatif)</label>
                             <textarea name="description" class="form-control" rows="2"
-                                      placeholder="Instructions for participants..."></textarea>
+                                      placeholder="Instructions pour les participants..."></textarea>
                         </div>
-                        
+
                         <button type="submit" class="btn btn-primary btn-lg w-100">
-                            <i class="bi bi-plus-circle"></i> Create Participant Form
+                            <i class="bi bi-plus-circle"></i> Créer le formulaire participant
                         </button>
                     </form>
                 </div>
@@ -85,40 +85,40 @@
         <div class="col-md-6 mb-4">
             <div class="card h-100 border-success">
                 <div class="card-header bg-success text-white">
-                    <h4 class="mb-0"><i class="bi bi-file-earmark-text"></i> Call for Communicants Form</h4>
+                    <h4 class="mb-0"><i class="bi bi-file-earmark-text"></i> Formulaire d'appel à communications</h4>
                 </div>
                 <div class="card-body">
                     <p class="card-text">
-                        Create a submission form for scientific papers, posters, or presentations. 
-                        This form includes scientific committee validation workflow.
+                        Créez un formulaire de soumission pour les articles scientifiques, posters ou présentations.
+                        Ce formulaire inclut le circuit de validation du comité scientifique.
                     </p>
-                    <h6>Features:</h6>
+                    <h6>Fonctionnalités :</h6>
                     <ul>
-                        <li>Collect detailed submission information</li>
-                        <li>Abstract sections (Introduction, Methods, Results, Conclusion)</li>
-                        <li>Scientific committee validation workflow</li>
-                        <li>Automatic notification emails</li>
-                        <li>Real-time validation statistics</li>
+                        <li>Collecter des informations détaillées de soumission</li>
+                        <li>Sections du résumé (Introduction, Méthodes, Résultats, Conclusion)</li>
+                        <li>Circuit de validation du comité scientifique</li>
+                        <li>E-mails de notification automatiques</li>
+                        <li>Statistiques de validation en temps réel</li>
                     </ul>
-                    
+
                     <form method="post" action="{% url 'dashboard:create_form_for_event' event.id %}">
                         {% csrf_token %}
                         <input type="hidden" name="form_type" value="communicant">
-                        
+
                         <div class="mb-3">
-                            <label class="form-label">Form Title (optional)</label>
-                            <input type="text" name="title" class="form-control" 
-                                   placeholder="e.g., Call for Papers - {{ event.name }}">
+                            <label class="form-label">Titre du formulaire (facultatif)</label>
+                            <input type="text" name="title" class="form-control"
+                                   placeholder="par ex. Appel à communications - {{ event.name }}">
                         </div>
-                        
+
                         <div class="mb-3">
-                            <label class="form-label">Description (optional)</label>
+                            <label class="form-label">Description (facultatif)</label>
                             <textarea name="description" class="form-control" rows="2"
-                                      placeholder="Submission guidelines..."></textarea>
+                                      placeholder="Consignes de soumission..."></textarea>
                         </div>
-                        
+
                         <button type="submit" class="btn btn-success btn-lg w-100">
-                            <i class="bi bi-plus-circle"></i> Create Communicant Form
+                            <i class="bi bi-plus-circle"></i> Créer le formulaire de communication
                         </button>
                     </form>
                 </div>
@@ -129,31 +129,31 @@
     <!-- Help Section -->
     <div class="card mt-4">
         <div class="card-header">
-            <h5 class="mb-0"><i class="bi bi-question-circle"></i> Which form should I choose?</h5>
+            <h5 class="mb-0"><i class="bi bi-question-circle"></i> Quel formulaire choisir ?</h5>
         </div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
-                    <h6 class="text-primary"><i class="bi bi-person-plus"></i> Participant Form</h6>
-                    <p>Choose this if you want to:</p>
+                    <h6 class="text-primary"><i class="bi bi-person-plus"></i> Formulaire participant</h6>
+                    <p>Choisissez-le si vous souhaitez :</p>
                     <ul>
-                        <li>Register attendees for your event</li>
-                        <li>Collect basic contact information</li>
-                        <li>Track who's coming to your event</li>
+                        <li>Inscrire des participants à votre événement</li>
+                        <li>Collecter des informations de contact de base</li>
+                        <li>Suivre qui vient à votre événement</li>
                     </ul>
                 </div>
                 <div class="col-md-6">
-                    <h6 class="text-success"><i class="bi bi-file-earmark-text"></i> Call for Communicants</h6>
-                    <p>Choose this if you want to:</p>
+                    <h6 class="text-success"><i class="bi bi-file-earmark-text"></i> Appel à communications</h6>
+                    <p>Choisissez-le si vous souhaitez :</p>
                     <ul>
-                        <li>Accept paper/poster submissions</li>
-                        <li>Have a scientific committee review submissions</li>
-                        <li>Manage an abstract submission process</li>
+                        <li>Accepter des soumissions d'articles/posters</li>
+                        <li>Faire examiner les soumissions par un comité scientifique</li>
+                        <li>Gérer un processus de soumission de résumés</li>
                     </ul>
                 </div>
             </div>
             <div class="alert alert-info mb-0 mt-3">
-                <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> You can create both types of forms for the same event!
+                <i class="bi bi-lightbulb"></i> <strong>Astuce :</strong> vous pouvez créer les deux types de formulaires pour le même événement !
             </div>
         </div>
     </div>

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - MakePlus Events</title>
+    <title>Connexion - MakePlus Events</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
@@ -94,8 +94,8 @@
         <div class="login-container">
             <div class="login-card">
                 <div class="login-header">
-                    <h1><i class="bi bi-key-fill me-2"></i>Login</h1>
-                    <p>Enter your email and 6-digit code</p>
+                    <h1><i class="bi bi-key-fill me-2"></i>Connexion</h1>
+                    <p>Saisissez votre e-mail et votre code à 6 chiffres</p>
                 </div>
 
                 {% if messages %}
@@ -113,10 +113,10 @@
                     <!-- Event Selection -->
                     <div class="mb-3">
                         <label for="event" class="form-label">
-                            <i class="bi bi-calendar-event me-1"></i>Event
+                            <i class="bi bi-calendar-event me-1"></i>Événement
                         </label>
                         <select class="form-select" id="event" name="event" required>
-                            <option value="">-- Select Event --</option>
+                            <option value="">-- Sélectionner un événement --</option>
                             {% for event in events %}
                                 <option value="{{ event.id }}" {% if request.POST.event == event.id|stringformat:"s" %}selected{% endif %}>
                                     {{ event.name }}
@@ -128,14 +128,14 @@
                     <!-- Email -->
                     <div class="mb-3">
                         <label for="email" class="form-label">
-                            <i class="bi bi-envelope me-1"></i>Email Address
+                            <i class="bi bi-envelope me-1"></i>Adresse e-mail
                         </label>
-                        <input 
-                            type="email" 
-                            class="form-control" 
-                            id="email" 
-                            name="email" 
-                            placeholder="your@email.com"
+                        <input
+                            type="email"
+                            class="form-control"
+                            id="email"
+                            name="email"
+                            placeholder="vous@email.com"
                             value="{{ request.POST.email|default:'' }}"
                             required
                         >
@@ -144,7 +144,7 @@
                     <!-- Login Code -->
                     <div class="mb-3">
                         <label for="code" class="form-label">
-                            <i class="bi bi-shield-lock me-1"></i>6-Digit Code
+                            <i class="bi bi-shield-lock me-1"></i>Code à 6 chiffres
                         </label>
                         <input 
                             type="text" 
@@ -156,51 +156,51 @@
                             pattern="[0-9]{6}"
                             required
                         >
-                        <small class="text-muted">Enter the code from your email</small>
+                        <small class="text-muted">Saisissez le code reçu par e-mail</small>
                     </div>
 
                     <div class="d-grid gap-2 mb-3">
                         <button type="submit" class="btn btn-primary btn-login">
-                            <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                            <i class="bi bi-box-arrow-in-right me-2"></i>Se connecter
                         </button>
                     </div>
 
                     <div class="text-center">
                         <a href="{% url 'events:request_login_code' %}" class="btn-request-code">
-                            <i class="bi bi-envelope-plus me-1"></i>Request New Code
+                            <i class="bi bi-envelope-plus me-1"></i>Demander un nouveau code
                         </a>
                     </div>
 
                     <div class="divider">
-                        <span>OR</span>
+                        <span>OU</span>
                     </div>
 
                     <!-- Legacy Password Login (Optional) -->
                     <div class="mb-3">
                         <label for="password" class="form-label">
-                            <i class="bi bi-lock me-1"></i>Password <small class="text-muted">(Legacy users only)</small>
+                            <i class="bi bi-lock me-1"></i>Mot de passe <small class="text-muted">(anciens utilisateurs uniquement)</small>
                         </label>
-                        <input 
-                            type="password" 
-                            class="form-control" 
-                            id="password" 
-                            name="password" 
-                            placeholder="Enter password if you have one"
+                        <input
+                            type="password"
+                            class="form-control"
+                            id="password"
+                            name="password"
+                            placeholder="Saisissez votre mot de passe si vous en avez un"
                         >
-                        <small class="text-muted">Leave blank if you're using a login code</small>
+                        <small class="text-muted">Laissez vide si vous utilisez un code de connexion</small>
                     </div>
                 </form>
 
                 <div class="alert alert-info mt-4">
                     <i class="bi bi-info-circle me-2"></i>
-                    <strong>New User?</strong>
-                    <br><small>Register through your event's registration form to receive a login code.</small>
+                    <strong>Nouvel utilisateur ?</strong>
+                    <br><small>Inscrivez-vous via le formulaire d'inscription de votre événement pour recevoir un code de connexion.</small>
                 </div>
             </div>
 
             <div class="text-center mt-4">
                 <p class="text-white small mb-0">
-                    Powered by MakePlus Events Management
+                    Propulsé par MakePlus Events Management
                 </p>
             </div>
         </div>

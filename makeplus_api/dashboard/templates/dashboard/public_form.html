@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1027,7 +1027,7 @@
                         <div class="bloc-section" data-bloc-key="workshops">
                             <div class="bloc-header">
                                 <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs_before_workshops|length|add:1 }}</span>
-                                <span class="bloc-title">Ateliers / Workshops</span>
+                                <span class="bloc-title">Ateliers</span>
                             </div>
                             <p class="bloc-locked-message"><i class="bi bi-lock-fill me-1"></i>Veuillez d'abord sélectionner votre statut (Bloc 1) ci-dessus.</p>
                             <p class="bloc-note">Choix multiple — sélectionnez autant d'ateliers que vous le souhaitez.</p>
@@ -1464,7 +1464,7 @@
             if (!countdownEl) return;
 
             if (distance < 0) {
-                countdownEl.innerHTML = '<div class="alert alert-info mb-0">Event has started!</div>';
+                countdownEl.innerHTML = '<div class="alert alert-info mb-0">L\'événement a commencé !</div>';
                 return;
             }
 
@@ -1489,7 +1489,7 @@
     {% if show_submission_blocked_alert %}
     <script>
         window.addEventListener('DOMContentLoaded', function() {
-            alert('⚠️ Form Submission Blocked\n\nThis form has been closed and is no longer accepting submissions.\n\nYour submission was NOT sent.');
+            alert('⚠️ Envoi du formulaire bloqué\n\nCe formulaire a été fermé et n\'accepte plus de soumissions.\n\nVotre soumission n\'a PAS été envoyée.');
         });
     </script>
     {% endif %}
