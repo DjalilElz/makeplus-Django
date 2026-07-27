@@ -360,5 +360,94 @@ class UserProfileAPIView(APIView):
         from .models import UserProfile
         qr_data = UserProfile.get_qr_for_user(user)
         profile_data['qr_code'] = qr_data
-        
+
         return Response(profile_data)
+
+    def patch(self, request):
+        """
+        Update the display name only. Email is deliberately not editable here:
+        login authenticates with username=email (see auth_views.py), so
+        changing email would need to stay in lockstep with username to avoid
+        breaking login -- out of scope for a simple profile edit.
+        """
+        user = request.user
+        data = request.data
+
+        if 'first_name' in data:
+            first_name = (data.get('first_name') or '').strip()
+            if not first_name:
+                return Response(
+                    {'error': 'Le prénom ne peut pas être vide.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if len(first_name) > 150:
+                return Response(
+                    {'error': 'Le prénom est trop long.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.first_name = first_name
+
+        if 'last_name' in data:
+            last_name = (data.get('last_name') or '').strip()
+            if len(last_name) > 150:
+                return Response(
+                    {'error': 'Le nom est trop long.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.last_name = last_name
+
+        user.save(update_fields=['first_name', 'last_name'])
+
+        return Response({
+            'id': user.id,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'full_name': user.get_full_name() or user.email,
+        })
+
+    def delete(self, request):
+        """
+        Delete-my-account, required by both the App Store (5.1.1v) and Play
+        Store account-deletion policies. Implemented as deactivate +
+        anonymize, NOT a hard delete: User is CASCADE-related to Participant,
+        RegistrationForm.created_by, Announce.created_by, and
+        BadgeScanLog.controller (see events/models.py, dashboard/models_form.py).
+        A hard delete would destroy registration forms, published
+        announcements, and badge-scan audit trails that other
+        participants/organizers depend on -- not just this user's own data.
+
+        Requires the current password as re-confirmation since this is
+        irreversible from the user's side.
+        """
+        user = request.user
+        password = request.data.get('password', '')
+
+        if not password or not user.check_password(password):
+            return Response(
+                {'error': 'Mot de passe incorrect.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        placeholder = f'deleted-user-{user.id}'
+        user.first_name = ''
+        user.last_name = ''
+        user.email = f'{placeholder}@makeplus.invalid'
+        user.username = placeholder
+        user.is_active = False
+        user.set_unusable_password()
+        user.save()
+
+        # Blacklist every refresh token ever issued to this user, so an old
+        # session can't keep renewing access past its natural (short)
+        # expiry once the account is deleted.
+        try:
+            from rest_framework_simplejwt.token_blacklist.models import (
+                OutstandingToken, BlacklistedToken,
+            )
+            for token in OutstandingToken.objects.filter(user=user):
+                BlacklistedToken.objects.get_or_create(token=token)
+        except Exception:
+            pass
+
+        return Response({'message': 'Compte supprimé avec succès.'})
