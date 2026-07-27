@@ -451,3 +451,69 @@ class UserProfileAPIView(APIView):
             pass
 
         return Response({'message': 'Compte supprimé avec succès.'})
+
+
+class UserDataExportAPIView(APIView):
+    """
+    REST API: data portability (GDPR/CCPA, App Store/Play Store account
+    data export requirement). Returns everything the mobile app itself
+    collects about the current user as a single JSON document -- account
+    info, participant/badge profile, event registrations, and the
+    questions they've asked. The mobile app hands this to the OS share
+    sheet rather than emailing it, so no backend email plumbing is needed.
+    """
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        user = request.user
+
+        data = {
+            'exported_at': timezone.now().isoformat(),
+            'account': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'date_joined': user.date_joined.isoformat() if user.date_joined else None,
+            },
+        }
+
+        assignment = UserEventAssignment.objects.filter(
+            user=user, is_active=True
+        ).first()
+        data['event_assignment'] = {
+            'role': assignment.role,
+            'event': assignment.event.name,
+        } if assignment else None
+
+        try:
+            participant = Participant.objects.get(user=user)
+            data['participant'] = {
+                'badge_id': participant.badge_id,
+                'role': participant.role,
+            }
+            data['registered_events'] = [
+                {
+                    'id': str(event.id),
+                    'name': event.name,
+                    'start_date': event.start_date.isoformat() if event.start_date else None,
+                    'end_date': event.end_date.isoformat() if event.end_date else None,
+                }
+                for event in participant.events.all()
+            ]
+            data['questions_asked'] = [
+                {
+                    'session': question.session.title,
+                    'question_text': question.question_text,
+                    'asked_at': question.asked_at.isoformat(),
+                    'is_answered': question.is_answered,
+                }
+                for question in participant.questions.select_related('session').all()
+            ]
+        except Participant.DoesNotExist:
+            data['participant'] = None
+            data['registered_events'] = []
+            data['questions_asked'] = []
+
+        return Response(data)
