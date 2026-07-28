@@ -93,6 +93,24 @@ def is_committee_member(user):
     return EPosterCommitteeMember.objects.filter(user=user, is_active=True).exists()
 
 
+def _qr_display_payload(qr_data):
+    """
+    The actual content encoded into a badge QR image: just the user's id,
+    as a plain string (not JSON). UserProfile.get_or_create_qr_code()
+    returns a much richer dict (badge_id, paid items, check-in status,
+    event/role info) used for on-page display, but none of that belongs
+    baked into the QR itself: it goes stale the moment it's generated, and
+    every real scan endpoint (events/views.py ParticipantViewSet and
+    ExposantScanViewSet scan_participant) only needs user_id to look the
+    participant up and re-queries everything else -- badge_id included --
+    fresh from the database rather than trusting the QR payload. Must stay
+    in sync with the mobile app's QR content in
+    participant_profile_screen.dart -- same plain user_id -- so the web
+    and mobile QR codes for the same user match exactly.
+    """
+    return str(qr_data.get('user_id'))
+
+
 # ==================== Authentication Views ====================
 
 def login_view(request):
@@ -946,15 +964,16 @@ def user_create(request):
 def user_detail(request, user_id):
     """User detail with comprehensive information"""
     from caisse.models import CaisseTransaction
-    
+
     user = get_object_or_404(User, id=user_id)
-    
+
     # Get QR code
     qr_data = UserProfile.get_qr_for_user(user)
-    
-    # Generate QR code image
+
+    # Generate QR code image -- just the user id, same as the mobile app
+    # (see _qr_display_payload for why).
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    qr.add_data(json.dumps(qr_data))
+    qr.add_data(_qr_display_payload(qr_data))
     qr.make(fit=True)
     
     img = qr.make_image(fill_color="black", back_color="white")
@@ -1141,13 +1160,13 @@ def user_change_role(request, assignment_id):
 @user_passes_test(is_staff_user)
 def download_qr_code(request, user_id):
     """Download QR code as PNG"""
-    
+
     user = get_object_or_404(User, id=user_id)
     qr_data = UserProfile.get_qr_for_user(user)
-    
-    # Generate QR code
+
+    # Same QR content as user_detail -- see the note on _qr_display_payload.
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    qr.add_data(json.dumps(qr_data))
+    qr.add_data(_qr_display_payload(qr_data))
     qr.make(fit=True)
     
     img = qr.make_image(fill_color="black", back_color="white")
