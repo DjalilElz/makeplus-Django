@@ -824,16 +824,21 @@ class ParticipantViewSet(viewsets.ModelViewSet):
     serializer_class = ParticipantSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['event', 'is_checked_in']
+    # 'event'/'is_checked_in' used to be direct fields on Participant; they
+    # moved to ParticipantEventRegistration (Participant.events is now a
+    # through-M2M) and were never updated here, which made django-filter
+    # raise FieldError building its FilterSet on every request to this
+    # endpoint -- see the same fix already applied in
+    # SessionQuestionViewSet.create() above.
     search_fields = ['user__username', 'user__email', 'user__first_name', 'user__last_name', 'badge_id']
-    
+
     def get_queryset(self):
         """Filter by event and user access"""
-        queryset = Participant.objects.select_related('user', 'event')
+        queryset = Participant.objects.select_related('user')
 
         event_id = self.request.query_params.get('event_id')
         if event_id:
-            queryset = queryset.filter(event_id=event_id)
+            queryset = queryset.filter(events__id=event_id)
 
         # Used by the exhibitor scanner to look up name/email/badge_id
         # for a scanned user id before saving the visit -- the QR code
