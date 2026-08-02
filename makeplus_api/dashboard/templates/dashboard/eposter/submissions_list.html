@@ -39,6 +39,19 @@
             {% endfor %}
         </select>
     </div>
+    {% if is_supervisor %}
+    <div class="col-md-3">
+        <label class="form-label small">Membre du comité</label>
+        <select name="member" class="form-select">
+            <option value="">Tous</option>
+            {% for member in committee %}
+            <option value="{{ member.user_id }}" {% if member_filter == member.user_id|stringformat:"s" %}selected{% endif %}>
+                {{ member.user.get_full_name|default:member.user.username }}{% if member.is_supervisor %} (Superviseur){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
     <div class="col-md-2 d-flex gap-2">
         <button type="submit" class="btn btn-elegant flex-grow-1"><i class="bi bi-funnel"></i> Filtrer</button>
         <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="btn btn-outline-elegant"><i class="bi bi-x"></i></a>
@@ -101,7 +114,7 @@
                 <td colspan="7" class="text-center py-5 text-muted">
                     <i class="bi bi-inbox fs-1 d-block mb-3"></i>
                     Aucune soumission trouvée
-                    {% if search or status_filter or type_filter %}
+                    {% if search or status_filter or type_filter or member_filter %}
                     <br>
                     <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="btn btn-link">Effacer les filtres</a>
                     {% endif %}
@@ -117,7 +130,7 @@
     <ul class="pagination mb-0 justify-content-center">
         {% if submissions.has_previous %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ submissions.previous_page_number }}&search={{ search }}&status={{ status_filter }}&type={{ type_filter }}">Précédent</a>
+            <a class="page-link" href="?page={{ submissions.previous_page_number }}&search={{ search }}&status={{ status_filter }}&type={{ type_filter }}&member={{ member_filter }}">Précédent</a>
         </li>
         {% endif %}
         <li class="page-item disabled">
@@ -125,7 +138,7 @@
         </li>
         {% if submissions.has_next %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ submissions.next_page_number }}&search={{ search }}&status={{ status_filter }}&type={{ type_filter }}">Suivant</a>
+            <a class="page-link" href="?page={{ submissions.next_page_number }}&search={{ search }}&status={{ status_filter }}&type={{ type_filter }}&member={{ member_filter }}">Suivant</a>
         </li>
         {% endif %}
     </ul>

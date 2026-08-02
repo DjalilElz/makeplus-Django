@@ -205,18 +205,22 @@ def eposter_submissions_list(request, event_id):
     cache.clear()
     
     submissions = EPosterSubmission.objects.filter(event=event)
-    
+
     # Filters
     status_filter = request.GET.get('status', '')
     type_filter = request.GET.get('type', '')
+    member_filter = request.GET.get('member', '')
     search = request.GET.get('search', '')
-    
+
     if status_filter:
         submissions = submissions.filter(status=status_filter)
-    
+
     if type_filter:
         submissions = submissions.filter(type_participation=type_filter)
-    
+
+    if member_filter:
+        submissions = submissions.filter(final_decision_by_id=member_filter)
+
     if search:
         submissions = submissions.filter(
             Q(nom__icontains=search) |
@@ -236,15 +240,26 @@ def eposter_submissions_list(request, event_id):
     paginator = Paginator(submissions, 20)
     page = request.GET.get('page', 1)
     submissions_page = paginator.get_page(page)
-    
+
+    # The "filter by committee member" dropdown (who decided it) is
+    # supervisor/staff only, same visibility rule as everywhere else
+    # "who decided this" is shown.
+    is_supervisor = check_supervisor_access(request.user, event)
+    committee = EPosterCommitteeMember.objects.filter(
+        event=event, is_active=True
+    ).select_related('user').order_by('user__first_name', 'user__last_name') if is_supervisor else []
+
     context = {
         'event': event,
         'submissions': submissions_page,
         'status_filter': status_filter,
         'type_filter': type_filter,
+        'member_filter': member_filter,
         'search': search,
         'status_choices': EPosterSubmission.STATUS_CHOICES,
         'type_choices': EPosterSubmission.TYPE_PARTICIPATION_CHOICES,
+        'is_supervisor': is_supervisor,
+        'committee': committee,
     }
     
     # Add no-cache headers
