@@ -872,22 +872,30 @@
                                 <div class="mb-4">
                                     <label class="form-label required-field">Type de contribution</label>
                                     <div class="type-selection">
+                                        {% if form_config.enable_e_poster|default:True %}
                                         <div class="type-pill" data-type="e_poster">
                                             <i class="bi bi-easel"></i>
                                             <span>E-Poster</span>
                                         </div>
+                                        {% endif %}
+                                        {% if form_config.enable_communication_orale|default:True %}
                                         <div class="type-pill" data-type="communication_orale">
                                             <i class="bi bi-mic"></i>
                                             <span>Communication orale</span>
                                         </div>
+                                        {% endif %}
+                                        {% if form_config.enable_table_ronde|default:True %}
                                         <div class="type-pill" data-type="table_ronde">
                                             <i class="bi bi-people"></i>
                                             <span>Table ronde</span>
                                         </div>
+                                        {% endif %}
+                                        {% if form_config.enable_atelier|default:True %}
                                         <div class="type-pill" data-type="atelier">
                                             <i class="bi bi-tools"></i>
                                             <span>Atelier</span>
                                         </div>
+                                        {% endif %}
                                     </div>
                                     <input type="hidden" name="type_participation" id="type-participation-input" required>
                                 </div>
@@ -895,8 +903,17 @@
                                 <div class="row g-4">
                                     <div class="col-md-6">
                                         <label class="form-label">Thème/Sujet</label>
+                                        {% if form_config.theme_field_mode == 'select' %}
+                                        <select name="theme" class="form-select">
+                                            <option value="">Sélectionner un thème...</option>
+                                            {% for option in form_config.theme_options %}
+                                            <option value="{{ option }}">{{ option }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        {% else %}
                                         <input type="text" name="theme" class="form-control"
                                                placeholder="ex. : Cardiologie, Oncologie, Dermatologie...">
+                                        {% endif %}
                                         <small class="text-muted">Optionnel</small>
                                     </div>
                                     <div class="col-12">

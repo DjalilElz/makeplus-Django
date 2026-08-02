@@ -27,17 +27,46 @@ from .models_eposter import (
 
 def check_event_access(user, event):
     """
-    Check if user has access to the event's ePoster dashboard.
-    Returns True if user is staff/superuser OR is an active committee member for this event.
+    Check if user has access to the event's ePoster submissions (view + decide).
+    Returns True if user is staff/superuser OR is an active committee member
+    (member or supervisor) for this event.
     """
     if user.is_staff or user.is_superuser:
         return True
-    
+
     return EPosterCommitteeMember.objects.filter(
         user=user,
         event=event,
         is_active=True
     ).exists()
+
+
+def get_supervisor_membership(user, event):
+    """
+    Returns the user's active EPosterCommitteeMember row for this event if
+    they are a supervisor (or legacy president), otherwise None.
+    """
+    if not user.is_authenticated:
+        return None
+    membership = EPosterCommitteeMember.objects.filter(
+        user=user,
+        event=event,
+        is_active=True
+    ).first()
+    if membership and membership.is_supervisor():
+        return membership
+    return None
+
+
+def check_supervisor_access(user, event):
+    """
+    Committee stats dashboard and member-management are supervisor/staff
+    only -- plain committee members can view + decide on submissions but
+    get none of that visibility (see check_event_access for their access).
+    """
+    if user.is_staff or user.is_superuser:
+        return True
+    return get_supervisor_membership(user, event) is not None
 
 
 @login_required
@@ -47,12 +76,13 @@ def eposter_dashboard(request, event_id):
     Shows statistics and overview
     """
     event = get_object_or_404(Event, id=event_id)
-    
-    # Check access permission
-    if not check_event_access(request.user, event):
-        messages.error(request, "Vous n'avez pas accès à cet événement.")
-        return redirect('dashboard:contributions_management_home')
-    
+
+    # The stats dashboard (who-decided-what, counts per type) is
+    # supervisor/staff only -- plain members only get the submissions list.
+    if not check_supervisor_access(request.user, event):
+        messages.error(request, "Seul le superviseur du comité ou un administrateur peut voir ce tableau de bord.")
+        return redirect('dashboard:contributions_submissions_list', event_id=event.id)
+
     # Get statistics
     submissions = EPosterSubmission.objects.filter(event=event)
     stats = {
@@ -76,15 +106,25 @@ def eposter_dashboard(request, event_id):
     by_type = submissions.values('type_participation').annotate(
         count=Count('id')
     ).order_by('-count')
-    
+
+    # Who decided what -- the supervisor's "see who validated/rejected each
+    # submission" view. Each submission has a single, final decider now
+    # (see eposter_validate_submission), so this is just the decided
+    # submissions with their decider, most recent first.
+    recent_decisions = submissions.filter(
+        status__in=['accepted', 'rejected'],
+        final_decision_by__isnull=False,
+    ).select_related('final_decision_by').order_by('-final_decision_date')[:20]
+
     context = {
         'event': event,
         'stats': stats,
         'recent_submissions': recent_submissions,
         'committee': committee,
         'by_type': by_type,
+        'recent_decisions': recent_decisions,
     }
-    
+
     return render(request, 'dashboard/eposter/dashboard.html', context)
 
 
@@ -215,8 +255,11 @@ def eposter_submission_detail(request, event_id, submission_id):
         'user_validation': user_validation,
         'committee_status': committee_status,
         'can_validate': user_membership is not None and submission.status == 'pending',
+        # Only supervisors/staff see who made the final decision -- plain
+        # members just see the resulting status (pending/accepted/rejected).
+        'is_supervisor': check_supervisor_access(request.user, event),
     }
-    
+
     return render(request, 'dashboard/eposter/submission_detail.html', context)
 
 
@@ -469,22 +512,24 @@ def send_decision_email(submission, request=None):
 @login_required
 def eposter_committee_list(request, event_id):
     """
-    List and manage committee members
-    Only staff/admin can access this view
+    List and manage committee members.
+    Staff/admin can manage any event's committee; a committee supervisor
+    can manage their own event's committee too (member accounts only).
     """
-    # Committee list management is admin only
-    if not request.user.is_staff and not request.user.is_superuser:
-        messages.error(request, "Seuls les administrateurs peuvent gérer les membres du comité.")
-        return redirect('dashboard:contributions_management_home')
-    
     event = get_object_or_404(Event, id=event_id)
-    
+
+    is_admin = request.user.is_staff or request.user.is_superuser
+    is_supervisor = get_supervisor_membership(request.user, event) is not None
+    if not is_admin and not is_supervisor:
+        messages.error(request, "Seul un administrateur ou le superviseur du comité peut gérer les membres du comité.")
+        return redirect('dashboard:contributions_management_home')
+
     committee = EPosterCommitteeMember.objects.filter(
         event=event
     ).select_related('user', 'assigned_by').annotate(
         validations_count=Count('user__eposter_validations', filter=Q(user__eposter_validations__submission__event=event))
     ).order_by('-assigned_at')
-    
+
     # Get available users - only users with 'committee' role assigned to this event
     existing_member_ids = committee.values_list('user_id', flat=True)
     from events.models import UserEventAssignment
@@ -493,45 +538,59 @@ def eposter_committee_list(request, event_id):
         role='committee',
         is_active=True
     ).values_list('user_id', flat=True)
-    
+
     available_users = User.objects.filter(
         id__in=committee_user_ids
     ).exclude(
         id__in=existing_member_ids
     ).order_by('first_name', 'last_name')
-    
+
+    # A supervisor may only create plain members; only staff/admin can hand
+    # out the supervisor role itself.
+    role_choices = EPosterCommitteeMember.ROLE_CHOICES if is_admin else [('member', 'Membre')]
+
     context = {
         'event': event,
         'committee': committee,
         'available_users': available_users,
-        'role_choices': EPosterCommitteeMember.ROLE_CHOICES,
+        'role_choices': role_choices,
+        'is_admin': is_admin,
+        'is_supervisor': is_supervisor,
     }
-    
+
     return render(request, 'dashboard/eposter/committee_list.html', context)
 
 
 @login_required
 def eposter_committee_add(request, event_id):
     """
-    Add a committee member
-    Only staff/admin can access this view
+    Add a committee member.
+    Staff/admin can add any role; a committee supervisor can only add
+    plain members (their own role, or another supervisor, can't be
+    self-granted this way).
     """
-    # Admin only
-    if not request.user.is_staff and not request.user.is_superuser:
-        messages.error(request, "Seuls les administrateurs peuvent gérer les membres du comité.")
+    event = get_object_or_404(Event, id=event_id)
+
+    is_admin = request.user.is_staff or request.user.is_superuser
+    is_supervisor = get_supervisor_membership(request.user, event) is not None
+    if not is_admin and not is_supervisor:
+        messages.error(request, "Seul un administrateur ou le superviseur du comité peut gérer les membres du comité.")
         return redirect('dashboard:contributions_management_home')
-    
+
     if request.method != 'POST':
         return redirect('dashboard:contributions_committee_list', event_id=event_id)
-    
-    event = get_object_or_404(Event, id=event_id)
-    
+
     user_id = request.POST.get('user_id')
     role = request.POST.get('role', 'member')
     specialty = request.POST.get('specialty', '')
-    
+
+    # Supervisors can only create plain members, regardless of what the
+    # submitted form said.
+    if not is_admin:
+        role = 'member'
+
     user = get_object_or_404(User, id=user_id)
-    
+
     # Check if already exists
     existing = EPosterCommitteeMember.objects.filter(event=event, user=user).first()
     if existing:
@@ -553,20 +612,27 @@ def eposter_committee_add(request, event_id):
 @login_required
 def eposter_committee_remove(request, event_id, member_id):
     """
-    Remove a committee member
-    Only staff/admin can access this view
+    Remove a committee member.
+    Staff/admin can remove anyone; a supervisor can only remove plain
+    members -- not another supervisor.
     """
-    # Admin only
-    if not request.user.is_staff and not request.user.is_superuser:
-        messages.error(request, "Seuls les administrateurs peuvent gérer les membres du comité.")
-        return redirect('dashboard:contributions_management_home')
-    
     event = get_object_or_404(Event, id=event_id)
     member = get_object_or_404(EPosterCommitteeMember, id=member_id, event=event)
-    
+
+    is_admin = request.user.is_staff or request.user.is_superuser
+    is_supervisor = get_supervisor_membership(request.user, event) is not None
+
+    if not is_admin:
+        if not is_supervisor:
+            messages.error(request, "Seul un administrateur ou le superviseur du comité peut gérer les membres du comité.")
+            return redirect('dashboard:contributions_management_home')
+        if member.is_supervisor():
+            messages.error(request, "Un superviseur ne peut pas retirer un autre superviseur du comité.")
+            return redirect('dashboard:contributions_committee_list', event_id=event_id)
+
     member_name = member.user.get_full_name() or member.user.username
     member.delete()
-    
+
     messages.success(request, f'{member_name} retiré du comité')
     return redirect('dashboard:contributions_committee_list', event_id=event_id)
 

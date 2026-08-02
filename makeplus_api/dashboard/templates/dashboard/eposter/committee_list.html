@@ -109,7 +109,7 @@
                                     </td>
                                     <td>{{ member.user.email }}</td>
                                     <td>
-                                        {% if member.role == 'president' %}
+                                        {% if member.role == 'supervisor' or member.role == 'president' %}
                                             <span class="badge bg-primary">{{ member.get_role_display }}</span>
                                         {% elif member.role == 'secretary' %}
                                             <span class="badge bg-info">{{ member.get_role_display }}</span>
@@ -129,11 +129,13 @@
                                         {% endif %}
                                     </td>
                                     <td>
+                                        {% if is_admin or not member.is_supervisor %}
                                         <a href="{% url 'dashboard:eposter_committee_remove' event.id member.id %}"
                                            class="btn btn-sm btn-outline-danger"
                                            onclick="return confirm('Êtes-vous sûr de vouloir retirer ce membre ?')">
                                             <i class="bi bi-trash"></i>
                                         </a>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% empty %}

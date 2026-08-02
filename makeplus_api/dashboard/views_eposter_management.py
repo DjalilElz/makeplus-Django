@@ -239,12 +239,16 @@ def eposter_form_toggle(request, event_id):
 @never_cache
 def eposter_form_settings(request, event_id):
     """
-    Custom title/intro text shown on the public scientific-contribution
-    submission form, independent of the event's own Event.description
-    (used elsewhere for the event's registration/detail pages) -- lets
-    an organizer set contribution-specific wording without touching the
-    general event description.
+    Platform-admin-only settings for the public scientific-contribution
+    submission form: custom title/intro text (independent of the event's
+    own Event.description, used elsewhere for the registration/detail
+    pages), which of the 4 contribution types are offered, and whether
+    the "Thème" field is free text or an admin-defined dropdown.
     """
+    if not request.user.is_staff and not request.user.is_superuser:
+        messages.error(request, "Seuls les administrateurs de la plateforme peuvent modifier ces paramètres.")
+        return redirect('dashboard:eposter_management_home')
+
     event = get_object_or_404(Event, id=event_id)
 
     config, created = EventFormConfiguration.objects.get_or_create(
@@ -259,12 +263,29 @@ def eposter_form_settings(request, event_id):
     if request.method == 'POST':
         config.title = request.POST.get('title', '').strip()
         config.description = request.POST.get('description', '').strip()
-        config.save(update_fields=['title', 'description', 'updated_at'])
+
+        config.enable_e_poster = request.POST.get('enable_e_poster') == 'on'
+        config.enable_communication_orale = request.POST.get('enable_communication_orale') == 'on'
+        config.enable_table_ronde = request.POST.get('enable_table_ronde') == 'on'
+        config.enable_atelier = request.POST.get('enable_atelier') == 'on'
+
+        theme_field_mode = request.POST.get('theme_field_mode', 'free_text')
+        if theme_field_mode not in dict(EventFormConfiguration.THEME_FIELD_MODE_CHOICES):
+            theme_field_mode = 'free_text'
+        config.theme_field_mode = theme_field_mode
+
+        raw_options = request.POST.get('theme_options', '')
+        config.theme_options = [
+            line.strip() for line in raw_options.splitlines() if line.strip()
+        ]
+
+        config.save()
         messages.success(request, f'Paramètres du formulaire enregistrés pour « {event.name} ».')
         return redirect('dashboard:eposter_management_home')
 
     context = {
         'event': event,
         'config': config,
+        'theme_options_text': '\n'.join(config.theme_options),
     }
     return render(request, 'dashboard/eposter/form_settings.html', context)

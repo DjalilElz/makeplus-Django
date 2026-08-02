@@ -159,8 +159,13 @@
                             <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                                 <div>
                                     <span class="fw-medium">{{ member.user.get_full_name|default:member.user.username }}</span>
+                                    {% if member.is_supervisor %}
+                                        <span class="badge bg-primary ms-1">Superviseur</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary ms-1">Membre</span>
+                                    {% endif %}
                                 </div>
-                                <span class="badge bg-secondary">{{ member.get_validations_count }} votes</span>
+                                <span class="badge bg-light text-dark border">{{ member.get_validations_count }} décisions</span>
                             </li>
                             {% endfor %}
                         </ul>
@@ -190,6 +195,40 @@
                     {% empty %}
                     <p class="text-muted text-center mb-0">Aucune donnée</p>
                     {% endfor %}
+                </div>
+            </div>
+
+            <!-- Who decided what -->
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-check me-2"></i>
+                        Décisions récentes
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if recent_decisions %}
+                    <ul class="list-group list-group-flush">
+                        {% for submission in recent_decisions %}
+                        <li class="list-group-item px-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <span class="fw-medium">{{ submission.titre_travail|truncatechars:30 }}</span>
+                                {% if submission.status == 'accepted' %}
+                                    <span class="badge bg-success">Accepté</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Rejeté</span>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted">
+                                par {{ submission.final_decision_by.get_full_name|default:submission.final_decision_by.username }}
+                                &middot; {{ submission.final_decision_date|date:"d/m/Y H:i" }}
+                            </small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted text-center mb-0 py-3">Aucune décision pour le moment</p>
+                    {% endif %}
                 </div>
             </div>
 

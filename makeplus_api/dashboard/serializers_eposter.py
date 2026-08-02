@@ -4,10 +4,11 @@ ePoster Serializers for API endpoints
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models_eposter import (
-    EPosterSubmission, 
-    EPosterValidation, 
+    EPosterSubmission,
+    EPosterValidation,
     EPosterCommitteeMember,
-    EPosterEmailTemplate
+    EPosterEmailTemplate,
+    EventFormConfiguration,
 )
 
 
@@ -132,7 +133,32 @@ class EPosterSubmissionCreateSerializer(serializers.ModelSerializer):
                 })
         
         return validated_authors
-    
+
+    def validate(self, attrs):
+        """
+        Enforce the event's admin-configured contribution types and theme
+        mode -- not just hiding the disabled options in the form UI.
+        """
+        event = attrs.get('event')
+        type_participation = attrs.get('type_participation')
+        theme = attrs.get('theme', '')
+
+        if event is not None:
+            config = EventFormConfiguration.objects.filter(
+                event=event, form_type='communicant'
+            ).first()
+            if config is not None:
+                if type_participation and not config.is_type_enabled(type_participation):
+                    raise serializers.ValidationError({
+                        'type_participation': "Ce type de contribution n'est pas disponible pour cet événement."
+                    })
+                if not config.is_theme_valid(theme):
+                    raise serializers.ValidationError({
+                        'theme': "Ce thème n'est pas dans la liste proposée pour cet événement."
+                    })
+
+        return attrs
+
     def create(self, validated_data):
         # Set default validations_required based on event settings if available
         event = validated_data.get('event')

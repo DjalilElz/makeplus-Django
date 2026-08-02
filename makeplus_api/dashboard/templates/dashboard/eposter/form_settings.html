@@ -40,6 +40,56 @@
                     </div>
                 </div>
 
+                <hr class="my-4">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Types de contribution proposés</label>
+                    <div class="form-text mb-2">Décochez un type pour le retirer du formulaire public de cet événement.</div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_e_poster" name="enable_e_poster"
+                               {% if config.enable_e_poster %}checked{% endif %}>
+                        <label class="form-check-label" for="enable_e_poster">E-Poster</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_communication_orale" name="enable_communication_orale"
+                               {% if config.enable_communication_orale %}checked{% endif %}>
+                        <label class="form-check-label" for="enable_communication_orale">Communication Orale</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_table_ronde" name="enable_table_ronde"
+                               {% if config.enable_table_ronde %}checked{% endif %}>
+                        <label class="form-check-label" for="enable_table_ronde">Table Ronde</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_atelier" name="enable_atelier"
+                               {% if config.enable_atelier %}checked{% endif %}>
+                        <label class="form-check-label" for="enable_atelier">Atelier</label>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Champ « Thème »</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="theme_field_mode" id="theme_free_text"
+                               value="free_text" {% if config.theme_field_mode == 'free_text' %}checked{% endif %}>
+                        <label class="form-check-label" for="theme_free_text">Texte libre (le participant saisit son propre thème)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="theme_field_mode" id="theme_select"
+                               value="select" {% if config.theme_field_mode == 'select' %}checked{% endif %}>
+                        <label class="form-check-label" for="theme_select">Liste déroulante (le participant choisit parmi une liste)</label>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="theme_options" class="form-label">Options de la liste déroulante</label>
+                    <textarea class="form-control" id="theme_options" name="theme_options" rows="5"
+                              placeholder="Un thème par ligne, par ex. :&#10;Cardiologie&#10;Oncologie&#10;Dermatologie">{{ theme_options_text }}</textarea>
+                    <div class="form-text">Un thème par ligne. Utilisé uniquement si « Liste déroulante » est sélectionné ci-dessus.</div>
+                </div>
+
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-save"></i> Enregistrer
                 </button>

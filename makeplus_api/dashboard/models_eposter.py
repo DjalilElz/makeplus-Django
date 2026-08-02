@@ -416,11 +416,15 @@ class ScientificContributionCommitteeMember(models.Model):
         related_name='contribution_committee_memberships'
     )
     
-    # Role in committee
+    # Role in committee. 'president'/'secretary' are legacy values kept so
+    # existing rows keep validating -- new assignments only ever use
+    # 'member' or 'supervisor' (see migration 00XX_supervisor_role which
+    # normalizes old rows to 'supervisor').
     ROLE_CHOICES = [
         ('member', 'Membre'),
-        ('president', 'Président du comité'),
-        ('secretary', 'Secrétaire'),
+        ('supervisor', 'Superviseur'),
+        ('president', 'Président du comité (ancien)'),
+        ('secretary', 'Secrétaire (ancien)'),
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
     
@@ -448,7 +452,13 @@ class ScientificContributionCommitteeMember(models.Model):
     
     def __str__(self):
         return f"{self.user.get_full_name() or self.user.username} - {self.event.name} ({self.get_role_display()})"
-    
+
+    def is_supervisor(self):
+        # 'president' is legacy data that already carried elevated
+        # privileges (see the old is_president checks) -- treat it the
+        # same as 'supervisor' rather than silently downgrading it.
+        return self.role in ('supervisor', 'president')
+
     def get_validations_count(self):
         """Get total validations made by this member for this event"""
         return ScientificContributionValidation.objects.filter(
@@ -525,23 +535,50 @@ class EventFormConfiguration(models.Model):
         ('communicant', 'Call for Communicants Form'),
     ]
     
+    THEME_FIELD_MODE_CHOICES = [
+        ('free_text', 'Texte libre'),
+        ('select', 'Liste déroulante'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey(
-        Event, 
-        on_delete=models.CASCADE, 
+        Event,
+        on_delete=models.CASCADE,
         related_name='form_configurations'
     )
     form_type = models.CharField(max_length=20, choices=FORM_TYPE_CHOICES)
-    
+
     is_active = models.BooleanField(default=True)
-    
+
     # Form settings
     title = models.CharField(max_length=300, blank=True, help_text="Custom form title (optional)")
     description = models.TextField(blank=True, help_text="Form description/instructions")
-    
+
     # Deadline settings
     submission_deadline = models.DateTimeField(null=True, blank=True)
     allow_late_submissions = models.BooleanField(default=False)
+
+    # Which contribution types are offered on this event's submission form.
+    # Only meaningful for form_type='communicant'; defaults keep today's
+    # behavior (all four types shown) for every existing/new event.
+    enable_e_poster = models.BooleanField(default=True, verbose_name="E-Poster activé")
+    enable_communication_orale = models.BooleanField(default=True, verbose_name="Communication Orale activée")
+    enable_table_ronde = models.BooleanField(default=True, verbose_name="Table Ronde activée")
+    enable_atelier = models.BooleanField(default=True, verbose_name="Atelier activé")
+
+    # Whether the "Thème" field is free text or an admin-defined dropdown.
+    theme_field_mode = models.CharField(
+        max_length=20,
+        choices=THEME_FIELD_MODE_CHOICES,
+        default='free_text',
+        verbose_name="Mode du champ Thème",
+    )
+    theme_options = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Options du thème (si liste déroulante)",
+        help_text="Liste des thèmes proposés quand le mode est 'Liste déroulante'",
+    )
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
@@ -556,6 +593,27 @@ class EventFormConfiguration(models.Model):
     
     def __str__(self):
         return f"{self.event.name} - {self.get_form_type_display()}"
+
+    def get_enabled_types(self):
+        """List of type_participation codes currently enabled for this event."""
+        mapping = {
+            'e_poster': self.enable_e_poster,
+            'communication_orale': self.enable_communication_orale,
+            'table_ronde': self.enable_table_ronde,
+            'atelier': self.enable_atelier,
+        }
+        return [code for code, enabled in mapping.items() if enabled]
+
+    def is_type_enabled(self, type_participation):
+        return type_participation in self.get_enabled_types()
+
+    def is_theme_valid(self, theme):
+        """Free text always accepts anything; select mode restricts to theme_options."""
+        if self.theme_field_mode != 'select':
+            return True
+        if not theme:
+            return True  # theme remains optional in both modes
+        return theme in self.theme_options
 
 
 # Signals for automatic actions
