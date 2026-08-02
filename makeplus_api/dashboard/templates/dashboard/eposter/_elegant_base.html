@@ -1,0 +1,219 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Comité scientifique{% endblock %} — {{ event.name }}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'dashboard/images/makeplus-icon.svg' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --banner-1: #2D1B6B;
+            --banner-2: #46309a;
+            --banner-3: #3a2480;
+            --steel-blue: #7BA7BC;
+            --dusty-rose: #E8B9B9;
+            --dusty-rose-dark: #8B4B4B;
+            --dusty-rose-bg: #F5E3E1;
+            --cream: #FAF6F0;
+            --ink: #1a1a1a;
+            --border-light: #E7E2DC;
+            --font-serif: 'Playfair Display', serif;
+            --font-sans: 'Inter', sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: var(--cream);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            color: #2c2c2c;
+        }
+        .elegant-banner {
+            background: linear-gradient(135deg, var(--banner-1) 0%, var(--banner-2) 55%, var(--banner-3) 100%);
+            color: #fff;
+            padding: 36px 20px 44px;
+            position: relative;
+            overflow: hidden;
+        }
+        .elegant-banner::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            right: -12%;
+            width: 380px;
+            height: 380px;
+            background: var(--steel-blue);
+            opacity: 0.28;
+            border-radius: 50%;
+            filter: blur(60px);
+        }
+        .banner-content { position: relative; z-index: 2; max-width: 1700px; margin: 0 auto; }
+        .banner-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; }
+        .back-link { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.85rem; }
+        .back-link:hover { color: #fff; }
+        .banner-eyebrow {
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--dusty-rose);
+            margin-bottom: 8px;
+        }
+        .event-title { font-family: var(--font-serif); font-size: 1.9rem; font-weight: 700; }
+        .page-wrapper { max-width: 1700px; margin: -20px auto 0; padding: 0 20px 60px; position: relative; z-index: 3; }
+        .content-card {
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            padding: 28px;
+        }
+        .btn-elegant {
+            background: var(--banner-1);
+            color: #fff;
+            border-radius: 10px;
+            border: none;
+        }
+        .btn-elegant:hover { background: var(--banner-2); color: #fff; }
+        .btn-outline-elegant {
+            background: transparent;
+            border: 1px solid var(--banner-1);
+            color: var(--banner-1);
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 7px 16px;
+        }
+        .btn-outline-elegant:hover { background: var(--banner-1); color: #fff; }
+        .table-elegant thead th {
+            font-family: var(--font-sans);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6c757d;
+            border-bottom: 2px solid var(--border-light);
+        }
+        .table-elegant td { vertical-align: middle; }
+        .table-scroll-wrap {
+            max-height: 65vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+        }
+        .table-scroll-wrap .table-elegant thead th {
+            position: sticky;
+            top: 0;
+            background: #fff;
+            z-index: 2;
+        }
+        .stats-row { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+        .stat-tile {
+            background: var(--cream);
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+            padding: 16px 22px;
+            min-width: 180px;
+            flex: 1;
+        }
+        .stat-tile .stat-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #8a8a8a;
+            margin-bottom: 4px;
+        }
+        .stat-tile .stat-value { font-family: var(--font-serif); font-size: 1.7rem; font-weight: 700; color: var(--banner-1); }
+        .detail-row { margin-bottom: 10px; }
+        .detail-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #8a8a8a; }
+
+        .status-select {
+            font-size: 0.78rem;
+            font-weight: 700;
+            border-radius: 999px;
+            padding: 4px 10px;
+            border: none;
+        }
+        .status-select.status-pending { background: #e9ecef; color: #495057; }
+        .status-select.status-accepted { background: #d1e7dd; color: #0f5132; }
+        .status-select.status-rejected { background: #f8d7da; color: #842029; }
+        .status-select.status-revision_requested { background: var(--dusty-rose-bg); color: var(--dusty-rose-dark); }
+
+        .chart-box { position: relative; height: 220px; margin-bottom: 6px; }
+        .chart-box.chart-box-wide { height: 200px; }
+        .chart-box canvas { max-height: 100%; }
+        .chart-empty { font-size: 0.82rem; color: #adb5bd; padding: 40px 0; text-align: center; }
+
+        .filter-section-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #8a8a8a;
+            margin: 4px 0 8px;
+        }
+        .filter-divider { border: none; border-top: 1px solid var(--border-light); margin: 6px 0 14px; }
+
+        .breakdown-panel {
+            background: var(--cream);
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+            padding: 18px 22px;
+            margin-top: 10px;
+        }
+        .breakdown-title {
+            font-family: var(--font-sans);
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #8a8a8a;
+            margin-bottom: 8px;
+        }
+
+        .btn-view-row { border: none; background: none; color: var(--banner-1); padding: 2px 4px; }
+        .btn-view-row:hover { color: var(--banner-2); }
+        .btn-delete-row { border: none; background: none; color: #b02a37; padding: 2px 4px; }
+        .btn-delete-row:hover { color: #dc3545; }
+
+        {% block extra_style %}{% endblock %}
+    </style>
+</head>
+<body>
+    <div class="elegant-banner">
+        <div class="banner-content">
+            <div class="banner-topbar">
+                {% block back_link %}
+                <a href="{% url 'dashboard:contributions_dashboard' event.id %}" class="back-link"><i class="bi bi-arrow-left"></i> Tableau de bord</a>
+                {% endblock %}
+                <a href="{% url 'dashboard:logout' %}" class="back-link"><i class="bi bi-box-arrow-right"></i> Déconnexion</a>
+            </div>
+            <div class="banner-eyebrow">{% block eyebrow %}Comité scientifique{% endblock %}</div>
+            <h1 class="event-title">{% block page_heading %}{{ event.name }}{% endblock %}</h1>
+        </div>
+    </div>
+
+    <div class="page-wrapper">
+        <div class="content-card">
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

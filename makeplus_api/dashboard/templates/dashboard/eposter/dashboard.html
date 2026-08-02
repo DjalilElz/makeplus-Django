@@ -1,275 +1,208 @@
-{% extends 'dashboard/base.html' %}
-{% load static %}
+{% extends 'dashboard/eposter/_elegant_base.html' %}
 
-{% block title %}Tableau de bord des contributions scientifiques - {{ event.name }}{% endblock %}
+{% block title %}Tableau de bord{% endblock %}
+{% block eyebrow %}Contributions scientifiques — Tableau de bord{% endblock %}
+
+{% block back_link %}
+<a href="{% url 'dashboard:contributions_management_home' %}" class="back-link"><i class="bi bi-arrow-left"></i> Mes événements</a>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-0">Tableau de bord des contributions scientifiques</h1>
-            <p class="text-muted mb-0">{{ event.name }}</p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="stats-row flex-grow-1 mb-0">
+        <div class="stat-tile">
+            <div class="stat-label">Total</div>
+            <div class="stat-value">{{ stats.total }}</div>
         </div>
-        <div>
-            <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="btn btn-primary">
-                <i class="bi bi-list-ul me-1"></i> Voir toutes les soumissions
+        <div class="stat-tile">
+            <div class="stat-label">En attente</div>
+            <div class="stat-value" style="color: #7a5c00;">{{ stats.pending }}</div>
+        </div>
+        <div class="stat-tile">
+            <div class="stat-label">Acceptées</div>
+            <div class="stat-value" style="color: #0f5132;">{{ stats.accepted }}</div>
+        </div>
+        <div class="stat-tile">
+            <div class="stat-label">Rejetées</div>
+            <div class="stat-value" style="color: #842029;">{{ stats.rejected }}</div>
+        </div>
+    </div>
+    <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="btn btn-elegant ms-3 text-nowrap">
+        <i class="bi bi-list-ul me-1"></i> Toutes les soumissions
+    </a>
+</div>
+
+<div class="row">
+    <!-- Main -->
+    <div class="col-lg-8">
+        <div class="breakdown-title mb-3">Par type</div>
+        <div class="chart-box chart-box-wide mb-4" style="height: 180px;">
+            {% if by_type %}
+            <canvas id="chart-by-type"></canvas>
+            {% else %}
+            <div class="chart-empty">Aucune donnée</div>
+            {% endif %}
+        </div>
+
+        <div class="breakdown-title mb-3">Soumissions récentes</div>
+        <div class="table-responsive table-scroll-wrap">
+            <table class="table table-elegant mb-0">
+                <thead>
+                    <tr>
+                        <th>Titre</th>
+                        <th>Auteur</th>
+                        <th>Type</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for submission in recent_submissions %}
+                    <tr>
+                        <td><span class="fw-medium">{{ submission.titre_travail|truncatechars:40 }}</span></td>
+                        <td>{{ submission.prenom }} {{ submission.nom }}</td>
+                        <td><span class="badge" style="background: var(--steel-blue); color: #fff;">{{ submission.get_type_participation_display }}</span></td>
+                        <td>
+                            <span class="status-select status-{{ submission.status }}">
+                                {% if submission.status == 'pending' %}En attente
+                                {% elif submission.status == 'accepted' %}Accepté
+                                {% elif submission.status == 'rejected' %}Rejeté
+                                {% else %}{{ submission.get_status_display }}
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td><small>{{ submission.submitted_at|date:"d/m/Y H:i" }}</small></td>
+                        <td>
+                            <a href="{% url 'dashboard:contributions_submission_detail' event.id submission.id %}" class="btn-view-row">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            Aucune soumission pour le moment
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="col-lg-4">
+        <!-- Committee Members -->
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="breakdown-title mb-0">Comité scientifique</div>
+            <a href="{% url 'dashboard:contributions_committee_list' event.id %}" class="btn btn-sm btn-outline-elegant">
+                <i class="bi bi-gear"></i> Gérer
             </a>
         </div>
-    </div>
-
-    <!-- Stats Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-1">Total des soumissions</h6>
-                        <h2 class="mb-0">{{ stats.total }}</h2>
-                    </div>
-                    <div class="stat-icon bg-primary bg-opacity-10 text-primary">
-                        <i class="bi bi-file-earmark-text fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-1">En attente</h6>
-                        <h2 class="mb-0 text-warning">{{ stats.pending }}</h2>
-                    </div>
-                    <div class="stat-icon bg-warning bg-opacity-10 text-warning">
-                        <i class="bi bi-clock fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-1">Acceptées</h6>
-                        <h2 class="mb-0 text-success">{{ stats.accepted }}</h2>
-                    </div>
-                    <div class="stat-icon bg-success bg-opacity-10 text-success">
-                        <i class="bi bi-check-circle fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-1">Rejetées</h6>
-                        <h2 class="mb-0 text-danger">{{ stats.rejected }}</h2>
-                    </div>
-                    <div class="stat-icon bg-danger bg-opacity-10 text-danger">
-                        <i class="bi bi-x-circle fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row">
-        <!-- Recent Submissions -->
-        <div class="col-lg-8">
-            <div class="card mb-4">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-clock-history me-2"></i>
-                        Soumissions récentes
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Titre</th>
-                                    <th>Auteur</th>
-                                    <th>Type</th>
-                                    <th>Statut</th>
-                                    <th>Date</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for submission in recent_submissions %}
-                                <tr>
-                                    <td>
-                                        <span class="fw-medium">{{ submission.titre_travail|truncatechars:40 }}</span>
-                                    </td>
-                                    <td>{{ submission.prenom }} {{ submission.nom }}</td>
-                                    <td>
-                                        <span class="badge bg-info">{{ submission.get_type_participation_display }}</span>
-                                    </td>
-                                    <td>
-                                        {% if submission.status == 'pending' %}
-                                            <span class="badge bg-warning">En attente</span>
-                                        {% elif submission.status == 'accepted' %}
-                                            <span class="badge bg-success">Accepté</span>
-                                        {% elif submission.status == 'rejected' %}
-                                            <span class="badge bg-danger">Rejeté</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">{{ submission.get_status_display }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ submission.submitted_at|date:"d/m/Y H:i" }}</td>
-                                    <td>
-                                        <a href="{% url 'dashboard:contributions_submission_detail' event.id submission.id %}" 
-                                           class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="6" class="text-center py-4">
-                                        <i class="bi bi-inbox fs-1 text-muted d-block mb-2"></i>
-                                        Aucune soumission pour le moment
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Side Panel -->
-        <div class="col-lg-4">
-            <!-- Committee Members -->
-            <div class="card mb-4">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-people me-2"></i>
-                        Comité scientifique
-                    </h5>
-                    <a href="{% url 'dashboard:contributions_committee_list' event.id %}" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-gear"></i> Gérer
-                    </a>
-                </div>
-                <div class="card-body">
-                    {% if committee %}
-                        <ul class="list-group list-group-flush">
-                            {% for member in committee %}
-                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                                <div>
-                                    <span class="fw-medium">{{ member.user.get_full_name|default:member.user.username }}</span>
-                                    {% if member.is_supervisor %}
-                                        <span class="badge bg-primary ms-1">Superviseur</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary ms-1">Membre</span>
-                                    {% endif %}
-                                </div>
-                                <span class="badge bg-light text-dark border">{{ member.get_validations_count }} décisions</span>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-muted text-center mb-0">
-                            Aucun membre dans le comité.<br>
-                            <small>Ajoutez-en via le bouton « Gérer » ci-dessus, ou en créant un utilisateur avec le rôle « Comité ».</small>
-                        </p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Stats by Type -->
-            <div class="card mb-4">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-bar-chart me-2"></i>
-                        Par type
-                    </h5>
-                </div>
-                <div class="card-body">
-                    {% for item in by_type %}
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span>{{ item.type_participation|title }}</span>
-                        <span class="badge bg-info">{{ item.count }}</span>
-                    </div>
-                    {% empty %}
-                    <p class="text-muted text-center mb-0">Aucune donnée</p>
+        <div class="breakdown-panel mb-4">
+            {% if committee %}
+                <ul class="list-unstyled mb-0">
+                    {% for member in committee %}
+                    <li class="d-flex justify-content-between align-items-center py-2 {% if not forloop.last %}border-bottom{% endif %}" style="border-color: var(--border-light) !important;">
+                        <div>
+                            <span class="fw-medium">{{ member.user.get_full_name|default:member.user.username }}</span>
+                            {% if member.is_supervisor %}
+                                <span class="badge ms-1" style="background: var(--banner-1);">Superviseur</span>
+                            {% else %}
+                                <span class="badge bg-secondary ms-1">Membre</span>
+                            {% endif %}
+                        </div>
+                        <span class="badge bg-light text-dark border">{{ member.get_validations_count }}</span>
+                    </li>
                     {% endfor %}
-                </div>
-            </div>
+                </ul>
+            {% else %}
+                <p class="text-muted text-center mb-0 py-2">
+                    Aucun membre dans le comité.<br>
+                    <small>Ajoutez-en via le bouton « Gérer » ci-dessus.</small>
+                </p>
+            {% endif %}
+        </div>
 
-            <!-- Who decided what -->
-            <div class="card mb-4">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-person-check me-2"></i>
-                        Décisions récentes
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    {% if recent_decisions %}
-                    <ul class="list-group list-group-flush">
-                        {% for submission in recent_decisions %}
-                        <li class="list-group-item px-3">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <span class="fw-medium">{{ submission.titre_travail|truncatechars:30 }}</span>
-                                {% if submission.status == 'accepted' %}
-                                    <span class="badge bg-success">Accepté</span>
-                                {% else %}
-                                    <span class="badge bg-danger">Rejeté</span>
-                                {% endif %}
-                            </div>
-                            <small class="text-muted">
-                                par {{ submission.final_decision_by.get_full_name|default:submission.final_decision_by.username }}
-                                &middot; {{ submission.final_decision_date|date:"d/m/Y H:i" }}
-                            </small>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% else %}
-                    <p class="text-muted text-center mb-0 py-3">Aucune décision pour le moment</p>
-                    {% endif %}
-                </div>
-            </div>
+        <!-- Who decided what -->
+        <div class="breakdown-title mb-2">Décisions récentes</div>
+        <div class="breakdown-panel mb-4" style="padding: 8px 0;">
+            {% if recent_decisions %}
+            <ul class="list-unstyled mb-0">
+                {% for submission in recent_decisions %}
+                <li class="px-3 py-2 {% if not forloop.last %}border-bottom{% endif %}" style="border-color: var(--border-light) !important;">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <span class="fw-medium">{{ submission.titre_travail|truncatechars:30 }}</span>
+                        {% if submission.status == 'accepted' %}
+                            <span class="badge" style="background:#d1e7dd; color:#0f5132;">Accepté</span>
+                        {% else %}
+                            <span class="badge" style="background:#f8d7da; color:#842029;">Rejeté</span>
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">
+                        par {{ submission.final_decision_by.get_full_name|default:submission.final_decision_by.username }}
+                        &middot; {{ submission.final_decision_date|date:"d/m/Y H:i" }}
+                    </small>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted text-center mb-0 py-3">Aucune décision pour le moment</p>
+            {% endif %}
+        </div>
 
-            <!-- Quick Links -->
-            <div class="card">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-link-45deg me-2"></i>
-                        Liens rapides
-                    </h5>
-                </div>
-                <div class="list-group list-group-flush">
-                    <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="list-group-item list-group-item-action">
-                        <i class="bi bi-list-ul me-2"></i> Toutes les soumissions
-                    </a>
-                    <a href="{% url 'dashboard:contributions_committee_list' event.id %}" class="list-group-item list-group-item-action">
-                        <i class="bi bi-people me-2"></i> Comité scientifique
-                    </a>
-                    <a href="{% url 'dashboard:contributions_email_templates' event.id %}" class="list-group-item list-group-item-action">
-                        <i class="bi bi-envelope me-2"></i> Modèles d'e-mails
-                    </a>
-                    <a href="{% url 'dashboard:contributions_export_csv' event.id %}" class="list-group-item list-group-item-action">
-                        <i class="bi bi-download me-2"></i> Exporter CSV
-                    </a>
-                </div>
-            </div>
+        <!-- Quick Links -->
+        <div class="breakdown-title mb-2">Liens rapides</div>
+        <div class="breakdown-panel" style="padding: 8px 0;">
+            <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="d-flex align-items-center px-3 py-2 text-decoration-none border-bottom" style="color: var(--ink); border-color: var(--border-light) !important;">
+                <i class="bi bi-list-ul me-2"></i> Toutes les soumissions
+            </a>
+            <a href="{% url 'dashboard:contributions_committee_list' event.id %}" class="d-flex align-items-center px-3 py-2 text-decoration-none border-bottom" style="color: var(--ink); border-color: var(--border-light) !important;">
+                <i class="bi bi-people me-2"></i> Comité scientifique
+            </a>
+            <a href="{% url 'dashboard:contributions_email_templates' event.id %}" class="d-flex align-items-center px-3 py-2 text-decoration-none border-bottom" style="color: var(--ink); border-color: var(--border-light) !important;">
+                <i class="bi bi-envelope me-2"></i> Modèles d'e-mails
+            </a>
+            <a href="{% url 'dashboard:contributions_export_csv' event.id %}" class="d-flex align-items-center px-3 py-2 text-decoration-none" style="color: var(--ink);">
+                <i class="bi bi-download me-2"></i> Exporter CSV
+            </a>
         </div>
     </div>
 </div>
 
-<style>
-.stat-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-</style>
-{% include 'dashboard/_powered_by_footer.html' %}
+{{ by_type|json_script:"by-type-json" }}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var PALETTE = ['#2D1B6B', '#46309a', '#7BA7BC', '#E8B9B9', '#8B4B4B', '#3d6b7d'];
+    var byType = JSON.parse(document.getElementById('by-type-json').textContent || '[]');
+    var canvas = document.getElementById('chart-by-type');
+    if (canvas && byType.length) {
+        new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: byType.map(function (r) { return r.label; }),
+                datasets: [{
+                    data: byType.map(function (r) { return r.count; }),
+                    backgroundColor: byType.map(function (_, i) { return PALETTE[i % PALETTE.length]; }),
+                    borderRadius: 6,
+                    maxBarThickness: 34,
+                }],
+            },
+            options: {
+                indexAxis: 'y',
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, ticks: { precision: 0 } },
+                },
+            },
+        });
+    }
+});
+</script>
 {% endblock %}

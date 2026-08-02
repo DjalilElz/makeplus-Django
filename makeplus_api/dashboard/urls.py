@@ -177,6 +177,7 @@ urlpatterns = [
     # committee account defaulted to 'member' with no way to promote anyone.
     path('events/<uuid:event_id>/contributions/committee/', views_eposter_dashboard.eposter_committee_list, name='contributions_committee_list'),
     path('events/<uuid:event_id>/contributions/committee/add/', views_eposter_dashboard.eposter_committee_add, name='eposter_committee_add'),
+    path('events/<uuid:event_id>/contributions/committee/create/', views_eposter_dashboard.eposter_committee_create_member, name='eposter_committee_create_member'),
     path('events/<uuid:event_id>/contributions/committee/<uuid:member_id>/remove/', views_eposter_dashboard.eposter_committee_remove, name='eposter_committee_remove'),
     path('events/<uuid:event_id>/contributions/committee/<uuid:member_id>/role/', views_eposter_dashboard.eposter_committee_update_role, name='eposter_committee_update_role'),
 

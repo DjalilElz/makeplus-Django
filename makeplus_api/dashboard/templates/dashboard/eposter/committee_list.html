@@ -1,169 +1,122 @@
-{% extends 'dashboard/base.html' %}
+{% extends 'dashboard/eposter/_elegant_base.html' %}
 
-{% block title %}Comité scientifique - {{ event.name }}{% endblock %}
+{% block title %}Comité scientifique{% endblock %}
+{% block eyebrow %}Comité scientifique{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="{% url 'dashboard:contributions_dashboard' event.id %}">Contributions scientifiques</a></li>
-                    <li class="breadcrumb-item active">Comité scientifique</li>
-                </ol>
-            </nav>
-            <h1 class="h3 mb-0">Comité scientifique</h1>
-            <p class="text-muted mb-0">{{ event.name }}</p>
+<div class="row">
+    <!-- Add Member -->
+    <div class="col-lg-4">
+        <div class="breakdown-panel mb-4 mb-lg-0">
+            <div class="breakdown-title mb-3"><i class="bi bi-person-plus"></i> Ajouter un membre</div>
+            <form method="post" action="{% url 'dashboard:eposter_committee_create_member' event.id %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label small">Prénom</label>
+                    <input type="text" name="first_name" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small">Nom</label>
+                    <input type="text" name="last_name" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small">E-mail</label>
+                    <input type="email" name="email" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small">Mot de passe</label>
+                    <input type="password" name="password" class="form-control" required minlength="8">
+                    <div class="form-text">8 caractères minimum. Communiquez-le au membre séparément.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small">Spécialité (optionnel)</label>
+                    <input type="text" name="specialty" class="form-control" placeholder="ex. Cardiologie">
+                </div>
+                {% if is_admin %}
+                <div class="mb-3">
+                    <label class="form-label small">Rôle dans le comité</label>
+                    <select name="committee_role" class="form-select">
+                        <option value="member">Membre</option>
+                        <option value="supervisor">Superviseur</option>
+                    </select>
+                </div>
+                {% endif %}
+                <button type="submit" class="btn btn-elegant w-100">
+                    <i class="bi bi-plus-circle me-1"></i> Ajouter au comité
+                </button>
+            </form>
         </div>
     </div>
 
-    <div class="row">
-        <!-- Add Member Form -->
-        <div class="col-lg-4">
-            <div class="card mb-4">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-person-plus me-2"></i>
-                        Ajouter un membre
-                    </h5>
-                </div>
-                <div class="card-body">
-                    {% if available_users %}
-                    <form method="post" action="{% url 'dashboard:eposter_committee_add' event.id %}">
-                        {% csrf_token %}
-
-                        <div class="mb-3">
-                            <label class="form-label">Utilisateur</label>
-                            <select name="user_id" class="form-select" required>
-                                <option value="">Sélectionner...</option>
-                                {% for user in available_users %}
-                                <option value="{{ user.id }}">
-                                    {{ user.get_full_name|default:user.username }} ({{ user.email }})
-                                </option>
-                                {% endfor %}
-                            </select>
-                            <small class="text-muted">Uniquement les utilisateurs ayant le rôle « Comité » pour cet événement</small>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Rôle dans le comité</label>
-                            <select name="role" class="form-select">
-                                {% for value, label in role_choices %}
-                                <option value="{{ value }}">{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Spécialité</label>
-                            <input type="text" name="specialty" class="form-control" placeholder="par ex. Cardiologie">
-                        </div>
-
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="bi bi-plus-circle me-1"></i> Ajouter
-                        </button>
-                    </form>
-                    {% else %}
-                    <div class="alert alert-warning mb-0">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        <strong>Aucun utilisateur du comité disponible</strong>
-                        <p class="mb-2 mt-2">Pour ajouter des membres, créez d'abord des utilisateurs ayant le rôle « Comité » pour cet événement :</p>
-                        <a href="{% url 'dashboard:user_create' %}" class="btn btn-success btn-sm">
-                            <i class="bi bi-person-plus"></i> Créer un utilisateur du comité
-                        </a>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Committee List -->
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-people me-2"></i>
-                        Membres du comité ({{ committee|length }})
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Nom</th>
-                                    <th>E-mail</th>
-                                    <th>Rôle</th>
-                                    <th>Spécialité</th>
-                                    <th>Validations</th>
-                                    <th>Statut</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for member in committee %}
-                                <tr>
-                                    <td>
-                                        <strong>{{ member.user.get_full_name|default:member.user.username }}</strong>
-                                    </td>
-                                    <td>{{ member.user.email }}</td>
-                                    <td>
-                                        {% if is_admin %}
-                                        <form method="post" action="{% url 'dashboard:eposter_committee_update_role' event.id member.id %}"
-                                              class="d-inline" onchange="this.submit()">
-                                            {% csrf_token %}
-                                            <select name="role" class="form-select form-select-sm" style="width: auto; display: inline-block;">
-                                                <option value="member" {% if member.role == 'member' %}selected{% endif %}>Membre</option>
-                                                <option value="supervisor" {% if member.is_supervisor %}selected{% endif %}>Superviseur</option>
-                                            </select>
-                                        </form>
-                                        {% else %}
-                                            {% if member.is_supervisor %}
-                                                <span class="badge bg-primary">{{ member.get_role_display }}</span>
-                                            {% elif member.role == 'secretary' %}
-                                                <span class="badge bg-info">{{ member.get_role_display }}</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">{{ member.get_role_display }}</span>
-                                            {% endif %}
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ member.specialty|default:"-" }}</td>
-                                    <td>
-                                        <span class="badge bg-success">{{ member.validations_count }}</span>
-                                    </td>
-                                    <td>
-                                        {% if member.is_active %}
-                                            <span class="badge bg-success">Actif</span>
-                                        {% else %}
-                                            <span class="badge bg-danger">Inactif</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if is_admin or not member.is_supervisor %}
-                                        <a href="{% url 'dashboard:eposter_committee_remove' event.id member.id %}"
-                                           class="btn btn-sm btn-outline-danger"
-                                           onclick="return confirm('Êtes-vous sûr de vouloir retirer ce membre ?')">
-                                            <i class="bi bi-trash"></i>
-                                        </a>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="7" class="text-center py-4">
-                                        <i class="bi bi-people fs-1 text-muted d-block mb-2"></i>
-                                        Aucun membre dans le comité
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+    <!-- Committee List -->
+    <div class="col-lg-8">
+        <div class="breakdown-title mb-3">Membres du comité ({{ committee|length }})</div>
+        <div class="table-responsive table-scroll-wrap">
+            <table class="table table-elegant mb-0">
+                <thead>
+                    <tr>
+                        <th>Nom</th>
+                        <th>E-mail</th>
+                        <th>Rôle</th>
+                        <th>Spécialité</th>
+                        <th>Décisions</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in committee %}
+                    <tr>
+                        <td><strong>{{ member.user.get_full_name|default:member.user.username }}</strong></td>
+                        <td>{{ member.user.email }}</td>
+                        <td>
+                            {% if is_admin %}
+                            <form method="post" action="{% url 'dashboard:eposter_committee_update_role' event.id member.id %}"
+                                  class="d-inline" onchange="this.submit()">
+                                {% csrf_token %}
+                                <select name="role" class="form-select form-select-sm" style="width: auto; display: inline-block;">
+                                    <option value="member" {% if member.role == 'member' %}selected{% endif %}>Membre</option>
+                                    <option value="supervisor" {% if member.is_supervisor %}selected{% endif %}>Superviseur</option>
+                                </select>
+                            </form>
+                            {% else %}
+                                {% if member.is_supervisor %}
+                                    <span class="badge" style="background: var(--banner-1);">{{ member.get_role_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ member.get_role_display }}</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td>{{ member.specialty|default:"—" }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ member.get_validations_count }}</span></td>
+                        <td>
+                            {% if member.is_active %}
+                                <span class="badge" style="background:#d1e7dd; color:#0f5132;">Actif</span>
+                            {% else %}
+                                <span class="badge" style="background:#f8d7da; color:#842029;">Inactif</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if is_admin or not member.is_supervisor %}
+                            <a href="{% url 'dashboard:eposter_committee_remove' event.id member.id %}"
+                               class="btn-delete-row" title="Retirer du comité"
+                               onclick="return confirm('Êtes-vous sûr de vouloir retirer ce membre ?')">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <i class="bi bi-people fs-1 d-block mb-2"></i>
+                            Aucun membre dans le comité
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
-{% include 'dashboard/_powered_by_footer.html' %}
 {% endblock %}

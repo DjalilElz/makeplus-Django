@@ -16,7 +16,9 @@ from django.contrib.auth.models import User
 import json
 import csv
 
-from events.models import Event
+from events.models import (
+    Event, UserEventAssignment, Participant, UserProfile, ParticipantEventRegistration
+)
 from .models_eposter import (
     EPosterSubmission,
     EPosterValidation,
@@ -102,10 +104,19 @@ def eposter_dashboard(request, event_id):
         is_active=True
     ).select_related('user')
     
-    # By type stats
-    by_type = submissions.values('type_participation').annotate(
-        count=Count('id')
-    ).order_by('-count')
+    # By type stats -- resolved to a plain list of dicts (not a lazy
+    # QuerySet) with a human-readable label, both for the template's
+    # {{ by_type|json_script }} (json.dumps can't serialize a QuerySet)
+    # and so the chart doesn't have to show raw type_participation codes.
+    type_labels = dict(EPosterSubmission.TYPE_PARTICIPATION_CHOICES)
+    by_type = [
+        {
+            'type_participation': row['type_participation'],
+            'label': type_labels.get(row['type_participation'], row['type_participation']),
+            'count': row['count'],
+        }
+        for row in submissions.values('type_participation').annotate(count=Count('id')).order_by('-count')
+    ]
 
     # Who decided what -- the supervisor's "see who validated/rejected each
     # submission" view. Each submission has a single, final decider now
@@ -667,6 +678,90 @@ def eposter_committee_update_role(request, event_id, member_id):
         request,
         f'{member.user.get_full_name() or member.user.username} est maintenant '
         f'{"Superviseur" if new_role == "supervisor" else "Membre"} du comité.'
+    )
+    return redirect('dashboard:contributions_committee_list', event_id=event_id)
+
+
+@login_required
+def eposter_committee_create_member(request, event_id):
+    """
+    Create a brand-new user and add them straight to this event's
+    scientific committee, without leaving this page. Unlike the general
+    /dashboard/users/create/ flow (which any committee member can reach
+    and which can create any role for any event), this is scoped to
+    committee-only creation for THIS event, and works for a supervisor,
+    not just staff/admin.
+    """
+    event = get_object_or_404(Event, id=event_id)
+
+    is_admin = request.user.is_staff or request.user.is_superuser
+    is_supervisor = get_supervisor_membership(request.user, event) is not None
+    if not is_admin and not is_supervisor:
+        messages.error(request, "Seul un administrateur ou le superviseur du comité peut gérer les membres du comité.")
+        return redirect('dashboard:contributions_management_home')
+
+    if request.method != 'POST':
+        return redirect('dashboard:contributions_committee_list', event_id=event_id)
+
+    email = request.POST.get('email', '').strip().lower()
+    first_name = request.POST.get('first_name', '').strip()
+    last_name = request.POST.get('last_name', '').strip()
+    password = request.POST.get('password', '')
+    specialty = request.POST.get('specialty', '').strip()
+
+    # A supervisor can only ever create plain members, regardless of what
+    # the submitted form said (mirrors eposter_committee_add).
+    committee_role = request.POST.get('committee_role', 'member')
+    if not is_admin or committee_role not in ('member', 'supervisor'):
+        committee_role = 'member'
+
+    if not email or not first_name or not last_name or not password:
+        messages.error(request, "Tous les champs sont obligatoires.")
+        return redirect('dashboard:contributions_committee_list', event_id=event_id)
+
+    if len(password) < 8:
+        messages.error(request, "Le mot de passe doit contenir au moins 8 caractères.")
+        return redirect('dashboard:contributions_committee_list', event_id=event_id)
+
+    if User.objects.filter(email__iexact=email).exists():
+        messages.error(request, f"Un utilisateur avec l'e-mail « {email} » existe déjà.")
+        return redirect('dashboard:contributions_committee_list', event_id=event_id)
+
+    base_username = email.split('@')[0]
+    username = base_username
+    counter = 1
+    while User.objects.filter(username=username).exists():
+        username = f"{base_username}{counter}"
+        counter += 1
+
+    user = User.objects.create_user(
+        username=username,
+        email=email,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+    )
+
+    qr_data = UserProfile.get_qr_for_user(user)
+
+    UserEventAssignment.objects.create(
+        user=user, event=event, role='committee', is_active=True, assigned_by=request.user,
+    )
+    EPosterCommitteeMember.objects.create(
+        event=event, user=user, role=committee_role, specialty=specialty,
+        is_active=True, assigned_by=request.user,
+    )
+
+    participant, _ = Participant.objects.get_or_create(
+        user=user,
+        defaults={'badge_id': qr_data['badge_id'], 'qr_code_data': qr_data},
+    )
+    ParticipantEventRegistration.objects.get_or_create(participant=participant, event=event)
+
+    messages.success(
+        request,
+        f'{user.get_full_name()} ajouté au comité en tant que '
+        f'{"Superviseur" if committee_role == "supervisor" else "Membre"}.'
     )
     return redirect('dashboard:contributions_committee_list', event_id=event_id)
 
