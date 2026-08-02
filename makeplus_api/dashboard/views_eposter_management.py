@@ -19,16 +19,22 @@ def eposter_management_home(request):
     - Committee members see ONLY their assigned events
     """
     is_admin = request.user.is_staff or request.user.is_superuser
-    
+
+    # This admin-sidebar page is staff-only in practice -- a committee
+    # account (even one that stumbles onto this URL, e.g. an old
+    # bookmark) belongs on its own themed landing page instead.
+    if not is_admin:
+        return redirect('dashboard:eposter_committee_home')
+
     # Check if user is committee member for any events
     user_committee_events = EPosterCommitteeMember.objects.filter(
         user=request.user,
         is_active=True
     ).values_list('event_id', flat=True)
-    
+
     # Get events based on user role
     from django.db.models import Subquery, OuterRef
-    
+
     if is_admin:
         # Admins see all events
         events = Event.objects.all()

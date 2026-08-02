@@ -13,6 +13,7 @@ from django.core.mail import send_mail
 from django.template import Template, Context
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.views.decorators.cache import never_cache
 import json
 import csv
 
@@ -71,6 +72,51 @@ def check_supervisor_access(user, event):
     return get_supervisor_membership(user, event) is not None
 
 
+def _permission_denied_redirect(user):
+    """
+    Where to send someone who just failed a permission check on a
+    contributions/committee page. Staff land on the admin-sidebar
+    management home (their native area); a non-staff committee account
+    must never be routed there -- send them to their own themed landing
+    page instead, which re-derives where they actually belong.
+    """
+    if user.is_staff or user.is_superuser:
+        return redirect('dashboard:contributions_management_home')
+    return redirect('dashboard:eposter_committee_home')
+
+
+@never_cache
+@login_required
+def eposter_committee_home(request):
+    """
+    Landing page for committee accounts after login (mirrors
+    views_event_owner.event_owner_submissions_home). Redirects straight
+    to the event's contributions dashboard/submissions if the member is
+    assigned to only one event, otherwise shows a themed picker -- this
+    is the *only* thing a non-staff committee login should ever land on,
+    never the staff-only eposter_management_home (which lists every
+    event and lives inside the admin sidebar layout).
+    """
+    memberships = EPosterCommitteeMember.objects.filter(
+        user=request.user, is_active=True
+    ).select_related('event').order_by('-assigned_at')
+
+    if not memberships.exists():
+        if request.user.is_staff or request.user.is_superuser:
+            return redirect('dashboard:home')
+        messages.error(request, "Vous n'avez accès à aucun événement en tant que membre du comité.")
+        return redirect('dashboard:login')
+
+    if memberships.count() == 1:
+        membership = memberships.first()
+        if membership.is_supervisor():
+            return redirect('dashboard:contributions_dashboard', event_id=membership.event_id)
+        return redirect('dashboard:contributions_submissions_list', event_id=membership.event_id)
+
+    return render(request, 'dashboard/eposter/event_picker.html', {'memberships': list(memberships)})
+
+
+@never_cache
 @login_required
 def eposter_dashboard(request, event_id):
     """
@@ -139,6 +185,7 @@ def eposter_dashboard(request, event_id):
     return render(request, 'dashboard/eposter/dashboard.html', context)
 
 
+@never_cache
 @login_required
 def eposter_submissions_list(request, event_id):
     """
@@ -153,7 +200,7 @@ def eposter_submissions_list(request, event_id):
     # Check access permission
     if not check_event_access(request.user, event):
         messages.error(request, "Vous n'avez pas accès à cet événement.")
-        return redirect('dashboard:contributions_management_home')
+        return _permission_denied_redirect(request.user)
     
     # Clear cache to ensure fresh data
     cache.clear()
@@ -210,6 +257,7 @@ def eposter_submissions_list(request, event_id):
     return response
 
 
+@never_cache
 @login_required
 def eposter_submission_detail(request, event_id, submission_id):
     """
@@ -220,7 +268,7 @@ def eposter_submission_detail(request, event_id, submission_id):
     # Check access permission
     if not check_event_access(request.user, event):
         messages.error(request, "Vous n'avez pas accès à cet événement.")
-        return redirect('dashboard:contributions_management_home')
+        return _permission_denied_redirect(request.user)
     
     submission = get_object_or_404(
         EPosterSubmission.objects.prefetch_related('validations__committee_member'),
@@ -274,6 +322,7 @@ def eposter_submission_detail(request, event_id, submission_id):
     return render(request, 'dashboard/eposter/submission_detail.html', context)
 
 
+@never_cache
 @login_required
 def eposter_validate_submission(request, event_id, submission_id):
     """
@@ -352,6 +401,7 @@ def eposter_validate_submission(request, event_id, submission_id):
     })
 
 
+@never_cache
 @login_required
 def eposter_set_status(request, event_id, submission_id):
     """
@@ -520,6 +570,7 @@ def send_decision_email(submission, request=None):
         return False
 
 
+@never_cache
 @login_required
 def eposter_committee_list(request, event_id):
     """
@@ -533,7 +584,7 @@ def eposter_committee_list(request, event_id):
     is_supervisor = get_supervisor_membership(request.user, event) is not None
     if not is_admin and not is_supervisor:
         messages.error(request, "Seul un administrateur ou le superviseur du comité peut gérer les membres du comité.")
-        return redirect('dashboard:contributions_management_home')
+        return _permission_denied_redirect(request.user)
 
     committee = EPosterCommitteeMember.objects.filter(
         event=event
@@ -572,6 +623,7 @@ def eposter_committee_list(request, event_id):
     return render(request, 'dashboard/eposter/committee_list.html', context)
 
 
+@never_cache
 @login_required
 def eposter_committee_add(request, event_id):
     """
@@ -586,7 +638,7 @@ def eposter_committee_add(request, event_id):
     is_supervisor = get_supervisor_membership(request.user, event) is not None
     if not is_admin and not is_supervisor:
         messages.error(request, "Seul un administrateur ou le superviseur du comité peut gérer les membres du comité.")
-        return redirect('dashboard:contributions_management_home')
+        return _permission_denied_redirect(request.user)
 
     if request.method != 'POST':
         return redirect('dashboard:contributions_committee_list', event_id=event_id)
@@ -620,6 +672,7 @@ def eposter_committee_add(request, event_id):
     return redirect('dashboard:contributions_committee_list', event_id=event_id)
 
 
+@never_cache
 @login_required
 def eposter_committee_remove(request, event_id, member_id):
     """
@@ -636,7 +689,7 @@ def eposter_committee_remove(request, event_id, member_id):
     if not is_admin:
         if not is_supervisor:
             messages.error(request, "Seul un administrateur ou le superviseur du comité peut gérer les membres du comité.")
-            return redirect('dashboard:contributions_management_home')
+            return _permission_denied_redirect(request.user)
         if member.is_supervisor():
             messages.error(request, "Un superviseur ne peut pas retirer un autre superviseur du comité.")
             return redirect('dashboard:contributions_committee_list', event_id=event_id)
@@ -648,6 +701,7 @@ def eposter_committee_remove(request, event_id, member_id):
     return redirect('dashboard:contributions_committee_list', event_id=event_id)
 
 
+@never_cache
 @login_required
 def eposter_committee_update_role(request, event_id, member_id):
     """
@@ -682,6 +736,7 @@ def eposter_committee_update_role(request, event_id, member_id):
     return redirect('dashboard:contributions_committee_list', event_id=event_id)
 
 
+@never_cache
 @login_required
 def eposter_committee_create_member(request, event_id):
     """
@@ -698,7 +753,7 @@ def eposter_committee_create_member(request, event_id):
     is_supervisor = get_supervisor_membership(request.user, event) is not None
     if not is_admin and not is_supervisor:
         messages.error(request, "Seul un administrateur ou le superviseur du comité peut gérer les membres du comité.")
-        return redirect('dashboard:contributions_management_home')
+        return _permission_denied_redirect(request.user)
 
     if request.method != 'POST':
         return redirect('dashboard:contributions_committee_list', event_id=event_id)
@@ -766,6 +821,7 @@ def eposter_committee_create_member(request, event_id):
     return redirect('dashboard:contributions_committee_list', event_id=event_id)
 
 
+@never_cache
 @login_required
 def eposter_email_templates(request, event_id):
     """
@@ -775,7 +831,7 @@ def eposter_email_templates(request, event_id):
     # Admin only
     if not request.user.is_staff and not request.user.is_superuser:
         messages.error(request, "Seuls les administrateurs peuvent gérer les modèles d'e-mail.")
-        return redirect('dashboard:contributions_management_home')
+        return _permission_denied_redirect(request.user)
     
     event = get_object_or_404(Event, id=event_id)
     
@@ -813,6 +869,7 @@ def eposter_email_templates(request, event_id):
     return response
 
 
+@never_cache
 @login_required
 def eposter_email_template_create(request, event_id):
     """
@@ -822,7 +879,7 @@ def eposter_email_template_create(request, event_id):
     # Admin only
     if not request.user.is_staff and not request.user.is_superuser:
         messages.error(request, "Seuls les administrateurs peuvent gérer les modèles d'e-mail.")
-        return redirect('dashboard:contributions_management_home')
+        return _permission_denied_redirect(request.user)
     
     event = get_object_or_404(Event, id=event_id)
     
@@ -914,6 +971,7 @@ def eposter_email_template_create(request, event_id):
     return render(request, 'dashboard/eposter/email_template_form_unlayer.html', context)
 
 
+@never_cache
 @login_required
 def eposter_email_template_edit(request, event_id, template_id):
     """
@@ -923,7 +981,7 @@ def eposter_email_template_edit(request, event_id, template_id):
     # Admin only
     if not request.user.is_staff and not request.user.is_superuser:
         messages.error(request, "Seuls les administrateurs peuvent gérer les modèles d'e-mail.")
-        return redirect('dashboard:contributions_management_home')
+        return _permission_denied_redirect(request.user)
     
     event = get_object_or_404(Event, id=event_id)
     template = get_object_or_404(EPosterEmailTemplate, id=template_id, event=event)
@@ -956,6 +1014,7 @@ def eposter_email_template_edit(request, event_id, template_id):
     return render(request, 'dashboard/eposter/email_template_form_unlayer.html', context)
 
 
+@never_cache
 @login_required
 def eposter_email_template_delete(request, event_id, template_id):
     """
@@ -965,7 +1024,7 @@ def eposter_email_template_delete(request, event_id, template_id):
     # Admin only
     if not request.user.is_staff and not request.user.is_superuser:
         messages.error(request, "Seuls les administrateurs peuvent gérer les modèles d'e-mail.")
-        return redirect('dashboard:contributions_management_home')
+        return _permission_denied_redirect(request.user)
     
     event = get_object_or_404(Event, id=event_id)
     template = get_object_or_404(EPosterEmailTemplate, id=template_id, event=event)
@@ -976,6 +1035,7 @@ def eposter_email_template_delete(request, event_id, template_id):
     return redirect('dashboard:contributions_email_templates', event_id=event_id)
 
 
+@never_cache
 @login_required
 def eposter_export_csv(request, event_id):
     """
@@ -986,7 +1046,7 @@ def eposter_export_csv(request, event_id):
     # Check access permission
     if not check_event_access(request.user, event):
         messages.error(request, "Vous n'avez pas accès à cet événement.")
-        return redirect('dashboard:contributions_management_home')
+        return _permission_denied_redirect(request.user)
     
     submissions = EPosterSubmission.objects.filter(event=event).order_by('-submitted_at')
     
@@ -1015,7 +1075,8 @@ def eposter_export_csv(request, event_id):
     return response
 
 
-@login_required  
+@never_cache
+@login_required
 def eposter_realtime_status(request, event_id, submission_id):
     """
     Get real-time status for a submission (AJAX endpoint for polling)

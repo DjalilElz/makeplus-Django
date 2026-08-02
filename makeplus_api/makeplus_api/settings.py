@@ -76,6 +76,11 @@ MIDDLEWARE = [
     'events.middleware.EventContextMiddleware',  # Extract event context from JWT
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Must come after UpdateCacheMiddleware above: response-phase
+    # middleware runs bottom-to-top, so this needs to be *below* it in
+    # the list for its no-cache headers to be visible to Update's own
+    # response processing (see dashboard/middleware.py docstring).
+    'dashboard.middleware.NoCacheDashboardMiddleware',
 ]
 
 # CSRF Settings

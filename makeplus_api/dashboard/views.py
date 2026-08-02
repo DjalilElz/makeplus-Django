@@ -183,9 +183,11 @@ def login_view(request):
                     welcome_msg += ' (Organisateur)'
                 messages.success(request, welcome_msg)
 
-                # Redirect committee members directly to ePoster management
+                # Redirect committee members straight to their event (or a
+                # themed picker if they're on more than one) -- never the
+                # admin-sidebar eposter_management_home.
                 if is_committee and not user.is_staff:
-                    return redirect('dashboard:eposter_management_home')
+                    return redirect('dashboard:eposter_committee_home')
                 # Redirect room managers directly to their final communications page
                 if is_room_manager and not user.is_staff:
                     return redirect('dashboard:my_final_communications_home')

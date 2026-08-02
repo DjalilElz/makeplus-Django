@@ -150,6 +150,11 @@ urlpatterns = [
     # API: Get event registration fields for campaign variables
     path('api/events/<uuid:event_id>/registration-fields/', views_email.get_event_registration_fields, name='api_event_registration_fields'),
     
+    # Committee landing page after login -- straight to their one event,
+    # or a themed picker if assigned to more than one. Never the admin
+    # sidebar management home below (staff/admin only, in practice).
+    path('my-committee/', views_eposter_dashboard.eposter_committee_home, name='eposter_committee_home'),
+
     # Scientific Contributions Management - Central Hub
     path('contributions/', views_eposter_management.eposter_management_home, name='contributions_management_home'),
     path('contributions/create/<uuid:event_id>/', views_eposter_management.create_form_for_event, name='contributions_create_form_for_event'),
