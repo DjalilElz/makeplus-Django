@@ -15,7 +15,6 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.views.decorators.cache import never_cache
 import json
-import csv
 
 from events.models import (
     Event, UserEventAssignment, Participant, UserProfile, ParticipantEventRegistration
@@ -1037,41 +1036,68 @@ def eposter_email_template_delete(request, event_id, template_id):
 
 @never_cache
 @login_required
-def eposter_export_csv(request, event_id):
+def eposter_export_excel(request, event_id):
     """
-    Export submissions to CSV
+    Export submissions to an Excel (.xlsx) file -- same styling
+    (header fill/font/border) as the exposant scan export in
+    events/views.py's ExposantScanViewSet.export_excel.
     """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
     event = get_object_or_404(Event, id=event_id)
-    
+
     # Check access permission
     if not check_event_access(request.user, event):
         messages.error(request, "Vous n'avez pas accès à cet événement.")
         return _permission_denied_redirect(request.user)
-    
+
     submissions = EPosterSubmission.objects.filter(event=event).order_by('-submitted_at')
-    
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="eposters_{event.name}_{timezone.now().date()}.csv"'
-    response.write('\ufeff')  # UTF-8 BOM for Excel
-    
-    writer = csv.writer(response, delimiter=';')
-    writer.writerow([
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Contributions"
+
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin'),
+    )
+
+    headers = [
         'ID', 'Date soumission', 'Statut',
         'Nom', 'Prénom', 'Email', 'Téléphone', 'Genre',
         'Grade', 'Secteur', 'Établissement', 'Wilaya',
         'Type', 'Thème', 'Titre',
-        'Validations', 'Rejets'
-    ])
-    
+        'Validations', 'Rejets',
+    ]
+    ws.append(headers)
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+
     for s in submissions:
-        writer.writerow([
+        ws.append([
             str(s.id), s.submitted_at.strftime('%Y-%m-%d %H:%M'), s.get_status_display(),
             s.nom, s.prenom, s.email, s.telephone, s.get_genre_display(),
             s.get_grade_display(), s.get_secteur_display(), s.etablissement, s.wilaya,
             s.get_type_participation_display(), s.theme, s.titre_travail,
-            s.get_validations_count(), s.get_rejections_count()
+            s.get_validations_count(), s.get_rejections_count(),
         ])
-    
+
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 20
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="contributions_{event.name}_{timezone.now().date()}.xlsx"'
+    wb.save(response)
     return response
 
 

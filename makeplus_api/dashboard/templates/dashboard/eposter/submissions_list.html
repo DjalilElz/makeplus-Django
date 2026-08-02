@@ -11,8 +11,8 @@
             <div class="stat-value">{{ submissions.paginator.count }}</div>
         </div>
     </div>
-    <a href="{% url 'dashboard:contributions_export_csv' event.id %}" class="btn btn-outline-elegant ms-3 text-nowrap">
-        <i class="bi bi-download me-1"></i> Exporter CSV
+    <a href="{% url 'dashboard:contributions_export_excel' event.id %}" class="btn btn-outline-elegant ms-3 text-nowrap">
+        <i class="bi bi-file-earmark-excel me-1"></i> Exporter Excel
     </a>
 </div>
 

@@ -174,7 +174,7 @@ urlpatterns = [
     path('events/<uuid:event_id>/contributions/email-templates/create/', views_eposter_dashboard.eposter_email_template_create, name='contributions_email_template_create'),
     path('events/<uuid:event_id>/contributions/email-templates/<uuid:template_id>/edit/', views_eposter_dashboard.eposter_email_template_edit, name='contributions_email_template_edit'),
     path('events/<uuid:event_id>/contributions/email-templates/<uuid:template_id>/delete/', views_eposter_dashboard.eposter_email_template_delete, name='contributions_email_template_delete'),
-    path('events/<uuid:event_id>/contributions/export/', views_eposter_dashboard.eposter_export_csv, name='contributions_export_csv'),
+    path('events/<uuid:event_id>/contributions/export/', views_eposter_dashboard.eposter_export_excel, name='contributions_export_excel'),
 
     # Scientific Committee management (member/supervisor roles) -- was
     # built (views_eposter_dashboard.eposter_committee_*, committee_list.html)
