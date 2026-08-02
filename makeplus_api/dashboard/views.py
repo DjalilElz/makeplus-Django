@@ -685,14 +685,15 @@ def event_create_step4(request):
                 # If role is committee, create EPosterCommitteeMember record
                 if role == 'committee':
                     from .models_eposter import EPosterCommitteeMember
+                    committee_role = form.cleaned_data.get('committee_role') or 'member'
                     EPosterCommitteeMember.objects.create(
                         event=event,
                         user=user,
-                        role='member',  # Default to 'member', can be changed later
+                        role=committee_role,
                         is_active=True,
                         assigned_by=request.user
                     )
-                    messages.success(request, f'Membre du comité « {user.get_full_name()} » créé avec succès !')
+                    messages.success(request, f'Membre du comité « {user.get_full_name()} » créé avec succès ({dict(EPosterCommitteeMember.ROLE_CHOICES).get(committee_role, committee_role)}) !')
                 
                 # Assign room if role is gestionnaire_des_salles
                 assigned_room = form.cleaned_data.get('assigned_room')
@@ -896,14 +897,15 @@ def user_create(request):
                 
                 # If role is committee, create EPosterCommitteeMember record
                 if role == 'committee':
+                    committee_role = form.cleaned_data.get('committee_role') or 'member'
                     EPosterCommitteeMember.objects.create(
                         event=event,
                         user=user,
-                        role='member',  # Default to 'member', can be changed later
+                        role=committee_role,
                         is_active=True,
                         assigned_by=request.user
                     )
-                    messages.success(request, f'Membre du comité « {user.get_full_name()} » créé avec succès !')
+                    messages.success(request, f'Membre du comité « {user.get_full_name()} » créé avec succès ({dict(EPosterCommitteeMember.ROLE_CHOICES).get(committee_role, committee_role)}) !')
                 
                 # Assign room if role is gestionnaire_des_salles
                 assigned_room = form.cleaned_data.get('assigned_room')

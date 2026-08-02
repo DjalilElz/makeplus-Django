@@ -369,11 +369,23 @@ class UserCreationForm(forms.ModelForm):
         }),
         help_text="Select room to assign (for organisateur, gestionnaire des salles or controlleur des badges)"
     )
-    
+
+    # Conditional field for role='committee' -- which committee sub-role
+    # this user gets (see ScientificContributionCommitteeMember.ROLE_CHOICES).
+    committee_role = forms.ChoiceField(
+        choices=[('member', 'Membre'), ('supervisor', 'Superviseur')],
+        required=False,
+        initial='member',
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        help_text="Rôle dans le comité scientifique (si le rôle ci-dessus est « Comité »)"
+    )
+
     def __init__(self, *args, **kwargs):
         event = kwargs.pop('event', None)
         super().__init__(*args, **kwargs)
-        
+
         # If no event provided, add event selection field
         if not event:
             self.fields['event'] = forms.ModelChoiceField(
@@ -387,7 +399,7 @@ class UserCreationForm(forms.ModelForm):
                 help_text="Select the event to assign this user to"
             )
             # Move event field to be first
-            self.order_fields(['event', 'email', 'first_name', 'last_name', 'password', 'password_confirm', 'role', 'assigned_room'])
+            self.order_fields(['event', 'email', 'first_name', 'last_name', 'password', 'password_confirm', 'role', 'assigned_room', 'committee_role'])
             
             # If POST data, get event from POST to populate rooms
             if self.data:

@@ -109,12 +109,23 @@
                                     </td>
                                     <td>{{ member.user.email }}</td>
                                     <td>
-                                        {% if member.role == 'supervisor' or member.role == 'president' %}
-                                            <span class="badge bg-primary">{{ member.get_role_display }}</span>
-                                        {% elif member.role == 'secretary' %}
-                                            <span class="badge bg-info">{{ member.get_role_display }}</span>
+                                        {% if is_admin %}
+                                        <form method="post" action="{% url 'dashboard:eposter_committee_update_role' event.id member.id %}"
+                                              class="d-inline" onchange="this.submit()">
+                                            {% csrf_token %}
+                                            <select name="role" class="form-select form-select-sm" style="width: auto; display: inline-block;">
+                                                <option value="member" {% if member.role == 'member' %}selected{% endif %}>Membre</option>
+                                                <option value="supervisor" {% if member.is_supervisor %}selected{% endif %}>Superviseur</option>
+                                            </select>
+                                        </form>
                                         {% else %}
-                                            <span class="badge bg-secondary">{{ member.get_role_display }}</span>
+                                            {% if member.is_supervisor %}
+                                                <span class="badge bg-primary">{{ member.get_role_display }}</span>
+                                            {% elif member.role == 'secretary' %}
+                                                <span class="badge bg-info">{{ member.get_role_display }}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ member.get_role_display }}</span>
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                     <td>{{ member.specialty|default:"-" }}</td>

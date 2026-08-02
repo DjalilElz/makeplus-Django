@@ -170,7 +170,16 @@ urlpatterns = [
     path('events/<uuid:event_id>/contributions/email-templates/<uuid:template_id>/edit/', views_eposter_dashboard.eposter_email_template_edit, name='contributions_email_template_edit'),
     path('events/<uuid:event_id>/contributions/email-templates/<uuid:template_id>/delete/', views_eposter_dashboard.eposter_email_template_delete, name='contributions_email_template_delete'),
     path('events/<uuid:event_id>/contributions/export/', views_eposter_dashboard.eposter_export_csv, name='contributions_export_csv'),
-    
+
+    # Scientific Committee management (member/supervisor roles) -- was
+    # built (views_eposter_dashboard.eposter_committee_*, committee_list.html)
+    # but never wired into urls.py, so the page was unreachable and every
+    # committee account defaulted to 'member' with no way to promote anyone.
+    path('events/<uuid:event_id>/contributions/committee/', views_eposter_dashboard.eposter_committee_list, name='contributions_committee_list'),
+    path('events/<uuid:event_id>/contributions/committee/add/', views_eposter_dashboard.eposter_committee_add, name='eposter_committee_add'),
+    path('events/<uuid:event_id>/contributions/committee/<uuid:member_id>/remove/', views_eposter_dashboard.eposter_committee_remove, name='eposter_committee_remove'),
+    path('events/<uuid:event_id>/contributions/committee/<uuid:member_id>/role/', views_eposter_dashboard.eposter_committee_update_role, name='eposter_committee_update_role'),
+
     # Legacy URLs for backward compatibility
     path('eposter/', views_eposter_management.eposter_management_home, name='eposter_management_home'),
     path('events/<uuid:event_id>/eposter/', views_eposter_dashboard.eposter_dashboard, name='eposter_dashboard'),

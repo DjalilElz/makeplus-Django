@@ -638,6 +638,40 @@ def eposter_committee_remove(request, event_id, member_id):
 
 
 @login_required
+def eposter_committee_update_role(request, event_id, member_id):
+    """
+    Promote/demote a committee member between 'member' and 'supervisor'.
+    Staff/admin only -- a supervisor can add plain members but can't grant
+    the supervisor role themselves (see eposter_committee_add).
+    """
+    if request.method != 'POST':
+        return redirect('dashboard:contributions_committee_list', event_id=event_id)
+
+    event = get_object_or_404(Event, id=event_id)
+
+    if not request.user.is_staff and not request.user.is_superuser:
+        messages.error(request, "Seuls les administrateurs peuvent changer le rôle d'un membre du comité.")
+        return redirect('dashboard:contributions_committee_list', event_id=event_id)
+
+    member = get_object_or_404(EPosterCommitteeMember, id=member_id, event=event)
+
+    new_role = request.POST.get('role')
+    if new_role not in ('member', 'supervisor'):
+        messages.error(request, "Rôle invalide.")
+        return redirect('dashboard:contributions_committee_list', event_id=event_id)
+
+    member.role = new_role
+    member.save(update_fields=['role'])
+
+    messages.success(
+        request,
+        f'{member.user.get_full_name() or member.user.username} est maintenant '
+        f'{"Superviseur" if new_role == "supervisor" else "Membre"} du comité.'
+    )
+    return redirect('dashboard:contributions_committee_list', event_id=event_id)
+
+
+@login_required
 def eposter_email_templates(request, event_id):
     """
     Manage ePoster email templates

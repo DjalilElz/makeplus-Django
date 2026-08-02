@@ -150,7 +150,9 @@
                         <i class="bi bi-people me-2"></i>
                         Comité scientifique
                     </h5>
-                    <!-- Committee managed in event creation step 4 -->
+                    <a href="{% url 'dashboard:contributions_committee_list' event.id %}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-gear"></i> Gérer
+                    </a>
                 </div>
                 <div class="card-body">
                     {% if committee %}
@@ -172,7 +174,7 @@
                     {% else %}
                         <p class="text-muted text-center mb-0">
                             Aucun membre dans le comité.<br>
-                            <small>Ajoutez des membres du comité à l'étape 4 de la création de l'événement</small>
+                            <small>Ajoutez-en via le bouton « Gérer » ci-dessus, ou en créant un utilisateur avec le rôle « Comité ».</small>
                         </p>
                     {% endif %}
                 </div>
@@ -244,7 +246,9 @@
                     <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="list-group-item list-group-item-action">
                         <i class="bi bi-list-ul me-2"></i> Toutes les soumissions
                     </a>
-                    <!-- Committee management removed - members added in event creation step 4 -->
+                    <a href="{% url 'dashboard:contributions_committee_list' event.id %}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-people me-2"></i> Comité scientifique
+                    </a>
                     <a href="{% url 'dashboard:contributions_email_templates' event.id %}" class="list-group-item list-group-item-action">
                         <i class="bi bi-envelope me-2"></i> Modèles d'e-mails
                     </a>

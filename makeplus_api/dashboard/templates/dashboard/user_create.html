@@ -141,6 +141,16 @@
                                 <i class="bi bi-info-circle"></i> Sélectionnez la salle que ce Gestionnaire de Salle devra gérer
                             </div>
                         </div>
+
+                        <div class="col-md-12 mb-3" id="committeeRoleFieldContainer" style="display: none;">
+                            <label for="{{ form.committee_role.id_for_label }}" class="form-label">Rôle dans le comité scientifique</label>
+                            {{ form.committee_role }}
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Membre :</strong> peut voir les soumissions et les valider/rejeter.
+                                <strong>Superviseur :</strong> peut en plus créer d'autres membres et voir le tableau de bord (qui a validé/rejeté quoi).
+                            </div>
+                        </div>
                     </div>
 
                     <div class="alert alert-info">
@@ -166,10 +176,11 @@ function toggleRoomField() {
     const roleSelect = document.querySelector('select[name="role"]');
     const roomContainer = document.getElementById('roomFieldContainer');
     const roomSelect = document.querySelector('select[name="assigned_room"]');
-    
+    const committeeRoleContainer = document.getElementById('committeeRoleFieldContainer');
+
     if (roleSelect && roomContainer) {
         const selectedRole = roleSelect.value;
-        
+
         // Only show room field for Gestionnaire de Salle
         if (selectedRole === 'gestionnaire_des_salles') {
             roomContainer.style.display = 'block';
@@ -182,6 +193,11 @@ function toggleRoomField() {
                 roomSelect.required = false;
                 roomSelect.value = ''; // Clear selection
             }
+        }
+
+        // Only show committee-role field for Comité
+        if (committeeRoleContainer) {
+            committeeRoleContainer.style.display = selectedRole === 'committee' ? 'block' : 'none';
         }
     }
 }
