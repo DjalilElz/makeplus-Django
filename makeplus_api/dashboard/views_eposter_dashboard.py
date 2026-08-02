@@ -588,7 +588,7 @@ def eposter_committee_list(request, event_id):
     committee = EPosterCommitteeMember.objects.filter(
         event=event
     ).select_related('user', 'assigned_by').annotate(
-        validations_count=Count('user__eposter_validations', filter=Q(user__eposter_validations__submission__event=event))
+        validations_count=Count('user__contribution_validations', filter=Q(user__contribution_validations__submission__event=event))
     ).order_by('-assigned_at')
 
     # Get available users - only users with 'committee' role assigned to this event
