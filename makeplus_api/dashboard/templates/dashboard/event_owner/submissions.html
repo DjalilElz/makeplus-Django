@@ -244,6 +244,12 @@
                 </div>
                 {% endfor %}
             {% endif %}
+
+            <div class="d-flex justify-content-end mb-2">
+                <a href="{% url 'dashboard:event_owner_export_excel' event.id %}?{{ request.GET.urlencode }}" class="btn btn-outline-elegant btn-sm">
+                    <i class="bi bi-file-earmark-excel"></i> Exporter Excel
+                </a>
+            </div>
             <form method="get" class="filter-form">
                 <div class="filter-section-label"><i class="bi bi-tags"></i> Filtrer par article sélectionné</div>
                 <div class="row g-2 mb-2">
@@ -598,37 +604,63 @@
     {% endfor %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
-        // Renders the modal's header+body (footer/close button hidden for
-        // the capture) to a canvas, then wraps it in a PDF page sized to
-        // exactly that canvas -- guarantees a single page regardless of
-        // how long the order's details are, no A4 pagination logic needed.
-        async function downloadOrderPdf(modalId, personName) {
+        // Plain text PDF built directly from the modal's rendered fields --
+        // deliberately NOT a screenshot (the previous html2canvas approach
+        // embedded a full-resolution PNG of the modal, which made every
+        // single-page registration PDF several hundred KB to multiple MB).
+        // Real vector text keeps this down to a few KB.
+        function downloadOrderPdf(modalId, personName) {
             var modalEl = document.getElementById(modalId);
-            var content = modalEl.querySelector('.modal-content');
-            var footer = content.querySelector('.modal-footer');
-            var closeBtn = content.querySelector('.btn-close');
-            var prevFooterDisplay = footer.style.display;
-            var prevCloseDisplay = closeBtn.style.display;
-            footer.style.display = 'none';
-            closeBtn.style.display = 'none';
-            try {
-                var canvas = await html2canvas(content, { scale: 2, backgroundColor: '#ffffff' });
-                var imgData = canvas.toDataURL('image/png');
-                var pdf = new window.jspdf.jsPDF({
-                    orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
-                    unit: 'px',
-                    format: [canvas.width, canvas.height],
+            var body = modalEl.querySelector('.modal-body');
+            var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+
+            var margin = 18, pageHeight = 297, maxWidth = 210 - margin * 2;
+            var y = 20;
+
+            function addLine(text, opts) {
+                opts = opts || {};
+                if (!text) return;
+                pdf.setFont('helvetica', opts.bold ? 'bold' : 'normal');
+                pdf.setFontSize(opts.size || 11);
+                var lines = pdf.splitTextToSize(String(text), maxWidth);
+                lines.forEach(function (line) {
+                    if (y > pageHeight - margin) { pdf.addPage(); y = 20; }
+                    pdf.text(line, margin, y);
+                    y += opts.lineHeight || 6;
                 });
-                pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-                var safeName = (personName || 'inscription').replace(/[^a-z0-9\-_]+/gi, '_');
-                pdf.save('inscription-' + safeName + '.pdf');
-            } finally {
-                footer.style.display = prevFooterDisplay;
-                closeBtn.style.display = prevCloseDisplay;
             }
+
+            addLine(personName || 'Inscription', { bold: true, size: 15, lineHeight: 9 });
+            y += 2;
+
+            body.querySelectorAll('.detail-row').forEach(function (row) {
+                var label = row.querySelector('.detail-label');
+                var valueEl = label ? label.nextElementSibling : null;
+                if (!label || !valueEl) return;
+                var value = valueEl.textContent.replace(/\s+/g, ' ').trim();
+                if (!value) return;
+                addLine(label.textContent.trim() + ' : ' + value);
+            });
+
+            var itemsList = body.querySelector('.items-list');
+            if (itemsList) {
+                y += 2;
+                addLine('Articles', { bold: true });
+                itemsList.querySelectorAll('li').forEach(function (li) {
+                    addLine('- ' + li.textContent.replace(/\s+/g, ' ').trim());
+                });
+            }
+
+            y += 2;
+            body.querySelectorAll('p').forEach(function (p) {
+                var text = p.textContent.replace(/\s+/g, ' ').trim();
+                if (text) addLine(text);
+            });
+
+            var safeName = (personName || 'inscription').replace(/[^a-z0-9\-_]+/gi, '_');
+            pdf.save('inscription-' + safeName + '.pdf');
         }
 
         var STATUS_LABELS = {

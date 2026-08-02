@@ -17,7 +17,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
@@ -220,6 +220,107 @@ def event_owner_submissions(request, event_id):
         'show_events_link': show_events_link,
     }
     return render(request, 'dashboard/event_owner/submissions.html', context)
+
+
+@never_cache
+@login_required
+def event_owner_export_excel(request, event_id):
+    """
+    Export the registrations table to Excel -- applies the exact same
+    status/search/item filters as event_owner_submissions (duplicated
+    rather than shared to avoid touching that view's already
+    hard-won N+1/timeout-safe query shape), so the export always
+    matches whatever's currently on screen.
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    event = get_object_or_404(Event, id=event_id)
+
+    if not _can_access_event_orders(request.user, event):
+        raise PermissionDenied("You do not have access to this event's submissions.")
+
+    status = request.GET.get('status', '').strip()
+    query = request.GET.get('q', '').strip()
+    item_filters = {
+        'status': request.GET.get('item_status', '').strip(),
+        'restauration': request.GET.get('item_restauration', '').strip(),
+        'social_event': request.GET.get('item_social_event', '').strip(),
+    }
+    workshop_item_ids = [v for v in request.GET.getlist('item_workshops') if v]
+
+    orders = list(
+        RegistrationOrder.objects.filter(event=event).select_related(
+            'period', 'form_submission__form',
+        ).order_by('-created_at')
+    )
+
+    if status in STATUS_LABELS:
+        orders = [o for o in orders if o.status == status]
+    if query:
+        ql = query.lower()
+        orders = [o for o in orders if ql in (o.full_name or '').lower() or ql in (o.email or '').lower()]
+    for bloc, item_id in item_filters.items():
+        if item_id:
+            orders = [o for o in orders if item_id in _bloc_item_ids(o, bloc)]
+    if workshop_item_ids:
+        wanted = set(workshop_item_ids)
+        orders = [o for o in orders if _bloc_item_ids(o, 'workshops') & wanted]
+
+    phone_field_name = None
+    form_config = event.custom_forms.first()
+    if form_config:
+        phone_field_name = next(
+            (f.get('name') for f in form_config.fields_config if f.get('type') == 'tel'), None,
+        )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Inscriptions"
+
+    header_fill = PatternFill(start_color="2D1B6B", end_color="2D1B6B", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin'),
+    )
+
+    headers = [
+        'Participant', 'E-mail', 'Téléphone', 'Statut choisi', 'Restauration',
+        'Ateliers', 'Événement social', 'Prix (DZD)', "Statut de l'inscription",
+        'Notes', 'Soumis le',
+    ]
+    ws.append(headers)
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+
+    for order in orders:
+        bloc_names = _bloc_names(order)
+        phone = (
+            order.form_submission.data.get(phone_field_name, '')
+            if order.form_submission and phone_field_name else ''
+        )
+        ws.append([
+            order.full_name or '', order.email or '', phone,
+            bloc_names['status'], bloc_names['restauration'], bloc_names['workshops'], bloc_names['social_event'],
+            float(order.total_after_reduction), STATUS_LABELS.get(order.status, order.status),
+            order.admin_notes or '', order.created_at.strftime('%Y-%m-%d %H:%M'),
+        ])
+
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 22
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="inscriptions_{event.name}_{timezone.now().date()}.xlsx"'
+    wb.save(response)
+    return response
 
 
 @never_cache
