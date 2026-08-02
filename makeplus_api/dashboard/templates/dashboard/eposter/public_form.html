@@ -872,25 +872,25 @@
                                 <div class="mb-4">
                                     <label class="form-label required-field">Type de contribution</label>
                                     <div class="type-selection">
-                                        {% if form_config.enable_e_poster|default:True %}
+                                        {% if form_config.enable_e_poster %}
                                         <div class="type-pill" data-type="e_poster">
                                             <i class="bi bi-easel"></i>
                                             <span>E-Poster</span>
                                         </div>
                                         {% endif %}
-                                        {% if form_config.enable_communication_orale|default:True %}
+                                        {% if form_config.enable_communication_orale %}
                                         <div class="type-pill" data-type="communication_orale">
                                             <i class="bi bi-mic"></i>
                                             <span>Communication orale</span>
                                         </div>
                                         {% endif %}
-                                        {% if form_config.enable_table_ronde|default:True %}
+                                        {% if form_config.enable_table_ronde %}
                                         <div class="type-pill" data-type="table_ronde">
                                             <i class="bi bi-people"></i>
                                             <span>Table ronde</span>
                                         </div>
                                         {% endif %}
-                                        {% if form_config.enable_atelier|default:True %}
+                                        {% if form_config.enable_atelier %}
                                         <div class="type-pill" data-type="atelier">
                                             <i class="bi bi-tools"></i>
                                             <span>Atelier</span>
