@@ -77,6 +77,152 @@ def check_room_capacity(room, additional_count=1):
     return True, "Room has capacity"
 
 
+# Namespace for the event-selection token's signature. Changing this value
+# invalidates every outstanding token, which is the intended kill switch.
+EVENT_SELECTION_SALT = 'makeplus.auth.event-selection'
+
+# How long a user has to pick an event before having to log in again.
+EVENT_SELECTION_TOKEN_MAX_AGE = 600  # seconds
+
+
+def make_event_selection_token(user):
+    """
+    Short-lived, opaque token proving "this person just authenticated and is
+    choosing an event".
+
+    Intentionally django.core.signing rather than a SimpleJWT token: a real
+    AccessToken would be accepted by JWTAuthentication on every other
+    endpoint, so a user who has not selected an event yet could call the
+    whole API with it. This value carries no authentication weight anywhere
+    except /auth/select-event/, which validates it by hand.
+    """
+    from django.core import signing
+
+    return signing.dumps(
+        {'user_id': user.id, 'purpose': 'event_selection'},
+        salt=EVENT_SELECTION_SALT,
+    )
+
+
+def read_event_selection_token(token):
+    """
+    Validate an event-selection token and return its User, or None if the
+    token is malformed, tampered with, expired, or not actually an
+    event-selection token.
+    """
+    from django.contrib.auth.models import User
+    from django.core import signing
+
+    try:
+        payload = signing.loads(
+            token,
+            salt=EVENT_SELECTION_SALT,
+            max_age=EVENT_SELECTION_TOKEN_MAX_AGE,
+        )
+    except signing.BadSignature:
+        return None
+
+    if not isinstance(payload, dict) or payload.get('purpose') != 'event_selection':
+        return None
+
+    return User.objects.filter(id=payload.get('user_id'), is_active=True).first()
+
+
+def resolve_role_for_event(user, event):
+    """
+    The user's role *in a specific event*, or None if they have no access to
+    it at all.
+
+    resolve_current_event() answers "which event should this user land on?";
+    this answers "given they picked THIS event, what are they there?". Both
+    membership models have to be checked for the same reason (staff-type
+    roles get a UserEventAssignment row, plain participants never do).
+
+    Returning None is the authorization check for event selection -- never
+    mint a token for an event this returns None for.
+    """
+    from .models import UserEventAssignment, Participant
+
+    assignment = UserEventAssignment.objects.filter(
+        user=user, event=event, is_active=True
+    ).first()
+    if assignment:
+        return assignment.role
+
+    participant = Participant.objects.filter(user=user).first()
+    if participant and participant.registrations.filter(event=event).exists():
+        return 'participant'
+
+    return None
+
+
+def build_event_payload(event, request=None):
+    """
+    The JSON shape the mobile client's EventModel.fromJson expects.
+
+    Shared by the login response, the event-selection response and the
+    available_events list so all three stay identical -- the client parses
+    them with the same code, and a field present in one but missing from
+    another shows up as a blank event screen only in some flows.
+    """
+    if event is None:
+        return None
+
+    def _abs(file_field):
+        if not file_field:
+            return None
+        return request.build_absolute_uri(file_field.url) if request else file_field.url
+
+    return {
+        'id': str(event.id),
+        'name': event.name,
+        'description': event.description,
+        'start_date': event.start_date.isoformat() if event.start_date else None,
+        'end_date': event.end_date.isoformat() if event.end_date else None,
+        'location': event.location,
+        'status': event.status,
+        'logo': _abs(event.logo),
+        'banner': _abs(event.banner),
+        'primary_color': event.primary_color,
+        'programme_file': _abs(event.programme_file),
+        'guide_file': _abs(event.guide_file),
+    }
+
+
+def build_auth_payload(user, event, role, request=None):
+    """
+    Full authenticated response: tokens (with the event_id claim), user,
+    role, event and QR badge.
+
+    Used by both the normal single-event login and the post-selection
+    token mint so the client receives byte-identical shapes either way.
+    """
+    from rest_framework_simplejwt.tokens import RefreshToken
+    from .models import UserProfile
+
+    refresh = RefreshToken.for_user(user)
+    if event:
+        # RefreshToken.access_token copies claims present on the refresh
+        # token's payload at the time it's accessed, and TokenRefreshView
+        # does the same on renewal -- so setting it here is enough for it
+        # to survive refresh too, not just this login.
+        refresh['event_id'] = str(event.id)
+
+    return {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+        },
+        'role': role or 'participant',
+        'event': build_event_payload(event, request),
+        'qr_code': UserProfile.get_qr_for_user(user),
+    }
+
+
 def resolve_current_event(user):
     """
     Resolve the "current" (event, role) pair for a user.

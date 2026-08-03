@@ -316,74 +316,51 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if not user.check_password(password):
             raise serializers.ValidationError('Invalid credentials')
         
-        # Resolve current event BEFORE minting tokens, so event_id can be
-        # embedded as a JWT claim (see resolve_current_event() docstring for
-        # why UserEventAssignment alone misses every plain participant).
-        from .utils import resolve_current_event
-        event, role = resolve_current_event(user)
+        request = self.context.get('request')
 
-        # Generate tokens manually
-        from rest_framework_simplejwt.tokens import RefreshToken
-        refresh = RefreshToken.for_user(user)
-        if event:
-            # RefreshToken.access_token copies claims present on the refresh
-            # token's payload at the time it's accessed, and TokenRefreshView
-            # does the same on renewal — so setting it here is enough for it
-            # to survive refresh too, not just this login.
-            refresh['event_id'] = str(event.id)
+        from .models import Event
+        from .utils import (
+            build_auth_payload,
+            build_event_payload,
+            get_accessible_event_ids,
+            make_event_selection_token,
+            resolve_current_event,
+        )
 
-        data = {
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }
-
-        # Add custom claims
-        data['user'] = {
-            'id': user.id,
-            'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-        }
-
-        data['role'] = role or 'participant'
-        if event:
-            request = self.context.get('request')
-            logo_url = None
-            if event.logo:
-                logo_url = request.build_absolute_uri(event.logo.url) if request else event.logo.url
-            banner_url = None
-            if event.banner:
-                banner_url = request.build_absolute_uri(event.banner.url) if request else event.banner.url
-            programme_url = None
-            if event.programme_file:
-                programme_url = request.build_absolute_uri(event.programme_file.url) if request else event.programme_file.url
-            guide_url = None
-            if event.guide_file:
-                guide_url = request.build_absolute_uri(event.guide_file.url) if request else event.guide_file.url
-
-            data['event'] = {
-                'id': str(event.id),
-                'name': event.name,
-                'description': event.description,
-                'start_date': event.start_date.isoformat() if event.start_date else None,
-                'end_date': event.end_date.isoformat() if event.end_date else None,
-                'location': event.location,
-                'status': event.status,
-                'logo': logo_url,
-                'banner': banner_url,
-                'primary_color': event.primary_color,
-                'programme_file': programme_url,
-                'guide_file': guide_url,
+        # A user attached to more than one event is asked to pick one instead
+        # of having it chosen for them. resolve_current_event() would silently
+        # return whichever row the DB yields first, locking that choice into
+        # the JWT's event_id claim with no way to switch short of a new login
+        # -- which would return the same event again.
+        accessible_event_ids = get_accessible_event_ids(user)
+        if len(accessible_event_ids) > 1:
+            events = Event.objects.filter(id__in=accessible_event_ids).order_by(
+                '-start_date', 'name'
+            )
+            return {
+                'requires_event_selection': True,
+                # Deliberately NOT a JWT: a SimpleJWT access token here would
+                # authenticate every other endpoint, letting a user who has
+                # not chosen an event yet use the whole API. This is an
+                # opaque signed value that only /auth/select-event/ accepts.
+                'temp_token': make_event_selection_token(user),
+                'available_events': [
+                    build_event_payload(event, request) for event in events
+                ],
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                },
             }
-        else:
-            data['event'] = None
 
-        # Get QR code data automatically
-        from .models import UserProfile
-        qr_data = UserProfile.get_qr_for_user(user)
-        data['qr_code'] = qr_data
-
-        return data
+        # Single event (or none): resolve it BEFORE minting tokens so event_id
+        # can be embedded as a JWT claim (see resolve_current_event()'s
+        # docstring for why UserEventAssignment alone misses plain
+        # participants).
+        event, role = resolve_current_event(user)
+        return build_auth_payload(user, event, role, request)
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):

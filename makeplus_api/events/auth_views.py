@@ -8,10 +8,15 @@ Supports both:
 
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.shortcuts import render, redirect
 from django.views import View
 from django.contrib import messages
 from django.http import JsonResponse
+from rest_framework import status
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from .models import Event
 from .login_code_service import verify_login_code, mark_code_as_used, issue_email_login_code
 
@@ -352,48 +357,160 @@ class MarkNotificationReadView(View):
         })
 
 
-class SelectEventView(View):
-    """Select event view"""
-    def get(self, request):
-        if not request.user.is_authenticated:
-            return redirect('events:login')
-        
-        from events.models import Event
-        events = Event.objects.all()
-        
-        return render(request, 'events/select_event.html', {
-            'events': events
-        })
+class SelectEventView(APIView):
+    """
+    Second half of login for users attached to more than one event.
 
+    POST /api/auth/select-event/
+        Authorization: Bearer <temp_token from the login response>
+        {"event_id": "<uuid>"}
 
-class SwitchEventView(View):
-    """Switch to different event"""
+    Returns the same payload as a normal single-event login (access +
+    refresh with the event_id claim, user, role, event, qr_code), so the
+    client can treat both paths identically.
+
+    authentication_classes is deliberately empty: the temp token is a
+    django.core.signing value, not a JWT (see utils.make_event_selection_token
+    for why). Leaving SimpleJWT's JWTAuthentication in place would make it
+    reject the Authorization header as a malformed token and return 401
+    before this view ever runs.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        if not request.user.is_authenticated:
-            return JsonResponse({
-                'success': False,
-                'message': 'Authentication required'
-            }, status=401)
-        
-        event_id = request.POST.get('event_id')
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'Event switched successfully'
-        })
+        from events.models import Event
+        from events.utils import (
+            build_auth_payload,
+            read_event_selection_token,
+            resolve_role_for_event,
+        )
+
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.lower().startswith('bearer '):
+            return Response(
+                {'detail': 'Temporary token required.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        user = read_event_selection_token(auth_header[7:].strip())
+        if user is None:
+            return Response(
+                {'detail': 'Invalid or expired selection token. Please log in again.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        event_id = request.data.get('event_id')
+        if not event_id:
+            return Response(
+                {'detail': 'event_id is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            event = Event.objects.filter(id=event_id).first()
+        except (ValueError, ValidationError):
+            # Non-UUID event_id -- filter() raises rather than returning empty.
+            event = None
+        if event is None:
+            return Response(
+                {'detail': 'Event not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # The authorization check: never mint a token for an event this user
+        # is not actually attached to, whatever they asked for.
+        role = resolve_role_for_event(user, event)
+        if role is None:
+            return Response(
+                {'detail': 'You do not have access to this event.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        return Response(build_auth_payload(user, event, role, request))
 
 
-class MyEventsView(View):
-    """List user's events"""
+class SwitchEventView(APIView):
+    """
+    Switch the active event for an already-signed-in user, without making
+    them log out and back in.
+
+    POST /api/auth/switch-event/  {"event_id": "<uuid>"}
+    with a normal access token. Returns a fresh token pair carrying the new
+    event_id claim.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from events.models import Event
+        from events.utils import build_auth_payload, resolve_role_for_event
+
+        event_id = request.data.get('event_id')
+        if not event_id:
+            return Response(
+                {'detail': 'event_id is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            event = Event.objects.filter(id=event_id).first()
+        except (ValueError, ValidationError):
+            event = None
+        if event is None:
+            return Response(
+                {'detail': 'Event not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        role = resolve_role_for_event(request.user, event)
+        if role is None:
+            return Response(
+                {'detail': 'You do not have access to this event.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        return Response(build_auth_payload(request.user, event, role, request))
+
+
+class MyEventsView(APIView):
+    """
+    GET /api/auth/my-events/ -- every event the signed-in user can access,
+    with their role in each and which one is currently active.
+
+    Backs an in-app event switcher. Uses get_accessible_event_ids so plain
+    participants are included: they never get a UserEventAssignment row, so
+    querying that table alone (as this view previously did) returned an
+    empty list for the majority of users.
+    """
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
-        if not request.user.is_authenticated:
-            return redirect('events:login')
-        
-        from events.models import UserEventAssignment
-        assignments = UserEventAssignment.objects.filter(user=request.user)
-        
-        return render(request, 'events/my_events.html', {
-            'assignments': assignments
+        from events.models import Event
+        from events.utils import (
+            build_event_payload,
+            get_accessible_event_ids,
+            resolve_role_for_event,
+        )
+
+        event_ids = get_accessible_event_ids(request.user)
+        events = Event.objects.filter(id__in=event_ids).order_by('-start_date', 'name')
+
+        current_event_id = None
+        event_context = getattr(request, 'event_context', None)
+        if event_context is not None:
+            current_event_id = str(event_context.id)
+
+        return Response({
+            'count': events.count(),
+            'current_event_id': current_event_id,
+            'events': [
+                {
+                    **build_event_payload(event, request),
+                    'role': resolve_role_for_event(request.user, event),
+                    'is_current': str(event.id) == current_event_id,
+                }
+                for event in events
+            ],
         })
 
 
