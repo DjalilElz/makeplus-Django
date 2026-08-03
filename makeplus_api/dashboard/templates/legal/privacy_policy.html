@@ -1,0 +1,90 @@
+{% extends 'legal/_legal_base.html' %}
+
+{% block title %}Politique de confidentialité — MakePlus{% endblock %}
+{% block heading %}Politique de confidentialité{% endblock %}
+
+{% block content %}
+<p class="meta">Dernière mise à jour : 2026</p>
+
+<p style="font-size:0.94rem; line-height:1.65; color:#444; margin-bottom:24px;">
+    MakePlus respecte votre vie privée. Cette page explique quelles données
+    l'application mobile collecte, pourquoi, et comment les gérer. Elle
+    reprend la politique consultable dans l'application
+    (Paramètres&nbsp;&gt;&nbsp;Confidentialité).
+</p>
+
+<div class="section">
+    <h2><i class="bi bi-person-badge"></i> Données de compte</h2>
+    <p>Lors de l'inscription et de la connexion, nous traitons votre prénom,
+    nom et adresse e-mail, ainsi qu'un mot de passe stocké de façon sécurisée
+    (chiffré, jamais en clair). Ces informations servent à créer votre compte
+    et à vous authentifier.</p>
+</div>
+
+<div class="section">
+    <h2><i class="bi bi-calendar-event"></i> Données d'événement et d'inscription</h2>
+    <p>Votre compte est associé aux événements auxquels vous participez :
+    sessions suivies, salle assignée, badge et code QR de participant. Ces
+    données sont gérées par les organisateurs de l'événement concerné et
+    utilisées pour le contrôle d'accès et la gestion de votre participation.</p>
+</div>
+
+<div class="section">
+    <h2><i class="bi bi-qr-code-scan"></i> Caméra</h2>
+    <p>L'application demande l'accès à la caméra uniquement pour scanner les
+    codes QR des badges (contrôle d'accès aux salles et sessions). Le flux
+    vidéo est traité localement sur votre appareil pour décoder le code QR :
+    il n'est ni enregistré, ni transmis, ni stocké.</p>
+</div>
+
+<div class="section">
+    <h2><i class="bi bi-phone-lock"></i> Données techniques et stockage local</h2>
+    <p>Un jeton d'authentification (JWT) est stocké de façon sécurisée et
+    chiffrée sur votre appareil pour garder votre session active. Certaines
+    préférences non sensibles (dernier événement consulté, etc.) sont
+    conservées localement sur l'appareil. Toutes les communications avec nos
+    serveurs se font exclusivement en HTTPS.</p>
+</div>
+
+<div class="section">
+    <h2><i class="bi bi-slash-circle"></i> Ce que nous ne faisons pas</h2>
+    <p>MakePlus n'utilise aucun outil d'analyse ou de suivi publicitaire, ne
+    partage aucune donnée à des fins commerciales ou publicitaires, et ne
+    collecte pas votre position géographique.</p>
+</div>
+
+<div class="section">
+    <h2><i class="bi bi-people"></i> Partage des données</h2>
+    <p>Vos données sont accessibles aux organisateurs de l'événement auquel
+    vous êtes inscrit (dans la mesure nécessaire à la gestion de l'événement)
+    et ne sont partagées avec aucun tiers en dehors de ce cadre.</p>
+</div>
+
+<div class="section">
+    <h2><i class="bi bi-shield-check"></i> Vos droits</h2>
+    <p>Vous pouvez consulter et modifier votre prénom et votre nom depuis
+    Paramètres&nbsp;&gt;&nbsp;Profil. Vous pouvez supprimer définitivement
+    votre compte et les données associées depuis
+    Paramètres&nbsp;&gt;&nbsp;Compte&nbsp;&gt;&nbsp;Supprimer mon compte, ou
+    en suivant la procédure décrite sur la page
+    <a href="{% url 'legal_account_deletion' %}">Suppression de compte</a>.</p>
+</div>
+
+<div class="section">
+    <h2><i class="bi bi-emoji-smile"></i> Données des mineurs</h2>
+    <p>MakePlus n'est pas destiné aux enfants et ne collecte pas sciemment de
+    données concernant des mineurs.</p>
+</div>
+
+<div class="section">
+    <h2><i class="bi bi-arrow-repeat"></i> Modifications</h2>
+    <p>Cette politique peut être mise à jour ; la version en vigueur est
+    toujours consultable sur cette page et dans l'application.</p>
+</div>
+
+<div class="callout">
+    <p><i class="bi bi-envelope"></i>&nbsp; Pour toute question concernant vos
+    données, contactez-nous à
+    <a href="mailto:support@makeplus.com">support@makeplus.com</a>.</p>
+</div>
+{% endblock %}

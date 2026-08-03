@@ -12,6 +12,7 @@ from rest_framework_simplejwt.views import (
 )
 from events.serializers import CustomTokenObtainPairView
 from dashboard.views import public_form_view
+from dashboard import views_legal
 from dashboard.views_eposter_public import public_eposter_form_view
 from dashboard.views_eposter_final import eposter_final_submission_form, communication_orale_final_submission_form, eposter_public_gallery
 
@@ -55,6 +56,12 @@ urlpatterns = [
     # Email and Form Tracking
     path('track/', include('dashboard.urls_tracking')),
     
+    # Public legal pages. Required by the Play Store listing and linked from
+    # the Data Safety form -- both must stay reachable without auth and
+    # without installing the app. See dashboard/views_legal.py.
+    path('legal/privacy/', views_legal.privacy_policy, name='legal_privacy_policy'),
+    path('legal/account-deletion/', views_legal.account_deletion, name='legal_account_deletion'),
+
     # Public Forms
     path('forms/<slug:slug>/', public_form_view, name='public_form'),
     
