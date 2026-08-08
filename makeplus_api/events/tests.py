@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
@@ -10,10 +11,11 @@ from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from .models import (
     Event, Participant, ParticipantEventRegistration, Room, Session,
     SessionQuestion, SignUpVerification, FormRegistrationVerification,
-    UserEventAssignment,
+    PasswordResetVerification, UserEventAssignment,
 )
 from .form_validation_service import get_or_create_user_by_email, verify_form_registration
 from .signup_service import send_signup_verification_code, verify_signup_code
+from .password_reset_service import request_password_reset, verify_password_reset
 from dashboard.models_form import FormConfiguration
 
 
@@ -48,6 +50,17 @@ class PublicAuthEndpointTests(TestCase):
             'email': 'someone@example.com',
             'form_slug': 'does-not-exist',
             'form_data': {},
+        }, format='json')
+
+        self.assertNotEqual(response.status_code, 401)
+
+    def test_password_reset_request_ignores_a_bad_bearer_token(self):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION='Bearer not-a-real-token')
+
+        response = client.post('/api/auth/password-reset/request/', {
+            'email': 'someone@example.com',
+            'new_password': 'irrelevant1234',
         }, format='json')
 
         self.assertNotEqual(response.status_code, 401)
@@ -147,6 +160,94 @@ class SignupClaimTests(TestCase):
         self.assertTrue(user.has_usable_password())
         self.assertEqual(User.objects.filter(email='p2@example.com').count(), 1)
         self.assertTrue(Participant.objects.filter(user=user).exists())
+
+
+class PasswordResetTests(TestCase):
+    """
+    Self-service "mot de passe oublie" flow: request a code, verify it,
+    new password takes effect and old sessions get killed.
+    """
+
+    def test_request_refuses_unknown_email(self):
+        success, message, _wait = request_password_reset(
+            email='nobody@example.com', new_password='newpass1234',
+        )
+        self.assertFalse(success)
+        self.assertEqual(message, 'Aucun compte trouvé avec cet email')
+
+    def test_request_refuses_placeholder_account(self):
+        """
+        A placeholder (event-registration-only, no usable password) has
+        nothing to reset -- that email should go through signup instead.
+        """
+        placeholder = User.objects.create(username='placeholder3', email='p3@example.com')
+        placeholder.set_unusable_password()
+        placeholder.save()
+
+        success, message, _wait = request_password_reset(
+            email='p3@example.com', new_password='newpass1234',
+        )
+        self.assertFalse(success)
+        self.assertEqual(message, 'Aucun compte trouvé avec cet email')
+
+    def test_request_rejects_weak_password(self):
+        User.objects.create_user(username='weak', email='weak@example.com', password='oldpass1234')
+        success, message, _wait = request_password_reset(
+            email='weak@example.com', new_password='1234',
+        )
+        self.assertFalse(success)
+
+    def test_request_succeeds_for_real_account(self):
+        User.objects.create_user(username='real2', email='real2@example.com', password='oldpass1234')
+        success, message, _wait = request_password_reset(
+            email='real2@example.com', new_password='brandnewpass1234',
+        )
+        self.assertTrue(success, message)
+
+    @patch.object(PasswordResetVerification, 'generate_code', return_value='777888')
+    def test_verify_applies_new_password_and_rejects_old_one(self, _mock_code):
+        user = User.objects.create_user(username='resetme', email='resetme@example.com', password='oldpass1234')
+
+        code, _verification = PasswordResetVerification.create_verification(
+            email='resetme@example.com',
+            new_password_hash=make_password('brandnewpass1234'),
+        )
+
+        success, message = verify_password_reset(email='resetme@example.com', code=code)
+        self.assertTrue(success, message)
+
+        user.refresh_from_db()
+        self.assertTrue(user.check_password('brandnewpass1234'))
+        self.assertFalse(user.check_password('oldpass1234'))
+
+    def test_verify_rejects_invalid_code(self):
+        User.objects.create_user(username='resetme2', email='resetme2@example.com', password='oldpass1234')
+        PasswordResetVerification.create_verification(
+            email='resetme2@example.com',
+            new_password_hash=make_password('brandnewpass1234'),
+        )
+
+        success, message = verify_password_reset(email='resetme2@example.com', code='000000')
+        self.assertFalse(success)
+
+    @patch.object(PasswordResetVerification, 'generate_code', return_value='111222')
+    def test_verify_blacklists_existing_sessions(self, _mock_code):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+
+        user = User.objects.create_user(username='resetme3', email='resetme3@example.com', password='oldpass1234')
+        old_refresh = RefreshToken.for_user(user)
+
+        code, _verification = PasswordResetVerification.create_verification(
+            email='resetme3@example.com',
+            new_password_hash=make_password('brandnewpass1234'),
+        )
+        success, message = verify_password_reset(email='resetme3@example.com', code=code)
+        self.assertTrue(success, message)
+
+        self.assertTrue(
+            BlacklistedToken.objects.filter(token__jti=old_refresh['jti']).exists()
+        )
 
 
 class SessionQuestionFlowTests(TestCase):

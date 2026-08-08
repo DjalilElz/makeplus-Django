@@ -9,6 +9,7 @@ from . import views_registration
 from . import auth_views
 from . import api_views  # REST API views for mobile app
 from . import signup_views  # Sign up views
+from . import password_reset_views  # Password reset views
 from . import form_validation_views  # Form validation views
 
 # Create router and register viewsets
@@ -41,7 +42,12 @@ urlpatterns = [
     path('auth/signup/request/', signup_views.SignUpRequestView.as_view(), name='signup_request'),
     path('auth/signup/verify/', signup_views.SignUpVerifyView.as_view(), name='signup_verify'),
     path('auth/signup/resend/', signup_views.SignUpResendView.as_view(), name='signup_resend'),
-    
+
+    # Password reset endpoints (mobile app)
+    path('auth/password-reset/request/', password_reset_views.PasswordResetRequestView.as_view(), name='password_reset_request'),
+    path('auth/password-reset/verify/', password_reset_views.PasswordResetVerifyView.as_view(), name='password_reset_verify'),
+    path('auth/password-reset/resend/', password_reset_views.PasswordResetResendView.as_view(), name='password_reset_resend'),
+
     # Form validation endpoints
     path('forms/validate/', form_validation_views.FormValidationVerifyView.as_view(), name='form_validate'),
     path('forms/validate/resend/', form_validation_views.FormValidationResendView.as_view(), name='form_validate_resend'),
