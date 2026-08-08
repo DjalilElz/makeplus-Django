@@ -17,6 +17,42 @@ from .signup_service import send_signup_verification_code, verify_signup_code
 from dashboard.models_form import FormConfiguration
 
 
+class PublicAuthEndpointTests(TestCase):
+    """
+    Signup/form-validation endpoints must work for a device carrying a
+    stale or invalid access_token (e.g. left over from a previous, since-
+    expired session). JWTAuthentication runs globally by default and
+    401s on a bad token before permission_classes is even consulted, so
+    these views need authentication_classes = [] -- permission_classes
+    alone isn't enough. See signup_views.py / form_validation_views.py.
+    """
+
+    def test_signup_request_ignores_a_bad_bearer_token(self):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION='Bearer not-a-real-token')
+
+        response = client.post('/api/auth/signup/request/', {
+            'email': 'freshsignup@example.com',
+            'first_name': 'Fresh',
+            'last_name': 'Signup',
+            'password': 'testpass12345',
+        }, format='json')
+
+        self.assertNotEqual(response.status_code, 401)
+
+    def test_form_validation_resend_ignores_a_bad_bearer_token(self):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION='Bearer not-a-real-token')
+
+        response = client.post('/api/forms/validate/resend/', {
+            'email': 'someone@example.com',
+            'form_slug': 'does-not-exist',
+            'form_data': {},
+        }, format='json')
+
+        self.assertNotEqual(response.status_code, 401)
+
+
 class PlaceholderAccountTests(TestCase):
     """
     Registering for an event no longer requires an existing mobile-app

@@ -14,6 +14,9 @@ class FormValidationVerifyView(APIView):
     Verify form registration code
     POST /api/forms/validate/
     """
+    # See signup_views.py -- a stale Authorization header must not 401
+    # this public endpoint before permission_classes is even checked.
+    authentication_classes = []
     permission_classes = []
     renderer_classes = [JSONRenderer]
     
@@ -70,6 +73,7 @@ class FormValidationResendView(APIView):
     Resend form registration validation code
     POST /api/forms/validate/resend/
     """
+    authentication_classes = []
     permission_classes = []
     renderer_classes = [JSONRenderer]
     

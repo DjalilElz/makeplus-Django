@@ -18,6 +18,13 @@ class SignUpRequestView(APIView):
     POST /api/auth/signup/request/
     Body: email, first_name, last_name, password
     """
+    # A stale/expired access_token left over in the mobile client's storage
+    # (e.g. from a previous session) must not block signing up a new
+    # account: JWTAuthentication rejects bad tokens with 401 before
+    # permission_classes is even consulted, regardless of AllowAny. This
+    # view never reads request.user, so authentication can be skipped
+    # entirely rather than just made optional.
+    authentication_classes = []
     permission_classes = []
     renderer_classes = [JSONRenderer]
     
@@ -75,6 +82,7 @@ class SignUpVerifyView(APIView):
     POST /api/auth/signup/verify/
     Body: email, code
     """
+    authentication_classes = []
     permission_classes = []
     renderer_classes = [JSONRenderer]
     
@@ -134,6 +142,7 @@ class SignUpResendView(APIView):
     POST /api/auth/signup/resend/
     Body: email, first_name, last_name, password
     """
+    authentication_classes = []
     permission_classes = []
     renderer_classes = [JSONRenderer]
     
