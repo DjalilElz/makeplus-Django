@@ -867,12 +867,12 @@ class SignUpVerification(models.Model):
     def verify_code(self, code):
         """Verify if provided code matches and is valid"""
         if self.is_used:
-            return False, "Code already used"
+            return False, "Ce code a déjà été utilisé"
         if self.is_expired():
-            return False, "Code expired"
+            return False, "Ce code a expiré"
         if self.code_hash != self.hash_code(code):
-            return False, "Invalid code"
-        return True, "Code verified"
+            return False, "Code invalide"
+        return True, "Code vérifié"
     
     def mark_as_used(self, ip_address=None, user_agent=''):
         """Mark code as used"""

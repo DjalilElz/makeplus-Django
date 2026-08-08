@@ -32,12 +32,12 @@ def send_signup_verification_code(email, first_name, password, last_name, ip_add
     # Only a real, already-claimed account blocks a new signup.
     existing = User.objects.filter(email=email).first()
     if existing and existing.has_usable_password():
-        return False, "Email already registered", None
-    
+        return False, "Cet email est déjà utilisé par un compte existant", None
+
     # Check if can resend
     can_resend, wait_seconds = SignUpVerification.can_resend(email)
     if not can_resend:
-        return False, f"Please wait {wait_seconds} seconds before requesting a new code", wait_seconds
+        return False, f"Veuillez patienter {wait_seconds} secondes avant de demander un nouveau code", wait_seconds
     
     # Hash the password for temporary storage
     password_hash = make_password(password)
@@ -93,9 +93,9 @@ def send_signup_verification_code(email, first_name, password, last_name, ip_add
     )
     
     if success:
-        return True, "Verification code sent to your email", None
+        return True, "Code de vérification envoyé à votre email", None
     else:
-        return False, f"Failed to send email: {error}", None
+        return False, f"Échec de l'envoi de l'email : {error}", None
 
 
 def verify_signup_code(email, code, ip_address=None, user_agent=''):
@@ -116,21 +116,21 @@ def verify_signup_code(email, code, ip_address=None, user_agent=''):
     # claimed below instead.
     existing = User.objects.filter(email=email).first()
     if existing and existing.has_usable_password():
-        return False, None, "Email already registered"
+        return False, None, "Cet email est déjà utilisé par un compte existant"
 
     # Find valid verification code
     code_hash = SignUpVerification.hash_code(code)
-    
+
     try:
         verification = SignUpVerification.objects.filter(
             email=email,
             code_hash=code_hash,
             is_used=False
         ).order_by('-created_at').first()
-        
+
         if not verification:
-            return False, None, "Invalid or expired code"
-        
+            return False, None, "Code invalide ou expiré"
+
         # Verify code
         is_valid, message = verification.verify_code(code)
         if not is_valid:
@@ -143,7 +143,7 @@ def verify_signup_code(email, code, ip_address=None, user_agent=''):
         password_hash = signup_data.get('password_hash', '')
         
         if not all([first_name, last_name, password_hash]):
-            return False, None, "Invalid verification data. Please request a new code."
+            return False, None, "Données de vérification invalides. Veuillez demander un nouveau code."
 
         from .models import Participant, UserProfile
 
@@ -195,10 +195,10 @@ def verify_signup_code(email, code, ip_address=None, user_agent=''):
         # Mark code as used
         verification.mark_as_used(ip_address=ip_address, user_agent=user_agent)
 
-        return True, user, "Account created successfully"
-        
+        return True, user, "Compte créé avec succès"
+
     except Exception as e:
-        return False, None, f"Error creating account: {str(e)}"
+        return False, None, f"Erreur lors de la création du compte : {str(e)}"
 
 
 def resend_signup_code(email, first_name, password, last_name, ip_address=None, user_agent=''):

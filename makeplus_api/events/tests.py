@@ -106,7 +106,7 @@ class SignupClaimTests(TestCase):
     """
     Signing up in the app with an email that already has a placeholder
     account (from event registration) should claim it, not refuse with
-    "Email already registered" or create a duplicate account.
+    "Cet email est déjà utilisé..." or create a duplicate account.
     """
 
     def test_send_code_refuses_only_for_real_accounts(self):
@@ -115,7 +115,7 @@ class SignupClaimTests(TestCase):
             email='real@example.com', first_name='X', password='pw', last_name='Y',
         )
         self.assertFalse(success)
-        self.assertEqual(message, 'Email already registered')
+        self.assertEqual(message, 'Cet email est déjà utilisé par un compte existant')
 
     def test_send_code_allows_placeholder_accounts(self):
         placeholder = User.objects.create(username='placeholder', email='placeholder@example.com')
