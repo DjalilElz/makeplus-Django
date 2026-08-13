@@ -731,6 +731,53 @@ class BlocsPublicFormTests(TestCase):
         self.assertContains(response, '300.00')
 
 
+class PublicFormNeverCachedTests(TestCase):
+    """
+    public_form_view sits behind the site-wide page cache
+    (UpdateCacheMiddleware, CACHE_MIDDLEWARE_SECONDS=300 in settings.py).
+    Its GET response embeds a fresh CSRF token on every render via
+    {% csrf_token %} -- if that response were ever cached, every visitor
+    hitting the cache within the window would submit against a frozen
+    token from someone else's page load and get a 403 "CSRF token from
+    POST incorrect", silently dropping real registrations. This actually
+    happened in production (reported directly against
+    /forms/ASCO-2026-registrations/).
+
+    Django's page-cache middleware decides whether to cache purely by
+    looking for a numeric max-age token (django.utils.cache.get_max_age)
+    -- it does NOT honor a bare 'no-cache, no-store, must-revalidate'
+    Cache-Control string the way a browser would. Only @never_cache
+    (which sets max-age=0) actually stops it, which is why this asserts
+    the header directly rather than just checking the page renders.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin2', password='x', is_staff=True)
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        self.form = FormConfiguration.objects.create(
+            name="Reg", slug="reg2", event=self.event, created_by=self.admin,
+            fields_config=[{'name': 'email', 'label': 'Email', 'type': 'email', 'required': True}],
+        )
+
+    def test_response_carries_max_age_zero(self):
+        from django.utils.cache import get_max_age
+
+        response = self.client.get(reverse('public_form', args=[self.form.slug]))
+        self.assertEqual(get_max_age(response), 0)
+
+    def test_closed_form_response_also_carries_max_age_zero(self):
+        from django.utils.cache import get_max_age
+
+        self.form.is_active = False
+        self.form.save(update_fields=['is_active'])
+
+        response = self.client.get(reverse('public_form', args=[self.form.slug]))
+        self.assertEqual(get_max_age(response), 0)
+
+
 class BlocsAdminTests(TestCase):
     def setUp(self):
         self.admin = User.objects.create_user(username='admin', password='x', is_staff=True)
