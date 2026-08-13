@@ -594,7 +594,10 @@
                                     </button>
                                     {% else %}
                                     <button type="button" class="btn-view-row" title="Modifier les blocs"
-                                            onclick="openBlocsEditor('{{ order.id }}', '{{ order.full_name|default:order.email|escapejs }}', {{ order.blocs_editor_selection_json|safe }})">
+                                            data-order-id="{{ order.id }}"
+                                            data-person-name="{{ order.full_name|default:order.email }}"
+                                            data-selection='{{ order.blocs_editor_selection_json|safe }}'
+                                            onclick="openBlocsEditor(this)">
                                         <i class="bi bi-bag-plus"></i>
                                     </button>
                                     {% endif %}
@@ -1204,13 +1207,24 @@
             if (saveBtn) saveBtn.disabled = lines.length === 0;
         }
 
-        window.openBlocsEditor = function (orderId, personName, selection) {
-            currentOrderId = orderId;
-            document.getElementById('blocs-editor-person-name').textContent = personName || '';
+        window.openBlocsEditor = function (button) {
+            currentOrderId = button.getAttribute('data-order-id');
+            document.getElementById('blocs-editor-person-name').textContent = button.getAttribute('data-person-name') || '';
             document.getElementById('blocs-editor-error').style.display = 'none';
 
-            var selectedItems = (selection && selection.items) || [];
-            var selectedSessions = (selection && selection.sessions) || [];
+            // Read from the button's own data-selection rather than a raw
+            // JS object literal built by the template: embedding json.dumps()
+            // output (double-quoted) directly inside a double-quoted onclick="..."
+            // attribute breaks HTML attribute parsing at the first internal
+            // quote and corrupts every script tag after it on the page.
+            var selection = {};
+            try {
+                selection = JSON.parse(button.getAttribute('data-selection') || '{}');
+            } catch (e) {
+                selection = {};
+            }
+            var selectedItems = selection.items || [];
+            var selectedSessions = selection.sessions || [];
             modalEl.querySelectorAll('.bloc-choice').forEach(function (el) {
                 var isSession = el.name === 'sessions';
                 var picked = isSession ? selectedSessions.indexOf(el.value) !== -1 : selectedItems.indexOf(el.value) !== -1;
