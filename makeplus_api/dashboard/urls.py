@@ -201,6 +201,7 @@ urlpatterns = [
     path('events/<uuid:event_id>/my-submissions/export/', views_event_owner.event_owner_export_excel, name='event_owner_export_excel'),
     path('my-submissions/<uuid:order_id>/status/', views_event_owner.registration_status_save, name='registration_status_save'),
     path('my-submissions/<uuid:order_id>/notes/', views_event_owner.registration_notes_save, name='registration_notes_save'),
+    path('my-submissions/<uuid:order_id>/blocs/', views_event_owner.registration_order_blocs_save, name='registration_order_blocs_save'),
     path('my-submissions/<uuid:order_id>/send-payment-link/', views_event_owner.send_payment_link_email, name='send_payment_link_email'),
     path('my-submissions/<uuid:order_id>/delete/', views_event_owner.registration_delete, name='registration_delete'),
 

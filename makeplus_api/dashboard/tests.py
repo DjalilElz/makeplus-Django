@@ -1231,3 +1231,123 @@ class EventOwnerSubmissionsTests(TestCase):
         response = self.client.post(reverse('dashboard:registration_delete', args=[order.id]))
         self.assertEqual(response.status_code, 403)
         self.assertTrue(RegistrationOrder.objects.filter(id=order.id).exists())
+
+
+class RegistrationOrderBlocsEditTests(TestCase):
+    """
+    The event owner submissions page's "edit blocs" popup -- lets an owner
+    change what an already-submitted (not-yet-confirmed) registration
+    picked, recomputed through the exact same compute_order() the public
+    registration form itself uses.
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username='owner2', email='owner2@example.com', password='x')
+        self.stranger = User.objects.create_user(username='stranger2', password='x')
+        self.event = Event.objects.create(
+            name="Bloc Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        UserEventAssignment.objects.create(
+            user=self.owner, event=self.event, role='event_owner', is_active=True,
+        )
+        self.config = EventBlocConfig.objects.create(
+            event=self.event, show_status=True, show_restauration=True,
+            status_select_mode='single', restauration_select_mode='single',
+            reduction_by_blocs_enabled=True, reduction_2_blocs=Decimal('10'), reduction_3_blocs=Decimal('20'),
+        )
+        self.status_a = BlocItem.objects.create(event=self.event, bloc='status', name='Membre', price=Decimal('0'))
+        self.dinner = BlocItem.objects.create(event=self.event, bloc='restauration', name='Dinner', price=Decimal('1000'))
+        self.lunch = BlocItem.objects.create(event=self.event, bloc='restauration', name='Lunch', price=Decimal('500'))
+        self.order = RegistrationOrder.objects.create(
+            event=self.event, full_name='Karim B', email='k2@example.com',
+            items_snapshot=[
+                {'bloc': 'status', 'type': 'item', 'id': self.status_a.id, 'name': 'Membre', 'price': '0'},
+            ],
+            total_before_reduction=Decimal('0'), total_after_reduction=Decimal('0'),
+        )
+
+    def _save(self, user, order, data):
+        self.client.force_login(user)
+        return self.client.post(reverse('dashboard:registration_order_blocs_save', args=[order.id]), data)
+
+    def test_page_renders_editor_button_and_shared_modal(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.event.id]))
+        self.assertContains(response, 'blocs-editor-modal')
+        self.assertContains(response, 'openBlocsEditor')
+        self.assertContains(response, 'Dinner')
+
+    def test_owner_can_add_a_bloc_item_and_total_recomputes(self):
+        response = self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+            'items_restauration': [str(self.dinner.id)],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ok'])
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.total_before_reduction, Decimal('1000.00'))
+        # Only Restauration is a real second bloc here (Status never counts) --
+        # not enough for the 2-bloc discount tier, matches compute_order.
+        self.assertEqual(self.order.total_after_reduction, Decimal('1000.00'))
+        item_ids = {it['id'] for it in self.order.items_snapshot}
+        self.assertEqual(item_ids, {self.status_a.id, self.dinner.id})
+
+    def test_matches_compute_order_directly(self):
+        """
+        The view's math must be compute_order()'s math, not a
+        reimplementation of it -- assert the two agree exactly rather than
+        hardcoding an expected total that could silently drift from
+        whatever compute_order actually does.
+        """
+        self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+            'items_restauration': [str(self.lunch.id)],
+        })
+        self.order.refresh_from_db()
+
+        expected = compute_order(
+            event=self.event, config=self.config,
+            selected_item_ids=[str(self.status_a.id), str(self.lunch.id)],
+            selected_session_ids=[],
+            on_date=timezone.now().date(),
+        )
+        self.assertEqual(self.order.total_after_reduction, expected['total_after_reduction'])
+        self.assertEqual(self.order.total_before_reduction, expected['total_before_reduction'])
+
+    def test_status_is_mandatory(self):
+        response = self._save(self.owner, self.order, {
+            'items_restauration': [str(self.dinner.id)],
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['ok'])
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.total_after_reduction, Decimal('0'))  # unchanged
+
+    def test_single_select_bloc_rejects_multiple_picks(self):
+        response = self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+            'items_restauration': [str(self.dinner.id), str(self.lunch.id)],
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['ok'])
+
+    def test_cannot_edit_an_already_confirmed_order(self):
+        self.order.status = 'approved'
+        self.order.save(update_fields=['status'])
+
+        response = self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+            'items_restauration': [str(self.dinner.id)],
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['ok'])
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.total_after_reduction, Decimal('0'))  # unchanged
+
+    def test_stranger_cannot_edit_blocs(self):
+        response = self._save(self.stranger, self.order, {
+            'items_status': [str(self.status_a.id)],
+        })
+        self.assertEqual(response.status_code, 403)

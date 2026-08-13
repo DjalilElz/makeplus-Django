@@ -10,6 +10,7 @@ Reserved / To Contact / To Recontact / Confirmed / Cancelled -- see
 caisse.services for what Confirmed/Cancelled actually do), and delete a
 registration.
 """
+import json
 from collections import Counter
 from decimal import Decimal
 
@@ -27,7 +28,9 @@ from caisse.services import cancel_registration_order, confirm_registration_orde
 from dashboard.email_sender import send_email
 from dashboard.models_email import get_event_email_template
 from events.models import Event, ParticipantEventRegistration, UserEventAssignment
+from .blocs_service import compute_order
 from .models_blocs import RegistrationOrder
+from .views_blocs import get_public_bloc_context
 
 BLOC_KEYS = ('status', 'restauration', 'workshops', 'social_event')
 
@@ -88,6 +91,17 @@ def _bloc_names(order):
 
 def _bloc_item_ids(order, bloc):
     return {str(it.get('id')) for it in order.items_snapshot if it.get('bloc') == bloc}
+
+
+def _blocs_editor_selection_json(order):
+    """
+    This order's current selection, split into the two shapes the blocs
+    editor modal's form fields expect (BlocItem ids vs. Session ids) --
+    used to pre-check the right boxes when an owner opens the modal.
+    """
+    items = [str(it.get('id')) for it in order.items_snapshot if it.get('type') == 'item']
+    sessions = [str(it.get('id')) for it in order.items_snapshot if it.get('type') == 'session']
+    return json.dumps({'items': items, 'sessions': sessions})
 
 
 @never_cache
@@ -177,6 +191,7 @@ def event_owner_submissions(request, event_id):
         )
         order.duplicate_count = email_counts.get((order.email or '').strip().lower(), 0)
         order.is_duplicate_email = order.duplicate_count > 1
+        order.blocs_editor_selection_json = _blocs_editor_selection_json(order)
         total_revenue += order.total_after_reduction
         status_counts[order.status] = status_counts.get(order.status, 0) + 1
         for it in order.items_snapshot:
@@ -202,8 +217,15 @@ def event_owner_submissions(request, event_id):
     ).count()
     show_events_link = request.user.is_staff or request.user.is_superuser or owner_events_count > 1
 
+    # Same helper the public registration form itself uses -- the "edit
+    # blocs" modal renders this exact catalog/pricing data, so what an
+    # owner sees and picks from is byte-identical to what a participant
+    # sees, not a separately-maintained lookalike.
+    bloc_context = get_public_bloc_context(event)
+
     context = {
         'event': event,
+        'bloc_context': bloc_context,
         'orders': orders,
         'status': status,
         'status_label': STATUS_LABELS.get(status, ''),
@@ -385,6 +407,89 @@ def registration_notes_save(request, order_id):
 
     order.admin_notes = request.POST.get('admin_notes', '')
     order.save(update_fields=['admin_notes'])
+    return JsonResponse({'ok': True})
+
+
+@never_cache
+@login_required
+@require_POST
+def registration_order_blocs_save(request, order_id):
+    """
+    Edit an existing registration's bloc selections (event owner "add more
+    things" flow) -- recomputed through the exact same compute_order() the
+    public registration form itself calls in finalize_paid_registration(),
+    so the pricing/discount math is guaranteed identical, not a
+    reimplementation that could quietly drift from it.
+
+    Blocked once the order is 'approved': confirm_registration_order()
+    already froze total_after_reduction into a real, completed
+    CaisseTransaction at confirm time -- silently changing the order's
+    total afterwards would desync it from the money actually recorded.
+    Adding an item to an already-confirmed registration goes through the
+    caisse's own on-the-day "add item" flow instead (caisse/views.py,
+    which uses compute_order's context_status_item_id/
+    context_blocs_covered for exactly that case).
+
+    Responds with JSON (called from the submissions page's blocs-editor
+    modal via fetch) -- the caller reloads the page on success rather
+    than this view re-rendering every affected cell itself.
+    """
+    order = get_object_or_404(RegistrationOrder, id=order_id)
+    if not _can_access_event_orders(request.user, order.event):
+        raise PermissionDenied("You do not have access to this event's submissions.")
+
+    if order.status == 'approved':
+        return JsonResponse({
+            'ok': False,
+            'error': "Cette inscription est déjà confirmée (paiement réel enregistré). "
+                     "Utilisez la caisse pour ajouter un article à une inscription déjà confirmée.",
+        }, status=400)
+
+    bloc_context = get_public_bloc_context(order.event)
+    if not bloc_context:
+        return JsonResponse({
+            'ok': False,
+            'error': "Les options d'inscription de cet événement ne sont plus disponibles.",
+        }, status=400)
+
+    # Same cardinality rules as the public form's stage_paid_registration:
+    # single-select blocs get at most one pick, Status is mandatory.
+    selected_item_ids = []
+    errors = []
+    for bloc in bloc_context['custom_blocs']:
+        picked = [v for v in request.POST.getlist(f"items_{bloc['key']}") if v]
+        if bloc['select_mode'] == 'single' and len(picked) > 1:
+            errors.append(f"Veuillez sélectionner une seule option dans {bloc['label']}.")
+        if bloc['key'] == 'status' and len(picked) == 0:
+            errors.append(f"Veuillez sélectionner une option dans {bloc['label']}.")
+        selected_item_ids.extend(picked)
+
+    selected_session_ids = [v for v in request.POST.getlist('sessions') if v]
+
+    if errors:
+        return JsonResponse({'ok': False, 'error': ' '.join(errors)}, status=400)
+
+    result = compute_order(
+        event=order.event, config=bloc_context['config'],
+        selected_item_ids=selected_item_ids, selected_session_ids=selected_session_ids,
+        on_date=timezone.now().date(),
+    )
+
+    order.period_id = result['active_period_id']
+    order.items_snapshot = result['snapshot']
+    order.subtotals = result['subtotals']
+    order.distinct_blocs_count = result['distinct_blocs_count']
+    order.total_before_reduction = result['total_before_reduction']
+    order.period_discount_percent = result['period_discount_percent']
+    order.blocs_discount_percent = result['blocs_discount_percent']
+    order.total_discount_percent = result['total_discount_percent']
+    order.total_after_reduction = result['total_after_reduction']
+    order.save(update_fields=[
+        'period', 'items_snapshot', 'subtotals', 'distinct_blocs_count',
+        'total_before_reduction', 'period_discount_percent', 'blocs_discount_percent',
+        'total_discount_percent', 'total_after_reduction',
+    ])
+
     return JsonResponse({'ok': True})
 
 
