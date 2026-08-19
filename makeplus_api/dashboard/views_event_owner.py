@@ -220,8 +220,11 @@ def event_owner_submissions(request, event_id):
     # Same helper the public registration form itself uses -- the "edit
     # blocs" modal renders this exact catalog/pricing data, so what an
     # owner sees and picks from is byte-identical to what a participant
-    # sees, not a separately-maintained lookalike.
-    bloc_context = get_public_bloc_context(event)
+    # sees, not a separately-maintained lookalike. include_inactive=True
+    # is the one deliberate difference: unlike the public form, the owner
+    # can still see and toggle items that have since been deactivated
+    # (e.g. to remove one a participant picked before it was discontinued).
+    bloc_context = get_public_bloc_context(event, include_inactive=True)
 
     context = {
         'event': event,
@@ -445,7 +448,7 @@ def registration_order_blocs_save(request, order_id):
                      "Utilisez la caisse pour ajouter un article à une inscription déjà confirmée.",
         }, status=400)
 
-    bloc_context = get_public_bloc_context(order.event)
+    bloc_context = get_public_bloc_context(order.event, include_inactive=True)
     if not bloc_context:
         return JsonResponse({
             'ok': False,
@@ -472,7 +475,7 @@ def registration_order_blocs_save(request, order_id):
     result = compute_order(
         event=order.event, config=bloc_context['config'],
         selected_item_ids=selected_item_ids, selected_session_ids=selected_session_ids,
-        on_date=timezone.now().date(),
+        on_date=timezone.now().date(), include_inactive=True,
     )
 
     order.period_id = result['active_period_id']

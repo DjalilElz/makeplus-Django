@@ -200,6 +200,19 @@
         .product-card .form-check-input { flex-shrink: 0; margin: 0; }
         .product-main { flex: 1; min-width: 0; }
         .product-name { font-family: var(--font-serif); font-size: 1rem; color: #2c2c2c; }
+        .product-inactive-badge {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #a35b2a;
+            background: rgba(200, 130, 60, 0.15);
+            border-radius: 6px;
+            padding: 2px 7px;
+            vertical-align: middle;
+        }
         .product-description { font-size: 0.8rem; color: #6c757d; margin-top: 2px; line-height: 1.35; white-space: pre-line; }
         .product-price { flex-shrink: 0; }
         .price-pill {
@@ -780,7 +793,7 @@
                                            data-target-key="item_{{ item.id }}"
                                            {% if bloc.key == 'status' %}data-is-status="true"{% endif %}>
                                     <span class="product-main">
-                                        <span class="product-name d-block">{{ item.name }}</span>
+                                        <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}</span>
                                         {% if item.description %}<span class="product-description d-block">{{ item.description }}</span>{% endif %}
                                     </span>
                                     <span class="product-price">
@@ -810,7 +823,7 @@
                                            data-bloc="workshops" data-name="{{ s.title }}"
                                            data-target-key="session_{{ s.id }}">
                                     <span class="product-main">
-                                        <span class="product-name d-block">{{ s.title }}</span>
+                                        <span class="product-name d-block">{{ s.title }}{% if not s.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}</span>
                                         {% if s.description %}<span class="product-description d-block">{{ s.description }}</span>{% endif %}
                                     </span>
                                     <span class="product-price">
@@ -847,7 +860,7 @@
                                            data-name="{{ item.name }}"
                                            data-target-key="item_{{ item.id }}">
                                     <span class="product-main">
-                                        <span class="product-name d-block">{{ item.name }}</span>
+                                        <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}</span>
                                         {% if item.description %}<span class="product-description d-block">{{ item.description }}</span>{% endif %}
                                     </span>
                                     <span class="product-price">

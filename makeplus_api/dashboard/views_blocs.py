@@ -451,11 +451,16 @@ def registration_orders(request, event_id):
 # Public form integration (called from dashboard.views.public_form_view)
 # ---------------------------------------------------------------------------
 
-def get_public_bloc_context(event):
+def get_public_bloc_context(event, include_inactive=False):
     """
     Build the blocs data for the public registration form.
     Returns None when the form has no event, no config, or no visible bloc
     (in which case the form stays a plain Informations-only form).
+
+    include_inactive: also list BlocItems/Sessions that have since been
+    deactivated. Only the event owner's "Modifier les blocs" edit popup
+    sets this -- the public form itself must keep hiding them, so it must
+    never pass True here.
     """
     if not event:
         return None
@@ -482,7 +487,10 @@ def get_public_bloc_context(event):
     for bloc_key, bloc_label in CUSTOM_BLOC_CHOICES:
         if not visibility.get(bloc_key):
             continue
-        items = list(BlocItem.objects.filter(event=event, bloc=bloc_key, is_active=True).order_by('order', 'name'))
+        item_filters = {'event': event, 'bloc': bloc_key}
+        if not include_inactive:
+            item_filters['is_active'] = True
+        items = list(BlocItem.objects.filter(**item_filters).order_by('order', 'name'))
         if not items:
             continue
         custom_blocs.append({
@@ -494,8 +502,11 @@ def get_public_bloc_context(event):
 
     paid_sessions = []
     if config.show_workshops:
+        session_filters = {'event': event, 'is_paid': True}
+        if not include_inactive:
+            session_filters['is_active'] = True
         paid_sessions = list(
-            Session.objects.filter(event=event, is_paid=True, is_active=True).order_by('order', 'start_time')
+            Session.objects.filter(**session_filters).order_by('order', 'start_time')
         )
 
     # Public page section order: Status, Restauration, Ateliers/Workshops,

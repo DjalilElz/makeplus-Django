@@ -1398,3 +1398,66 @@ class RegistrationOrderBlocsEditTests(TestCase):
             'items_status': [str(self.status_a.id)],
         })
         self.assertEqual(response.status_code, 403)
+
+    def test_deactivated_item_still_shown_selectable_in_editor(self):
+        """
+        Unlike the public form, the owner's edit popup must keep listing
+        an item after it's deactivated, so they can still add/remove it
+        on an existing registration (e.g. one picked before it was
+        discontinued).
+        """
+        self.lunch.is_active = False
+        self.lunch.save(update_fields=['is_active'])
+
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.event.id]))
+        self.assertContains(response, 'Lunch')
+        self.assertContains(response, 'Désactivé')
+
+    def test_public_form_context_still_hides_deactivated_items(self):
+        """include_inactive is opt-in -- the public form's own context call
+        (no flag) must keep excluding a deactivated item even though the
+        owner's editor now shows it, otherwise this would leak into
+        participant-facing registration."""
+        from .views_blocs import get_public_bloc_context
+        self.lunch.is_active = False
+        self.lunch.save(update_fields=['is_active'])
+
+        context = get_public_bloc_context(self.event)
+        names = {item.name for bloc in context['custom_blocs'] for item in bloc['items']}
+        self.assertNotIn('Lunch', names)
+
+    def test_owner_can_select_a_deactivated_item_and_price_applies(self):
+        self.lunch.is_active = False
+        self.lunch.save(update_fields=['is_active'])
+
+        response = self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+            'items_restauration': [str(self.lunch.id)],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ok'])
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.total_before_reduction, Decimal('500.00'))
+        item_ids = {it['id'] for it in self.order.items_snapshot}
+        self.assertIn(self.lunch.id, item_ids)
+
+    def test_owner_can_deselect_a_now_deactivated_item(self):
+        """The participant originally picked Lunch; it's since been
+        deactivated; the owner should still be able to remove it."""
+        self.lunch.is_active = False
+        self.lunch.save(update_fields=['is_active'])
+        self.order.items_snapshot = [
+            {'bloc': 'status', 'type': 'item', 'id': self.status_a.id, 'name': 'Membre', 'price': '0'},
+            {'bloc': 'restauration', 'type': 'item', 'id': self.lunch.id, 'name': 'Lunch', 'price': '500'},
+        ]
+        self.order.save(update_fields=['items_snapshot'])
+
+        response = self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ok'])
+        self.order.refresh_from_db()
+        item_ids = {it['id'] for it in self.order.items_snapshot}
+        self.assertNotIn(self.lunch.id, item_ids)

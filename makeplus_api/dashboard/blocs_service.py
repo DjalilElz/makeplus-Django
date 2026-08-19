@@ -122,7 +122,7 @@ def resolve_catalog_prices(event, config, on_date, context_status_item_id=None):
 
 def compute_order(
     event, config, selected_item_ids, selected_session_ids, on_date,
-    context_status_item_id=None, context_blocs_covered=None,
+    context_status_item_id=None, context_blocs_covered=None, include_inactive=False,
 ):
     """
     Compute a cart from the raw selections.
@@ -133,6 +133,10 @@ def compute_order(
         selected_item_ids: iterable of BlocItem ids (custom blocs)
         selected_session_ids: iterable of Session ids (workshops bloc)
         on_date: date used to resolve the active period (the submission date)
+        include_inactive: also resolve BlocItems/Sessions that have been
+            deactivated since the participant picked them. Only the event
+            owner's "Modifier les blocs" edit flow sets this -- the public
+            form and the caisse must keep hiding deactivated items entirely.
         context_status_item_id: optional BlocItem id of a Status already
             chosen elsewhere (e.g. locked into an existing registration),
             used only to resolve status-dependent rules for THIS selection
@@ -165,9 +169,10 @@ def compute_order(
     snapshot = []
     subtotals = {bloc: Decimal('0') for bloc in ALL_BLOCS}
 
-    items = list(
-        BlocItem.objects.filter(id__in=selected_item_ids, event=event, is_active=True)
-    ) if selected_item_ids else []
+    item_filters = {'id__in': selected_item_ids, 'event': event}
+    if not include_inactive:
+        item_filters['is_active'] = True
+    items = list(BlocItem.objects.filter(**item_filters)) if selected_item_ids else []
 
     status_item_ids = [item.id for item in items if item.bloc == 'status']
     if context_status_item_id:
@@ -195,9 +200,10 @@ def compute_order(
 
     # --- Workshops (paid sessions) ---
     if selected_session_ids and _bloc_visible(config, 'workshops'):
-        sessions = Session.objects.filter(
-            id__in=selected_session_ids, event=event, is_paid=True, is_active=True
-        )
+        session_filters = {'id__in': selected_session_ids, 'event': event, 'is_paid': True}
+        if not include_inactive:
+            session_filters['is_active'] = True
+        sessions = Session.objects.filter(**session_filters)
         for session in sessions:
             rule = _resolve_rule(rules_by_target, ('session', str(session.id)))
             if rule and not rule.is_visible:
