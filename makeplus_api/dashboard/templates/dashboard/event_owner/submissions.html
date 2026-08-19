@@ -1283,6 +1283,14 @@
             var saveBtn = document.getElementById('blocs-editor-save-btn');
             errorBox.style.display = 'none';
             saveBtn.disabled = true;
+            // The fetch round-trip (and the reload it triggers) isn't
+            // instant -- without this, the button just goes inert with no
+            // visible change, which reads as the click not having
+            // registered at all. Swap its content immediately so the
+            // wait is visibly "saving", not silence.
+            var savingHtml = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enregistrement...';
+            if (!saveBtn.dataset.originalHtml) saveBtn.dataset.originalHtml = saveBtn.innerHTML;
+            saveBtn.innerHTML = savingHtml;
 
             var params = new URLSearchParams();
             modalEl.querySelectorAll('.bloc-choice').forEach(function (el) {
@@ -1306,11 +1314,13 @@
                     errorBox.textContent = result.data.error || "Échec de l'enregistrement.";
                     errorBox.style.display = 'block';
                     saveBtn.disabled = false;
+                    saveBtn.innerHTML = saveBtn.dataset.originalHtml;
                 }
             }).catch(function () {
                 errorBox.textContent = "Échec de l'enregistrement. Vérifiez votre connexion.";
                 errorBox.style.display = 'block';
                 saveBtn.disabled = false;
+                saveBtn.innerHTML = saveBtn.dataset.originalHtml;
             });
         };
     })();
