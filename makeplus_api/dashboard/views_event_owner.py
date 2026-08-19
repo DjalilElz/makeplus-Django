@@ -511,10 +511,17 @@ def registration_order_blocs_save(request, order_id):
     # snapshot on the order itself -- see RegistrationOrder.period), not
     # whatever period happens to be active today: editing an old
     # registration must keep pricing it at its own period's rates.
+    # ignore_visibility_rules=True: a status/period rule hiding an item
+    # from a PARTICIPANT with that status must not also stop the owner
+    # from manually granting/removing it here -- the popup's own JS
+    # (submissions.html's applyPricingRules()) never hides a card for
+    # this reason either, so what the owner can select here matches what
+    # actually gets saved.
     result = compute_order(
         event=order.event, config=bloc_context['config'],
         selected_item_ids=selected_item_ids, selected_session_ids=selected_session_ids,
         on_date=timezone.now().date(), include_inactive=True, period=order.period,
+        ignore_visibility_rules=True,
     )
 
     order.period_id = result['active_period_id']

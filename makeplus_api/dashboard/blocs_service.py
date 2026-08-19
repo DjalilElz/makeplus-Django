@@ -128,7 +128,7 @@ def resolve_catalog_prices(event, config, on_date, context_status_item_id=None):
 def compute_order(
     event, config, selected_item_ids, selected_session_ids, on_date,
     context_status_item_id=None, context_blocs_covered=None, include_inactive=False,
-    period=_PERIOD_NOT_PASSED,
+    period=_PERIOD_NOT_PASSED, ignore_visibility_rules=False,
 ):
     """
     Compute a cart from the raw selections.
@@ -153,6 +153,14 @@ def compute_order(
             deactivated since the participant picked them. Only the event
             owner's "Modifier les blocs" edit flow sets this -- the public
             form and the caisse must keep hiding deactivated items entirely.
+        ignore_visibility_rules: don't drop an item/session just because a
+            BlocItemStatusRule marks it not visible for the chosen Status
+            (or the active period's baseline). That gating is meant to
+            steer a PARTICIPANT's own choices on the public form; the
+            event owner's edit flow sets this to True so they can still
+            grant/remove an item a given status normally wouldn't see. A
+            price override on the same rule still applies either way --
+            only the visibility gate is bypassed.
         context_status_item_id: optional BlocItem id of a Status already
             chosen elsewhere (e.g. locked into an existing registration),
             used only to resolve status-dependent rules for THIS selection
@@ -205,7 +213,7 @@ def compute_order(
         if item.bloc not in CUSTOM_BLOCS or not _bloc_visible(config, item.bloc):
             continue
         rule = _resolve_rule(rules_by_target, ('item', item.id))
-        if rule and not rule.is_visible:
+        if rule and not rule.is_visible and not ignore_visibility_rules:
             continue
         price = rule.override_price if (rule and rule.override_price is not None) else item.price
         subtotals[item.bloc] += price
@@ -225,7 +233,7 @@ def compute_order(
         sessions = Session.objects.filter(**session_filters)
         for session in sessions:
             rule = _resolve_rule(rules_by_target, ('session', str(session.id)))
-            if rule and not rule.is_visible:
+            if rule and not rule.is_visible and not ignore_visibility_rules:
                 continue
             price = rule.override_price if (rule and rule.override_price is not None) else session.price
             subtotals['workshops'] += price

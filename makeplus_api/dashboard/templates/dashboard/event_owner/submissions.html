@@ -1101,7 +1101,16 @@
         function fmtPrice(n) { return n <= 0 ? 'Gratuit' : fmt(n); }
 
         // Same logic as public_form.html's applyPricingRules(), minus the
-        // period-preview branch (see comment above).
+        // period-preview branch (see comment above) -- and, unlike the
+        // public form, a status/period rule marking an item "not visible"
+        // never hides or disables its card here. That gating exists to
+        // steer a PARTICIPANT's own choices; the owner is explicitly
+        // allowed to grant/remove any item regardless of the status
+        // picked (see registration_order_blocs_save's
+        // ignore_visibility_rules=True, which this must stay in sync
+        // with -- an item selectable here but dropped there would silently
+        // lose the owner's change on save). A price override on the same
+        // rule still applies either way.
         function applyPricingRules() {
             var statusEl = modalEl.querySelector('.bloc-choice[data-is-status="true"]:checked');
             var statusRules = (statusEl && STATUS_RULES[statusEl.value]) || {};
@@ -1110,7 +1119,6 @@
                 var targetKey = el.getAttribute('data-target-key');
                 var rule = statusRules[targetKey] || PERIOD_RULES[targetKey];
                 var card = document.getElementById('editor_product_' + targetKey);
-                var visible = !rule || rule.visible;
                 var price = (rule && rule.price !== null && rule.price !== undefined)
                     ? rule.price
                     : el.getAttribute('data-original-price');
@@ -1124,14 +1132,8 @@
                         : '<span class="amount">Gratuit</span>';
                 }
 
-                if (!visible) {
-                    if (el.checked) el.checked = false;
-                    el.disabled = true;
-                    if (card) card.style.display = 'none';
-                } else {
-                    if (card) card.style.display = '';
-                    el.disabled = false;
-                }
+                if (card) card.style.display = '';
+                el.disabled = false;
             });
 
             lockNonStatusBlocs(!!statusEl);

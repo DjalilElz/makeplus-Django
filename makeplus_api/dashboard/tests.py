@@ -1508,6 +1508,38 @@ class RegistrationOrderBlocsEditTests(TestCase):
         rule = payload[str(old_period.id)]['period'][f'item_{self.lunch.id}']
         self.assertEqual(rule['price'], '200.00')
 
+    def test_owner_can_select_an_item_hidden_by_a_status_visibility_rule(self):
+        """
+        A BlocItemStatusRule.is_visible=False rule is meant to steer what
+        a PARTICIPANT sees for their chosen status (e.g. "students can't
+        pick the VIP dinner") -- it must not also stop the owner from
+        manually granting that same item on an existing registration.
+        """
+        BlocItemStatusRule.objects.create(
+            status_item=self.status_a, target_kind='item', target_item=self.dinner, is_visible=False,
+        )
+        # Control: compute_order() itself (participant-facing default,
+        # ignore_visibility_rules=False) still drops it -- this isn't a
+        # bug in the gate, only a deliberate bypass for the owner's edit
+        # endpoint below.
+        participant_result = compute_order(
+            event=self.event, config=self.config,
+            selected_item_ids=[str(self.status_a.id), str(self.dinner.id)],
+            selected_session_ids=[], on_date=timezone.now().date(),
+        )
+        self.assertEqual(participant_result['total_before_reduction'], Decimal('0.00'))
+
+        response = self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+            'items_restauration': [str(self.dinner.id)],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ok'])
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.total_before_reduction, Decimal('1000.00'))
+        item_ids = {it['id'] for it in self.order.items_snapshot}
+        self.assertIn(self.dinner.id, item_ids)
+
     def test_owner_can_deselect_a_now_deactivated_item(self):
         """The participant originally picked Lunch; it's since been
         deactivated; the owner should still be able to remove it."""
