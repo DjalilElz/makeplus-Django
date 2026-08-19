@@ -251,3 +251,124 @@ def cancel_registration_order(order, cancelled_by=None, reason=''):
     if reason:
         order.admin_notes = f'{reason}\n{order.admin_notes}' if order.admin_notes else reason
     order.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'admin_notes'])
+
+
+def resync_confirmed_registration_order(order, result, edited_by=None):
+    """
+    Re-price an ALREADY-CONFIRMED RegistrationOrder after the event owner
+    edited its blocs (dashboard's registration_order_blocs_save). Cancels
+    the CaisseTransaction confirm_registration_order created and creates a
+    brand new one for the updated total/items, rather than mutating the
+    frozen total_amount in place -- this codebase never edits a completed
+    transaction after the fact; cancel_registration_order voids-and-stops
+    rather than un-recording it, and caisse's own on-the-day add-item flow
+    always creates an additional transaction rather than touching an
+    existing one. Same principle here: cancel + replace, full paper trail.
+
+    Only valid for an order confirmed through confirm_registration_order
+    (order.caisse_transaction is already set to the transaction it made).
+    A registration confirmed by a real physical caisse station can be
+    bundled into one transaction with several OTHER people's payments --
+    there is no single transaction here that would be safe to touch, so
+    callers must check order.caisse_transaction_id themselves and refuse
+    before calling this (see registration_order_blocs_save).
+
+    Grants/revokes real SessionAccess for any paid workshop added/removed
+    by the edit, same as confirm_registration_order does on a first
+    confirmation -- so a workshop added here is actually scannable, and
+    one removed here actually stops being so.
+
+    `result` is compute_order()'s return dict for the NEW selection
+    (the caller resolves it against the order's own registration period,
+    not today's -- see registration_order_blocs_save). Saves `order`
+    itself (pricing fields + the new caisse_transaction) -- callers must
+    not also save() those fields separately.
+
+    Returns the new CaisseTransaction.
+    """
+    from events.models import SessionAccess
+
+    participant = order.participant
+    if not participant:
+        raise ValueError('Cannot resync a registration with no linked participant.')
+    if not order.caisse_transaction_id:
+        raise ValueError('This order was not confirmed through the event-owner flow; nothing to resync.')
+
+    old_txn = order.caisse_transaction
+    old_session_ids = {
+        str(entry['id']) for entry in (order.items_snapshot or []) if entry.get('type') == 'session'
+    }
+    new_session_ids = {
+        str(entry['id']) for entry in result['snapshot'] if entry.get('type') == 'session'
+    }
+
+    caisse = get_or_create_owner_caisse(order.event)
+
+    payable_items = []
+    for entry in result['snapshot']:
+        payable_item = _payable_item_for_snapshot_entry(order.event, entry)
+        if payable_item:
+            payable_items.append(payable_item)
+        else:
+            logger.warning(
+                '[OWNER EDIT] No matching BlocItem/Session for snapshot entry %s on order %s',
+                entry, order.id,
+            )
+
+    edited_label = (edited_by.get_full_name() or edited_by.email) if edited_by else 'Event owner'
+
+    with db_transaction.atomic():
+        old_txn.cancel(
+            cancelled_by=edited_label,
+            reason=f'Superseded: blocs modified by event owner for registration {order.id}.',
+        )
+
+        new_txn = CaisseTransaction.objects.create(
+            caisse=caisse,
+            participant=participant,
+            total_amount=result['total_after_reduction'],
+            payment_method='bank_transfer',
+            status='completed',
+            notes=f'Confirmed by event owner (blocs edit) for registration {order.id}. Replaces transaction {old_txn.id}.',
+            marked_present=True,
+        )
+        for payable_item in payable_items:
+            new_txn.items.add(payable_item)
+
+        order.period_id = result['active_period_id']
+        order.items_snapshot = result['snapshot']
+        order.subtotals = result['subtotals']
+        order.distinct_blocs_count = result['distinct_blocs_count']
+        order.total_before_reduction = result['total_before_reduction']
+        order.period_discount_percent = result['period_discount_percent']
+        order.blocs_discount_percent = result['blocs_discount_percent']
+        order.total_discount_percent = result['total_discount_percent']
+        order.total_after_reduction = result['total_after_reduction']
+        order.caisse_transaction = new_txn
+        order.reviewed_by = edited_by
+        order.reviewed_at = timezone.now()
+        order.save(update_fields=[
+            'period', 'items_snapshot', 'subtotals', 'distinct_blocs_count',
+            'total_before_reduction', 'period_discount_percent', 'blocs_discount_percent',
+            'total_discount_percent', 'total_after_reduction',
+            'caisse_transaction', 'reviewed_by', 'reviewed_at',
+        ])
+
+        for session_id in (new_session_ids - old_session_ids):
+            payable_item = next(
+                (pi for pi in payable_items if pi.session_id and str(pi.session_id) == session_id), None,
+            )
+            if payable_item:
+                SessionAccess.objects.update_or_create(
+                    participant=participant, session_id=session_id,
+                    defaults={
+                        'has_access': True, 'payment_status': 'paid',
+                        'amount_paid': payable_item.price,
+                    },
+                )
+        for session_id in (old_session_ids - new_session_ids):
+            SessionAccess.objects.filter(participant=participant, session_id=session_id).update(
+                has_access=False, payment_status='pending', amount_paid=0,
+            )
+
+    return new_txn

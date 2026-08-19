@@ -24,7 +24,9 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
-from caisse.services import cancel_registration_order, confirm_registration_order
+from caisse.services import (
+    cancel_registration_order, confirm_registration_order, resync_confirmed_registration_order,
+)
 from dashboard.email_sender import send_email
 from dashboard.models_email import get_event_email_template
 from events.models import Event, ParticipantEventRegistration, UserEventAssignment
@@ -459,14 +461,19 @@ def registration_order_blocs_save(request, order_id):
     pricing it at the rates that applied when it was placed, not
     whatever period happens to be running today.
 
-    Blocked once the order is 'approved': confirm_registration_order()
-    already froze total_after_reduction into a real, completed
-    CaisseTransaction at confirm time -- silently changing the order's
-    total afterwards would desync it from the money actually recorded.
-    Adding an item to an already-confirmed registration goes through the
-    caisse's own on-the-day "add item" flow instead (caisse/views.py,
-    which uses compute_order's context_status_item_id/
-    context_blocs_covered for exactly that case).
+    Also allowed once the order is 'approved', with real money/access
+    effects: see caisse.services.resync_confirmed_registration_order,
+    which cancels the CaisseTransaction confirm_registration_order
+    created and replaces it with a new one for the updated total/items
+    (never mutates a completed transaction's amount in place), and
+    grants/revokes real SessionAccess for any paid workshop added/
+    removed. Only possible when order.caisse_transaction is set -- i.e.
+    it was confirmed through THIS dashboard's own confirm flow, not by a
+    real physical caisse station, whose transaction can bundle several
+    OTHER people's payments together and so isn't safe to touch here;
+    those stay blocked, same restriction cancel_registration_order
+    already applies. This is entirely separate from caisse's own
+    on-the-day "add item" flow (caisse/views.py) which is untouched.
 
     Responds with JSON (called from the submissions page's blocs-editor
     modal via fetch) -- the caller reloads the page on success rather
@@ -476,11 +483,11 @@ def registration_order_blocs_save(request, order_id):
     if not _can_access_event_orders(request.user, order.event):
         raise PermissionDenied("You do not have access to this event's submissions.")
 
-    if order.status == 'approved':
+    if order.status == 'approved' and not order.caisse_transaction_id:
         return JsonResponse({
             'ok': False,
-            'error': "Cette inscription est déjà confirmée (paiement réel enregistré). "
-                     "Utilisez la caisse pour ajouter un article à une inscription déjà confirmée.",
+            'error': "Cette inscription a été confirmée directement à la caisse (le paiement peut regrouper "
+                     "plusieurs personnes) et ne peut pas être modifiée depuis ici.",
         }, status=400)
 
     bloc_context = get_public_bloc_context(order.event, include_inactive=True)
@@ -524,20 +531,25 @@ def registration_order_blocs_save(request, order_id):
         ignore_visibility_rules=True,
     )
 
-    order.period_id = result['active_period_id']
-    order.items_snapshot = result['snapshot']
-    order.subtotals = result['subtotals']
-    order.distinct_blocs_count = result['distinct_blocs_count']
-    order.total_before_reduction = result['total_before_reduction']
-    order.period_discount_percent = result['period_discount_percent']
-    order.blocs_discount_percent = result['blocs_discount_percent']
-    order.total_discount_percent = result['total_discount_percent']
-    order.total_after_reduction = result['total_after_reduction']
-    order.save(update_fields=[
-        'period', 'items_snapshot', 'subtotals', 'distinct_blocs_count',
-        'total_before_reduction', 'period_discount_percent', 'blocs_discount_percent',
-        'total_discount_percent', 'total_after_reduction',
-    ])
+    if order.status == 'approved':
+        # Real transaction/access effects -- see resync_confirmed_registration_order,
+        # which also saves order's pricing fields itself.
+        resync_confirmed_registration_order(order, result, edited_by=request.user)
+    else:
+        order.period_id = result['active_period_id']
+        order.items_snapshot = result['snapshot']
+        order.subtotals = result['subtotals']
+        order.distinct_blocs_count = result['distinct_blocs_count']
+        order.total_before_reduction = result['total_before_reduction']
+        order.period_discount_percent = result['period_discount_percent']
+        order.blocs_discount_percent = result['blocs_discount_percent']
+        order.total_discount_percent = result['total_discount_percent']
+        order.total_after_reduction = result['total_after_reduction']
+        order.save(update_fields=[
+            'period', 'items_snapshot', 'subtotals', 'distinct_blocs_count',
+            'total_before_reduction', 'period_discount_percent', 'blocs_discount_percent',
+            'total_discount_percent', 'total_after_reduction',
+        ])
 
     return JsonResponse({'ok': True})
 

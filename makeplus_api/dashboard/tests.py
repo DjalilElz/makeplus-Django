@@ -1540,6 +1540,113 @@ class RegistrationOrderBlocsEditTests(TestCase):
         item_ids = {it['id'] for it in self.order.items_snapshot}
         self.assertIn(self.dinner.id, item_ids)
 
+    def _confirm_order_for_real(self):
+        """
+        Link self.order to a real Participant and confirm it through
+        confirm_registration_order() directly, exactly like the "Confirmé"
+        status transition does -- gives a real CaisseTransaction + (via a
+        paid session) real SessionAccess to edit against below.
+        """
+        from caisse.services import confirm_registration_order
+
+        participant_user = User.objects.create_user(username='participant2', email='p2@example.com', password='x')
+        participant = Participant.objects.create(user=participant_user, badge_id='BADGE-2')
+        UserEventAssignment.objects.create(
+            user=participant_user, event=self.event, role='participant', is_active=True,
+        )
+        ParticipantEventRegistration.objects.create(participant=participant, event=self.event)
+
+        self.config.show_workshops = True
+        self.config.save(update_fields=['show_workshops'])
+        room = Room.objects.create(event=self.event, name='R1', capacity=50, location='Hall')
+        session = Session.objects.create(
+            event=self.event, room=room, title='Workshop A',
+            start_time=timezone.now(), end_time=timezone.now() + timedelta(hours=1),
+            is_paid=True, price=Decimal('300'),
+        )
+
+        self.order.participant = participant
+        self.order.save(update_fields=['participant'])
+        confirm_registration_order(self.order, confirmed_by=self.owner)
+        self.order.refresh_from_db()
+        return participant, session
+
+    def test_confirmed_order_shows_edit_button_not_lock(self):
+        self._confirm_order_for_real()
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.event.id]))
+        self.assertContains(response, 'openBlocsEditor')
+        self.assertNotContains(response, 'Confirmée directement à la caisse')
+
+    def test_editing_a_confirmed_order_replaces_its_transaction(self):
+        from caisse.models import CaisseTransaction
+
+        participant, session = self._confirm_order_for_real()
+        old_txn = self.order.caisse_transaction
+        self.assertIsNotNone(old_txn)
+        self.assertEqual(old_txn.status, 'completed')
+
+        response = self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+            'items_restauration': [str(self.dinner.id)],
+            'sessions': [str(session.id)],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ok'])
+
+        old_txn.refresh_from_db()
+        self.assertEqual(old_txn.status, 'cancelled')
+
+        self.order.refresh_from_db()
+        new_txn = self.order.caisse_transaction
+        self.assertNotEqual(new_txn.id, old_txn.id)
+        self.assertEqual(new_txn.status, 'completed')
+        # dinner (1000) + workshop (300) = 1300 before reduction, but that's
+        # now 2 distinct blocs (restauration + workshops) -- the config's
+        # reduction_2_blocs=10% applies, same math as any other edit.
+        self.assertEqual(self.order.total_before_reduction, Decimal('1300.00'))
+        self.assertEqual(new_txn.total_amount, Decimal('1170.00'))
+        self.assertEqual(self.order.total_after_reduction, Decimal('1170.00'))
+        self.assertEqual(CaisseTransaction.objects.filter(status='completed', participant=participant).count(), 1)
+
+    def test_editing_a_confirmed_order_grants_and_revokes_session_access(self):
+        from events.models import SessionAccess
+
+        participant, session = self._confirm_order_for_real()
+        # Not part of the order yet -- add it.
+        self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+            'sessions': [str(session.id)],
+        })
+        access = SessionAccess.objects.get(participant=participant, session=session)
+        self.assertTrue(access.has_access)
+        self.assertEqual(access.payment_status, 'paid')
+
+        # Now remove it again.
+        self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+        })
+        access.refresh_from_db()
+        self.assertFalse(access.has_access)
+
+    def test_caisse_confirmed_order_without_transaction_stays_locked(self):
+        """
+        An order confirmed by a real physical caisse station never sets
+        RegistrationOrder.caisse_transaction (that transaction can bundle
+        several OTHER people's payments) -- editing must stay blocked for
+        those, unlike an owner-confirmed order.
+        """
+        self.order.status = 'approved'
+        self.order.save(update_fields=['status'])
+        self.assertIsNone(self.order.caisse_transaction_id)
+
+        response = self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+            'items_restauration': [str(self.dinner.id)],
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['ok'])
+
     def test_owner_can_deselect_a_now_deactivated_item(self):
         """The participant originally picked Lunch; it's since been
         deactivated; the owner should still be able to remove it."""

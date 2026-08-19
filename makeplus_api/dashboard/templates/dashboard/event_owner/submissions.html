@@ -600,9 +600,9 @@
                                     <i class="bi bi-eye"></i>
                                 </button>
                                 {% if bloc_context.has_blocs %}
-                                    {% if order.status == 'approved' %}
+                                    {% if order.status == 'approved' and not order.caisse_transaction_id %}
                                     <button type="button" class="btn-view-row" disabled
-                                            title="Déjà confirmée (paiement réel enregistré) -- utilisez la caisse pour ajouter un article.">
+                                            title="Confirmée directement à la caisse (le paiement peut regrouper plusieurs personnes) -- non modifiable depuis ici.">
                                         <i class="bi bi-lock"></i>
                                     </button>
                                     {% else %}
