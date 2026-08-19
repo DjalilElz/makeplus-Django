@@ -610,6 +610,7 @@
                                             data-order-id="{{ order.id }}"
                                             data-person-name="{{ order.full_name|default:order.email }}"
                                             data-selection='{{ order.blocs_editor_selection_json|safe }}'
+                                            data-period-key="{{ order.blocs_editor_period_key }}"
                                             onclick="openBlocsEditor(this)">
                                         <i class="bi bi-bag-plus"></i>
                                     </button>
@@ -1075,14 +1076,21 @@
         // not a lookalike copy that could drift from it. The period-preview
         // switcher (public form lets a visitor browse OTHER periods'
         // pricing without applying it) is intentionally left out here: an
-        // edit always applies to TODAY's real active period, same as
-        // registration_order_blocs_save() computes server-side -- there is
-        // nothing to "preview" in an edit.
+        // edit doesn't preview periods, it's pinned to the ONE period the
+        // order itself was actually placed under (see PERIOD_RULES_BY_KEY
+        // below), same as registration_order_blocs_save() computes
+        // server-side.
         var BLOCS_ENABLED = {% if bloc_context.config.reduction_by_blocs_enabled %}true{% else %}false{% endif %};
         var BLOC_PCT = {2: {{ bloc_context.config.reduction_2_blocs }}, 3: {{ bloc_context.config.reduction_3_blocs }}};
         var BLOC_ORDER = [{% for key in bloc_context.active_bloc_keys %}'{{ key }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
-        var STATUS_RULES = {{ bloc_context.status_rules_json|safe }};
-        var PERIOD_RULES = {{ bloc_context.period_rules_json|safe }};
+        // Keyed by ReductionPeriod id (or '' for "no period") -- one entry
+        // per period actually used among the orders on this page, each
+        // holding that period's own {status, period} BlocItemStatusRule
+        // sets. A single global ruleset can't work here since different
+        // rows can each have registered under a different period.
+        var PERIOD_RULES_BY_KEY = {{ period_rules_by_period_json|safe }};
+        var STATUS_RULES = {};
+        var PERIOD_RULES = {};
         var SAVE_URL_TEMPLATE = "{% url 'dashboard:registration_order_blocs_save' '00000000-0000-0000-0000-000000000000' %}";
 
         var modalEl = document.getElementById('blocs-editor-modal');
@@ -1224,6 +1232,15 @@
             currentOrderId = button.getAttribute('data-order-id');
             document.getElementById('blocs-editor-person-name').textContent = button.getAttribute('data-person-name') || '';
             document.getElementById('blocs-editor-error').style.display = 'none';
+
+            // Price this order against the period IT was placed under, not
+            // today's -- must match registration_order_blocs_save()'s
+            // period=order.period pin, or the preview shown here would lie
+            // about what actually gets saved.
+            var periodKey = button.getAttribute('data-period-key') || '';
+            var periodRules = PERIOD_RULES_BY_KEY[periodKey] || PERIOD_RULES_BY_KEY[''] || {};
+            STATUS_RULES = periodRules.status || {};
+            PERIOD_RULES = periodRules.period || {};
 
             // Read from the button's own data-selection rather than a raw
             // JS object literal built by the template: embedding json.dumps()

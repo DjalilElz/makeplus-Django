@@ -1442,6 +1442,72 @@ class RegistrationOrderBlocsEditTests(TestCase):
         item_ids = {it['id'] for it in self.order.items_snapshot}
         self.assertIn(self.lunch.id, item_ids)
 
+    def test_edit_prices_against_the_orders_own_period_not_todays(self):
+        """
+        RegistrationOrder.period is a snapshot of whichever period was
+        active when the order was placed. Editing it must keep pricing
+        against THAT period, not whatever period happens to be active
+        today -- otherwise an old registration would silently get
+        repriced at today's rates just by touching its blocs.
+        """
+        self.config.reduction_by_period_enabled = True
+        self.config.save(update_fields=['reduction_by_period_enabled'])
+        today = timezone.now().date()
+        old_period = ReductionPeriod.objects.create(
+            event=self.event, name='Early bird',
+            start_date=today - timedelta(days=30), end_date=today - timedelta(days=20),
+        )
+        current_period = ReductionPeriod.objects.create(
+            event=self.event, name='Standard',
+            start_date=today - timedelta(days=1), end_date=today + timedelta(days=1),
+        )
+        BlocItemStatusRule.objects.create(
+            period=old_period, target_kind='item', target_item=self.lunch, override_price=Decimal('200'),
+        )
+        BlocItemStatusRule.objects.create(
+            period=current_period, target_kind='item', target_item=self.lunch, override_price=Decimal('900'),
+        )
+        self.order.period = old_period
+        self.order.save(update_fields=['period'])
+
+        response = self._save(self.owner, self.order, {
+            'items_status': [str(self.status_a.id)],
+            'items_restauration': [str(self.lunch.id)],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ok'])
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.total_before_reduction, Decimal('200.00'))
+        self.assertEqual(self.order.period_id, old_period.id)
+
+    def test_period_rules_payload_is_keyed_by_each_orders_own_period(self):
+        """
+        The blocs-editor popup needs each row's OWN period's rules, not one
+        shared 'today' ruleset -- otherwise the live price preview couldn't
+        match what registration_order_blocs_save() actually saves once it's
+        pinned to the order's period.
+        """
+        import json
+        from .views_event_owner import _period_rules_by_period_json
+
+        self.config.reduction_by_period_enabled = True
+        self.config.save(update_fields=['reduction_by_period_enabled'])
+        today = timezone.now().date()
+        old_period = ReductionPeriod.objects.create(
+            event=self.event, name='Early bird',
+            start_date=today - timedelta(days=30), end_date=today - timedelta(days=20),
+        )
+        BlocItemStatusRule.objects.create(
+            period=old_period, target_kind='item', target_item=self.lunch, override_price=Decimal('200'),
+        )
+        self.order.period = old_period
+        self.order.save(update_fields=['period'])
+
+        payload = json.loads(_period_rules_by_period_json(self.event, [self.order]))
+        self.assertIn(str(old_period.id), payload)
+        rule = payload[str(old_period.id)]['period'][f'item_{self.lunch.id}']
+        self.assertEqual(rule['price'], '200.00')
+
     def test_owner_can_deselect_a_now_deactivated_item(self):
         """The participant originally picked Lunch; it's since been
         deactivated; the owner should still be able to remove it."""

@@ -15,6 +15,11 @@ from .models_blocs import BlocItem, BlocItemStatusRule
 
 TWO_PLACES = Decimal('0.01')
 
+# Sentinel distinguishing "caller didn't pass a period" (resolve live from
+# on_date, the normal case) from "caller explicitly wants no period" (pass
+# period=None) -- see compute_order's period arg.
+_PERIOD_NOT_PASSED = object()
+
 # All four blocs and which ones are item-based (custom) vs sessions (workshops).
 ALL_BLOCS = ['status', 'restauration', 'workshops', 'social_event']
 CUSTOM_BLOCS = ['status', 'restauration', 'social_event']
@@ -123,6 +128,7 @@ def resolve_catalog_prices(event, config, on_date, context_status_item_id=None):
 def compute_order(
     event, config, selected_item_ids, selected_session_ids, on_date,
     context_status_item_id=None, context_blocs_covered=None, include_inactive=False,
+    period=_PERIOD_NOT_PASSED,
 ):
     """
     Compute a cart from the raw selections.
@@ -133,6 +139,16 @@ def compute_order(
         selected_item_ids: iterable of BlocItem ids (custom blocs)
         selected_session_ids: iterable of Session ids (workshops bloc)
         on_date: date used to resolve the active period (the submission date)
+            -- ignored when period is explicitly passed (see below).
+        period: pins pricing to a specific ReductionPeriod (or None for "no
+            period") instead of resolving one live from on_date. Use this
+            to re-price an EXISTING order against the period it was
+            actually placed under (RegistrationOrder.period is a snapshot
+            for exactly this reason -- see its model docstring), so editing
+            an old registration doesn't silently reprice it at whatever
+            period happens to be active today. Leave unset for a brand new
+            selection (public form, caisse on-the-day add), where "today's
+            active period" is what should apply.
         include_inactive: also resolve BlocItems/Sessions that have been
             deactivated since the participant picked them. Only the event
             owner's "Modifier les blocs" edit flow sets this -- the public
@@ -178,7 +194,10 @@ def compute_order(
     if context_status_item_id:
         status_item_ids.append(int(context_status_item_id))
 
-    active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
+    if period is not _PERIOD_NOT_PASSED:
+        active_period = period
+    else:
+        active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
     rules_by_target = _rules_by_target(status_item_ids, active_period)
 
     # --- Custom bloc items ---

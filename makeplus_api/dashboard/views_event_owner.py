@@ -28,7 +28,9 @@ from caisse.services import cancel_registration_order, confirm_registration_orde
 from dashboard.email_sender import send_email
 from dashboard.models_email import get_event_email_template
 from events.models import Event, ParticipantEventRegistration, UserEventAssignment
-from .blocs_service import compute_order
+from .blocs_service import (
+    compute_order, serialize_status_rules_for_period, serialize_period_baseline_rules,
+)
 from .models_blocs import RegistrationOrder
 from .views_blocs import get_public_bloc_context
 
@@ -102,6 +104,29 @@ def _blocs_editor_selection_json(order):
     items = [str(it.get('id')) for it in order.items_snapshot if it.get('type') == 'item']
     sessions = [str(it.get('id')) for it in order.items_snapshot if it.get('type') == 'session']
     return json.dumps({'items': items, 'sessions': sessions})
+
+
+def _period_rules_by_period_json(event, orders):
+    """
+    Status/period BlocItemStatusRule payloads, one set per distinct
+    ReductionPeriod actually used among these orders (plus an entry for
+    "no period"), keyed by period id (or '' for none).
+
+    The blocs-editor popup's live price preview must match what
+    registration_order_blocs_save() will actually save -- which is now
+    pinned to the ORDER's own snapshotted period, not today's -- so the
+    popup needs each order's own period's rules, not one shared "today"
+    ruleset for the whole page.
+    """
+    periods = {order.period for order in orders}  # includes None if any order has no period
+    payload = {}
+    for period in periods:
+        key = str(period.id) if period else ''
+        payload[key] = {
+            'status': serialize_status_rules_for_period(event, period),
+            'period': serialize_period_baseline_rules(event, period),
+        }
+    return json.dumps(payload)
 
 
 @never_cache
@@ -192,6 +217,7 @@ def event_owner_submissions(request, event_id):
         order.duplicate_count = email_counts.get((order.email or '').strip().lower(), 0)
         order.is_duplicate_email = order.duplicate_count > 1
         order.blocs_editor_selection_json = _blocs_editor_selection_json(order)
+        order.blocs_editor_period_key = str(order.period_id) if order.period_id else ''
         total_revenue += order.total_after_reduction
         status_counts[order.status] = status_counts.get(order.status, 0) + 1
         for it in order.items_snapshot:
@@ -225,10 +251,15 @@ def event_owner_submissions(request, event_id):
     # can still see and toggle items that have since been deactivated
     # (e.g. to remove one a participant picked before it was discontinued).
     bloc_context = get_public_bloc_context(event, include_inactive=True)
+    # One status/period rules set per period actually used among these
+    # orders, so the popup's live preview can price each order against
+    # its OWN period -- see registration_order_blocs_save's matching fix.
+    period_rules_by_period_json = _period_rules_by_period_json(event, orders)
 
     context = {
         'event': event,
         'bloc_context': bloc_context,
+        'period_rules_by_period_json': period_rules_by_period_json,
         'orders': orders,
         'status': status,
         'status_label': STATUS_LABELS.get(status, ''),
@@ -422,7 +453,11 @@ def registration_order_blocs_save(request, order_id):
     things" flow) -- recomputed through the exact same compute_order() the
     public registration form itself calls in finalize_paid_registration(),
     so the pricing/discount math is guaranteed identical, not a
-    reimplementation that could quietly drift from it.
+    reimplementation that could quietly drift from it. Pinned to the
+    order's own snapshotted period (period=order.period) rather than
+    today's active period -- editing an old registration must keep
+    pricing it at the rates that applied when it was placed, not
+    whatever period happens to be running today.
 
     Blocked once the order is 'approved': confirm_registration_order()
     already froze total_after_reduction into a real, completed
@@ -472,10 +507,14 @@ def registration_order_blocs_save(request, order_id):
     if errors:
         return JsonResponse({'ok': False, 'error': ' '.join(errors)}, status=400)
 
+    # Pinned to the period this order was actually placed under (a
+    # snapshot on the order itself -- see RegistrationOrder.period), not
+    # whatever period happens to be active today: editing an old
+    # registration must keep pricing it at its own period's rates.
     result = compute_order(
         event=order.event, config=bloc_context['config'],
         selected_item_ids=selected_item_ids, selected_session_ids=selected_session_ids,
-        on_date=timezone.now().date(), include_inactive=True,
+        on_date=timezone.now().date(), include_inactive=True, period=order.period,
     )
 
     order.period_id = result['active_period_id']
