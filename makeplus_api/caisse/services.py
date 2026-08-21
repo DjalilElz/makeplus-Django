@@ -221,6 +221,28 @@ def _send_confirmation_email(order):
         )
 
 
+def _revoke_session_access_for_order(order):
+    """
+    Revoke real SessionAccess for every paid-workshop session in this
+    order's snapshot -- the mirror of what confirm_registration_order (and
+    resync_confirmed_registration_order) grants, including a FREE (price 0)
+    workshop: it still got real access when confirmed, so it must still
+    lose that access when un-confirmed, same as a paid one. A no-op if the
+    order was never confirmed (nothing was ever granted to revoke).
+    """
+    from events.models import SessionAccess
+
+    if not order.participant_id:
+        return
+    session_ids = {
+        entry['id'] for entry in (order.items_snapshot or []) if entry.get('type') == 'session'
+    }
+    if session_ids:
+        SessionAccess.objects.filter(participant_id=order.participant_id, session_id__in=session_ids).update(
+            has_access=False, payment_status='pending', amount_paid=0,
+        )
+
+
 def cancel_registration_order(order, cancelled_by=None, reason=''):
     """
     Cancel a RegistrationOrder.
@@ -229,21 +251,28 @@ def cancel_registration_order(order, cancelled_by=None, reason=''):
     flow, order.caisse_transaction is set precisely to the transaction it
     created), void that transaction too via its own cancel() -- soft
     cancel, matching this codebase's existing convention -- so caisse
-    stops treating the participant as having paid for those items.
+    stops treating the participant as having paid for those items. Also
+    revokes any real SessionAccess granted for a paid workshop in this
+    order (see _revoke_session_access_for_order) -- a no-op if it was
+    never confirmed in the first place.
 
     If it was instead confirmed by a real caisse station directly
     (order.caisse_transaction is null -- process_transaction doesn't set
-    it, and can bundle several orders into one transaction), this only
-    updates the registration record: an event owner shouldn't be able to
-    silently reverse money a physical caisse already collected. Callers
-    should surface that distinction to the user rather than imply the
-    payment itself was undone.
+    it, and can bundle several orders into one transaction), the
+    transaction itself is left untouched: an event owner shouldn't be
+    able to silently reverse money a physical caisse already collected.
+    Callers should surface that distinction to the user rather than imply
+    the payment itself was undone. SessionAccess is still revoked either
+    way -- it's tracked per participant, not shared across a bundled
+    transaction, so there's nothing unsafe about un-granting THIS
+    participant's own access to items on THIS order.
     """
     if order.caisse_transaction_id and order.caisse_transaction.status == 'completed':
         cancelled_label = (cancelled_by.get_full_name() or cancelled_by.email) if cancelled_by else 'Event owner'
         order.caisse_transaction.cancel(
             cancelled_by=cancelled_label, reason=reason or 'Registration cancelled by event owner.',
         )
+    _revoke_session_access_for_order(order)
 
     order.status = 'rejected'
     order.reviewed_by = cancelled_by
@@ -261,13 +290,15 @@ def unconfirm_registration_order(order, new_status, changed_by=None):
     in the pipeline, not marked Cancelled. Voids the real CaisseTransaction
     confirm_registration_order created (same soft-cancel as
     cancel_registration_order, just without also setting status='rejected')
-    since the order is no longer being treated as paid.
+    since the order is no longer being treated as paid, and revokes any
+    SessionAccess it granted (see _revoke_session_access_for_order),
+    including for a free workshop.
 
     Same physical-caisse-vs-owner-confirmed distinction as
     cancel_registration_order: if order.caisse_transaction is null
     (confirmed directly by a real caisse station, whose transaction can
-    bundle several OTHER people's payments), this only updates the
-    registration record -- an event owner shouldn't be able to silently
+    bundle several OTHER people's payments), the transaction itself is
+    left untouched -- an event owner shouldn't be able to silently
     reverse money a physical caisse already collected. Callers must
     surface that distinction rather than imply the payment was undone.
     """
@@ -277,6 +308,7 @@ def unconfirm_registration_order(order, new_status, changed_by=None):
             cancelled_by=changed_label,
             reason=f'Status changed from Confirmed to {new_status} by event owner.',
         )
+    _revoke_session_access_for_order(order)
 
     order.status = new_status
     order.reviewed_by = changed_by

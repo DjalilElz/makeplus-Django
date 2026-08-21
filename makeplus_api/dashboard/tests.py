@@ -1220,6 +1220,35 @@ class EventOwnerSubmissionsTests(TestCase):
         self.assertEqual(order.status, 'rejected')
         self.assertEqual(txn.status, 'cancelled')
 
+    def test_cancel_after_confirm_revokes_session_access_including_free_workshops(self):
+        """
+        A FREE (price 0) workshop still gets real SessionAccess on confirm
+        (it's still added to the transaction's items, just at 0 DZD) --
+        cancelling must revoke that access too, same as a paid workshop's,
+        not skip it just because nothing was charged for it.
+        """
+        from events.models import SessionAccess
+
+        order, participant, _user, paid_session = self._create_order_with_participant()
+        free_session = Session.objects.create(
+            event=self.event, room=paid_session.room, title='Free Workshop',
+            start_time=timezone.now(), end_time=timezone.now() + timedelta(hours=1),
+            is_paid=True, price=Decimal('0'),
+        )
+        order.items_snapshot = order.items_snapshot + [
+            {'bloc': 'workshops', 'type': 'session', 'id': str(free_session.id), 'name': 'Free Workshop', 'price': '0'},
+        ]
+        order.save(update_fields=['items_snapshot'])
+
+        self.client.force_login(self.owner)
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'approved'})
+        self.assertTrue(SessionAccess.objects.get(participant=participant, session=paid_session).has_access)
+        self.assertTrue(SessionAccess.objects.get(participant=participant, session=free_session).has_access)
+
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'rejected'})
+        self.assertFalse(SessionAccess.objects.get(participant=participant, session=paid_session).has_access)
+        self.assertFalse(SessionAccess.objects.get(participant=participant, session=free_session).has_access)
+
     def test_reverting_confirmed_order_to_another_status_voids_its_transaction(self):
         order, _participant, _user, _session = self._create_order_with_participant()
         self.client.force_login(self.owner)
@@ -1233,6 +1262,27 @@ class EventOwnerSubmissionsTests(TestCase):
         txn.refresh_from_db()
         self.assertEqual(order.status, 'pending')
         self.assertEqual(txn.status, 'cancelled')
+
+    def test_reverting_confirmed_order_revokes_session_access_including_free_workshops(self):
+        from events.models import SessionAccess
+
+        order, participant, _user, paid_session = self._create_order_with_participant()
+        free_session = Session.objects.create(
+            event=self.event, room=paid_session.room, title='Free Workshop',
+            start_time=timezone.now(), end_time=timezone.now() + timedelta(hours=1),
+            is_paid=True, price=Decimal('0'),
+        )
+        order.items_snapshot = order.items_snapshot + [
+            {'bloc': 'workshops', 'type': 'session', 'id': str(free_session.id), 'name': 'Free Workshop', 'price': '0'},
+        ]
+        order.save(update_fields=['items_snapshot'])
+
+        self.client.force_login(self.owner)
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'approved'})
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'pending'})
+
+        self.assertFalse(SessionAccess.objects.get(participant=participant, session=paid_session).has_access)
+        self.assertFalse(SessionAccess.objects.get(participant=participant, session=free_session).has_access)
 
     def test_reverting_caisse_confirmed_order_to_another_status_leaves_no_transaction_to_void(self):
         """No order.caisse_transaction means it was confirmed by a real
