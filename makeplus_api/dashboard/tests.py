@@ -1220,14 +1220,35 @@ class EventOwnerSubmissionsTests(TestCase):
         self.assertEqual(order.status, 'rejected')
         self.assertEqual(txn.status, 'cancelled')
 
-    def test_cannot_revert_confirmed_directly_to_pending(self):
+    def test_reverting_confirmed_order_to_another_status_voids_its_transaction(self):
         order, _participant, _user, _session = self._create_order_with_participant()
         self.client.force_login(self.owner)
         self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'approved'})
-        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'pending'})
-
         order.refresh_from_db()
-        self.assertEqual(order.status, 'approved')  # unchanged
+        txn = order.caisse_transaction
+        self.assertEqual(txn.status, 'completed')
+
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'pending'})
+        order.refresh_from_db()
+        txn.refresh_from_db()
+        self.assertEqual(order.status, 'pending')
+        self.assertEqual(txn.status, 'cancelled')
+
+    def test_reverting_caisse_confirmed_order_to_another_status_leaves_no_transaction_to_void(self):
+        """No order.caisse_transaction means it was confirmed by a real
+        physical caisse station (whose transaction can bundle several
+        OTHER people's payments) -- the status change still goes through,
+        same as the Cancelled path already does, there's just nothing
+        here that's safe to touch."""
+        order, _participant, _user, _session = self._create_order_with_participant()
+        order.status = 'approved'
+        order.save(update_fields=['status'])
+        self.assertIsNone(order.caisse_transaction_id)
+
+        self.client.force_login(self.owner)
+        self.client.post(reverse('dashboard:registration_status_save', args=[order.id]), {'status': 'pending'})
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'pending')
 
     def test_delete_revokes_only_this_events_access(self):
         order, participant, participant_user, _session = self._create_order_with_participant()

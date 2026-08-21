@@ -253,6 +253,37 @@ def cancel_registration_order(order, cancelled_by=None, reason=''):
     order.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'admin_notes'])
 
 
+def unconfirm_registration_order(order, new_status, changed_by=None):
+    """
+    Move an already-CONFIRMED RegistrationOrder to a DIFFERENT status
+    (Registered/Reserved/To Contact/To Recontact) rather than Cancelled --
+    e.g. the owner realizes a confirmation was a mistake and wants it back
+    in the pipeline, not marked Cancelled. Voids the real CaisseTransaction
+    confirm_registration_order created (same soft-cancel as
+    cancel_registration_order, just without also setting status='rejected')
+    since the order is no longer being treated as paid.
+
+    Same physical-caisse-vs-owner-confirmed distinction as
+    cancel_registration_order: if order.caisse_transaction is null
+    (confirmed directly by a real caisse station, whose transaction can
+    bundle several OTHER people's payments), this only updates the
+    registration record -- an event owner shouldn't be able to silently
+    reverse money a physical caisse already collected. Callers must
+    surface that distinction rather than imply the payment was undone.
+    """
+    if order.caisse_transaction_id and order.caisse_transaction.status == 'completed':
+        changed_label = (changed_by.get_full_name() or changed_by.email) if changed_by else 'Event owner'
+        order.caisse_transaction.cancel(
+            cancelled_by=changed_label,
+            reason=f'Status changed from Confirmed to {new_status} by event owner.',
+        )
+
+    order.status = new_status
+    order.reviewed_by = changed_by
+    order.reviewed_at = timezone.now()
+    order.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
+
+
 def resync_confirmed_registration_order(order, result, edited_by=None):
     """
     Re-price an ALREADY-CONFIRMED RegistrationOrder after the event owner

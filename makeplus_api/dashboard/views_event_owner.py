@@ -26,6 +26,7 @@ from django.views.decorators.http import require_POST
 
 from caisse.services import (
     cancel_registration_order, confirm_registration_order, resync_confirmed_registration_order,
+    unconfirm_registration_order,
 )
 from dashboard.email_sender import send_email
 from dashboard.models_email import get_event_email_template
@@ -386,11 +387,14 @@ def event_owner_export_excel(request, event_id):
 @require_POST
 def registration_status_save(request, order_id):
     """
-    Move a registration between its 6 statuses. Confirmed/Cancelled
-    trigger real effects (see caisse.services -- Confirmed creates a real
-    paid CaisseTransaction + session access, Cancelled voids one if this
-    flow created it); Registered/Reserved/To Contact/To Recontact are
-    plain bookkeeping.
+    Move a registration between its 6 statuses. Confirmed triggers a real
+    effect (see caisse.services -- creates a real paid CaisseTransaction +
+    session access). Moving OFF Confirmed to ANY other status -- Cancelled
+    or otherwise -- voids that transaction too (cancel_registration_order
+    for Cancelled, unconfirm_registration_order for the rest), since none
+    of them should leave a stale "paid" transaction behind for a
+    registration that's no longer Confirmed. Between any two non-Confirmed
+    statuses this is plain bookkeeping.
     """
     order = get_object_or_404(RegistrationOrder, id=order_id)
     if not _can_access_event_orders(request.user, order.event):
@@ -412,13 +416,14 @@ def registration_status_save(request, order_id):
             cancel_registration_order(order, cancelled_by=request.user)
             messages.success(request, 'Inscription annulée.')
         elif order.status == 'approved':
-            # Un-confirming isn't a plain label change -- it has to go
-            # through cancel_registration_order to void the real
-            # transaction, so route it through "Cancelled" instead.
-            messages.error(
+            # Moving off Confirmed to anything else isn't a plain label
+            # change either -- void the real transaction it created,
+            # same principle as Cancelled, just without marking the
+            # registration itself as rejected.
+            unconfirm_registration_order(order, new_status, changed_by=request.user)
+            messages.success(
                 request,
-                'Cette inscription est déjà confirmée (paiement réel enregistré). '
-                'Annulez-la d\'abord si vous devez revenir en arrière.',
+                "Statut de l'inscription mis à jour -- le paiement précédemment confirmé a été annulé.",
             )
         else:
             order.status = new_status
