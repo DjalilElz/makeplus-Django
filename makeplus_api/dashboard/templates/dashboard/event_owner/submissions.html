@@ -989,12 +989,24 @@
 
         // Status change, delete, and the blocs editor all reload/redirect
         // the whole page on success -- without this, every single action
-        // on a long list throws the owner back to the top and they have
-        // to scroll back down to find the row they just acted on. Saved
-        // right before the action actually proceeds (never on a cancelled
-        // confirm()), restored once by restoreScrollPosition() below.
-        function saveScrollPosition() {
-            try { sessionStorage.setItem('submissionsScrollY', String(window.scrollY)); } catch (e) {}
+        // on a long list throws the owner back to the top AND wipes
+        // whatever was typed into the live name/email search box (that
+        // box filters client-side as you type -- see applyLiveSearch()
+        // below -- so it was never part of the URL for the redirect to
+        // preserve on its own). Saved right before the action actually
+        // proceeds (never on a cancelled confirm()); scroll is restored
+        // immediately below, the search text by restoreLiveSearch() once
+        // that box exists further down this script.
+        function saveListUiState() {
+            try {
+                sessionStorage.setItem('submissionsScrollY', String(window.scrollY));
+                var liveSearchEl = document.getElementById('live-search-input');
+                if (liveSearchEl && liveSearchEl.value) {
+                    sessionStorage.setItem('submissionsLiveSearch', liveSearchEl.value);
+                } else {
+                    sessionStorage.removeItem('submissionsLiveSearch');
+                }
+            } catch (e) {}
         }
 
         function restoreScrollPosition() {
@@ -1010,7 +1022,7 @@
         function confirmStatusChange(form, currentStatus) {
             var newStatus = form.status.value;
             if (newStatus === currentStatus) {
-                saveScrollPosition();
+                saveListUiState();
                 return true;
             }
             var msg = 'Changer le statut vers "' + STATUS_LABELS[newStatus] + '" ?';
@@ -1021,7 +1033,7 @@
                 msg = 'Annuler cette inscription ? Si elle était déjà confirmée, le paiement enregistré sera annulé.';
             }
             if (!confirm(msg)) return false;
-            saveScrollPosition();
+            saveListUiState();
             return true;
         }
 
@@ -1032,7 +1044,7 @@
                     + 'ce paiement dans le système. Voulez-vous vraiment continuer ?';
             }
             if (!confirm(msg)) return false;
-            saveScrollPosition();
+            saveListUiState();
             return true;
         }
 
@@ -1337,7 +1349,7 @@
                 return resp.json().then(function (data) { return { resp: resp, data: data }; });
             }).then(function (result) {
                 if (result.resp.ok && result.data.ok) {
-                    saveScrollPosition();
+                    saveListUiState();
                     window.location.reload();
                 } else {
                     errorBox.textContent = result.data.error || "Échec de l'enregistrement.";
@@ -1480,6 +1492,21 @@
         if (liveSearchInput) {
             liveSearchInput.addEventListener('input', applyLiveSearch);
         }
+
+        // Restores whatever was typed here right before a status change /
+        // delete / blocs-edit save reloaded the page -- see
+        // saveListUiState() further up this page. One-shot: cleared as
+        // soon as it's read, so a plain fresh visit to this page is
+        // unaffected.
+        (function restoreLiveSearch() {
+            try {
+                var saved = sessionStorage.getItem('submissionsLiveSearch');
+                if (saved === null || !liveSearchInput) return;
+                sessionStorage.removeItem('submissionsLiveSearch');
+                liveSearchInput.value = saved;
+                applyLiveSearch();
+            } catch (e) {}
+        })();
     </script>
     {% include 'dashboard/_powered_by_footer.html' %}
 </body>
