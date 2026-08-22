@@ -1350,6 +1350,57 @@ class EventOwnerSubmissionsTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTrue(RegistrationOrder.objects.filter(id=order.id).exists())
 
+    @patch('dashboard.views_event_owner.send_email')
+    def test_send_payment_link_is_remembered_across_page_loads(self, mock_send_email):
+        """
+        The green "already sent" confirmation must survive a reload, not
+        just live in the popup's own JS for as long as it stays open --
+        payment_link_sent_at is what makes that durable.
+        """
+        mock_send_email.return_value = (True, None, None)
+        self.client.force_login(self.owner)
+
+        self.assertIsNone(self.order.payment_link_sent_at)
+        response = self.client.post(reverse('dashboard:send_payment_link_email', args=[self.order.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ok'])
+
+        self.order.refresh_from_db()
+        self.assertIsNotNone(self.order.payment_link_sent_at)
+
+        page = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.event.id]))
+        self.assertContains(page, 'Mail de préinscription envoyé le')
+
+    @patch('dashboard.views_event_owner.send_email')
+    def test_failed_payment_link_send_does_not_record_anything(self, mock_send_email):
+        mock_send_email.return_value = (False, 'SMTP down', None)
+        self.client.force_login(self.owner)
+
+        response = self.client.post(reverse('dashboard:send_payment_link_email', args=[self.order.id]))
+        self.assertEqual(response.status_code, 502)
+        self.order.refresh_from_db()
+        self.assertIsNone(self.order.payment_link_sent_at)
+
+    def test_status_change_redirect_preserves_active_filters(self):
+        """
+        A plain redirect() drops whatever status/search filters were
+        active, silently resetting the owner's filtered view on top of
+        losing their scroll position -- the query string must survive
+        the round trip.
+        """
+        self.client.force_login(self.owner)
+        url = reverse('dashboard:registration_status_save', args=[self.order.id]) + '?status=pending&q=Karim'
+        response = self.client.post(url, {'status': 'reserved'})
+        expected = reverse('dashboard:event_owner_submissions', args=[self.event.id]) + '?status=pending&q=Karim'
+        self.assertRedirects(response, expected)
+
+    def test_delete_redirect_preserves_active_filters(self):
+        self.client.force_login(self.owner)
+        url = reverse('dashboard:registration_delete', args=[self.order.id]) + '?status=pending&q=Karim'
+        response = self.client.post(url)
+        expected = reverse('dashboard:event_owner_submissions', args=[self.event.id]) + '?status=pending&q=Karim'
+        self.assertRedirects(response, expected)
+
 
 class RegistrationOrderBlocsEditTests(TestCase):
     """

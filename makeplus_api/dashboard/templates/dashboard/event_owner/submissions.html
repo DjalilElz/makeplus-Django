@@ -577,7 +577,7 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <form method="post" action="{% url 'dashboard:registration_status_save' order.id %}"
+                                <form method="post" action="{% url 'dashboard:registration_status_save' order.id %}?{{ request.GET.urlencode }}"
                                       onsubmit="return confirmStatusChange(this, '{{ order.status }}');">
                                     {% csrf_token %}
                                     <select name="status" class="form-select form-select-sm status-select status-{{ order.status }}"
@@ -616,7 +616,7 @@
                                     </button>
                                     {% endif %}
                                 {% endif %}
-                                <form method="post" action="{% url 'dashboard:registration_delete' order.id %}"
+                                <form method="post" action="{% url 'dashboard:registration_delete' order.id %}?{{ request.GET.urlencode }}"
                                       onsubmit="return confirmDelete(this, '{{ order.status }}');" class="d-inline">
                                     {% csrf_token %}
                                     {% if order.status == 'approved' %}<input type="hidden" name="confirm_paid" value="1">{% endif %}
@@ -733,7 +733,8 @@
                     <p class="mb-0 text-muted small">Soumis le {{ order.created_at|date:"d M Y H:i" }}</p>
                 </div>
                 <div class="modal-footer flex-wrap" style="border-top: 1px solid var(--border-light);">
-                    <small class="payment-link-indicator text-success me-auto" style="display:none;"></small>
+                    <small class="payment-link-indicator text-success me-auto"
+                           style="display:{% if order.payment_link_sent_at %}inline{% else %}none{% endif %};">{% if order.payment_link_sent_at %}Mail de préinscription envoyé le {{ order.payment_link_sent_at|date:"d M Y H:i" }}.{% endif %}</small>
                     <button type="button" class="btn btn-outline-elegant btn-sm" data-bs-dismiss="modal">Fermer</button>
                     <button type="button" class="btn btn-elegant btn-sm" onclick="downloadOrderPdf('order-{{ order.id }}', '{{ order.full_name|default:order.email|escapejs }}')"><i class="bi bi-file-earmark-pdf"></i> Télécharger en PDF</button>
                     <button type="button" class="btn btn-elegant btn-sm"
@@ -986,9 +987,32 @@
             {% for code, label in status_choices %}'{{ code }}': '{{ label }}'{% if not forloop.last %}, {% endif %}{% endfor %}
         };
 
+        // Status change, delete, and the blocs editor all reload/redirect
+        // the whole page on success -- without this, every single action
+        // on a long list throws the owner back to the top and they have
+        // to scroll back down to find the row they just acted on. Saved
+        // right before the action actually proceeds (never on a cancelled
+        // confirm()), restored once by restoreScrollPosition() below.
+        function saveScrollPosition() {
+            try { sessionStorage.setItem('submissionsScrollY', String(window.scrollY)); } catch (e) {}
+        }
+
+        function restoreScrollPosition() {
+            try {
+                var y = sessionStorage.getItem('submissionsScrollY');
+                if (y === null) return;
+                sessionStorage.removeItem('submissionsScrollY');
+                window.scrollTo(0, parseInt(y, 10) || 0);
+            } catch (e) {}
+        }
+        restoreScrollPosition();
+
         function confirmStatusChange(form, currentStatus) {
             var newStatus = form.status.value;
-            if (newStatus === currentStatus) return true;
+            if (newStatus === currentStatus) {
+                saveScrollPosition();
+                return true;
+            }
             var msg = 'Changer le statut vers "' + STATUS_LABELS[newStatus] + '" ?';
             if (newStatus === 'approved') {
                 msg = 'Confirmer cette inscription ? Cela donnera un accès réel payé au participant, '
@@ -996,7 +1020,9 @@
             } else if (newStatus === 'rejected') {
                 msg = 'Annuler cette inscription ? Si elle était déjà confirmée, le paiement enregistré sera annulé.';
             }
-            return confirm(msg);
+            if (!confirm(msg)) return false;
+            saveScrollPosition();
+            return true;
         }
 
         function confirmDelete(form, status) {
@@ -1005,7 +1031,9 @@
                 msg = 'Cette inscription est déjà CONFIRMÉE (paiement réel enregistré). La supprimer annulera '
                     + 'ce paiement dans le système. Voulez-vous vraiment continuer ?';
             }
-            return confirm(msg);
+            if (!confirm(msg)) return false;
+            saveScrollPosition();
+            return true;
         }
 
         function getCookie(name) {
@@ -1309,6 +1337,7 @@
                 return resp.json().then(function (data) { return { resp: resp, data: data }; });
             }).then(function (result) {
                 if (result.resp.ok && result.data.ok) {
+                    saveScrollPosition();
                     window.location.reload();
                 } else {
                     errorBox.textContent = result.data.error || "Échec de l'enregistrement.";

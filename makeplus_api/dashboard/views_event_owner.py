@@ -20,6 +20,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
@@ -38,6 +39,21 @@ from .models_blocs import RegistrationOrder
 from .views_blocs import get_public_bloc_context
 
 BLOC_KEYS = ('status', 'restauration', 'workshops', 'social_event')
+
+
+def _redirect_to_submissions(request, event_id):
+    """
+    Back to the submissions list, carrying over whatever status/search/
+    item filters were active (request.GET) -- a plain redirect() drops
+    them, silently resetting the owner's filtered view to "everything"
+    after every status change/delete, on top of losing their scroll
+    position (which the page's own JS restores separately).
+    """
+    url = reverse('dashboard:event_owner_submissions', kwargs={'event_id': event_id})
+    query = request.GET.urlencode()
+    if query:
+        url = f'{url}?{query}'
+    return redirect(url)
 
 
 def _can_access_event_orders(user, event):
@@ -403,7 +419,7 @@ def registration_status_save(request, order_id):
     new_status = request.POST.get('status', '').strip()
     if new_status not in STATUS_LABELS:
         messages.error(request, 'Statut invalide.')
-        return redirect('dashboard:event_owner_submissions', event_id=order.event_id)
+        return _redirect_to_submissions(request, order.event_id)
 
     if new_status != order.status:
         if new_status == 'approved':
@@ -432,7 +448,7 @@ def registration_status_save(request, order_id):
             order.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
             messages.success(request, "Statut de l'inscription mis à jour.")
 
-    return redirect('dashboard:event_owner_submissions', event_id=order.event_id)
+    return _redirect_to_submissions(request, order.event_id)
 
 
 @never_cache
@@ -572,7 +588,9 @@ def send_payment_link_email(request, order_id):
     Only the built-in default (used until an admin bothers to customize)
     includes a sensible itemized breakdown + payment button automatically.
     Responds with JSON (called from the submissions modal via fetch, no
-    page reload) rather than redirecting.
+    page reload) rather than redirecting. Records payment_link_sent_at on
+    success so the modal can keep showing "already sent" on any future
+    visit, not just for as long as this one page stays open.
     """
     order = get_object_or_404(RegistrationOrder, id=order_id)
     if not _can_access_event_orders(request.user, order.event):
@@ -641,7 +659,10 @@ def send_payment_link_email(request, order_id):
     )
     if not success:
         return JsonResponse({'ok': False, 'error': error or "Échec de l'envoi."}, status=502)
-    return JsonResponse({'ok': True})
+
+    order.payment_link_sent_at = timezone.now()
+    order.save(update_fields=['payment_link_sent_at'])
+    return JsonResponse({'ok': True, 'sent_at': order.payment_link_sent_at.isoformat()})
 
 
 @never_cache
@@ -668,7 +689,7 @@ def registration_delete(request, order_id):
             'Cette inscription était déjà confirmée (paiement réel enregistré). '
             'Annulez-la d\'abord, ou confirmez explicitement la suppression si vous comprenez cette action.',
         )
-        return redirect('dashboard:event_owner_submissions', event_id=order.event_id)
+        return _redirect_to_submissions(request, order.event_id)
 
     event_id = order.event_id
     participant = order.participant
@@ -695,4 +716,4 @@ def registration_delete(request, order_id):
 
     order.delete()
     messages.success(request, 'Inscription supprimée.')
-    return redirect('dashboard:event_owner_submissions', event_id=event_id)
+    return _redirect_to_submissions(request, event_id)

@@ -319,6 +319,12 @@ class RegistrationOrder(models.Model):
         related_name='owner_confirmed_orders',
     )
 
+    # Set by send_payment_link_email whenever it succeeds -- lets the
+    # submissions page show "already sent" durably (across reloads/future
+    # visits), not just as an in-memory confirmation that vanishes the
+    # moment the modal closes.
+    payment_link_sent_at = models.DateTimeField(null=True, blank=True)
+
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
