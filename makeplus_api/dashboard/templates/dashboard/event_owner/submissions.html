@@ -1017,7 +1017,18 @@
                 window.scrollTo(0, parseInt(y, 10) || 0);
             } catch (e) {}
         }
-        restoreScrollPosition();
+        // Restoring the text into an input works fine no matter when it
+        // runs, but restoring a scroll PIXEL position doesn't: this page
+        // pulls in external CSS/webfonts/Chart.js from CDNs, and their
+        // late arrival keeps reflowing (and changing the total height of)
+        // the page for a while after the HTML itself is parsed. Calling
+        // scrollTo() at parse time landed on whatever height existed at
+        // that instant, which is why it kept snapping back near the top
+        // once everything else finished loading and the layout below it
+        // shifted. window.load only fires once every external resource
+        // (stylesheets, fonts, Chart.js, images) has actually finished, so
+        // the page's real final height is already settled by then.
+        window.addEventListener('load', restoreScrollPosition);
 
         function confirmStatusChange(form, currentStatus) {
             var newStatus = form.status.value;
