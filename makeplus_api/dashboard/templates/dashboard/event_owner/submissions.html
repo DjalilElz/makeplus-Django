@@ -555,7 +555,7 @@
                     </thead>
                     <tbody>
                         {% for order in orders %}
-                        <tr>
+                        <tr id="submissions-row-{{ order.id }}">
                             <td class="cell-name">{{ order.full_name|default:"—" }}</td>
                             <td class="cell-email">
                                 {{ order.email|default:"—" }}
@@ -578,6 +578,7 @@
                             </td>
                             <td>
                                 <form method="post" action="{% url 'dashboard:registration_status_save' order.id %}?{{ request.GET.urlencode }}"
+                                      data-order-id="{{ order.id }}"
                                       onsubmit="return confirmStatusChange(this, '{{ order.status }}');">
                                     {% csrf_token %}
                                     <select name="status" class="form-select form-select-sm status-select status-{{ order.status }}"
@@ -617,6 +618,7 @@
                                     {% endif %}
                                 {% endif %}
                                 <form method="post" action="{% url 'dashboard:registration_delete' order.id %}?{{ request.GET.urlencode }}"
+                                      data-order-id="{{ order.id }}"
                                       onsubmit="return confirmDelete(this, '{{ order.status }}');" class="d-inline">
                                     {% csrf_token %}
                                     {% if order.status == 'approved' %}<input type="hidden" name="confirm_paid" value="1">{% endif %}
@@ -993,13 +995,37 @@
         // whatever was typed into the live name/email search box (that
         // box filters client-side as you type -- see applyLiveSearch()
         // below -- so it was never part of the URL for the redirect to
-        // preserve on its own). Saved right before the action actually
-        // proceeds (never on a cancelled confirm()); scroll is restored
-        // immediately below, the search text by restoreLiveSearch() once
-        // that box exists further down this script.
-        function saveListUiState() {
+        // preserve on its own).
+        //
+        // Restoring a raw scroll-Y pixel value turned out unreliable: this
+        // page pulls in external CSS/webfonts/Chart.js from CDNs, and
+        // their late arrival keeps reflowing the page's total height for a
+        // while, even past window.load in some cases (webfont swap in
+        // particular) -- any fixed pixel value computed before that
+        // settles is wrong by the time it's used. Anchoring to the actual
+        // ROW the owner acted on instead (scrollIntoView on its <tr
+        // id="submissions-row-...">) sidesteps that entirely: it isn't a
+        // number that can go stale, it's "put THIS element on screen",
+        // recomputed fresh against whatever the final layout actually is
+        // -- correct regardless of when it runs or how much the page
+        // above/below it has shifted.
+        function saveListUiState(orderId, fallbackOrderId) {
             try {
-                sessionStorage.setItem('submissionsScrollY', String(window.scrollY));
+                if (orderId) {
+                    sessionStorage.setItem('submissionsFocusOrderId', orderId);
+                } else {
+                    sessionStorage.removeItem('submissionsFocusOrderId');
+                }
+                // Only meaningful for delete: the acted-on row itself is
+                // gone afterward, so a neighboring row (captured BEFORE
+                // the delete, while it's still there to look at) is the
+                // next best anchor -- still lands the owner right next to
+                // where the deleted row used to be, not back at the top.
+                if (fallbackOrderId) {
+                    sessionStorage.setItem('submissionsFocusFallbackOrderId', fallbackOrderId);
+                } else {
+                    sessionStorage.removeItem('submissionsFocusFallbackOrderId');
+                }
                 var liveSearchEl = document.getElementById('live-search-input');
                 if (liveSearchEl && liveSearchEl.value) {
                     sessionStorage.setItem('submissionsLiveSearch', liveSearchEl.value);
@@ -1009,31 +1035,37 @@
             } catch (e) {}
         }
 
-        function restoreScrollPosition() {
+        function restoreListFocus() {
             try {
-                var y = sessionStorage.getItem('submissionsScrollY');
-                if (y === null) return;
-                sessionStorage.removeItem('submissionsScrollY');
-                window.scrollTo(0, parseInt(y, 10) || 0);
+                var orderId = sessionStorage.getItem('submissionsFocusOrderId');
+                var fallbackOrderId = sessionStorage.getItem('submissionsFocusFallbackOrderId');
+                if (orderId === null && fallbackOrderId === null) return;
+                sessionStorage.removeItem('submissionsFocusOrderId');
+                sessionStorage.removeItem('submissionsFocusFallbackOrderId');
+                var row = orderId ? document.getElementById('submissions-row-' + orderId) : null;
+                // Not found (deleted, or filtered out by the status/item
+                // filters after the change -- e.g. viewing "Pending" only
+                // and this row just became "Confirmed") -- try the
+                // neighbor captured at delete time instead.
+                if (!row && fallbackOrderId) row = document.getElementById('submissions-row-' + fallbackOrderId);
+                if (row) row.scrollIntoView({ block: 'center' });
             } catch (e) {}
         }
-        // Restoring the text into an input works fine no matter when it
-        // runs, but restoring a scroll PIXEL position doesn't: this page
-        // pulls in external CSS/webfonts/Chart.js from CDNs, and their
-        // late arrival keeps reflowing (and changing the total height of)
-        // the page for a while after the HTML itself is parsed. Calling
-        // scrollTo() at parse time landed on whatever height existed at
-        // that instant, which is why it kept snapping back near the top
-        // once everything else finished loading and the layout below it
-        // shifted. window.load only fires once every external resource
-        // (stylesheets, fonts, Chart.js, images) has actually finished, so
-        // the page's real final height is already settled by then.
-        window.addEventListener('load', restoreScrollPosition);
+        // Run on window.load (everything external has actually finished,
+        // so this isn't fighting a still-reflowing page) AND again shortly
+        // after, in case a webfont swaps in later still and nudges things
+        // -- scrollIntoView is idempotent/cheap to call twice, and the
+        // sessionStorage key is already cleared after the first run so
+        // this second pass is a no-op on any normal page visit.
+        window.addEventListener('load', function () {
+            restoreListFocus();
+            setTimeout(restoreListFocus, 400);
+        });
 
         function confirmStatusChange(form, currentStatus) {
             var newStatus = form.status.value;
             if (newStatus === currentStatus) {
-                saveListUiState();
+                saveListUiState(form.dataset.orderId);
                 return true;
             }
             var msg = 'Changer le statut vers "' + STATUS_LABELS[newStatus] + '" ?';
@@ -1044,7 +1076,7 @@
                 msg = 'Annuler cette inscription ? Si elle était déjà confirmée, le paiement enregistré sera annulé.';
             }
             if (!confirm(msg)) return false;
-            saveListUiState();
+            saveListUiState(form.dataset.orderId);
             return true;
         }
 
@@ -1055,7 +1087,11 @@
                     + 'ce paiement dans le système. Voulez-vous vraiment continuer ?';
             }
             if (!confirm(msg)) return false;
-            saveListUiState();
+            var row = form.closest('tr');
+            var neighbor = row ? (row.nextElementSibling || row.previousElementSibling) : null;
+            var fallbackId = (neighbor && neighbor.id && neighbor.id.indexOf('submissions-row-') === 0)
+                ? neighbor.id.slice('submissions-row-'.length) : null;
+            saveListUiState(form.dataset.orderId, fallbackId);
             return true;
         }
 
@@ -1360,7 +1396,7 @@
                 return resp.json().then(function (data) { return { resp: resp, data: data }; });
             }).then(function (result) {
                 if (result.resp.ok && result.data.ok) {
-                    saveListUiState();
+                    saveListUiState(currentOrderId);
                     window.location.reload();
                 } else {
                     errorBox.textContent = result.data.error || "Échec de l'enregistrement.";
