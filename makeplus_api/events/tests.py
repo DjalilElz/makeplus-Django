@@ -9,14 +9,16 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from .models import (
-    Event, Participant, ParticipantEventRegistration, Room, Session,
-    SessionQuestion, SignUpVerification, FormRegistrationVerification,
-    PasswordResetVerification, UserEventAssignment,
+    Event, Participant, ParticipantEventRegistration, Room, RoomAccess,
+    Session, SessionAccess, SessionQuestion, SignUpVerification,
+    FormRegistrationVerification, PasswordResetVerification,
+    UserEventAssignment,
 )
 from .form_validation_service import get_or_create_user_by_email, verify_form_registration
 from .signup_service import send_signup_verification_code, verify_signup_code
 from .password_reset_service import request_password_reset, verify_password_reset
 from dashboard.models_form import FormConfiguration
+from dashboard.models_blocs import RegistrationOrder
 
 
 class PublicAuthEndpointTests(TestCase):
@@ -382,3 +384,120 @@ class SessionQuestionFlowTests(TestCase):
         }, format='json')
 
         self.assertEqual(response.status_code, 403, response.data)
+
+
+class UserEventDataDeleteAPITests(TestCase):
+    """
+    Partial data deletion (Play Store Data Safety requirement): a
+    participant can erase everything tied to ONE event without deleting
+    their whole account.
+    """
+
+    def setUp(self):
+        self.event = Event.objects.create(
+            name='Congress', start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location='Algiers',
+            status='active',
+        )
+        self.other_event = Event.objects.create(
+            name='Other Congress', start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location='Oran',
+            status='active',
+        )
+        self.room = Room.objects.create(event=self.event, name='Salle A', capacity=100, location='Floor 1')
+        self.session = Session.objects.create(
+            event=self.event, room=self.room, title='Opening Talk',
+            start_time=timezone.now(), end_time=timezone.now() + timedelta(hours=1),
+            is_paid=True, price=1000,
+        )
+
+        self.user = User.objects.create_user(
+            username='leaver', email='leaver@example.com', password='pw12345',
+        )
+        self.participant = Participant.objects.create(user=self.user, badge_id='BADGE-1')
+        ParticipantEventRegistration.objects.create(participant=self.participant, event=self.event)
+        ParticipantEventRegistration.objects.create(participant=self.participant, event=self.other_event)
+
+        self.question = SessionQuestion.objects.create(
+            session=self.session, participant=self.participant, question_text='Une question ?',
+        )
+        self.session_access = SessionAccess.objects.create(
+            participant=self.participant, session=self.session,
+            has_access=True, payment_status='paid', amount_paid=1000,
+        )
+        self.room_access = RoomAccess.objects.create(
+            participant=self.participant, room=self.room, status='granted',
+        )
+        self.order = RegistrationOrder.objects.create(
+            event=self.event, participant=self.participant,
+            full_name='Leaver Test', email='leaver@example.com',
+            items_snapshot=[], total_before_reduction=0, total_after_reduction=0,
+        )
+
+    def _login(self):
+        client = APIClient()
+        response = client.post(
+            '/api/auth/token/', {'email': 'leaver@example.com', 'password': 'pw12345'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
+        if response.data.get('requires_event_selection'):
+            # This participant is registered for more than one event, so
+            # login stops at a temp selection token instead of real JWTs.
+            client.credentials(HTTP_AUTHORIZATION=f'Bearer {response.data["temp_token"]}')
+            response = client.post(
+                '/api/auth/select-event/', {'event_id': str(self.event.id)}, format='json',
+            )
+            self.assertEqual(response.status_code, 200, response.data)
+
+        client.credentials(HTTP_AUTHORIZATION=f'Bearer {response.data["access"]}')
+        return client
+
+    def test_deletes_only_this_events_data(self):
+        client = self._login()
+        response = client.delete(f'/api/auth/me/events/{self.event.id}/')
+        self.assertEqual(response.status_code, 200, response.data)
+
+        self.assertFalse(
+            ParticipantEventRegistration.objects.filter(participant=self.participant, event=self.event).exists()
+        )
+        self.assertFalse(SessionQuestion.objects.filter(id=self.question.id).exists())
+        self.assertFalse(SessionAccess.objects.filter(id=self.session_access.id).exists())
+        self.assertFalse(RoomAccess.objects.filter(id=self.room_access.id).exists())
+        self.assertFalse(RegistrationOrder.objects.filter(id=self.order.id).exists())
+
+        # Other event, and the account itself, untouched.
+        self.assertTrue(
+            ParticipantEventRegistration.objects.filter(participant=self.participant, event=self.other_event).exists()
+        )
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+        self.assertTrue(Participant.objects.filter(id=self.participant.id).exists())
+
+    def test_blocks_deletion_when_registration_is_confirmed(self):
+        self.order.status = 'approved'
+        self.order.save(update_fields=['status'])
+
+        client = self._login()
+        response = client.delete(f'/api/auth/me/events/{self.event.id}/')
+
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertTrue(RegistrationOrder.objects.filter(id=self.order.id).exists())
+        self.assertTrue(
+            ParticipantEventRegistration.objects.filter(participant=self.participant, event=self.event).exists()
+        )
+
+    def test_requires_authentication(self):
+        client = APIClient()
+        response = client.delete(f'/api/auth/me/events/{self.event.id}/')
+        self.assertEqual(response.status_code, 401)
+
+    def test_404_for_an_event_never_registered_for(self):
+        unrelated_event = Event.objects.create(
+            name='Unrelated', start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location='Constantine',
+            status='active',
+        )
+        client = self._login()
+        response = client.delete(f'/api/auth/me/events/{unrelated_event.id}/')
+        self.assertEqual(response.status_code, 404, response.data)

@@ -54,6 +54,7 @@ urlpatterns = [
     
     path('auth/me/', api_views.UserProfileAPIView.as_view(), name='user-me'),  # REST API for mobile
     path('auth/me/export/', api_views.UserDataExportAPIView.as_view(), name='user-me-export'),  # Data export for mobile
+    path('auth/me/events/<uuid:event_id>/', api_views.UserEventDataDeleteAPIView.as_view(), name='user-me-event-delete'),  # Partial data deletion (one event, not the whole account)
     path('auth/profile/', auth_views.UserProfileView.as_view(), name='profile'),  # Template view for web
     path('auth/change-password/', auth_views.ChangePasswordView.as_view(), name='change-password'),
     

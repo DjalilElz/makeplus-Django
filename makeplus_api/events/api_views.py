@@ -8,11 +8,14 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
+from django.db import transaction as db_transaction
 from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from .models import (
     UserEventAssignment, Session, RoomAccess, Room,
-    Participant, Event
+    Participant, Event, SessionQuestion, SessionAccess,
+    ParticipantEventRegistration,
 )
 from .serializers import EventSerializer
 
@@ -517,3 +520,79 @@ class UserDataExportAPIView(APIView):
             data['questions_asked'] = []
 
         return Response(data)
+
+
+class UserEventDataDeleteAPIView(APIView):
+    """
+    REST API: partial data deletion -- lets a participant erase everything
+    tied to ONE event (registration, room/session access, scan history,
+    Q&A questions asked in that event's sessions) without deleting their
+    whole account, unlike UserProfileAPIView.delete(). Their account,
+    other events' data, and their global Participant profile (badge_id,
+    qr_code_data) are untouched.
+
+    This is what backs the Play Store Data Safety question "can users
+    delete some of their data without deleting their account" -- the
+    mobile Settings screen and the public privacy policy
+    (dashboard/templates/legal/privacy_policy.html) must both describe
+    this the same way Play does; keep them in sync if this changes.
+
+    Blocked when a CONFIRMED (paid) registration exists for this event --
+    same principle as dashboard.views_event_owner.registration_delete's
+    confirm_paid gate: silently erasing a real payment record isn't safe
+    as pure self-service, that needs the organizer involved so the money
+    trail stays explained.
+    """
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+
+    def delete(self, request, event_id):
+        from dashboard.models_blocs import RegistrationOrder
+
+        event = get_object_or_404(Event, id=event_id)
+
+        try:
+            participant = request.user.participant_profile
+        except Participant.DoesNotExist:
+            return Response(
+                {'error': "Aucun profil participant associé à ce compte."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        orders = RegistrationOrder.objects.filter(event=event, participant=participant)
+        if orders.filter(status='approved').exists():
+            return Response({
+                'error': "Cette inscription à cet événement est déjà confirmée "
+                         "(paiement réel enregistré). Contactez les organisateurs "
+                         "de l'événement pour toute demande de suppression, afin "
+                         "de conserver une trace du paiement.",
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        registration = ParticipantEventRegistration.objects.filter(
+            participant=participant, event=event,
+        )
+        if not registration.exists() and not orders.exists():
+            return Response(
+                {'error': "Vous n'êtes pas inscrit à cet événement."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        with db_transaction.atomic():
+            SessionQuestion.objects.filter(
+                participant=participant, session__event=event,
+            ).delete()
+            SessionAccess.objects.filter(
+                participant=participant, session__event=event,
+            ).delete()
+            RoomAccess.objects.filter(
+                participant=participant, room__event=event,
+            ).delete()
+            orders.delete()
+            UserEventAssignment.objects.filter(
+                user=request.user, event=event, role='participant',
+            ).update(is_active=False)
+            # Also clears allowed_rooms (M2M on this through-model) via
+            # cascade -- nothing left referencing this event afterwards.
+            registration.delete()
+
+        return Response({'message': "Vos données pour cet événement ont été supprimées."})
