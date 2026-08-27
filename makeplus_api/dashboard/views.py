@@ -211,6 +211,28 @@ def logout_view(request):
     return redirect('dashboard:login')
 
 
+def csrf_failure(request, reason=""):
+    """
+    Custom CSRF_FAILURE_VIEW (wired in settings.py).
+
+    Django's default CSRF failure page is a dead-end technical error
+    ("CSRF verification failed. Request aborted.") with no way back. The
+    most common trigger here is a login form that was rendered from a
+    stale/restored browser tab -- e.g. still open from before an earlier
+    login on the same browser -- submitted after the CSRF cookie has since
+    rotated (rotate_token() runs on every successful login). Bounce back to
+    a *fresh* login page instead, which mints a cookie/token pair that
+    matches, so retrying immediately just works.
+    """
+    messages.error(request, "Votre session a expiré. Veuillez réessayer.")
+    path = request.path
+    if path.startswith('/caisse/'):
+        return redirect('caisse:login')
+    if path.startswith('/admin/'):
+        return redirect('admin:login')
+    return redirect('dashboard:login')
+
+
 # ==================== Dashboard Home ====================
 
 @login_required

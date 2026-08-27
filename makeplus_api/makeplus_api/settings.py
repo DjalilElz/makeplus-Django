@@ -88,9 +88,16 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
     'https://makeplus-events.onrender.com',
+    'https://makeplus-django-5.onrender.com',
+    'https://makeplus-platform.onrender.com',
 ]
 CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
 CSRF_COOKIE_SAMESITE = 'Lax'
+
+# On CSRF failure (most commonly: a stale/restored login tab submitted
+# after a later login rotated the CSRF cookie), bounce to a fresh login
+# page instead of Django's dead-end technical error page.
+CSRF_FAILURE_VIEW = 'dashboard.views.csrf_failure'
 
 ROOT_URLCONF = 'makeplus_api.urls'
 
