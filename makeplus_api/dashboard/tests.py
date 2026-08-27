@@ -1954,3 +1954,37 @@ class CampaignSendTotalFailureTests(TestCase):
         self.campaign.refresh_from_db()
         self.assertEqual(self.campaign.status, 'sent')
         self.assertEqual(self.campaign.total_sent, 1)
+
+    @patch('dashboard.brevo_client.get_brevo_client')
+    def test_large_list_is_sent_in_batches_of_ten(self, mock_get_client):
+        """This is the production incident: a single request trying to
+        send to everyone at once (600+ recipients) took long enough to
+        hit gunicorn's worker timeout and 500 mid-send. Each request must
+        now only process one batch, reporting back so the confirm page's
+        JS can call again -- driving it exactly like that loop would."""
+        mock_client = mock_get_client.return_value
+        mock_client.send_transactional_email.return_value = {'messageId': 'ok'}
+
+        for i in range(23):
+            self.EmailRecipient.objects.create(
+                campaign=self.campaign, email=f'batch{i}@example.com', tracking_token=f'tok-batch-{i}',
+            )
+        # 2 (from setUp) + 23 = 25 recipients total -> 3 batches of 10/10/5
+
+        responses = []
+        for _ in range(3):
+            self.campaign.refresh_from_db()
+            self.assertEqual(self.campaign.status, 'draft')
+            responses.append(self._send())
+
+        bodies = [r.json() for r in responses]
+        self.assertEqual([b['done'] for b in bodies], [False, False, True])
+        self.assertEqual([b['sent_this_batch'] for b in bodies], [10, 10, 5])
+        self.assertEqual(mock_client.send_transactional_email.call_count, 25)
+
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.status, 'sent')
+        self.assertEqual(self.campaign.total_sent, 25)
+        self.assertEqual(
+            self.EmailRecipient.objects.filter(campaign=self.campaign, status='sent').count(), 25
+        )

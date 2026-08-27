@@ -101,22 +101,27 @@
                     </div>
 
                     <!-- Batch Sending Info -->
-                    <div class="alert alert-info mb-4">
+                    <div class="alert alert-info mb-4" id="batchInfo">
                         <i class="bi bi-info-circle"></i>
-                        <strong>Envoi par lots :</strong> les e-mails seront envoyés par lots de 10 pour garantir une livraison fiable. Si vous avez davantage de destinataires, vous devrez cliquer sur « Envoyer » plusieurs fois.
+                        <strong>Envoi par lots :</strong> les e-mails sont envoyés automatiquement par lots de 10 pour garantir une livraison fiable. Restez sur cette page jusqu'à la fin de l'envoi.
+                    </div>
+
+                    <!-- Progress (hidden until sending starts) -->
+                    <div class="mb-4 d-none" id="progressBlock">
+                        <div class="progress" style="height: 24px;">
+                            <div class="progress-bar bg-success" id="progressBar" role="progressbar" style="width: 0%">0%</div>
+                        </div>
+                        <p class="mt-2 mb-0 text-muted" id="progressText"></p>
                     </div>
 
                     <!-- Action Buttons -->
                     <div class="d-flex gap-3 justify-content-end">
-                        <a href="{% url 'dashboard:campaign_detail' campaign.id %}" class="btn btn-secondary btn-lg">
+                        <a href="{% url 'dashboard:campaign_detail' campaign.id %}" class="btn btn-secondary btn-lg" id="cancelLink">
                             <i class="bi bi-x-circle"></i> Annuler
                         </a>
-                        <form method="post" id="sendForm">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-success btn-lg" id="sendButton" disabled>
-                                <i class="bi bi-send"></i> Envoyer la campagne maintenant
-                            </button>
-                        </form>
+                        <button type="button" class="btn btn-success btn-lg" id="sendButton" disabled>
+                            <i class="bi bi-send"></i> Envoyer la campagne maintenant
+                        </button>
                     </div>
                 </div>
             </div>
@@ -128,7 +133,11 @@
 // Enable send button only when all checkboxes are checked
 const checkboxes = document.querySelectorAll('input[type="checkbox"]');
 const sendButton = document.getElementById('sendButton');
-const sendForm = document.getElementById('sendForm');
+const cancelLink = document.getElementById('cancelLink');
+const progressBlock = document.getElementById('progressBlock');
+const progressBar = document.getElementById('progressBar');
+const progressText = document.getElementById('progressText');
+const totalRecipients = {{ recipient_count }};
 
 function updateSendButton() {
     const allChecked = Array.from(checkboxes).every(cb => cb.checked);
@@ -139,11 +148,69 @@ checkboxes.forEach(cb => {
     cb.addEventListener('change', updateSendButton);
 });
 
-// Final confirmation before sending
-sendForm.addEventListener('submit', function(e) {
-    if (!confirm('Êtes-vous absolument sûr de vouloir envoyer cette campagne à {{ recipient_count }} destinataires ? Cette action est IRRÉVERSIBLE.')) {
-        e.preventDefault();
+function setProgress(sentSoFar) {
+    const pct = totalRecipients > 0 ? Math.min(100, Math.round((sentSoFar / totalRecipients) * 100)) : 100;
+    progressBar.style.width = pct + '%';
+    progressBar.textContent = pct + '%';
+    progressText.textContent = `${sentSoFar} / ${totalRecipients} destinataire(s) traité(s)...`;
+}
+
+async function sendNextBatch(sentSoFar) {
+    let data;
+    try {
+        const response = await fetch(window.location.href, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'use_campaign_api=false',
+        });
+        data = await response.json();
+    } catch (err) {
+        progressText.textContent = "Erreur réseau pendant l'envoi. Réessayez.";
+        progressText.classList.add('text-danger');
+        sendButton.disabled = false;
+        sendButton.innerHTML = '<i class="bi bi-arrow-repeat"></i> Réessayer';
+        return;
     }
+
+    if (!data.success) {
+        progressText.textContent = data.error || "Échec de l'envoi.";
+        progressText.classList.add('text-danger');
+        sendButton.disabled = false;
+        sendButton.innerHTML = '<i class="bi bi-arrow-repeat"></i> Réessayer';
+        return;
+    }
+
+    const newSentSoFar = sentSoFar + data.sent_this_batch;
+    setProgress(newSentSoFar);
+
+    if (data.done) {
+        progressText.textContent = `Terminé : ${data.total_sent} destinataire(s) envoyé(s) avec succès.`;
+        setTimeout(() => {
+            window.location.href = '{% url "dashboard:campaign_detail" campaign.id %}';
+        }, 1500);
+        return;
+    }
+
+    // Small pause between batches to stay gentle on the email API.
+    setTimeout(() => sendNextBatch(newSentSoFar), 600);
+}
+
+sendButton.addEventListener('click', function() {
+    if (!confirm('Êtes-vous absolument sûr de vouloir envoyer cette campagne à {{ recipient_count }} destinataires ? Cette action est IRRÉVERSIBLE.')) {
+        return;
+    }
+
+    sendButton.disabled = true;
+    sendButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Envoi en cours...';
+    cancelLink.classList.add('disabled');
+    document.getElementById('batchInfo').classList.add('d-none');
+    progressBlock.classList.remove('d-none');
+    setProgress(0);
+
+    sendNextBatch(0);
 });
 </script>
 

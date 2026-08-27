@@ -1824,39 +1824,58 @@ def campaign_send_test(request, campaign_id):
 
 @login_required
 def campaign_send(request, campaign_id):
-    """Send campaign to all recipients via configured SMTP backend."""
+    """
+    Send campaign to all recipients via configured SMTP backend.
+
+    The transactional path (the default, no Brevo branding) sends one
+    recipient at a time over the network -- for a large list, doing all
+    of them in a single request took long enough to hit gunicorn's worker
+    timeout and 500 mid-send. It's now processed BATCH_SIZE recipients
+    per POST; the confirm page's JS calls this repeatedly until the
+    campaign reports done, so it still ends up sending everyone from one
+    click. Each individual request stays fast regardless of list size.
+    """
     from .models_email import EmailCampaign, EmailRecipient
     from .email_sender import send_email
     from .utils_campaign import build_recipient_context, replace_variables as utils_replace_vars
-    
+    from django.http import JsonResponse
+
+    BATCH_SIZE = 10
+
     campaign = get_object_or_404(EmailCampaign, id=campaign_id)
-    
+    is_post = request.method == 'POST'
+
     # Only allow sending from draft status
     if campaign.status != 'draft':
+        if is_post:
+            return JsonResponse({'success': False, 'done': True, 'error': 'Cette campagne a déjà été envoyée.'})
         messages.warning(request, 'Cette campagne a déjà été envoyée.')
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
-    
+
     # Check if there are recipients
-    recipients = list(campaign.recipients.filter(status='pending'))
-    if not recipients:
+    pending_qs = campaign.recipients.filter(status='pending')
+    recipient_count = pending_qs.count()
+    if recipient_count == 0:
+        if is_post:
+            return JsonResponse({'success': False, 'done': True, 'error': "Aucun destinataire trouvé pour cette campagne."})
         messages.error(request, "Aucun destinataire trouvé pour cette campagne. Veuillez d'abord ajouter des destinataires.")
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
-    
+
     if request.method == 'POST':
-        # Update campaign status immediately
-        campaign.status = 'sending'
-        campaign.save()
-        
         from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
         from_name = campaign.from_name if campaign.from_name else 'MakePlus'
-        
+
         # Check if user wants to use Campaign API (bulk) or Transactional API (individual)
         # Campaign API = faster but has Brevo branding on free plan
         # Transactional API = slower but less branding on free plan
         use_campaign_api = request.POST.get('use_campaign_api', 'false') == 'true'
-        
+
         if use_campaign_api:
-            # Use Brevo Campaign API (bulk sending with branding on free plan)
+            # Use Brevo Campaign API (bulk sending with branding on free plan).
+            # A single bulk call regardless of list size, so no batching needed.
+            campaign.status = 'sending'
+            campaign.save()
+            recipients = list(pending_qs)
             try:
                 from .brevo_client import get_brevo_client
                 client = get_brevo_client()
@@ -1982,84 +2001,105 @@ def campaign_send(request, campaign_id):
                         recipient.save()
                     
                     messages.error(request, f"Échec de l'envoi de la campagne : {str(e)}")
-        
-        else:
-            # Use Transactional Email API (individual emails, less branding)
-            print("Using Transactional Email API (less branding)")
-            
-            from .brevo_client import get_brevo_client
-            client = get_brevo_client()
-            
-            sent_count = 0
-            failed_count = 0
-            
-            for recipient in recipients:
-                try:
-                    context = build_recipient_context(recipient.email, campaign.event)
-                    recipient_name = context.get('first_name', '') or recipient.name or recipient.email.split('@')[0]
-                    
-                    subject = utils_replace_vars(campaign.subject, context)
-                    body_html = utils_replace_vars(campaign.body_html or campaign.body_text, context)
-                    
-                    result = client.send_transactional_email(
-                        to_email=recipient.email,
-                        to_name=recipient_name,
-                        subject=subject,
-                        html_content=body_html,
-                        from_email=from_address,
-                        from_name=from_name,
-                        track_opens=campaign.track_opens,
-                        track_clicks=campaign.track_clicks
-                    )
-                    
-                    recipient.status = 'sent'
-                    recipient.sent_at = timezone.now()
-                    if result.get('messageId'):
-                        recipient.external_id = result['messageId']
-                    recipient.save()
-                    sent_count += 1
-                    
-                except Exception as e:
-                    recipient.status = 'failed'
-                    recipient.error_message = str(e)[:500]
-                    recipient.save()
-                    failed_count += 1
-                    print(f"Failed to send to {recipient.email}: {str(e)}")
-            
-            if sent_count == 0 and failed_count > 0:
-                # Nothing actually went out -- don't report this as a
-                # successful send. Put the campaign back to 'draft' (the
-                # only status the "Envoyer" button shows for) and the
-                # recipients back to 'pending' so it can genuinely be
-                # retried, instead of getting stuck with no way to resend.
-                campaign.status = 'draft'
-                campaign.save()
-                EmailRecipient.objects.filter(
-                    campaign=campaign, id__in=[r.id for r in recipients]
-                ).update(status='pending', error_message='')
-                messages.error(
-                    request,
-                    f"Échec de l'envoi : aucun des {failed_count} destinataire(s) n'a pu être contacté. "
-                    "Vérifiez la configuration d'envoi et réessayez."
+
+            return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+
+        # Use Transactional Email API (individual emails, less branding),
+        # one batch of BATCH_SIZE per request -- see the docstring above.
+        batch = list(pending_qs[:BATCH_SIZE])
+
+        from .brevo_client import get_brevo_client
+        client = get_brevo_client()
+
+        sent_count = 0
+        failed_count = 0
+
+        for recipient in batch:
+            try:
+                context = build_recipient_context(recipient.email, campaign.event)
+                recipient_name = context.get('first_name', '') or recipient.name or recipient.email.split('@')[0]
+
+                subject = utils_replace_vars(campaign.subject, context)
+                body_html = utils_replace_vars(campaign.body_html or campaign.body_text, context)
+
+                result = client.send_transactional_email(
+                    to_email=recipient.email,
+                    to_name=recipient_name,
+                    subject=subject,
+                    html_content=body_html,
+                    from_email=from_address,
+                    from_name=from_name,
+                    track_opens=campaign.track_opens,
+                    track_clicks=campaign.track_clicks
                 )
-            else:
-                campaign.status = 'sent'
-                campaign.sent_at = timezone.now()
-                campaign.total_sent = sent_count
-                campaign.total_delivered = sent_count
-                campaign.save()
 
-                if failed_count > 0:
-                    messages.warning(request, f'Campagne envoyée à {sent_count} destinataires. {failed_count} échec(s).')
-                else:
-                    messages.success(request, f'Campagne envoyée avec succès à {sent_count} destinataires !')
+                recipient.status = 'sent'
+                recipient.sent_at = timezone.now()
+                recipient.error_message = ''
+                if result.get('messageId'):
+                    recipient.external_id = result['messageId']
+                recipient.save()
+                sent_count += 1
 
-        return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
-    
+            except Exception as e:
+                recipient.status = 'failed'
+                recipient.error_message = str(e)[:500]
+                recipient.save()
+                failed_count += 1
+                print(f"Failed to send to {recipient.email}: {str(e)}")
+
+        if sent_count == 0 and failed_count > 0:
+            # This whole batch failed -- likely a systemic outage (bad
+            # credentials, SMTP down), not per-recipient bounces. Put the
+            # batch back to pending and stop the auto-loop instead of
+            # silently grinding through the rest of the list marking
+            # everyone 'failed'.
+            EmailRecipient.objects.filter(
+                id__in=[r.id for r in batch]
+            ).update(status='pending', error_message='')
+            campaign.status = 'draft'
+            campaign.save()
+            return JsonResponse({
+                'success': False,
+                'done': True,
+                'error': (
+                    f"Échec de l'envoi : aucun des {failed_count} destinataire(s) de ce lot n'a pu être "
+                    "contacté. Vérifiez la configuration d'envoi et réessayez."
+                ),
+            })
+
+        campaign.total_sent += sent_count
+        campaign.total_delivered += sent_count
+        remaining = campaign.recipients.filter(status='pending').count()
+
+        if remaining > 0:
+            campaign.status = 'draft'
+            campaign.save()
+            return JsonResponse({
+                'success': True,
+                'done': False,
+                'sent_this_batch': sent_count,
+                'failed_this_batch': failed_count,
+                'remaining': remaining,
+                'total_sent': campaign.total_sent,
+            })
+
+        campaign.status = 'sent'
+        campaign.sent_at = timezone.now()
+        campaign.save()
+        return JsonResponse({
+            'success': True,
+            'done': True,
+            'sent_this_batch': sent_count,
+            'failed_this_batch': failed_count,
+            'remaining': 0,
+            'total_sent': campaign.total_sent,
+        })
+
     # GET request - show confirmation page
     context = {
         'campaign': campaign,
-        'recipient_count': len(recipients),
+        'recipient_count': recipient_count,
     }
     return render(request, 'dashboard/campaign_send_confirm.html', context)
 
