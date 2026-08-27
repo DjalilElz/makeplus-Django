@@ -1874,3 +1874,70 @@ class CampaignImportFormSubmissionsTests(TestCase):
             self.EmailRecipient.objects.filter(campaign=self.campaign).values_list('email', flat=True)
         )
         self.assertEqual(emails, {'good@example.com'})
+
+
+class CampaignSendTotalFailureTests(TestCase):
+    """
+    campaign_send (transactional path) used to mark the campaign 'sent'
+    even when every single recipient failed -- misreporting a total
+    outage as success, and leaving no way to retry since the "Envoyer"
+    button only shows for status='draft'. See views_email.py.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='admin2', email='admin2@example.com', password='x', is_staff=True,
+        )
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        from .models_email import EmailCampaign, EmailRecipient
+        self.EmailCampaign = EmailCampaign
+        self.EmailRecipient = EmailRecipient
+        self.campaign = EmailCampaign.objects.create(
+            name="Reminder", event=self.event, subject="Hello",
+            from_email="noreply@example.com", body_html="<p>Hi</p>", status='draft',
+        )
+        self.r1 = EmailRecipient.objects.create(
+            campaign=self.campaign, email='a@example.com', tracking_token='tok-a',
+        )
+        self.r2 = EmailRecipient.objects.create(
+            campaign=self.campaign, email='b@example.com', tracking_token='tok-b',
+        )
+
+    def _send(self):
+        self.client.force_login(self.admin)
+        return self.client.post(
+            reverse('dashboard:campaign_send', args=[self.campaign.id]),
+            {'use_campaign_api': 'false'},
+        )
+
+    @patch('dashboard.brevo_client.get_brevo_client')
+    def test_total_failure_reverts_to_draft_instead_of_sent(self, mock_get_client):
+        mock_client = mock_get_client.return_value
+        mock_client.send_transactional_email.side_effect = Exception('SMTP down')
+
+        self._send()
+
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.status, 'draft')
+        self.assertEqual(self.campaign.total_sent, 0)
+
+        statuses = set(
+            self.EmailRecipient.objects.filter(campaign=self.campaign).values_list('status', flat=True)
+        )
+        self.assertEqual(statuses, {'pending'})
+
+    @patch('dashboard.brevo_client.get_brevo_client')
+    def test_partial_failure_still_marks_sent(self, mock_get_client):
+        mock_client = mock_get_client.return_value
+        mock_client.send_transactional_email.side_effect = [
+            {'messageId': 'ok-1'}, Exception('SMTP down'),
+        ]
+
+        self._send()
+
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.status, 'sent')
+        self.assertEqual(self.campaign.total_sent, 1)

@@ -2022,16 +2022,33 @@ def campaign_send(request, campaign_id):
                     failed_count += 1
                     print(f"Failed to send to {recipient.email}: {str(e)}")
             
-            campaign.status = 'sent'
-            campaign.sent_at = timezone.now()
-            campaign.total_sent = sent_count
-            campaign.total_delivered = sent_count
-            campaign.save()
-            
-            if failed_count > 0:
-                messages.warning(request, f'Campagne envoyée à {sent_count} destinataires. {failed_count} échec(s).')
+            if sent_count == 0 and failed_count > 0:
+                # Nothing actually went out -- don't report this as a
+                # successful send. Put the campaign back to 'draft' (the
+                # only status the "Envoyer" button shows for) and the
+                # recipients back to 'pending' so it can genuinely be
+                # retried, instead of getting stuck with no way to resend.
+                campaign.status = 'draft'
+                campaign.save()
+                EmailRecipient.objects.filter(
+                    campaign=campaign, id__in=[r.id for r in recipients]
+                ).update(status='pending', error_message='')
+                messages.error(
+                    request,
+                    f"Échec de l'envoi : aucun des {failed_count} destinataire(s) n'a pu être contacté. "
+                    "Vérifiez la configuration d'envoi et réessayez."
+                )
             else:
-                messages.success(request, f'Campagne envoyée avec succès à {sent_count} destinataires !')
+                campaign.status = 'sent'
+                campaign.sent_at = timezone.now()
+                campaign.total_sent = sent_count
+                campaign.total_delivered = sent_count
+                campaign.save()
+
+                if failed_count > 0:
+                    messages.warning(request, f'Campagne envoyée à {sent_count} destinataires. {failed_count} échec(s).')
+                else:
+                    messages.success(request, f'Campagne envoyée avec succès à {sent_count} destinataires !')
 
         return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
     
