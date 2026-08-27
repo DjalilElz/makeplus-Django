@@ -1699,9 +1699,17 @@ def campaign_import_form_submissions(request, campaign_id):
             messages.warning(request, 'Aucune soumission de formulaire trouvée.')
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
 
+        # Recipients already on this campaign -- looked up once up front
+        # instead of once per submission (a per-row exists() query against
+        # 600+ submissions, each a network round trip to Postgres, was slow
+        # enough to blow past gunicorn's worker timeout in production and
+        # get the request killed mid-import with a 500).
+        existing_emails = set(campaign.recipients.values_list('email', flat=True))
+
         added_count = 0
         skipped_count = 0
         seen_emails = set()
+        new_recipients = []
 
         for submission in submissions:
             email = (submission.email or '').strip().lower()
@@ -1713,16 +1721,11 @@ def campaign_import_form_submissions(request, campaign_id):
             # Submissions are ordered newest-first, so the first time we
             # see a given email here is already its most recent submission
             # -- keep that one and skip any older duplicates.
-            if email in seen_emails:
+            if email in seen_emails or email in existing_emails:
                 skipped_count += 1
                 continue
             seen_emails.add(email)
 
-            # Check if recipient already exists
-            if EmailRecipient.objects.filter(campaign=campaign, email=email).exists():
-                skipped_count += 1
-                continue
-            
             # Extract name from submission data
             name = ''
             if submission.data:
@@ -1733,17 +1736,18 @@ def campaign_import_form_submissions(request, campaign_id):
                 else:
                     # Try other common name fields
                     name = submission.data.get('name', '') or submission.data.get('nom', '')
-            
-            # Create recipient
-            tracking_token = secrets.token_urlsafe(32)
-            EmailRecipient.objects.create(
+
+            new_recipients.append(EmailRecipient(
                 campaign=campaign,
                 email=email,
                 name=name,
-                tracking_token=tracking_token
-            )
+                tracking_token=secrets.token_urlsafe(32),
+            ))
             added_count += 1
-        
+
+        if new_recipients:
+            EmailRecipient.objects.bulk_create(new_recipients)
+
         # Update campaign recipient count
         campaign.recipient_count = campaign.recipients.count()
         campaign.save()

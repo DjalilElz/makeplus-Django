@@ -1817,6 +1817,7 @@ class CampaignImportFormSubmissionsTests(TestCase):
             name="Reminder", event=self.event, subject="Hello",
             from_email="noreply@example.com", body_html="<p>Hi</p>",
         )
+        self.client.force_login(self.admin)
 
     def _submission(self, email, days_ago, status='pending', data=None):
         submission = FormSubmission.objects.create(
@@ -1831,10 +1832,22 @@ class CampaignImportFormSubmissionsTests(TestCase):
         return submission
 
     def _import(self):
-        self.client.force_login(self.admin)
         return self.client.post(
             reverse('dashboard:campaign_import_form_submissions', args=[self.campaign.id])
         )
+
+    def test_query_count_does_not_scale_with_submission_count(self):
+        """Regression guard for the production incident: the import used
+        to run an exists() check plus a create() per submission, so 600+
+        submissions meant 1200+ round trips to Postgres -- slow enough to
+        blow past gunicorn's worker timeout and 500 mid-request. Must stay
+        flat regardless of how many submissions there are."""
+        for i in range(50):
+            self._submission(f'user{i}@example.com', days_ago=1)
+
+        with self.assertNumQueries(11):
+            self._import()
+        self.assertEqual(self.EmailRecipient.objects.filter(campaign=self.campaign).count(), 50)
 
     def test_imports_pending_submissions_not_just_approved(self):
         """This is the exact bug report: real submissions sit at the
