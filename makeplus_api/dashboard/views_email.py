@@ -1682,23 +1682,42 @@ def campaign_import_form_submissions(request, campaign_id):
             messages.error(request, f"Aucun formulaire d'inscription actif trouvé pour l'événement « {campaign.event.name} ».")
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
         
-        # Get all form submissions
-        submissions = FormSubmission.objects.filter(form=form_config, status='approved')
-        
+        # Get all form submissions for this event's registration form.
+        # FormSubmission.status is a generic moderation field left over
+        # from the standalone form-builder use case -- the actual bloc/paid
+        # registration flow (views_blocs.py) creates every submission at
+        # the default 'pending' and never advances it, so filtering on
+        # status='approved' here always matched zero rows. Real approval
+        # for a registration lives on RegistrationOrder.status (a separate
+        # payment-confirmation step), not on the submission itself. Import
+        # every submission that isn't explicitly rejected/spam instead.
+        submissions = FormSubmission.objects.filter(
+            form=form_config
+        ).exclude(status__in=['rejected', 'spam']).order_by('-submitted_at')
+
         if not submissions.exists():
-            messages.warning(request, 'Aucune soumission de formulaire approuvée trouvée.')
+            messages.warning(request, 'Aucune soumission de formulaire trouvée.')
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
-        
+
         added_count = 0
         skipped_count = 0
-        
+        seen_emails = set()
+
         for submission in submissions:
-            email = submission.email
-            
+            email = (submission.email or '').strip().lower()
+
             if not email:
                 skipped_count += 1
                 continue
-            
+
+            # Submissions are ordered newest-first, so the first time we
+            # see a given email here is already its most recent submission
+            # -- keep that one and skip any older duplicates.
+            if email in seen_emails:
+                skipped_count += 1
+                continue
+            seen_emails.add(email)
+
             # Check if recipient already exists
             if EmailRecipient.objects.filter(campaign=campaign, email=email).exists():
                 skipped_count += 1

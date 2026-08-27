@@ -1788,3 +1788,89 @@ class RegistrationOrderBlocsEditTests(TestCase):
         self.order.refresh_from_db()
         item_ids = {it['id'] for it in self.order.items_snapshot}
         self.assertNotIn(self.lunch.id, item_ids)
+
+
+class CampaignImportFormSubmissionsTests(TestCase):
+    """
+    campaign_import_form_submissions used to filter on
+    FormSubmission.status='approved' -- a field the real (bloc/paid)
+    registration flow never sets, so it always found zero rows regardless
+    of how many people had actually registered. See views_email.py.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='admin', email='admin@example.com', password='x', is_staff=True,
+        )
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        self.form = FormConfiguration.objects.create(
+            name="Reg", slug="campaign-import-reg", event=self.event, created_by=self.admin,
+            fields_config=[{'name': 'email', 'label': 'Email', 'type': 'email', 'required': True}],
+        )
+
+        from .models_email import EmailCampaign, EmailRecipient
+        self.EmailRecipient = EmailRecipient
+        self.campaign = EmailCampaign.objects.create(
+            name="Reminder", event=self.event, subject="Hello",
+            from_email="noreply@example.com", body_html="<p>Hi</p>",
+        )
+
+    def _submission(self, email, days_ago, status='pending', data=None):
+        submission = FormSubmission.objects.create(
+            form=self.form, email=email, data=data or {},
+        )
+        if status != 'pending':
+            submission.status = status
+            submission.save(update_fields=['status'])
+        FormSubmission.objects.filter(pk=submission.pk).update(
+            submitted_at=timezone.now() - timedelta(days=days_ago)
+        )
+        return submission
+
+    def _import(self):
+        self.client.force_login(self.admin)
+        return self.client.post(
+            reverse('dashboard:campaign_import_form_submissions', args=[self.campaign.id])
+        )
+
+    def test_imports_pending_submissions_not_just_approved(self):
+        """This is the exact bug report: real submissions sit at the
+        default 'pending' status forever, and must still be importable."""
+        self._submission('a@example.com', days_ago=1)
+        self._submission('b@example.com', days_ago=2)
+
+        response = self._import()
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.EmailRecipient.objects.filter(campaign=self.campaign).count(), 2)
+
+    def test_dedupes_by_email_keeping_the_most_recent_submission(self):
+        self._submission(
+            'dup@example.com', days_ago=5,
+            data={'first_name': 'Old', 'last_name': 'Name'},
+        )
+        self._submission(
+            'dup@example.com', days_ago=1,
+            data={'first_name': 'New', 'last_name': 'Name'},
+        )
+
+        self._import()
+
+        recipients = self.EmailRecipient.objects.filter(campaign=self.campaign, email='dup@example.com')
+        self.assertEqual(recipients.count(), 1)
+        self.assertEqual(recipients.first().name, 'New Name')
+
+    def test_excludes_rejected_and_spam_submissions(self):
+        self._submission('rejected@example.com', days_ago=1, status='rejected')
+        self._submission('spam@example.com', days_ago=1, status='spam')
+        self._submission('good@example.com', days_ago=1)
+
+        self._import()
+
+        emails = set(
+            self.EmailRecipient.objects.filter(campaign=self.campaign).values_list('email', flat=True)
+        )
+        self.assertEqual(emails, {'good@example.com'})
