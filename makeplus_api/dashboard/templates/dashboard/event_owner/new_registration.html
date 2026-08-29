@@ -395,6 +395,13 @@
         function fmt(n) { return n.toFixed(2) + ' DZD'; }
         function fmtPrice(n) { return n <= 0 ? 'Gratuit' : fmt(n); }
 
+        // Unlike the public form, a status/period rule marking an item
+        // "not visible" never hides or disables its card here -- that
+        // gating exists to steer a PARTICIPANT's own choices, but the
+        // owner must be able to see and pick anything (matches
+        // compute_order's ignore_visibility_rules=True in the view, and
+        // the same choice the "Modifier les blocs" popup already makes).
+        // A price override on the same rule still applies either way.
         function applyPricingRules() {
             var statusEl = document.querySelector('.bloc-choice[data-is-status="true"]:checked');
             var statusRules = (statusEl && STATUS_RULES[statusEl.value]) || {};
@@ -403,7 +410,6 @@
                 var targetKey = el.getAttribute('data-target-key');
                 var rule = statusRules[targetKey] || PERIOD_RULES[targetKey];
                 var card = document.getElementById('product_' + targetKey);
-                var visible = !rule || rule.visible;
                 var price = (rule && rule.price !== null && rule.price !== undefined)
                     ? rule.price
                     : el.getAttribute('data-original-price');
@@ -417,14 +423,8 @@
                         : '<span class="amount">Gratuit</span>';
                 }
 
-                if (!visible) {
-                    if (el.checked) el.checked = false;
-                    el.disabled = true;
-                    if (card) card.style.display = 'none';
-                } else {
-                    if (card) card.style.display = '';
-                    el.disabled = false;
-                }
+                if (card) card.style.display = '';
+                el.disabled = false;
             });
 
             lockNonStatusBlocs(!!statusEl);
