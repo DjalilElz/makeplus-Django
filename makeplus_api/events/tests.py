@@ -501,3 +501,44 @@ class UserEventDataDeleteAPITests(TestCase):
         client = self._login()
         response = client.delete(f'/api/auth/me/events/{unrelated_event.id}/')
         self.assertEqual(response.status_code, 404, response.data)
+
+
+class UserProfileAPIEventResolutionTests(TestCase):
+    """
+    GET /api/auth/me/ used to resolve "the current event" via a plain
+    UserEventAssignment lookup -- plain participants never get one
+    (signup creates none by design, see resolve_current_event's
+    docstring in events/utils.py), so this silently returned event=None
+    for the majority of users even though login itself resolved their
+    event correctly via resolve_current_event(). Same class of bug
+    SessionQuestionFlowTests already guards for the login serializer;
+    this guards it for the profile endpoint too.
+    """
+
+    def setUp(self):
+        self.event = Event.objects.create(
+            name='Congress', start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location='Algiers',
+            status='active', primary_color='#123456',
+        )
+        self.user = User.objects.create_user(
+            username='participant', email='participant@example.com', password='pw12345',
+        )
+        self.participant = Participant.objects.create(user=self.user, badge_id='BADGE-1')
+        ParticipantEventRegistration.objects.create(participant=self.participant, event=self.event)
+
+    def test_plain_participant_gets_their_event_back(self):
+        self.assertFalse(UserEventAssignment.objects.filter(user=self.user).exists())
+
+        client = APIClient()
+        token = AccessToken.for_user(self.user)
+        client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = client.get('/api/auth/me/')
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['role'], 'participant')
+        self.assertIsNotNone(response.data['event'])
+        self.assertEqual(response.data['event']['id'], str(self.event.id))
+        self.assertEqual(response.data['event']['location'], 'Algiers')
+        self.assertEqual(response.data['event']['primary_color'], '#123456')
+        self.assertIsNotNone(response.data['event']['start_date'])

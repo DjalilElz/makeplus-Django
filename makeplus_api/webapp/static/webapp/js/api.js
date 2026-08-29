@@ -11,12 +11,18 @@ var Auth = {
         event: 'dq_event', user: 'dq_user',
     },
 
+    // role/event/user are only overwritten when the caller actually has a
+    // value for them -- a page re-syncing from a later API response that
+    // happens to omit one of these (an endpoint bug, a transient server
+    // issue) must not wipe out perfectly good data set at login. access/
+    // refresh always overwrite: those two are the whole point of calling
+    // this at all (fresh login, or api.js's own refresh-token retry).
     setSession: function (data) {
         localStorage.setItem(this.KEYS.access, data.access);
         localStorage.setItem(this.KEYS.refresh, data.refresh);
-        localStorage.setItem(this.KEYS.role, data.role || '');
-        localStorage.setItem(this.KEYS.event, JSON.stringify(data.event || null));
-        localStorage.setItem(this.KEYS.user, JSON.stringify(data.user || null));
+        if (data.role) localStorage.setItem(this.KEYS.role, data.role);
+        if (data.event) localStorage.setItem(this.KEYS.event, JSON.stringify(data.event));
+        if (data.user) localStorage.setItem(this.KEYS.user, JSON.stringify(data.user));
     },
 
     getAccess: function () { return localStorage.getItem(this.KEYS.access); },

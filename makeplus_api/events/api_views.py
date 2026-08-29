@@ -284,13 +284,19 @@ class UserProfileAPIView(APIView):
     
     def get(self, request):
         user = request.user
-        
-        # Get user's active assignment
-        assignment = UserEventAssignment.objects.filter(
-            user=user,
-            is_active=True
-        ).first()
-        
+
+        # Same resolution login uses (events.utils.resolve_current_event),
+        # NOT a plain UserEventAssignment lookup: plain participants never
+        # get an assignment row (signup creates none by design; they're
+        # linked via ParticipantEventRegistration instead -- see that
+        # function's docstring), so the naive lookup silently returned
+        # event=None for the majority of users -- everything downstream
+        # that reads this profile's event (name/dates/location/theme
+        # color) went blank for them even though login itself resolved
+        # their event correctly.
+        from .utils import resolve_current_event
+        event, role = resolve_current_event(user)
+
         profile_data = {
             'id': user.id,
             'email': user.email,
@@ -298,10 +304,9 @@ class UserProfileAPIView(APIView):
             'last_name': user.last_name,
             'full_name': user.get_full_name() or user.email
         }
-        
-        # Add role and event if user has assignment
-        if assignment:
-            event = assignment.event
+
+        # Add role and event if one was resolved
+        if event:
             logo_url = None
             if event.logo:
                 logo_url = request.build_absolute_uri(event.logo.url)
@@ -315,7 +320,7 @@ class UserProfileAPIView(APIView):
             if event.guide_file:
                 guide_url = request.build_absolute_uri(event.guide_file.url)
 
-            profile_data['role'] = assignment.role
+            profile_data['role'] = role
             profile_data['event'] = {
                 'id': str(event.id),
                 'name': event.name,
