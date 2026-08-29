@@ -111,6 +111,20 @@ def controller_profile_view(request):
 
 
 @never_cache
+def controller_statistics_view(request):
+    return render(request, 'webapp/controller/statistics.html', {
+        'show_tab_bar': True, 'active_tab': 'statistics', 'role': 'controlleur_des_badges',
+    })
+
+
+@never_cache
+def controller_scanner_view(request):
+    return render(request, 'webapp/controller/scanner.html', {
+        'show_tab_bar': True, 'active_tab': 'scanner', 'role': 'controlleur_des_badges',
+    })
+
+
+@never_cache
 def manifest_json(request):
     """
     Served at a fixed, unhashed /app/manifest.json -- deliberately NOT

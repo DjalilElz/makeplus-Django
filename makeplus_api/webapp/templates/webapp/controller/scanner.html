@@ -1,0 +1,188 @@
+{% extends 'webapp/base.html' %}
+{% block title %}Scanner — DendrIQ{% endblock %}
+{% block extra_head %}
+<style>
+    #scanner-wrap { position: relative; margin: 12px 20px; border-radius: var(--radius-l); overflow: hidden; background: #000; aspect-ratio: 3 / 4; }
+    #scanner-video { width: 100%; height: 100%; object-fit: cover; }
+    #scan-frame {
+        position: absolute; inset: 15% 12%;
+        border: 3px solid rgba(255,255,255,0.85);
+        border-radius: 18px;
+        box-shadow: 0 0 0 2000px rgba(0,0,0,0.35);
+        pointer-events: none;
+    }
+    #camera-error, #camera-loading {
+        position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+        flex-direction: column; gap: 10px; color: #fff; text-align: center; padding: 24px;
+    }
+    .result-sheet {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+        background: var(--surface);
+        border-radius: 20px 20px 0 0;
+        padding: 20px 20px calc(20px + var(--safe-bottom));
+        box-shadow: 0 -8px 30px rgba(0,0,0,0.15);
+        max-height: 75vh; overflow-y: auto;
+        transform: translateY(100%);
+        transition: transform 0.25s ease;
+    }
+    .result-sheet.visible { transform: translateY(0); }
+    .result-status { text-align: center; font-size: 2.4rem; margin-bottom: 6px; }
+</style>
+{% endblock %}
+{% block body %}
+<div class="top-bar"><span class="title">Scanner un badge</span></div>
+
+<div id="scanner-wrap">
+    <video id="scanner-video" playsinline muted autoplay></video>
+    <div id="scan-frame" style="display:none;"></div>
+    <div id="camera-loading" class="empty-state" style="color:#fff;"><div class="spinner"></div><div>Activation de la caméra...</div></div>
+    <div id="camera-error" style="display:none;">
+        <div style="font-size:2rem;">🚫</div>
+        <div id="camera-error-text">Accès à la caméra refusé.</div>
+        <button class="btn btn-secondary" id="retry-camera-btn" style="width:auto; padding:10px 20px;">Réessayer</button>
+    </div>
+</div>
+<p class="page-subtitle" style="text-align:center;">Placez le QR code du badge dans le cadre.</p>
+
+<div class="result-sheet" id="result-sheet">
+    <div class="result-status" id="result-icon"></div>
+    <div id="result-name" style="text-align:center; font-size:1.2rem; font-weight:800; margin-bottom:2px;"></div>
+    <div id="result-message" style="text-align:center; color:var(--text-secondary); font-size:0.9rem; margin-bottom:16px;"></div>
+    <div id="result-items"></div>
+    <button class="btn btn-primary" id="scan-again-btn" style="margin-top:16px;">Scanner à nouveau</button>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<canvas id="scan-canvas" style="display:none;"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>
+(function () {
+    if (!requireAuth()) return;
+
+    var video = document.getElementById('scanner-video');
+    var canvas = document.getElementById('scan-canvas');
+    var ctx = canvas.getContext('2d', { willReadFrequently: true });
+    var sheet = document.getElementById('result-sheet');
+    var scanning = false;
+    var rafId = null;
+    var stream = null;
+    var ITEM_ICONS = { session: '🎓', access: '🚪', dinner: '🍽️', other: '🎟️' };
+
+    function startCamera() {
+        document.getElementById('camera-error').style.display = 'none';
+        document.getElementById('camera-loading').style.display = 'flex';
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            document.getElementById('camera-loading').style.display = 'none';
+            document.getElementById('camera-error').style.display = 'flex';
+            document.getElementById('camera-error-text').textContent =
+                "Ce navigateur ne permet pas d'accéder à la caméra ici. Ouvrez cette page dans Safari (iOS) ou Chrome (Android).";
+            return;
+        }
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(function (s) {
+                stream = s;
+                video.srcObject = s;
+                return video.play();
+            })
+            .then(function () {
+                document.getElementById('camera-loading').style.display = 'none';
+                document.getElementById('scan-frame').style.display = 'block';
+                scanning = true;
+                rafId = requestAnimationFrame(tick);
+            })
+            .catch(function (err) {
+                document.getElementById('camera-loading').style.display = 'none';
+                var errEl = document.getElementById('camera-error');
+                errEl.style.display = 'flex';
+                document.getElementById('camera-error-text').textContent =
+                    (err.name === 'NotAllowedError')
+                        ? "Autorisez l'accès à la caméra dans les réglages pour scanner un badge."
+                        : "Impossible d'accéder à la caméra sur cet appareil.";
+            });
+    }
+
+    function stopCamera() {
+        scanning = false;
+        if (rafId) cancelAnimationFrame(rafId);
+        if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    }
+
+    function tick() {
+        if (!scanning) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+            if (code && code.data) {
+                onDecoded(code.data);
+                return;
+            }
+        }
+        rafId = requestAnimationFrame(tick);
+    }
+
+    function onDecoded(qrData) {
+        scanning = false;
+        if (navigator.vibrate) navigator.vibrate(80);
+
+        Api.post('/participants/scan/', { qr_data: qrData }).then(function (r) {
+            return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+        }).then(function (result) {
+            showResult(result.data);
+        }).catch(function () {
+            showResult({ status: 'error', message: 'Erreur réseau pendant la vérification.' });
+        });
+    }
+
+    function showResult(data) {
+        var success = data.status === 'success';
+        document.getElementById('result-icon').textContent = success ? '✅' : '❌';
+        var p = data.participant || {};
+        document.getElementById('result-name').textContent = success ? (p.name || 'Participant') : 'Badge non valide';
+        document.getElementById('result-message').textContent =
+            success ? (p.badge_id ? 'Badge ' + p.badge_id : (p.email || '')) : (data.message || "Ce badge n'est pas reconnu pour cet événement.");
+
+        var itemsEl = document.getElementById('result-items');
+        itemsEl.innerHTML = '';
+        var items = data.paid_items || [];
+        if (success && items.length) {
+            var list = document.createElement('div');
+            list.className = 'list';
+            items.forEach(function (item) {
+                var row = document.createElement('div');
+                row.className = 'list-row';
+                row.innerHTML =
+                    '<span>' + (ITEM_ICONS[item.type] || '🎟️') + '</span>' +
+                    '<div style="flex:1;">' + escapeHtml(item.title) + '</div>' +
+                    '<span style="font-size:0.75rem; font-weight:700; color:var(--success); background:rgba(52,199,89,0.12); padding:3px 9px; border-radius:999px;">PAYÉ</span>';
+                list.appendChild(row);
+            });
+            itemsEl.appendChild(list);
+        } else if (success) {
+            itemsEl.innerHTML = '<div class="empty-state" style="padding:12px;">Aucun accès payant enregistré.</div>';
+        }
+
+        sheet.classList.add('visible');
+    }
+
+    document.getElementById('scan-again-btn').addEventListener('click', function () {
+        sheet.classList.remove('visible');
+        scanning = true;
+        rafId = requestAnimationFrame(tick);
+    });
+
+    document.getElementById('retry-camera-btn').addEventListener('click', startCamera);
+
+    window.addEventListener('pagehide', stopCamera);
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) stopCamera(); else if (!stream) startCamera();
+    });
+
+    startCamera();
+})();
+</script>
+{% endblock %}

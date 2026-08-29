@@ -24,4 +24,6 @@ urlpatterns = [
     path('controller/program/', views.controller_program_view, name='controller_program'),
     path('controller/announcements/', views.controller_announcements_view, name='controller_announcements'),
     path('controller/profile/', views.controller_profile_view, name='controller_profile'),
+    path('controller/statistics/', views.controller_statistics_view, name='controller_statistics'),
+    path('controller/scanner/', views.controller_scanner_view, name='controller_scanner'),
 ]

@@ -1,0 +1,77 @@
+{% extends 'webapp/base.html' %}
+{% block title %}Statistiques — DendrIQ{% endblock %}
+{% block body %}
+<div class="top-bar"><span class="title">Statistiques</span></div>
+
+<div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
+
+<div id="content" style="display:none;">
+    <div class="section">
+        <div class="card" style="text-align:center;">
+            <div style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); font-weight:700;">Contrôles effectués aujourd'hui</div>
+            <div id="checkins-today" style="font-size:2.4rem; font-weight:800; color:var(--navy); margin-top:4px;">—</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="field" style="margin-bottom:12px;">
+            <input type="search" id="search" placeholder="Rechercher un nom ou e-mail...">
+        </div>
+        <div style="font-weight:700; margin-bottom:8px; padding:0 4px;">Historique des scans</div>
+        <div id="scan-list" class="list"></div>
+        <div id="empty" class="empty-state" style="display:none;">Aucun scan pour le moment.</div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+    if (!requireAuth()) return;
+    var allScans = [];
+
+    function fmtTime(iso) {
+        return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function render(scans) {
+        var listEl = document.getElementById('scan-list');
+        listEl.innerHTML = '';
+        document.getElementById('empty').style.display = scans.length ? 'none' : 'block';
+
+        scans.forEach(function (scan) {
+            var p = scan.participant || {};
+            var ok = scan.status === 'success';
+            var row = document.createElement('div');
+            row.className = 'list-row';
+            row.innerHTML =
+                '<span style="font-size:1.1rem;">' + (ok ? '✅' : '⚠️') + '</span>' +
+                '<div style="flex:1; min-width:0;">' +
+                    '<div style="font-weight:600;">' + escapeHtml(p.name || 'Inconnu') + '</div>' +
+                    '<div style="font-size:0.78rem; color:var(--text-secondary);">' + escapeHtml(p.email || '') + '</div>' +
+                '</div>' +
+                '<span style="font-size:0.78rem; color:var(--text-secondary);">' + fmtTime(scan.scanned_at) + '</span>';
+            listEl.appendChild(row);
+        });
+    }
+
+    document.getElementById('search').addEventListener('input', function (e) {
+        var q = e.target.value.trim().toLowerCase();
+        if (!q) { render(allScans); return; }
+        render(allScans.filter(function (scan) {
+            var p = scan.participant || {};
+            return (p.name || '').toLowerCase().indexOf(q) !== -1 || (p.email || '').toLowerCase().indexOf(q) !== -1;
+        }));
+    });
+
+    Api.get('/my-room/statistics/').then(function (r) { return r.json(); }).then(function (data) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+        document.getElementById('checkins-today').textContent = data.my_check_ins_today != null ? data.my_check_ins_today : '0';
+        allScans = data.recent_scans || [];
+        render(allScans);
+    }).catch(function () {
+        document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger les statistiques.</div>';
+    });
+})();
+</script>
+{% endblock %}
