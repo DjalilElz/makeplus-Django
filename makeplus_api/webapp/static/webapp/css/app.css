@@ -46,15 +46,14 @@ body.no-tab-bar { padding-bottom: 0; }
 
 a { color: inherit; text-decoration: none; }
 
-/* ---- Top bar: translucent, blurred, iOS "large title" style ---- */
+/* ---- Top bar: flat, clean, Instagram-style (solid white, thin hairline
+   border, bold wordmark-style title left, icon-only actions right) ---- */
 .top-bar {
     position: sticky;
     top: 0;
     z-index: 20;
-    padding: calc(10px + var(--safe-top)) 20px 10px;
-    background: rgba(242, 242, 247, 0.78);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    padding: calc(12px + var(--safe-top)) 16px 12px;
+    background: var(--surface);
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -62,8 +61,16 @@ a { color: inherit; text-decoration: none; }
     gap: 12px;
 }
 
-.top-bar .title { font-size: 1.05rem; font-weight: 700; }
-.top-bar .action { font-size: 0.95rem; color: var(--navy-light); font-weight: 600; background: none; border: none; padding: 4px; }
+.top-bar .title { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em; }
+.top-bar .action {
+    font-size: 1.3rem;
+    line-height: 1;
+    color: var(--text);
+    background: none;
+    border: none;
+    padding: 4px;
+    display: inline-flex;
+}
 
 .large-title {
     padding: 8px 20px 4px;
@@ -81,13 +88,13 @@ a { color: inherit; text-decoration: none; }
 
 .card {
     background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: var(--radius-m);
     padding: 16px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 .card + .card { margin-top: 10px; }
 
-.list { background: var(--surface); border-radius: var(--radius-m); overflow: hidden; }
+.list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m); overflow: hidden; }
 .list-row {
     display: flex;
     align-items: center;
@@ -190,31 +197,29 @@ a { color: inherit; text-decoration: none; }
 .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
 .empty-state .icon { font-size: 2.2rem; margin-bottom: 10px; }
 
-/* ---- Bottom tab bar ---- */
+/* ---- Bottom tab bar: Instagram-style -- icon only, no text labels,
+   flat white, outline icon when inactive / filled icon when active. ---- */
 .tab-bar {
     position: fixed;
     left: 0; right: 0; bottom: 0;
     z-index: 20;
     display: flex;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    background: var(--surface);
     border-top: 1px solid var(--border);
     padding-bottom: var(--safe-bottom);
 }
 .tab-bar a {
     flex: 1;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 2px;
-    padding: 8px 4px 6px;
-    color: var(--text-secondary);
-    font-size: 0.68rem;
-    font-weight: 600;
+    justify-content: center;
+    padding: 13px 4px;
+    color: var(--text);
 }
-.tab-bar a .tab-icon { font-size: 1.35rem; line-height: 1; }
-.tab-bar a.active { color: var(--navy); }
+.tab-bar a .tab-icon { font-size: 1.55rem; line-height: 1; }
+.tab-bar a .tab-icon-active { display: none; }
+.tab-bar a.active .tab-icon-inactive { display: none; }
+.tab-bar a.active .tab-icon-active { display: inline; }
 
 /* ---- Install banner ---- */
 .install-steps { list-style: none; margin: 0; padding: 0; }

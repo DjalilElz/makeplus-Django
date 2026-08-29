@@ -37,7 +37,7 @@
     <div id="scan-frame" style="display:none;"></div>
     <div id="camera-loading" class="empty-state" style="color:#fff;"><div class="spinner"></div><div>Activation de la caméra...</div></div>
     <div id="camera-error" style="display:none;">
-        <div style="font-size:2rem;">🚫</div>
+        <div style="font-size:2rem;"><i class="bi bi-camera-video-off"></i></div>
         <div id="camera-error-text">Accès à la caméra refusé.</div>
         <button class="btn btn-secondary" id="retry-camera-btn" style="width:auto; padding:10px 20px;">Réessayer</button>
     </div>
@@ -66,7 +66,7 @@
     var scanning = false;
     var rafId = null;
     var stream = null;
-    var ITEM_ICONS = { session: '🎓', access: '🚪', dinner: '🍽️', other: '🎟️' };
+    var ITEM_ICONS = { session: 'bi-mortarboard', access: 'bi-door-open', dinner: 'bi-cup-hot', other: 'bi-ticket-perforated' };
 
     function startCamera() {
         document.getElementById('camera-error').style.display = 'none';
@@ -140,7 +140,10 @@
 
     function showResult(data) {
         var success = data.status === 'success';
-        document.getElementById('result-icon').textContent = success ? '✅' : '❌';
+        var resultIcon = document.getElementById('result-icon');
+        resultIcon.innerHTML = success
+            ? '<i class="bi bi-check-circle-fill" style="color:var(--success);"></i>'
+            : '<i class="bi bi-x-circle-fill" style="color:var(--error);"></i>';
         var p = data.participant || {};
         document.getElementById('result-name').textContent = success ? (p.name || 'Participant') : 'Badge non valide';
         document.getElementById('result-message').textContent =
@@ -156,7 +159,7 @@
                 var row = document.createElement('div');
                 row.className = 'list-row';
                 row.innerHTML =
-                    '<span>' + (ITEM_ICONS[item.type] || '🎟️') + '</span>' +
+                    '<span><i class="bi ' + (ITEM_ICONS[item.type] || 'bi-ticket-perforated') + '"></i></span>' +
                     '<div style="flex:1;">' + escapeHtml(item.title) + '</div>' +
                     '<span style="font-size:0.75rem; font-weight:700; color:var(--success); background:rgba(52,199,89,0.12); padding:3px 9px; border-radius:999px;">PAYÉ</span>';
                 list.appendChild(row);

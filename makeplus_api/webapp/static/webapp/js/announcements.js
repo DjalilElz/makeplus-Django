@@ -4,7 +4,10 @@
 (function () {
     if (!requireAuth()) return;
 
-    var TARGET_ICONS = { all: '📢', participants: '🎓', exposants: '🏢', controlleurs: '🎫', gestionnaires: '🛠️' };
+    var TARGET_ICONS = {
+        all: 'bi-megaphone', participants: 'bi-mortarboard', exposants: 'bi-building',
+        controlleurs: 'bi-shield-check', gestionnaires: 'bi-tools',
+    };
 
     function timeAgo(iso) {
         var diffMs = Date.now() - new Date(iso).getTime();
@@ -32,7 +35,7 @@
             card.className = 'card';
             card.innerHTML =
                 '<div style="display:flex; gap:10px; align-items:flex-start;">' +
-                    '<span style="font-size:1.3rem;">' + (TARGET_ICONS[a.target] || '📢') + '</span>' +
+                    '<span style="font-size:1.3rem;"><i class="bi ' + (TARGET_ICONS[a.target] || 'bi-megaphone') + '"></i></span>' +
                     '<div style="flex:1; min-width:0;">' +
                         '<div style="font-weight:700;">' + escapeHtml(a.title) + '</div>' +
                         '<div style="font-size:0.88rem; color:var(--text-secondary); margin:4px 0; white-space:pre-line;">' + escapeHtml(a.description) + '</div>' +

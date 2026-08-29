@@ -44,7 +44,7 @@
             var row = document.createElement('div');
             row.className = 'list-row';
             row.innerHTML =
-                '<span style="font-size:1.1rem;">' + (ok ? '✅' : '⚠️') + '</span>' +
+                '<span style="font-size:1.1rem; color:' + (ok ? 'var(--success)' : 'var(--warning)') + ';"><i class="bi ' + (ok ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill') + '"></i></span>' +
                 '<div style="flex:1; min-width:0;">' +
                     '<div style="font-weight:600;">' + escapeHtml(p.name || 'Inconnu') + '</div>' +
                     '<div style="font-size:0.78rem; color:var(--text-secondary);">' + escapeHtml(p.email || '') + '</div>' +

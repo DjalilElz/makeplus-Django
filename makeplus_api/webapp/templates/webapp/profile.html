@@ -4,7 +4,7 @@
 {% block body %}
 <div class="top-bar">
     <span class="title">Profil</span>
-    <button class="action" id="logout-btn">Déconnexion</button>
+    <button class="action" id="logout-btn"><i class="bi bi-box-arrow-right"></i></button>
 </div>
 
 <div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
@@ -41,7 +41,7 @@
         if (confirm('Se déconnecter ?')) Auth.logout();
     });
 
-    var ITEM_ICONS = { session: '🎓', access: '🚪', dinner: '🍽️', other: '🎟️' };
+    var ITEM_ICONS = { session: 'bi-mortarboard', access: 'bi-door-open', dinner: 'bi-cup-hot', other: 'bi-ticket-perforated' };
 
     Api.get('/auth/me/').then(function (r) { return r.json(); }).then(function (me) {
         document.getElementById('loading').style.display = 'none';
@@ -71,7 +71,7 @@
                 var row = document.createElement('div');
                 row.className = 'list-row';
                 row.innerHTML =
-                    '<span style="font-size:1.2rem;">' + (ITEM_ICONS[item.type] || '🎟️') + '</span>' +
+                    '<span style="font-size:1.2rem;"><i class="bi ' + (ITEM_ICONS[item.type] || 'bi-ticket-perforated') + '"></i></span>' +
                     '<div style="flex:1; min-width:0;">' +
                         '<div style="font-weight:600;">' + escapeHtml(item.title) + '</div>' +
                     '</div>' +

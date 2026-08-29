@@ -6,6 +6,7 @@
     var event = Auth.getEvent() || {};
 
     var pdfBtn = document.getElementById('pdf-toggle');
+    var pdfBtnIcon = document.getElementById('pdf-toggle-icon');
     var pdfFrame = document.getElementById('pdf-frame');
     var listEl = document.getElementById('session-list');
     var showingPdf = false;
@@ -16,7 +17,7 @@
             showingPdf = !showingPdf;
             pdfFrame.style.display = showingPdf ? 'block' : 'none';
             listEl.style.display = showingPdf ? 'none' : 'block';
-            pdfBtn.textContent = showingPdf ? '▦ Sessions' : '📄 PDF';
+            pdfBtnIcon.className = showingPdf ? 'bi bi-grid' : 'bi bi-file-earmark-pdf';
             if (showingPdf && !pdfFrame.src) pdfFrame.src = event.programme_file;
         });
     }
@@ -62,7 +63,7 @@
                     '</div>' +
                     '<div style="font-weight:700; margin:4px 0 2px;">' + escapeHtml(s.title) + '</div>' +
                     (s.speaker_name ? '<div style="font-size:0.85rem; color:var(--text-secondary);">' + escapeHtml(s.speaker_name) + '</div>' : '') +
-                    (s.room_name ? '<div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">📍 ' + escapeHtml(s.room_name) + '</div>' : '');
+                    (s.room_name ? '<div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><i class="bi bi-geo-alt"></i> ' + escapeHtml(s.room_name) + '</div>' : '');
                 listEl.appendChild(card);
             });
             listEl.style.display = 'block';
