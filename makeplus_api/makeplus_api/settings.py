@@ -99,6 +99,15 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 # page instead of Django's dead-end technical error page.
 CSRF_FAILURE_VIEW = 'dashboard.views.csrf_failure'
 
+# The blocs status-rules matrix (dashboard.views_blocs.bloc_status_rules_save)
+# submits 2 POST fields per cell of statuses x periods x items/sessions --
+# an event with enough of each blows past Django's default 1000-field cap
+# (TooManyFieldsSent -> 400) well before hitting any real resource limit.
+# That view is staff-only, so a generous ceiling here is safe; the
+# separate DATA_UPLOAD_MAX_MEMORY_SIZE (default 2.5MB) still caps the
+# raw request body size regardless of field count.
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 20000
+
 ROOT_URLCONF = 'makeplus_api.urls'
 
 TEMPLATES = [
