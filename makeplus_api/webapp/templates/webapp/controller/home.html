@@ -15,9 +15,25 @@
         </div>
         <div class="eyebrow">Contrôle des badges</div>
         <div class="event-name" id="event-name"></div>
-        <div class="event-meta" id="event-dates-row" style="display:none;"><i class="bi bi-calendar-event"></i> <span id="event-dates"></span></div>
-        <div class="event-meta" id="event-location-row" style="display:none;"><i class="bi bi-geo-alt"></i> <span id="event-location"></span></div>
     </div>
+
+    <div class="section">
+        <div class="card">
+            <div class="detail-item">
+                <i class="bi bi-calendar-event"></i>
+                <div><div class="detail-label">Dates</div><div class="detail-value" id="detail-dates">—</div></div>
+            </div>
+            <div class="detail-item">
+                <i class="bi bi-geo-alt"></i>
+                <div><div class="detail-label">Lieu</div><div class="detail-value" id="detail-location">—</div></div>
+            </div>
+            <div class="detail-item" id="detail-status-row" style="display:none;">
+                <i class="bi bi-info-circle"></i>
+                <div><div class="detail-label">Statut</div><div class="detail-value" id="detail-status"></div></div>
+            </div>
+        </div>
+    </div>
+
     <div class="section">
         <a href="/app/controller/scanner/" class="btn btn-primary" style="display:flex; align-items:center; justify-content:center; gap:8px;"><i class="bi bi-qr-code-scan"></i> Scanner un badge</a>
         <a href="/app/controller/program/" class="btn btn-secondary" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px;"><i class="bi bi-grid"></i> Voir le programme</a>
@@ -28,6 +44,8 @@
 <script>
 (function () {
     if (!requireAuth()) return;
+
+    var STATUS_LABELS = { upcoming: 'À venir', active: 'En cours', completed: 'Terminé', cancelled: 'Annulé' };
 
     Api.get('/auth/me/').then(function (r) { return r.json(); }).then(function (me) {
         document.getElementById('loading').style.display = 'none';
@@ -43,17 +61,18 @@
             logo.style.display = 'block';
         }
 
-        if (event.location) {
-            document.getElementById('event-location').textContent = event.location;
-            document.getElementById('event-location-row').style.display = 'flex';
-        }
+        document.getElementById('detail-location').textContent = event.location || 'Non précisé';
 
         if (event.start_date && event.end_date) {
             var start = new Date(event.start_date), end = new Date(event.end_date);
             var opts = { day: 'numeric', month: 'long', year: 'numeric' };
-            document.getElementById('event-dates').textContent =
+            document.getElementById('detail-dates').textContent =
                 start.toLocaleDateString('fr-FR', opts) + ' – ' + end.toLocaleDateString('fr-FR', opts);
-            document.getElementById('event-dates-row').style.display = 'flex';
+        }
+
+        if (event.status && STATUS_LABELS[event.status]) {
+            document.getElementById('detail-status').textContent = STATUS_LABELS[event.status];
+            document.getElementById('detail-status-row').style.display = 'flex';
         }
 
         Auth.setSession({

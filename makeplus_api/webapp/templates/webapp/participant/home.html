@@ -8,17 +8,32 @@
 
 <div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
 <div id="event-content" style="display:none;">
-    <img id="banner" class="banner-image" style="margin:16px 20px; width:calc(100% - 40px);" alt="">
-    <div class="event-hero">
+    <div class="event-hero" style="margin-top:16px;">
         <div class="greeting-row">
             <img id="event-logo" class="event-logo" style="display:none;" alt="">
             <div class="greeting-text">Bonjour, <strong id="greeting-name"></strong></div>
         </div>
         <div class="eyebrow">Votre événement</div>
         <div class="event-name" id="event-name"></div>
-        <div class="event-meta" id="event-dates-row" style="display:none;"><i class="bi bi-calendar-event"></i> <span id="event-dates"></span></div>
-        <div class="event-meta" id="event-location-row" style="display:none;"><i class="bi bi-geo-alt"></i> <span id="event-location"></span></div>
     </div>
+
+    <div class="section">
+        <div class="card">
+            <div class="detail-item">
+                <i class="bi bi-calendar-event"></i>
+                <div><div class="detail-label">Dates</div><div class="detail-value" id="detail-dates">—</div></div>
+            </div>
+            <div class="detail-item">
+                <i class="bi bi-geo-alt"></i>
+                <div><div class="detail-label">Lieu</div><div class="detail-value" id="detail-location">—</div></div>
+            </div>
+            <div class="detail-item" id="detail-status-row" style="display:none;">
+                <i class="bi bi-info-circle"></i>
+                <div><div class="detail-label">Statut</div><div class="detail-value" id="detail-status"></div></div>
+            </div>
+        </div>
+    </div>
+
     <div class="section">
         <div class="card">
             <div style="font-weight:700; margin-bottom:6px;">À propos</div>
@@ -31,6 +46,8 @@
 <script>
 (function () {
     if (!requireAuth()) return;
+
+    var STATUS_LABELS = { upcoming: 'À venir', active: 'En cours', completed: 'Terminé', cancelled: 'Annulé' };
 
     Api.get('/auth/me/').then(function (r) { return r.json(); }).then(function (me) {
         document.getElementById('loading').style.display = 'none';
@@ -48,20 +65,18 @@
             logo.style.display = 'block';
         }
 
-        if (event.location) {
-            document.getElementById('event-location').textContent = event.location;
-            document.getElementById('event-location-row').style.display = 'flex';
-        }
-
-        var banner = document.getElementById('banner');
-        if (event.banner) { banner.src = event.banner; } else { banner.style.display = 'none'; }
+        document.getElementById('detail-location').textContent = event.location || 'Non précisé';
 
         if (event.start_date && event.end_date) {
             var start = new Date(event.start_date), end = new Date(event.end_date);
             var opts = { day: 'numeric', month: 'long', year: 'numeric' };
-            document.getElementById('event-dates').textContent =
+            document.getElementById('detail-dates').textContent =
                 start.toLocaleDateString('fr-FR', opts) + ' – ' + end.toLocaleDateString('fr-FR', opts);
-            document.getElementById('event-dates-row').style.display = 'flex';
+        }
+
+        if (event.status && STATUS_LABELS[event.status]) {
+            document.getElementById('detail-status').textContent = STATUS_LABELS[event.status];
+            document.getElementById('detail-status-row').style.display = 'flex';
         }
 
         // Keep the event/user snapshot fresh for other pages (profile, etc.)
