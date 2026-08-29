@@ -1,0 +1,63 @@
+{% extends 'webapp/base.html' %}
+{% block title %}Accueil — DendrIQ{% endblock %}
+{% block body %}
+<div class="top-bar">
+    <span class="title" id="greeting">Bonjour</span>
+    <a class="action" href="/app/install/">📲</a>
+</div>
+
+<div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
+<div id="event-content" style="display:none;">
+    <img id="banner" class="banner-image" style="margin:16px 20px; width:calc(100% - 40px);" alt="">
+    <div class="event-hero">
+        <div class="eyebrow">Votre événement</div>
+        <div class="event-name" id="event-name"></div>
+        <div class="event-meta" id="event-dates"></div>
+        <div class="event-meta" id="event-location"></div>
+    </div>
+    <div class="section">
+        <div class="card">
+            <div style="font-weight:700; margin-bottom:6px;">À propos</div>
+            <div id="event-description" style="color:var(--text-secondary); font-size:0.9rem; line-height:1.5;"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+    if (!requireAuth()) return;
+
+    Api.get('/auth/me/').then(function (r) { return r.json(); }).then(function (me) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('event-content').style.display = 'block';
+
+        document.getElementById('greeting').textContent = 'Bonjour, ' + (me.first_name || me.full_name || '');
+
+        var event = me.event || {};
+        document.getElementById('event-name').textContent = event.name || '';
+        document.getElementById('event-location').textContent = event.location ? '📍 ' + event.location : '';
+        document.getElementById('event-description').textContent = event.description || 'Aucune description disponible.';
+
+        var banner = document.getElementById('banner');
+        if (event.banner) { banner.src = event.banner; } else { banner.style.display = 'none'; }
+
+        if (event.start_date && event.end_date) {
+            var start = new Date(event.start_date), end = new Date(event.end_date);
+            var opts = { day: 'numeric', month: 'long', year: 'numeric' };
+            document.getElementById('event-dates').textContent =
+                '🗓 ' + start.toLocaleDateString('fr-FR', opts) + ' – ' + end.toLocaleDateString('fr-FR', opts);
+        }
+
+        // Keep the event/user snapshot fresh for other pages (profile, etc.)
+        Auth.setSession({
+            access: Auth.getAccess(), refresh: Auth.getRefresh(),
+            role: me.role, event: me.event,
+            user: { id: me.id, email: me.email, first_name: me.first_name, last_name: me.last_name },
+        });
+    }).catch(function () {
+        document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger votre événement.</div>';
+    });
+})();
+</script>
+{% endblock %}

@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'events',
     'dashboard',  # Admin dashboard
     'caisse',  # Cash register system
+    'webapp',  # Pinnable PWA for iOS participants/badge controllers
 ]
 
 MIDDLEWARE = [

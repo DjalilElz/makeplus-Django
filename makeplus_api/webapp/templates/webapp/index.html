@@ -1,0 +1,13 @@
+{% extends 'webapp/base.html' %}
+{% load static %}
+{% block title %}DendrIQ{% endblock %}
+{% block body %}
+<div class="center-screen" style="align-items:center;">
+    <img src="{% static 'webapp/icons/icon-192.png' %}" style="width:88px; height:88px; border-radius:22px;" alt="DendrIQ">
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+window.location.replace(Auth.isLoggedIn() ? Auth.homeUrl() : '/app/login/');
+</script>
+{% endblock %}

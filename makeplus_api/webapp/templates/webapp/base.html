@@ -1,0 +1,55 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+    <title>{% block title %}DendrIQ{% endblock %}</title>
+
+    <link rel="manifest" href="/app/manifest.json">
+    <meta name="theme-color" content="#163751">
+
+    {# iOS-specific PWA meta -- Safari ignores the manifest's display mode
+       unless these are also present. apple-mobile-web-app-status-bar-style
+       "black-translucent" lets our own translucent top bar sit under the
+       status bar instead of leaving a plain white strip above it. #}
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="DendrIQ">
+    <link rel="apple-touch-icon" href="{% static 'webapp/icons/apple-touch-icon.png' %}">
+    <link rel="icon" href="{% static 'webapp/icons/favicon-32.png' %}">
+
+    <link rel="stylesheet" href="{% static 'webapp/css/app.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="{% if not show_tab_bar %}no-tab-bar{% endif %}">
+    {% block body %}{% endblock %}
+
+    {% if show_tab_bar %}
+    <nav class="tab-bar">
+        {% if role == 'controlleur_des_badges' %}
+        <a href="/app/controller/home/" class="{% if active_tab == 'home' %}active{% endif %}"><span class="tab-icon">🏠</span>Accueil</a>
+        <a href="/app/controller/scanner/" class="{% if active_tab == 'scanner' %}active{% endif %}"><span class="tab-icon">▦</span>Scanner</a>
+        <a href="/app/controller/program/" class="{% if active_tab == 'program' %}active{% endif %}"><span class="tab-icon">📋</span>Programme</a>
+        <a href="/app/controller/announcements/" class="{% if active_tab == 'announcements' %}active{% endif %}"><span class="tab-icon">🔔</span>Annonces</a>
+        <a href="/app/controller/profile/" class="{% if active_tab == 'profile' %}active{% endif %}"><span class="tab-icon">👤</span>Profil</a>
+        {% else %}
+        <a href="/app/participant/home/" class="{% if active_tab == 'home' %}active{% endif %}"><span class="tab-icon">🏠</span>Accueil</a>
+        <a href="/app/participant/program/" class="{% if active_tab == 'program' %}active{% endif %}"><span class="tab-icon">📋</span>Programme</a>
+        <a href="/app/participant/guide/" class="{% if active_tab == 'guide' %}active{% endif %}"><span class="tab-icon">📖</span>Guide</a>
+        <a href="/app/participant/announcements/" class="{% if active_tab == 'announcements' %}active{% endif %}"><span class="tab-icon">🔔</span>Annonces</a>
+        <a href="/app/participant/profile/" class="{% if active_tab == 'profile' %}active{% endif %}"><span class="tab-icon">👤</span>Profil</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    <script src="{% static 'webapp/js/api.js' %}"></script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/app/sw.js').catch(function () {});
+        });
+    }
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,23 @@
+{% extends 'webapp/base.html' %}
+{% block title %}Guide — DendrIQ{% endblock %}
+{% block body %}
+<div class="top-bar"><span class="title">Guide de l'événement</span></div>
+<div id="content"></div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+    if (!requireAuth()) return;
+    var event = Auth.getEvent() || {};
+    var content = document.getElementById('content');
+
+    if (event.guide_file) {
+        content.innerHTML =
+            '<iframe src="' + event.guide_file + '" style="width:100%; height:calc(100dvh - 100px); border:none;"></iframe>';
+    } else {
+        content.innerHTML =
+            '<div class="empty-state"><div class="icon">📖</div>Aucun guide n\'a été publié pour cet événement.</div>';
+    }
+})();
+</script>
+{% endblock %}

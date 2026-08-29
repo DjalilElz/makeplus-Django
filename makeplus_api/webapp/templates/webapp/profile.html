@@ -1,0 +1,87 @@
+{% extends 'webapp/base.html' %}
+{% load static %}
+{% block title %}Profil — DendrIQ{% endblock %}
+{% block body %}
+<div class="top-bar">
+    <span class="title">Profil</span>
+    <button class="action" id="logout-btn">Déconnexion</button>
+</div>
+
+<div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
+
+<div id="profile-content" style="display:none;">
+    <div class="section" style="text-align:center; margin-top:8px;">
+        <div id="avatar" style="width:72px; height:72px; border-radius:50%; background:var(--navy); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.6rem; font-weight:700; margin:0 auto 10px;"></div>
+        <div id="full-name" style="font-size:1.2rem; font-weight:800;"></div>
+        <div id="email" style="color:var(--text-secondary); font-size:0.9rem;"></div>
+        <div id="badge-chip" style="display:inline-block; margin-top:8px; padding:4px 12px; background:var(--surface-2); border-radius:999px; font-size:0.78rem; font-weight:700; color:var(--navy);"></div>
+    </div>
+
+    <div class="section">
+        <div class="card" style="text-align:center;">
+            <div style="font-weight:700; margin-bottom:12px;">Votre badge</div>
+            <div id="qr-container" style="display:inline-block; padding:12px; background:#fff; border-radius:12px;"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div style="font-weight:700; margin-bottom:8px; padding:0 4px;">Mes articles payés</div>
+        <div id="paid-items" class="list"></div>
+        <div id="no-paid-items" class="empty-state" style="display:none; padding:24px;">Aucun article payé enregistré.</div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+(function () {
+    if (!requireAuth()) return;
+
+    document.getElementById('logout-btn').addEventListener('click', function () {
+        if (confirm('Se déconnecter ?')) Auth.logout();
+    });
+
+    var ITEM_ICONS = { session: '🎓', access: '🚪', dinner: '🍽️', other: '🎟️' };
+
+    Api.get('/auth/me/').then(function (r) { return r.json(); }).then(function (me) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('profile-content').style.display = 'block';
+
+        var fullName = me.full_name || ((me.first_name || '') + ' ' + (me.last_name || '')).trim() || me.email;
+        document.getElementById('full-name').textContent = fullName;
+        document.getElementById('email').textContent = me.email || '';
+        document.getElementById('avatar').textContent = (fullName || '?').trim().charAt(0).toUpperCase();
+
+        var qr = me.qr_code || {};
+        document.getElementById('badge-chip').textContent = 'Badge · ' + (qr.badge_id || '—');
+
+        if (qr.user_id) {
+            new QRCode(document.getElementById('qr-container'), {
+                text: String(qr.user_id), width: 180, height: 180,
+                colorDark: '#163751', colorLight: '#ffffff',
+            });
+        }
+
+        var items = qr.paid_items || [];
+        var listEl = document.getElementById('paid-items');
+        if (!items.length) {
+            document.getElementById('no-paid-items').style.display = 'block';
+        } else {
+            items.forEach(function (item) {
+                var row = document.createElement('div');
+                row.className = 'list-row';
+                row.innerHTML =
+                    '<span style="font-size:1.2rem;">' + (ITEM_ICONS[item.type] || '🎟️') + '</span>' +
+                    '<div style="flex:1; min-width:0;">' +
+                        '<div style="font-weight:600;">' + escapeHtml(item.title) + '</div>' +
+                    '</div>' +
+                    '<span style="font-size:0.78rem; font-weight:700; color:var(--success); background:rgba(52,199,89,0.12); padding:3px 9px; border-radius:999px;">PAYÉ</span>';
+                listEl.appendChild(row);
+            });
+        }
+    }).catch(function () {
+        document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger votre profil.</div>';
+    });
+})();
+</script>
+{% endblock %}

@@ -52,6 +52,9 @@ urlpatterns = [
     
     # Dashboard (Admin Panel)
     path('dashboard/', include('dashboard.urls')),
+
+    # DendrIQ Web App (pinnable PWA for iOS participants/badge controllers)
+    path('app/', include('webapp.urls')),
     
     # Email and Form Tracking
     path('track/', include('dashboard.urls_tracking')),

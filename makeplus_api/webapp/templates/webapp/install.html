@@ -1,0 +1,65 @@
+{% extends 'webapp/base.html' %}
+{% load static %}
+{% block title %}Installer DendrIQ{% endblock %}
+{% block body %}
+<div class="top-bar">
+    <span class="title">Installer DendrIQ</span>
+    <a class="action" href="javascript:history.back()">Fermer</a>
+</div>
+
+<div class="section" style="margin-top:16px; text-align:center;">
+    <img src="{% static 'webapp/icons/icon-192.png' %}" style="width:72px; height:72px; border-radius:18px;" alt="DendrIQ">
+    <p style="color:var(--text-secondary); font-size:0.9rem; margin-top:12px;">
+        Ajoutez DendrIQ à votre écran d'accueil pour l'ouvrir comme une vraie application, en plein écran et sans passer par le navigateur.
+    </p>
+</div>
+
+<div class="section" id="ios-steps">
+    <div class="card">
+        <div style="font-weight:700; margin-bottom:4px;">Sur iPhone (Safari)</div>
+        <ol class="install-steps">
+            <li><span class="step-num">1</span><span class="step-text">Ouvrez cette page dans <strong>Safari</strong> (pas Chrome).</span></li>
+            <li><span class="step-num">2</span><span class="step-text">Appuyez sur l'icône de partage <span class="step-icon">⎋</span> en bas de l'écran.</span></li>
+            <li><span class="step-num">3</span><span class="step-text">Faites défiler puis appuyez sur <strong>« Sur l'écran d'accueil »</strong>.</span></li>
+            <li><span class="step-num">4</span><span class="step-text">Appuyez sur <strong>« Ajouter »</strong> en haut à droite.</span></li>
+        </ol>
+    </div>
+</div>
+
+<div class="section" id="android-steps" style="display:none;">
+    <div class="card">
+        <div style="font-weight:700; margin-bottom:4px;">Sur Android (Chrome)</div>
+        <ol class="install-steps">
+            <li><span class="step-num">1</span><span class="step-text">Appuyez sur le bouton ci-dessous, ou sur le menu <span class="step-icon">⋮</span> de Chrome.</span></li>
+            <li><span class="step-num">2</span><span class="step-text">Choisissez <strong>« Installer l'application »</strong> ou <strong>« Ajouter à l'écran d'accueil »</strong>.</span></li>
+        </ol>
+        <button class="btn btn-primary" id="android-install-btn" style="display:none; margin-top:8px;">Installer DendrIQ</button>
+    </div>
+</div>
+
+<div class="section">
+    <a href="javascript:history.back()" class="btn btn-secondary" style="display:flex;">Retour</a>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+    var isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+    document.getElementById('ios-steps').style.display = isIOS ? 'block' : 'none';
+    document.getElementById('android-steps').style.display = isIOS ? 'none' : 'block';
+
+    var deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        deferredPrompt = e;
+        document.getElementById('android-install-btn').style.display = 'block';
+    });
+    var installBtn = document.getElementById('android-install-btn');
+    installBtn.addEventListener('click', function () {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.finally(function () { deferredPrompt = null; });
+    });
+})();
+</script>
+{% endblock %}
