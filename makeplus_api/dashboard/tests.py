@@ -1988,3 +1988,92 @@ class CampaignSendTotalFailureTests(TestCase):
         self.assertEqual(
             self.EmailRecipient.objects.filter(campaign=self.campaign, status='sent').count(), 25
         )
+
+
+class EventOwnerNewRegistrationTests(TestCase):
+    """
+    event_owner_new_registration lets an owner create a real registration
+    using the full catalog -- including BlocItems/Sessions that have since
+    been deactivated on the public form (get_public_bloc_context's
+    include_inactive=True). The whole point of the feature is that a
+    deactivated item must still end up in the created order, so that's
+    what these tests actually assert -- not just that the page loads.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin', password='x', is_staff=True)
+        self.owner = User.objects.create_user(username='owner', email='owner@example.com', password='x')
+        self.stranger = User.objects.create_user(username='stranger', password='x')
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        UserEventAssignment.objects.create(
+            user=self.owner, event=self.event, role='event_owner', is_active=True,
+        )
+        EventBlocConfig.objects.create(
+            event=self.event, show_status=True, show_restauration=True,
+        )
+        self.status_item = BlocItem.objects.create(event=self.event, bloc='status', name='Membre', price=Decimal('0'))
+        self.discontinued_item = BlocItem.objects.create(
+            event=self.event, bloc='restauration', name='Dîner de gala 2024',
+            price=Decimal('1500'), is_active=False,
+        )
+        self.form_config = FormConfiguration.objects.create(
+            name="Reg", slug="owner-new-reg", event=self.event, created_by=self.admin,
+            fields_config=[
+                {'name': 'first_name', 'label': 'Prénom', 'type': 'text', 'required': True},
+                {'name': 'last_name', 'label': 'Nom', 'type': 'text', 'required': True},
+                {'name': 'email', 'label': 'Email', 'type': 'email', 'required': True},
+            ],
+        )
+
+    def _url(self, event=None):
+        return reverse('dashboard:event_owner_new_registration', args=[(event or self.event).id])
+
+    def _post(self, user, **extra_items):
+        self.client.force_login(user)
+        data = {
+            'first_name': 'Amina', 'last_name': 'K', 'email': 'amina@example.com',
+            'items_status': str(self.status_item.id),
+        }
+        data.update(extra_items)
+        return self.client.post(self._url(), data)
+
+    def test_get_shows_the_deactivated_item(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Dîner de gala 2024')
+        self.assertContains(response, 'Désactivé')
+
+    def test_stranger_without_assignment_is_forbidden(self):
+        self.client.force_login(self.stranger)
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 403)
+
+    def test_creating_a_registration_with_a_deactivated_item_keeps_it(self):
+        response = self._post(self.owner, items_restauration=str(self.discontinued_item.id))
+
+        self.assertEqual(response.status_code, 302)
+        order = RegistrationOrder.objects.get(event=self.event, email='amina@example.com')
+        item_ids = {it['id'] for it in order.items_snapshot}
+        self.assertIn(self.discontinued_item.id, item_ids)
+        self.assertEqual(order.total_after_reduction, Decimal('1500'))
+        self.assertEqual(order.status, 'pending')
+
+        user = User.objects.get(email='amina@example.com')
+        self.assertTrue(
+            ParticipantEventRegistration.objects.filter(participant__user=user, event=self.event).exists()
+        )
+        self.assertTrue(
+            UserEventAssignment.objects.filter(user=user, event=self.event, role='participant').exists()
+        )
+
+    def test_missing_status_selection_is_rejected(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(self._url(), {
+            'first_name': 'Amina', 'last_name': 'K', 'email': 'amina@example.com',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(RegistrationOrder.objects.filter(email='amina@example.com').exists())

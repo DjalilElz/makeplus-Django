@@ -1,0 +1,533 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nouvelle inscription — {{ event.name }}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'dashboard/images/makeplus-icon.svg' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --banner-1: #2D1B6B;
+            --banner-2: #46309a;
+            --banner-3: #3a2480;
+            --steel-blue: #7BA7BC;
+            --dusty-rose: #E8B9B9;
+            --dusty-rose-dark: #8B4B4B;
+            --dusty-rose-bg: #F5E3E1;
+            --cream: #FAF6F0;
+            --ink: #1a1a1a;
+            --border-light: #E7E2DC;
+            --font-serif: 'Playfair Display', serif;
+            --font-sans: 'Inter', sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: var(--cream);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            color: #2c2c2c;
+        }
+        .elegant-banner {
+            background: linear-gradient(135deg, var(--banner-1) 0%, var(--banner-2) 55%, var(--banner-3) 100%);
+            color: #fff;
+            padding: 36px 20px 44px;
+            position: relative;
+            overflow: hidden;
+        }
+        .elegant-banner::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            right: -12%;
+            width: 380px;
+            height: 380px;
+            background: var(--steel-blue);
+            opacity: 0.28;
+            border-radius: 50%;
+            filter: blur(60px);
+        }
+        .banner-content { position: relative; z-index: 2; max-width: 1300px; margin: 0 auto; }
+        .banner-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; }
+        .back-link { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.85rem; }
+        .back-link:hover { color: #fff; }
+        .banner-eyebrow {
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--dusty-rose);
+            margin-bottom: 8px;
+        }
+        .event-title { font-family: var(--font-serif); font-size: 1.9rem; font-weight: 700; }
+        .page-wrapper { max-width: 1300px; margin: -20px auto 0; padding: 0 20px 60px; position: relative; z-index: 3; }
+        .content-card {
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            padding: 28px;
+        }
+        .btn-elegant { background: var(--banner-1); color: #fff; border-radius: 10px; border: none; }
+        .btn-elegant:hover { background: var(--banner-2); color: #fff; }
+        .btn-elegant:disabled { background: #b8b3ac; }
+        .btn-outline-elegant {
+            background: transparent; border: 1px solid var(--banner-1); color: var(--banner-1);
+            border-radius: 10px; font-size: 0.8rem; font-weight: 600; padding: 7px 16px;
+        }
+        .btn-outline-elegant:hover { background: var(--banner-1); color: #fff; }
+        .form-label { font-weight: 600; font-size: 0.85rem; color: var(--banner-1); }
+        .form-control, .form-select { border-radius: 10px; border: 1px solid var(--border-light); }
+        .required-indicator { color: var(--dusty-rose-dark); }
+        .section-heading {
+            font-family: var(--font-serif); font-size: 1.2rem; font-weight: 700;
+            color: var(--banner-1); margin-bottom: 16px; padding-bottom: 10px;
+            border-bottom: 2px solid var(--ink);
+        }
+
+        /* ============ Bloc picker + cart -- same classes/markup as the
+           public registration form and the submissions page's own
+           "Modifier les blocs" popup, so this looks identical to both. ============ */
+        .bloc-section { margin-bottom: 32px; }
+        .bloc-header { display: flex; align-items: baseline; gap: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--ink); margin-bottom: 6px; }
+        .bloc-badge {
+            display: inline-block; background: var(--dusty-rose-bg); color: var(--dusty-rose-dark);
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+            padding: 5px 12px; border-radius: 20px; white-space: nowrap;
+        }
+        .bloc-title { font-family: var(--font-serif); font-weight: 700; font-size: 1.25rem; color: #2c2c2c; }
+        .bloc-note { font-style: italic; color: #8a8a8a; font-size: 0.85rem; margin: 8px 0 14px; }
+        .bloc-locked-message {
+            display: none; background: var(--dusty-rose-bg); color: var(--dusty-rose-dark);
+            border: 1px solid var(--dusty-rose); border-radius: 10px; padding: 10px 16px;
+            font-size: 0.85rem; font-weight: 600; margin: 8px 0 14px; text-align: center;
+        }
+        .bloc-section.bloc-locked { opacity: 0.45; pointer-events: none; transition: opacity 0.2s ease; }
+        .bloc-section.bloc-locked .bloc-locked-message { display: block; }
+        .bloc-section.bloc-locked .bloc-note { display: none; }
+        .product-card {
+            display: flex; align-items: center; gap: 16px; background: #fff;
+            border: 1px solid var(--border-light); border-radius: 10px; padding: 14px 16px;
+            margin-bottom: 8px; transition: all 0.2s ease; cursor: pointer;
+        }
+        .product-card:hover { border-color: var(--dusty-rose); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06); }
+        .product-card:has(.bloc-choice:checked) { border-color: var(--steel-blue); background: rgba(123, 167, 188, 0.08); }
+        .product-card .form-check-input { flex-shrink: 0; margin: 0; }
+        .product-main { flex: 1; min-width: 0; }
+        .product-name { font-family: var(--font-serif); font-size: 1rem; color: #2c2c2c; }
+        .product-inactive-badge {
+            display: inline-block; margin-left: 8px; font-size: 0.68rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.04em; color: #a35b2a;
+            background: rgba(200, 130, 60, 0.15); border-radius: 6px; padding: 2px 7px; vertical-align: middle;
+        }
+        .product-description { font-size: 0.8rem; color: #6c757d; margin-top: 2px; line-height: 1.35; white-space: pre-line; }
+        .product-price { flex-shrink: 0; }
+        .price-pill {
+            display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+            background: var(--banner-1); color: #fff; border-radius: 10px; padding: 8px 16px; min-width: 78px;
+        }
+        .price-pill .amount { font-weight: 700; font-size: 0.95rem; line-height: 1.1; }
+        .price-pill .currency { font-size: 0.62rem; letter-spacing: 0.05em; opacity: 0.85; }
+
+        .cart-card {
+            background: var(--cream); border: 1px solid var(--border-light); border-radius: 14px;
+            padding: 20px; position: sticky; top: 20px;
+        }
+        .cart-title-row { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 12px; border-bottom: 2px solid var(--ink); margin-bottom: 14px; }
+        .cart-title-row h4 { font-family: var(--font-serif); font-size: 1.1rem; margin: 0; }
+        .cart-count { font-size: 0.75rem; font-weight: 600; color: var(--dusty-rose-dark); }
+        .cart-empty { font-style: italic; color: #9a9a9a; text-align: center; padding: 16px 0; }
+        .cart-line { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--border-light); font-size: 0.85rem; }
+        .cart-line .name { color: #444; }
+        .cart-line .price { font-weight: 600; white-space: nowrap; }
+        .blocs-subscribed { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
+        .blocs-subscribed .label { font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: #8a8a8a; font-weight: 600; }
+        .bloc-dots { display: flex; gap: 6px; }
+        .bloc-dot {
+            width: 18px; height: 18px; border-radius: 50%; border: 1px solid #d8d3cc;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.6rem; font-weight: 700; color: #b8b3ac; background: transparent; transition: all 0.2s ease;
+        }
+        .bloc-dot.filled { background: var(--steel-blue); border-color: var(--steel-blue); color: #fff; }
+        .discount-banner { display: none; background: var(--dusty-rose-bg); color: #6b3f3f; border-radius: 10px; padding: 8px 12px; font-size: 0.78rem; margin-bottom: 12px; line-height: 1.4; }
+        .discount-banner.visible { display: block; }
+        .cart-totals { border-top: 1px solid var(--border-light); padding-top: 12px; margin-top: 4px; }
+        .cart-totals .row-line { display: flex; justify-content: space-between; font-size: 0.85rem; color: #6c757d; padding: 3px 0; }
+        .cart-totals .discount-line { color: #2e7d32; display: none; }
+        .cart-totals .discount-line.visible { display: flex; }
+        .cart-totals .total-line {
+            display: flex; justify-content: space-between; align-items: baseline;
+            border-top: 2px solid var(--ink); margin-top: 8px; padding-top: 10px;
+            font-size: 1.1rem; font-weight: 700; color: #2c2c2c;
+        }
+    </style>
+</head>
+<body>
+    <div class="elegant-banner">
+        <div class="banner-content">
+            <div class="banner-topbar">
+                <a href="{% url 'dashboard:event_owner_submissions' event.id %}" class="back-link"><i class="bi bi-arrow-left"></i> Retour aux inscriptions</a>
+                <a href="{% url 'dashboard:logout' %}" class="back-link"><i class="bi bi-box-arrow-right"></i> Déconnexion</a>
+            </div>
+            <div class="banner-eyebrow">Nouvelle inscription</div>
+            <h1 class="event-title">{{ event.name }}</h1>
+        </div>
+    </div>
+
+    <div class="page-wrapper">
+        <div class="content-card">
+            {% if errors %}
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <p class="text-muted small mb-4">
+                <i class="bi bi-info-circle"></i>
+                Tous les statuts, articles et ateliers sont visibles ici, y compris ceux désactivés sur le formulaire public.
+            </p>
+
+            <form method="post" id="registrationForm" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="section-heading">Informations</div>
+                        <div class="row mb-4">
+                            {% for field in fields %}
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ field.name }}" class="form-label">
+                                    {{ field.label }}
+                                    {% if field.required %}<span class="required-indicator">*</span>{% endif %}
+                                </label>
+
+                                {% if field.type == 'textarea' %}
+                                <textarea class="form-control" id="{{ field.name }}" name="{{ field.name }}" rows="3"
+                                          {% if field.required %}required{% endif %}
+                                          {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}></textarea>
+                                {% elif field.type == 'select' %}
+                                <select class="form-select" id="{{ field.name }}" name="{{ field.name }}" {% if field.required %}required{% endif %}>
+                                    <option value="">-- Sélectionnez une option --</option>
+                                    {% for option in field.options %}
+                                    <option value="{{ option }}">{{ option }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% elif field.type == 'checkbox' %}
+                                {% for option in field.options %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="{{ field.name }}_{{ forloop.counter }}" name="{{ field.name }}" value="{{ option }}">
+                                    <label class="form-check-label" for="{{ field.name }}_{{ forloop.counter }}">{{ option }}</label>
+                                </div>
+                                {% endfor %}
+                                {% else %}
+                                <input type="{{ field.type }}" class="form-control" id="{{ field.name }}" name="{{ field.name }}"
+                                       {% if field.required %}required{% endif %}
+                                       {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        {% for bloc in bloc_context.custom_blocs_before_workshops %}
+                        <div class="bloc-section" data-bloc-key="{{ bloc.key }}">
+                            <div class="bloc-header">
+                                <span class="bloc-badge">Bloc {{ forloop.counter }}</span>
+                                <span class="bloc-title">{{ bloc.label }}</span>
+                            </div>
+                            {% if bloc.key != 'status' %}
+                            <p class="bloc-locked-message"><i class="bi bi-lock-fill me-1"></i>Sélectionnez d'abord un statut (Bloc 1) ci-dessus.</p>
+                            {% endif %}
+                            <p class="bloc-note">{% if bloc.select_mode == 'single' %}Choix unique.{% else %}Choix multiple.{% endif %}</p>
+                            {% for item in bloc.items %}
+                            <label class="product-card" id="product_item_{{ item.id }}" for="item_{{ item.id }}">
+                                <input class="form-check-input bloc-choice"
+                                       type="{% if bloc.select_mode == 'single' %}radio{% else %}checkbox{% endif %}"
+                                       name="items_{{ bloc.key }}" id="item_{{ item.id }}" value="{{ item.id }}"
+                                       data-price="{{ item.price }}" data-original-price="{{ item.price }}"
+                                       data-bloc="{{ bloc.key }}" data-name="{{ item.name }}" data-target-key="item_{{ item.id }}"
+                                       {% if bloc.key == 'status' %}data-is-status="true"{% endif %}>
+                                <span class="product-main">
+                                    <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}</span>
+                                    {% if item.description %}<span class="product-description d-block">{{ item.description }}</span>{% endif %}
+                                </span>
+                                <span class="product-price">
+                                    <span class="price-pill">
+                                        {% if item.price > 0 %}<span class="amount">{{ item.price }}</span><span class="currency">DZD</span>
+                                        {% else %}<span class="amount">Gratuit</span>{% endif %}
+                                    </span>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+
+                        {% if bloc_context.workshops_visible and bloc_context.paid_sessions %}
+                        <div class="bloc-section" data-bloc-key="workshops">
+                            <div class="bloc-header">
+                                <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs_before_workshops|length|add:1 }}</span>
+                                <span class="bloc-title">Ateliers</span>
+                            </div>
+                            <p class="bloc-locked-message"><i class="bi bi-lock-fill me-1"></i>Sélectionnez d'abord un statut (Bloc 1) ci-dessus.</p>
+                            <p class="bloc-note">Choix multiple.</p>
+                            {% for s in bloc_context.paid_sessions %}
+                            <label class="product-card" id="product_session_{{ s.id }}" for="session_{{ s.id }}">
+                                <input class="form-check-input bloc-choice" type="checkbox"
+                                       name="sessions" id="session_{{ s.id }}" value="{{ s.id }}"
+                                       data-price="{{ s.price }}" data-original-price="{{ s.price }}"
+                                       data-bloc="workshops" data-name="{{ s.title }}" data-target-key="session_{{ s.id }}">
+                                <span class="product-main">
+                                    <span class="product-name d-block">{{ s.title }}{% if not s.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}</span>
+                                    {% if s.description %}<span class="product-description d-block">{{ s.description }}</span>{% endif %}
+                                </span>
+                                <span class="product-price">
+                                    <span class="price-pill">
+                                        {% if s.price > 0 %}<span class="amount">{{ s.price }}</span><span class="currency">DZD</span>
+                                        {% else %}<span class="amount">Gratuit</span>{% endif %}
+                                    </span>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% for bloc in bloc_context.custom_blocs_after_workshops %}
+                        <div class="bloc-section" data-bloc-key="{{ bloc.key }}">
+                            <div class="bloc-header">
+                                <span class="bloc-badge">Bloc {{ bloc_context.custom_blocs_before_workshops|length|add:1|add:forloop.counter }}</span>
+                                <span class="bloc-title">{{ bloc.label }}</span>
+                            </div>
+                            <p class="bloc-locked-message"><i class="bi bi-lock-fill me-1"></i>Sélectionnez d'abord un statut (Bloc 1) ci-dessus.</p>
+                            <p class="bloc-note">{% if bloc.select_mode == 'single' %}Choix unique.{% else %}Choix multiple.{% endif %}</p>
+                            {% for item in bloc.items %}
+                            <label class="product-card" id="product_item_{{ item.id }}" for="item_{{ item.id }}">
+                                <input class="form-check-input bloc-choice"
+                                       type="{% if bloc.select_mode == 'single' %}radio{% else %}checkbox{% endif %}"
+                                       name="items_{{ bloc.key }}" id="item_{{ item.id }}" value="{{ item.id }}"
+                                       data-price="{{ item.price }}" data-original-price="{{ item.price }}"
+                                       data-bloc="{{ bloc.key }}" data-name="{{ item.name }}" data-target-key="item_{{ item.id }}">
+                                <span class="product-main">
+                                    <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}</span>
+                                    {% if item.description %}<span class="product-description d-block">{{ item.description }}</span>{% endif %}
+                                </span>
+                                <span class="product-price">
+                                    <span class="price-pill">
+                                        {% if item.price > 0 %}<span class="amount">{{ item.price }}</span><span class="currency">DZD</span>
+                                        {% else %}<span class="amount">Gratuit</span>{% endif %}
+                                    </span>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+
+                        <div class="mb-4">
+                            <label for="receipt_file" class="form-label">Justificatif de paiement (optionnel)</label>
+                            <input type="file" class="form-control" id="receipt_file" name="receipt_file">
+                            <p class="text-muted small mt-1">Non requis pour une inscription créée depuis ce tableau de bord.</p>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="cart-card">
+                            <div class="cart-title-row">
+                                <h4>Panier</h4>
+                                <span class="cart-count"><span id="cart-item-count">0</span> article(s)</span>
+                            </div>
+                            <div id="cart-empty" class="cart-empty">Aucun article sélectionné...</div>
+                            <div id="cart-lines"></div>
+                            <div class="blocs-subscribed">
+                                <span class="label">Blocs</span>
+                                <div class="bloc-dots">
+                                    {% for key in bloc_context.active_bloc_keys %}
+                                    <span class="bloc-dot" id="dot-{{ forloop.counter }}">{{ forloop.counter }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div id="discount-banner" class="discount-banner"></div>
+                            <div class="cart-totals">
+                                <div class="row-line">
+                                    <span>Sous-total</span>
+                                    <strong id="cart-total-before">0.00 DZD</strong>
+                                </div>
+                                <div class="row-line discount-line" id="cart-discount-row">
+                                    <span>Réduction (<span id="cart-discount-percent">0</span>%)</span>
+                                    <strong id="cart-discount-amount">0.00 DZD</strong>
+                                </div>
+                                <div class="total-line">
+                                    <span>Total</span>
+                                    <span id="cart-total-after">0.00 DZD</span>
+                                </div>
+                            </div>
+                            <div class="d-grid gap-2 mt-3">
+                                <button type="submit" class="btn btn-elegant" id="submit-btn" disabled>
+                                    <i class="bi bi-check-circle"></i> Créer l'inscription
+                                </button>
+                                <a href="{% url 'dashboard:event_owner_submissions' event.id %}" class="btn btn-outline-elegant">Annuler</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        // Same math as public_form.html's own script and compute_order()
+        // server-side, minus the period-preview switcher (a brand-new
+        // registration is always priced against today's active period,
+        // never a browsed one) and the payment-proof gating (never
+        // required here -- see the view).
+        var BLOCS_ENABLED = {% if bloc_context.config.reduction_by_blocs_enabled %}true{% else %}false{% endif %};
+        var BLOC_PCT = {2: {{ bloc_context.config.reduction_2_blocs }}, 3: {{ bloc_context.config.reduction_3_blocs }}};
+        var BLOC_ORDER = [{% for key in bloc_context.active_bloc_keys %}'{{ key }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+        var STATUS_RULES = {{ bloc_context.status_rules_json|safe }};
+        var PERIOD_RULES = {{ bloc_context.period_rules_json|safe }};
+
+        function fmt(n) { return n.toFixed(2) + ' DZD'; }
+        function fmtPrice(n) { return n <= 0 ? 'Gratuit' : fmt(n); }
+
+        function applyPricingRules() {
+            var statusEl = document.querySelector('.bloc-choice[data-is-status="true"]:checked');
+            var statusRules = (statusEl && STATUS_RULES[statusEl.value]) || {};
+
+            document.querySelectorAll('.bloc-choice[data-target-key]').forEach(function (el) {
+                var targetKey = el.getAttribute('data-target-key');
+                var rule = statusRules[targetKey] || PERIOD_RULES[targetKey];
+                var card = document.getElementById('product_' + targetKey);
+                var visible = !rule || rule.visible;
+                var price = (rule && rule.price !== null && rule.price !== undefined)
+                    ? rule.price
+                    : el.getAttribute('data-original-price');
+
+                el.setAttribute('data-price', price);
+                var pricePill = card ? card.querySelector('.price-pill') : null;
+                if (pricePill) {
+                    var numPrice = parseFloat(price) || 0;
+                    pricePill.innerHTML = numPrice > 0
+                        ? '<span class="amount">' + numPrice.toFixed(0) + '</span><span class="currency">DZD</span>'
+                        : '<span class="amount">Gratuit</span>';
+                }
+
+                if (!visible) {
+                    if (el.checked) el.checked = false;
+                    el.disabled = true;
+                    if (card) card.style.display = 'none';
+                } else {
+                    if (card) card.style.display = '';
+                    el.disabled = false;
+                }
+            });
+
+            lockNonStatusBlocs(!!statusEl);
+        }
+
+        function lockNonStatusBlocs(statusChosen) {
+            document.querySelectorAll('.bloc-section[data-bloc-key]').forEach(function (section) {
+                if (section.getAttribute('data-bloc-key') === 'status') return;
+                section.classList.toggle('bloc-locked', !statusChosen);
+                if (!statusChosen) {
+                    section.querySelectorAll('.bloc-choice').forEach(function (el) { el.disabled = true; });
+                }
+            });
+        }
+
+        function recalc() {
+            var choices = document.querySelectorAll('.bloc-choice');
+            var subtotal = 0.0;
+            var blocSubtotals = {};
+            var lines = [];
+            choices.forEach(function (el) {
+                if (el.checked) {
+                    var price = parseFloat(el.getAttribute('data-price')) || 0;
+                    var bloc = el.getAttribute('data-bloc');
+                    subtotal += price;
+                    blocSubtotals[bloc] = (blocSubtotals[bloc] || 0) + price;
+                    lines.push({ name: el.getAttribute('data-name'), price: price });
+                }
+            });
+            var distinct = Object.keys(blocSubtotals).filter(function (b) {
+                return b !== 'status' && blocSubtotals[b] > 0;
+            }).length;
+            var totalPct = (BLOCS_ENABLED && subtotal > 0) ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
+            if (totalPct > 100) totalPct = 100;
+            if (subtotal <= 0) totalPct = 0;
+            var discountAmt = subtotal * totalPct / 100.0;
+            var after = subtotal - discountAmt;
+
+            document.getElementById('cart-total-before').textContent = fmtPrice(subtotal);
+            document.getElementById('cart-total-after').textContent = fmtPrice(after);
+            var row = document.getElementById('cart-discount-row');
+            if (totalPct > 0) {
+                row.classList.add('visible');
+                document.getElementById('cart-discount-percent').textContent = totalPct;
+                document.getElementById('cart-discount-amount').textContent = '-' + fmt(discountAmt);
+            } else {
+                row.classList.remove('visible');
+            }
+
+            var cartLines = document.getElementById('cart-lines');
+            var cartEmpty = document.getElementById('cart-empty');
+            cartLines.innerHTML = '';
+            if (lines.length > 0) {
+                cartEmpty.style.display = 'none';
+                lines.forEach(function (line) {
+                    var div = document.createElement('div');
+                    div.className = 'cart-line';
+                    div.innerHTML = '<span class="name"></span><span class="price"></span>';
+                    div.querySelector('.name').textContent = line.name;
+                    div.querySelector('.price').textContent = fmtPrice(line.price);
+                    cartLines.appendChild(div);
+                });
+            } else {
+                cartEmpty.style.display = 'block';
+            }
+            document.getElementById('cart-item-count').textContent = lines.length;
+
+            BLOC_ORDER.forEach(function (blocKey, idx) {
+                var dot = document.getElementById('dot-' + (idx + 1));
+                if (dot) dot.classList.toggle('filled', idx < distinct);
+            });
+
+            var banner = document.getElementById('discount-banner');
+            if (BLOCS_ENABLED && subtotal > 0) {
+                if (distinct >= 3) {
+                    banner.textContent = '🎉 Réduction maximale atteinte : ' + (parseFloat(BLOC_PCT[3]) || 0) + '% de réduction !';
+                    banner.classList.add('visible');
+                } else if (distinct >= 2) {
+                    var nextPct = parseFloat(BLOC_PCT[distinct + 1]) || 0;
+                    banner.textContent = '✨ Ajoutez 1 bloc de plus pour débloquer ' + nextPct + '% de réduction !';
+                    banner.classList.add('visible');
+                } else {
+                    var firstPct = parseFloat(BLOC_PCT[2]) || 0;
+                    banner.textContent = '✨ Ajoutez des articles d\'un autre bloc pour débloquer ' + firstPct + '% de réduction !';
+                    banner.classList.add('visible');
+                }
+            } else {
+                banner.classList.remove('visible');
+            }
+
+            document.getElementById('submit-btn').disabled = lines.length === 0;
+        }
+
+        document.querySelectorAll('.bloc-choice').forEach(function (el) {
+            el.addEventListener('change', function () {
+                applyPricingRules();
+                recalc();
+            });
+        });
+
+        applyPricingRules();
+        recalc();
+    })();
+    </script>
+</body>
+</html>

@@ -198,6 +198,7 @@ urlpatterns = [
     # Registration submissions (staff + event owners, read-only)
     path('my-submissions/', views_event_owner.event_owner_submissions_home, name='event_owner_submissions_home'),
     path('events/<uuid:event_id>/my-submissions/', views_event_owner.event_owner_submissions, name='event_owner_submissions'),
+    path('events/<uuid:event_id>/my-submissions/new/', views_event_owner.event_owner_new_registration, name='event_owner_new_registration'),
     path('events/<uuid:event_id>/my-submissions/export/', views_event_owner.event_owner_export_excel, name='event_owner_export_excel'),
     path('my-submissions/<uuid:order_id>/status/', views_event_owner.registration_status_save, name='registration_status_save'),
     path('my-submissions/<uuid:order_id>/notes/', views_event_owner.registration_notes_save, name='registration_notes_save'),

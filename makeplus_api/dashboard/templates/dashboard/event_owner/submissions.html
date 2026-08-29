@@ -371,7 +371,12 @@
                 {% endfor %}
             {% endif %}
 
-            <div class="d-flex justify-content-end mb-2">
+            <div class="d-flex justify-content-end gap-2 mb-2">
+                {% if bloc_context.has_blocs %}
+                <a href="{% url 'dashboard:event_owner_new_registration' event.id %}" class="btn btn-elegant btn-sm">
+                    <i class="bi bi-plus-circle"></i> Nouvelle inscription
+                </a>
+                {% endif %}
                 <a href="{% url 'dashboard:event_owner_export_excel' event.id %}?{{ request.GET.urlencode }}" class="btn btn-outline-elegant btn-sm">
                     <i class="bi bi-file-earmark-excel"></i> Exporter Excel
                 </a>

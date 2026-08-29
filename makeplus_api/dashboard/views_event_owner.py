@@ -299,6 +299,149 @@ def event_owner_submissions(request, event_id):
 
 @never_cache
 @login_required
+def event_owner_new_registration(request, event_id):
+    """
+    Let the event owner create a brand-new registration directly, using
+    the exact same paid-blocs catalog as the public form -- but with
+    every status/item/workshop selectable even if it's since been
+    deactivated (include_inactive=True), for cases like re-creating an
+    old registration or a phone/in-person sign-up using a discontinued
+    item. Unlike the public flow, this skips the email-verification-code
+    step entirely (the owner is already authenticated) and creates the
+    FormSubmission + RegistrationOrder immediately, mirroring
+    views_blocs.finalize_paid_registration's own field set.
+    """
+    from django.core.files.storage import default_storage
+    import uuid as uuid_lib
+    from events.form_validation_service import create_participant_for_event, get_or_create_user_by_email
+    from .models_form import FormSubmission
+
+    event = get_object_or_404(Event, id=event_id)
+
+    if not _can_access_event_orders(request.user, event):
+        raise PermissionDenied("You do not have access to this event's submissions.")
+
+    # Deliberately NOT filtered to is_active=True -- the owner can still
+    # use this even if the public form has been closed.
+    form_config = event.custom_forms.first()
+    if not form_config:
+        messages.error(request, "Aucun formulaire d'inscription n'est configuré pour cet événement.")
+        return _redirect_to_submissions(request, event.id)
+
+    bloc_context = get_public_bloc_context(event, include_inactive=True)
+    if not bloc_context:
+        messages.error(request, "Cet événement n'a aucune option d'inscription payante configurée.")
+        return _redirect_to_submissions(request, event.id)
+
+    errors = []
+
+    if request.method == 'POST':
+        # --- Informations fields -- same collection loop as the public
+        # form (dashboard.views.public_form_view) ---
+        form_data = {}
+        email = None
+        first_name = None
+        last_name = None
+
+        for field in form_config.fields_config:
+            field_name = field.get('name')
+            if field.get('type') == 'checkbox':
+                value = request.POST.getlist(field_name)
+            else:
+                value = request.POST.get(field_name, '')
+
+            if field.get('required') and (not value or (isinstance(value, list) and len(value) == 0)):
+                errors.append(f'{field.get("label")} est requis.')
+                continue
+
+            form_data[field_name] = value
+            if field_name == 'email' or field.get('type') == 'email':
+                email = value.lower() if value else None
+            elif field_name == 'first_name':
+                first_name = value
+            elif field_name == 'last_name':
+                last_name = value
+
+        if not email:
+            errors.append("L'e-mail est requis.")
+        if not first_name:
+            errors.append('Le prénom est requis.')
+        if not last_name:
+            errors.append('Le nom est requis.')
+
+        # --- Bloc/session selections -- same cardinality rules as
+        # stage_paid_registration / registration_order_blocs_save ---
+        selected_item_ids = []
+        for bloc in bloc_context['custom_blocs']:
+            picked = [v for v in request.POST.getlist(f"items_{bloc['key']}") if v]
+            if bloc['select_mode'] == 'single' and len(picked) > 1:
+                errors.append(f"Veuillez sélectionner une seule option dans {bloc['label']}.")
+            if bloc['key'] == 'status' and len(picked) == 0:
+                errors.append(f"Veuillez sélectionner une option dans {bloc['label']}.")
+            selected_item_ids.extend(picked)
+
+        selected_session_ids = [v for v in request.POST.getlist('sessions') if v]
+
+        if not errors:
+            result = compute_order(
+                event=event, config=bloc_context['config'],
+                selected_item_ids=selected_item_ids, selected_session_ids=selected_session_ids,
+                on_date=timezone.now().date(), include_inactive=True, ignore_visibility_rules=True,
+            )
+
+            # Optional -- unlike the public flow, never required: the
+            # owner is the one vouching for this registration directly.
+            receipt_path = ''
+            receipt = request.FILES.get('receipt_file')
+            if receipt:
+                receipt_path = default_storage.save(
+                    f'registrations/receipts/{uuid_lib.uuid4().hex}_{receipt.name}', receipt
+                )
+
+            full_name = f"{first_name or ''} {last_name or ''}".strip()
+            ip_address = (
+                request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0]
+                if request.META.get('HTTP_X_FORWARDED_FOR') else request.META.get('REMOTE_ADDR')
+            )
+            user_agent = request.META.get('HTTP_USER_AGENT', '')[:1000]
+
+            user = get_or_create_user_by_email(email, first_name, last_name)
+            participant = create_participant_for_event(user, event)
+
+            submission = FormSubmission.objects.create(
+                form=form_config, data=form_data, email=email,
+                ip_address=ip_address, user_agent=user_agent,
+            )
+
+            RegistrationOrder.objects.create(
+                event=event, form_submission=submission, participant=participant,
+                period_id=result['active_period_id'], full_name=full_name, email=email,
+                items_snapshot=result['snapshot'], subtotals=result['subtotals'],
+                distinct_blocs_count=result['distinct_blocs_count'],
+                total_before_reduction=result['total_before_reduction'],
+                period_discount_percent=result['period_discount_percent'],
+                blocs_discount_percent=result['blocs_discount_percent'],
+                total_discount_percent=result['total_discount_percent'],
+                total_after_reduction=result['total_after_reduction'],
+                receipt_file=receipt_path, ip_address=ip_address, user_agent=user_agent,
+            )
+
+            form_config.increment_submission_count()
+            messages.success(request, f"Inscription créée pour {full_name or email}.")
+            return _redirect_to_submissions(request, event.id)
+
+    context = {
+        'event': event,
+        'form_config': form_config,
+        'fields': form_config.fields_config,
+        'bloc_context': bloc_context,
+        'errors': errors,
+    }
+    return render(request, 'dashboard/event_owner/new_registration.html', context)
+
+
+@never_cache
+@login_required
 def event_owner_export_excel(request, event_id):
     """
     Export the registrations table to Excel -- applies the exact same
