@@ -26,34 +26,44 @@
         {% if role == 'controlleur_des_badges' %}
         <a href="/app/controller/home/" class="{% if active_tab == 'home' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-house tab-icon-inactive"></i><i class="bi bi-house-fill tab-icon-active"></i></span>
+            <span class="tab-label">Accueil</span>
         </a>
         <a href="/app/controller/scanner/" class="{% if active_tab == 'scanner' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-qr-code-scan"></i></span>
+            <span class="tab-label">Scanner</span>
         </a>
         <a href="/app/controller/statistics/" class="{% if active_tab == 'statistics' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-bar-chart tab-icon-inactive"></i><i class="bi bi-bar-chart-fill tab-icon-active"></i></span>
+            <span class="tab-label">Stats</span>
         </a>
         <a href="/app/controller/announcements/" class="{% if active_tab == 'announcements' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-bell tab-icon-inactive"></i><i class="bi bi-bell-fill tab-icon-active"></i></span>
+            <span class="tab-label">Annonces</span>
         </a>
         <a href="/app/controller/profile/" class="{% if active_tab == 'profile' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-person tab-icon-inactive"></i><i class="bi bi-person-fill tab-icon-active"></i></span>
+            <span class="tab-label">Profil</span>
         </a>
         {% else %}
         <a href="/app/participant/home/" class="{% if active_tab == 'home' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-house tab-icon-inactive"></i><i class="bi bi-house-fill tab-icon-active"></i></span>
+            <span class="tab-label">Accueil</span>
         </a>
         <a href="/app/participant/program/" class="{% if active_tab == 'program' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-grid tab-icon-inactive"></i><i class="bi bi-grid-fill tab-icon-active"></i></span>
+            <span class="tab-label">Programme</span>
         </a>
         <a href="/app/participant/guide/" class="{% if active_tab == 'guide' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-book tab-icon-inactive"></i><i class="bi bi-book-fill tab-icon-active"></i></span>
+            <span class="tab-label">Guide</span>
         </a>
         <a href="/app/participant/announcements/" class="{% if active_tab == 'announcements' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-bell tab-icon-inactive"></i><i class="bi bi-bell-fill tab-icon-active"></i></span>
+            <span class="tab-label">Annonces</span>
         </a>
         <a href="/app/participant/profile/" class="{% if active_tab == 'profile' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-person tab-icon-inactive"></i><i class="bi bi-person-fill tab-icon-active"></i></span>
+            <span class="tab-label">Profil</span>
         </a>
         {% endif %}
     </nav>

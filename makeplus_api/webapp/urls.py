@@ -19,6 +19,7 @@ urlpatterns = [
     path('participant/guide/', views.participant_guide_view, name='participant_guide'),
     path('participant/announcements/', views.participant_announcements_view, name='participant_announcements'),
     path('participant/profile/', views.participant_profile_view, name='participant_profile'),
+    path('participant/session/<uuid:session_id>/', views.participant_session_detail_view, name='participant_session_detail'),
 
     path('controller/home/', views.controller_home_view, name='controller_home'),
     path('controller/program/', views.controller_program_view, name='controller_program'),
@@ -26,4 +27,5 @@ urlpatterns = [
     path('controller/profile/', views.controller_profile_view, name='controller_profile'),
     path('controller/statistics/', views.controller_statistics_view, name='controller_statistics'),
     path('controller/scanner/', views.controller_scanner_view, name='controller_scanner'),
+    path('controller/session/<uuid:session_id>/', views.controller_session_detail_view, name='controller_session_detail'),
 ]

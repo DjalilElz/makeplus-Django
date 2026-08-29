@@ -2,7 +2,7 @@
 {% block title %}Accueil — DendrIQ{% endblock %}
 {% block body %}
 <div class="top-bar">
-    <span class="title" id="greeting">Bonjour</span>
+    <span class="title">Accueil</span>
     <a class="action" href="/app/install/"><i class="bi bi-box-arrow-up"></i></a>
 </div>
 
@@ -10,6 +10,10 @@
 <div id="event-content" style="display:none;">
     <img id="banner" class="banner-image" style="margin:16px 20px; width:calc(100% - 40px);" alt="">
     <div class="event-hero">
+        <div class="greeting-row">
+            <img id="event-logo" class="event-logo" style="display:none;" alt="">
+            <div class="greeting-text">Bonjour, <strong id="greeting-name"></strong></div>
+        </div>
         <div class="eyebrow">Votre événement</div>
         <div class="event-name" id="event-name"></div>
         <div class="event-meta" id="event-dates-row" style="display:none;"><i class="bi bi-calendar-event"></i> <span id="event-dates"></span></div>
@@ -32,11 +36,17 @@
         document.getElementById('loading').style.display = 'none';
         document.getElementById('event-content').style.display = 'block';
 
-        document.getElementById('greeting').textContent = 'Bonjour, ' + (me.first_name || me.full_name || '');
+        document.getElementById('greeting-name').textContent = me.first_name || me.full_name || '';
 
         var event = me.event || {};
         document.getElementById('event-name').textContent = event.name || '';
         document.getElementById('event-description').textContent = event.description || 'Aucune description disponible.';
+
+        if (event.logo) {
+            var logo = document.getElementById('event-logo');
+            logo.src = event.logo;
+            logo.style.display = 'block';
+        }
 
         if (event.location) {
             document.getElementById('event-location').textContent = event.location;
@@ -60,6 +70,7 @@
             role: me.role, event: me.event,
             user: { id: me.id, email: me.email, first_name: me.first_name, last_name: me.last_name },
         });
+        applyEventTheme();
     }).catch(function () {
         document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger votre événement.</div>';
     });

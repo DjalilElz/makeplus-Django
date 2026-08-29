@@ -116,7 +116,66 @@ function requireAuth() {
         window.location.href = '/app/login/';
         return false;
     }
+    applyEventTheme();
     return true;
+}
+
+// Themes the app to the current event's own color, same as the mobile
+// app does (AppTheme.light/dark(seedColor: event.primaryColor) in
+// app_theme.dart) -- --navy/--navy-dark/--navy-light are the only brand
+// variables that become event-specific; --sage stays fixed, matching
+// the app's own AppColors.accent, which never changes per event.
+function applyEventTheme() {
+    var event = Auth.getEvent();
+    if (!event || !event.primary_color || !/^#[0-9a-fA-F]{6}$/.test(event.primary_color)) return;
+
+    function hexToHsl(hex) {
+        var r = parseInt(hex.substr(1, 2), 16) / 255;
+        var g = parseInt(hex.substr(3, 2), 16) / 255;
+        var b = parseInt(hex.substr(5, 2), 16) / 255;
+        var max = Math.max(r, g, b), min = Math.min(r, g, b);
+        var h = 0, s = 0, l = (max + min) / 2;
+        if (max !== min) {
+            var d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+            else if (max === g) h = (b - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h /= 6;
+        }
+        return [h, s, l];
+    }
+
+    function hslToHex(h, s, l) {
+        function hue2rgb(p, q, t) {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1 / 6) return p + (q - p) * 6 * t;
+            if (t < 1 / 2) return q;
+            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+            return p;
+        }
+        var r, g, b;
+        if (s === 0) { r = g = b = l; }
+        else {
+            var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            var p = 2 * l - q;
+            r = hue2rgb(p, q, h + 1 / 3);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 1 / 3);
+        }
+        function toHex(x) { var v = Math.round(x * 255).toString(16); return v.length === 1 ? '0' + v : v; }
+        return '#' + toHex(r) + toHex(g) + toHex(b);
+    }
+
+    var hsl = hexToHsl(event.primary_color);
+    var dark = hslToHex(hsl[0], hsl[1], Math.max(0, hsl[2] - 0.18));
+    var light = hslToHex(hsl[0], hsl[1], Math.min(1, hsl[2] + 0.18));
+
+    var root = document.documentElement.style;
+    root.setProperty('--navy', event.primary_color);
+    root.setProperty('--navy-dark', dark);
+    root.setProperty('--navy-light', light);
 }
 
 // Every page builds its cards via innerHTML from API text fields (titles,

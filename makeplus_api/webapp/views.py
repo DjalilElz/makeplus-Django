@@ -125,6 +125,22 @@ def controller_scanner_view(request):
 
 
 @never_cache
+def participant_session_detail_view(request, session_id):
+    # Same template for both roles -- see profile_view's docstring for why
+    # this needs two thin routes instead of one shared URL.
+    return render(request, 'webapp/session_detail.html', {
+        'show_tab_bar': True, 'active_tab': 'program', 'role': 'participant',
+    })
+
+
+@never_cache
+def controller_session_detail_view(request, session_id):
+    return render(request, 'webapp/session_detail.html', {
+        'show_tab_bar': True, 'active_tab': 'program', 'role': 'controlleur_des_badges',
+    })
+
+
+@never_cache
 def manifest_json(request):
     """
     Served at a fixed, unhashed /app/manifest.json -- deliberately NOT

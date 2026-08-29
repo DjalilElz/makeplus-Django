@@ -7,6 +7,13 @@
     <button class="action" id="pdf-toggle" style="display:none;"><i class="bi bi-file-earmark-pdf" id="pdf-toggle-icon"></i></button>
 </div>
 <div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
+<div id="filter-bar" class="section" style="padding-top:14px; display:none;">
+    <div id="day-tabs" class="day-tabs"></div>
+    <div class="filter-row">
+        <select id="type-filter" class="filter-select"><option value="">Tous les types</option></select>
+        <select id="room-filter" class="filter-select"><option value="">Toutes les salles</option></select>
+    </div>
+</div>
 <div id="session-list" class="section" style="display:none;"></div>
 <div id="empty" class="empty-state" style="display:none;"><div class="icon"><i class="bi bi-calendar-x"></i></div>Aucune session au programme pour le moment.</div>
 <iframe id="pdf-frame" style="display:none; width:100%; height:calc(100dvh - 140px); border:none;"></iframe>
