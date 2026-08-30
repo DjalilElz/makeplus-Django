@@ -207,6 +207,15 @@
             gap: 48px;
             align-items: start;
         }
+        /* No blocs configured -> no cart column ever renders, so the grid
+           would otherwise still reserve the empty 360px track and leave
+           the informations form pinned to the left with dead space on the
+           right. Collapse to a single, centered, readable-width column. */
+        .registration-grid.registration-grid-solo {
+            grid-template-columns: 1fr;
+            max-width: 640px;
+            margin: 0 auto;
+        }
         .main-column { min-width: 0; }
 
         /* Plain (no-blocs) form card, and non-form states (success/closed/verification) */
@@ -878,7 +887,7 @@
             <form method="post" id="registrationForm" enctype="multipart/form-data">
                 {% csrf_token %}
 
-                <div class="registration-grid">
+                <div class="registration-grid{% if not bloc_context.has_blocs %} registration-grid-solo{% endif %}">
                     <div class="main-column">
                         <div class="form-card mb-4">
                             {% for field in fields %}
