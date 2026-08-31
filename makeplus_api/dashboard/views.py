@@ -113,10 +113,41 @@ def _qr_display_payload(qr_data):
 
 # ==================== Authentication Views ====================
 
+def _dashboard_redirect_for(user):
+    """
+    Where an authenticated dashboard user actually belongs -- same
+    priority order as the post-login branch below (committee > room
+    manager > event owner > staff/superuser 'dashboard:home'). Shared so
+    the "already logged in" early-return above doesn't drift out of sync
+    with it: that's exactly what happened before this was a shared
+    helper -- the early-return sent EVERY authenticated user straight to
+    'dashboard:home', which @user_passes_test(is_staff_user) immediately
+    bounces non-staff users (event owners, committee members, room
+    managers) right back out of -- landing back on this same login view,
+    which sent them to 'dashboard:home' again: an infinite redirect loop
+    (ERR_TOO_MANY_REDIRECTS) for every non-staff dashboard account.
+    """
+    is_committee = EPosterCommitteeMember.objects.filter(user=user, is_active=True).exists()
+    is_room_manager = UserEventAssignment.objects.filter(
+        user=user, role='gestionnaire_des_salles', is_active=True
+    ).exists()
+    is_event_owner = UserEventAssignment.objects.filter(
+        user=user, role='event_owner', is_active=True
+    ).exists()
+
+    if is_committee and not user.is_staff:
+        return 'dashboard:eposter_committee_home'
+    if is_room_manager and not user.is_staff:
+        return 'dashboard:my_final_communications_home'
+    if is_event_owner and not user.is_staff:
+        return 'dashboard:event_owner_submissions_home'
+    return 'dashboard:home'
+
+
 def login_view(request):
     """Login page for dashboard"""
     if request.user.is_authenticated:
-        return redirect('dashboard:home')
+        return redirect(_dashboard_redirect_for(request.user))
     
     if request.method == 'POST':
         email = request.POST.get('email')
@@ -183,18 +214,10 @@ def login_view(request):
                     welcome_msg += ' (Organisateur)'
                 messages.success(request, welcome_msg)
 
-                # Redirect committee members straight to their event (or a
-                # themed picker if they're on more than one) -- never the
-                # admin-sidebar eposter_management_home.
-                if is_committee and not user.is_staff:
-                    return redirect('dashboard:eposter_committee_home')
-                # Redirect room managers directly to their final communications page
-                if is_room_manager and not user.is_staff:
-                    return redirect('dashboard:my_final_communications_home')
-                # Redirect event owners directly to their event's submissions
-                if is_event_owner and not user.is_staff:
-                    return redirect('dashboard:event_owner_submissions_home')
-                return redirect('dashboard:home')
+                # Same priority order _dashboard_redirect_for uses for an
+                # already-authenticated visit to this same page -- kept as
+                # one shared helper so the two can't drift apart again.
+                return redirect(_dashboard_redirect_for(user))
             else:
                 messages.error(request, "Vous n'avez pas l'autorisation d'accéder au tableau de bord.")
         else:

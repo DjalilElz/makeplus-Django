@@ -11,7 +11,9 @@ from unittest.mock import patch
 from events.models import (
     Event, UserEventAssignment, FormRegistrationVerification, Participant, ParticipantEventRegistration,
 )
-from .models_eposter import ScientificContributionFinalSubmission, ScientificContributionSubmission
+from .models_eposter import (
+    ScientificContributionFinalSubmission, ScientificContributionSubmission, EPosterCommitteeMember,
+)
 
 
 class PublicEposterGalleryTests(TestCase):
@@ -2077,3 +2079,73 @@ class EventOwnerNewRegistrationTests(TestCase):
         })
         self.assertEqual(response.status_code, 200)
         self.assertFalse(RegistrationOrder.objects.filter(email='amina@example.com').exists())
+
+
+class LoginViewNoRedirectLoopTests(TestCase):
+    """
+    Regression coverage for ERR_TOO_MANY_REDIRECTS on /dashboard/login/.
+
+    login_view's "already authenticated" early-return used to send EVERY
+    authenticated user to 'dashboard:home' unconditionally. dashboard_home
+    is gated by @user_passes_test(is_staff_user), which bounces any
+    non-staff user straight back to settings.LOGIN_URL (this same login
+    view) -- which sent them to 'dashboard:home' again: an infinite loop
+    for every non-staff dashboard account (event owners, committee
+    members, room managers), reachable any time an already-logged-in
+    non-staff user's browser lands back on /dashboard/login/ (a stale
+    bookmark, browser back, or the CSRF-failure handler bouncing them
+    there). Each role must instead land on ITS OWN home page, matching
+    exactly where a fresh login for that same account would send them.
+    """
+
+    def setUp(self):
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+
+    def _get_login_while_authenticated(self, user):
+        self.client.force_login(user)
+        return self.client.get(reverse('dashboard:login'))
+
+    def test_event_owner_does_not_loop(self):
+        owner = User.objects.create_user(username='owner2', email='owner2@example.com', password='x')
+        UserEventAssignment.objects.create(user=owner, event=self.event, role='event_owner', is_active=True)
+
+        response = self._get_login_while_authenticated(owner)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('dashboard:event_owner_submissions_home'))
+
+    def test_room_manager_does_not_loop(self):
+        manager = User.objects.create_user(username='manager1', email='manager1@example.com', password='x')
+        UserEventAssignment.objects.create(
+            user=manager, event=self.event, role='gestionnaire_des_salles', is_active=True,
+        )
+
+        response = self._get_login_while_authenticated(manager)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('dashboard:my_final_communications_home'))
+
+    def test_committee_member_does_not_loop(self):
+        member = User.objects.create_user(username='committee1', email='committee1@example.com', password='x')
+        EPosterCommitteeMember.objects.create(event=self.event, user=member)
+
+        response = self._get_login_while_authenticated(member)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('dashboard:eposter_committee_home'))
+
+    def test_staff_lands_on_dashboard_home_and_it_actually_loads(self):
+        staff = User.objects.create_user(username='staffer', password='x', is_staff=True)
+
+        response = self._get_login_while_authenticated(staff)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('dashboard:home'))
+
+        # Unlike the non-staff roles, dashboard:home must not itself
+        # redirect for a real staff account -- confirms the fix didn't
+        # just move the loop, it actually resolves for this account type.
+        home_response = self.client.get(response.url)
+        self.assertEqual(home_response.status_code, 200)
