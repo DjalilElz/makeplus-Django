@@ -14,6 +14,8 @@ import json
 from collections import Counter
 from decimal import Decimal
 
+from types import SimpleNamespace
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -167,6 +169,63 @@ def _period_rules_by_period_json(event, orders):
     return json.dumps(payload)
 
 
+def _free_form_submission_rows(event):
+    """Expose free-form event submissions as lightweight rows for info-only events."""
+    from .models_form import FormSubmission
+
+    rows = []
+    form_config = event.custom_forms.first()
+    if not form_config:
+        return rows
+
+    phone_field_name = next(
+        (f.get('name') for f in form_config.fields_config if f.get('type') == 'tel'),
+        None,
+    )
+
+    for submission in FormSubmission.objects.filter(form__event=event).order_by('-submitted_at'):
+        data = submission.data or {}
+        full_name = (
+            data.get('full_name')
+            or ' '.join(filter(None, [data.get('first_name', ''), data.get('last_name', '')]))
+            or submission.email
+            or ''
+        )
+        row = SimpleNamespace(
+            id=submission.id,
+            event=event,
+            period=None,
+            period_id=None,
+            full_name=full_name,
+            email=submission.email or data.get('email') or '',
+            phone=(data.get(phone_field_name, '') if phone_field_name else ''),
+            items_snapshot=[],
+            total_before_reduction=Decimal('0'),
+            total_after_reduction=Decimal('0'),
+            total_discount_percent=Decimal('0'),
+            status='pending',
+            status_label='Enregistré',
+            admin_notes=submission.admin_notes,
+            reviewed_by=None,
+            reviewed_by_caisse=None,
+            reviewed_at=None,
+            payment_link_sent_at=None,
+            receipt_file=None,
+            form_submission=submission,
+            created_at=submission.submitted_at,
+            duplicate_count=0,
+            is_duplicate_email=False,
+            bloc_names={'status': '—', 'restauration': '—', 'workshops': '—', 'social_event': '—'},
+            participant_status='—',
+            blocs_editor_selection_json='{"items": [], "sessions": []}',
+            blocs_editor_period_key='',
+            blocs_discount_percent=Decimal('0'),
+            period_discount_percent=Decimal('0'),
+        )
+        rows.append(row)
+    return rows
+
+
 @never_cache
 @login_required
 def event_owner_submissions(request, event_id):
@@ -195,6 +254,8 @@ def event_owner_submissions(request, event_id):
             'reviewed_by', 'reviewed_by_caisse',
         ).order_by('-created_at')
     )
+    if not event.bloc_config or not event.bloc_config.any_bloc_visible():
+        all_orders.extend(_free_form_submission_rows(event))
 
     # Filter dropdown options are built from the event's full, unfiltered
     # order set so choosing a filter never makes other options disappear.

@@ -1136,6 +1136,38 @@ class EventOwnerSubmissionsTests(TestCase):
         self.assertContains(response, 'Info-only Congress')
         self.assertContains(response, 'Inscriptions')
 
+    def test_event_owner_page_lists_free_form_submissions_for_info_only_event(self):
+        info_event = Event.objects.create(
+            name='Info-only Congress', start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=3), location='Tlemcen',
+        )
+        UserEventAssignment.objects.create(
+            user=self.owner, event=info_event, role='event_owner', is_active=True,
+        )
+        form_config = FormConfiguration.objects.create(
+            event=info_event,
+            name='Inscription libre',
+            slug='info-only-form',
+            created_by=self.admin,
+            fields_config=[
+                {'name': 'first_name', 'label': 'Prénom', 'type': 'text', 'required': True},
+                {'name': 'last_name', 'label': 'Nom', 'type': 'text', 'required': True},
+                {'name': 'email', 'label': 'E-mail', 'type': 'email', 'required': True},
+            ],
+        )
+        FormSubmission.objects.create(
+            form=form_config,
+            email='free@example.com',
+            data={'first_name': 'Amina', 'last_name': 'Bensalem', 'email': 'free@example.com'},
+        )
+
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('dashboard:event_owner_submissions', args=[info_event.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Amina')
+        self.assertContains(response, 'free@example.com')
+
     def test_stranger_without_assignment_is_forbidden(self):
         self.client.force_login(self.stranger)
         response = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.event.id]))
