@@ -41,6 +41,25 @@ from .views_blocs import get_public_bloc_context
 BLOC_KEYS = ('status', 'restauration', 'workshops', 'social_event')
 
 
+def _empty_bloc_context():
+    """Safe fallback for info-only events or events with no visible blocs."""
+    return {
+        'has_blocs': False,
+        'config': None,
+        'custom_blocs': [],
+        'custom_blocs_before_workshops': [],
+        'custom_blocs_after_workshops': [],
+        'workshops_visible': False,
+        'paid_sessions': [],
+        'active_bloc_keys': [],
+        'status_rules_json': '{}',
+        'period_rules_json': '{}',
+        'periods': [],
+        'current_period_id': '',
+        'all_periods_rules_json': '{}',
+    }
+
+
 def _redirect_to_submissions(request, event_id):
     """
     Back to the submissions list, carrying over whatever status/search/
@@ -271,16 +290,7 @@ def event_owner_submissions(request, event_id):
     # (e.g. to remove one a participant picked before it was discontinued).
     bloc_context = get_public_bloc_context(event, include_inactive=True)
     if not bloc_context:
-        bloc_context = {
-            'has_blocs': False,
-            'config': None,
-            'custom_blocs': [],
-            'custom_blocs_before_workshops': [],
-            'custom_blocs_after_workshops': [],
-            'workshops_visible': False,
-            'paid_sessions': [],
-            'active_bloc_keys': [],
-        }
+        bloc_context = _empty_bloc_context()
     # One status/period rules set per period actually used among these
     # orders, so the popup's live preview can price each order against
     # its OWN period -- see registration_order_blocs_save's matching fix.
