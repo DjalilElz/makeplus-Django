@@ -1120,6 +1120,22 @@ class EventOwnerSubmissionsTests(TestCase):
         response = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.other_event.id]))
         self.assertEqual(response.status_code, 403)
 
+    def test_event_owner_page_renders_for_event_without_bloc_config(self):
+        info_event = Event.objects.create(
+            name='Info-only Congress', start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=3), location='Tlemcen',
+        )
+        UserEventAssignment.objects.create(
+            user=self.owner, event=info_event, role='event_owner', is_active=True,
+        )
+
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('dashboard:event_owner_submissions', args=[info_event.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Info-only Congress')
+        self.assertContains(response, 'Inscriptions')
+
     def test_stranger_without_assignment_is_forbidden(self):
         self.client.force_login(self.stranger)
         response = self.client.get(reverse('dashboard:event_owner_submissions', args=[self.event.id]))
