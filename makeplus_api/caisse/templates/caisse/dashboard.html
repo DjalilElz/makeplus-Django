@@ -7,7 +7,6 @@
     <title>Caisse - {{ event.name }}</title>
     <link rel="icon" type="image/svg+xml" href="{% static 'dashboard/images/makeplus-icon.svg' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -126,14 +125,8 @@
         }
 
         .search-box .form-control {
-            border-radius: 0 10px 10px 0;
+            border-radius: 10px;
             border-color: var(--border-light);
-        }
-
-        .search-box .input-group-text {
-            border-radius: 10px 0 0 10px;
-            border-color: var(--border-light);
-            background: var(--cream);
         }
 
         .participant-item {
@@ -372,11 +365,11 @@
     <div class="top-header">
         <div class="container-fluid">
             <h5 class="mb-0">
-                <i class="bi bi-cash-register"></i> {{ caisse.name }} - {{ event.name }}
+                {{ caisse.name }} - {{ event.name }}
             </h5>
         </div>
         <a href="{% url 'caisse:logout' %}" class="logout-btn">
-            <i class="bi bi-box-arrow-right"></i> Déconnexion
+            Déconnexion
         </a>
     </div>
 
@@ -387,13 +380,10 @@
                 <div class="participant-list">
                     <div class="search-box">
                         <h5 class="mb-3">
-                            <i class="bi bi-people"></i> Tous les participants
+                            Tous les participants
                             <span class="badge bg-primary ms-2" id="participantCount">{{ all_participants.count }}</span>
                         </h5>
                         <div class="input-group">
-                            <span class="input-group-text">
-                                <i class="bi bi-search"></i>
-                            </span>
                             <input type="text" class="form-control" id="searchInput"
                                    placeholder="Filtrer par nom, e-mail, badge, ou scannez un code QR..."
                                    autocomplete="off">
@@ -412,20 +402,16 @@
                              onclick="selectParticipant(this)">
                             <div class="participant-info">
                                 <div class="participant-name">
-                                    <i class="bi bi-person-circle me-2"></i>
                                     {{ participant.user.get_full_name|default:participant.user.username }}
                                 </div>
                                 <div class="participant-email">
-                                    <i class="bi bi-envelope me-1"></i> {{ participant.user.email }}
-                                    <span class="ms-2">
-                                        <i class="bi bi-qr-code me-1"></i> {{ participant.badge_id }}
-                                    </span>
+                                    {{ participant.user.email }}
+                                    <span class="ms-2">{{ participant.badge_id }}</span>
                                 </div>
                             </div>
                         </div>
                         {% empty %}
                         <p class="text-center text-muted py-5">
-                            <i class="bi bi-inbox" style="font-size: 3rem; display: block; margin-bottom: 10px;"></i>
                             Aucun participant trouvé pour cet événement
                         </p>
                         {% endfor %}
@@ -438,7 +424,7 @@
                 <div class="transaction-panel">
                     <div id="participantDetails" style="display: none;">
                         <h5 class="mb-2 d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-receipt"></i> Traiter la transaction</span>
+                            <span>Traiter la transaction</span>
                             <span class="text-muted fs-6 fw-normal" id="participantNameInline"></span>
                         </h5>
                         <!-- Name/Email/QR Code are already shown on the selected participant card
@@ -448,12 +434,12 @@
                         <div id="reservedSummary" class="alert alert-primary mb-3 py-2" style="display: none;">
                             <div id="reservedSummaryText"></div>
                             <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="rejectReservationBtn" onclick="rejectReservation()">
-                                <i class="bi bi-x-circle"></i> Rejeter la réservation (preuve de paiement invalide)
+                                Rejeter la réservation (preuve de paiement invalide)
                             </button>
                         </div>
 
                         <h6 class="mb-2">
-                            <i class="bi bi-cart-check"></i> Sélectionner les articles :
+                            Sélectionner les articles :
                         </h6>
                         <div id="payableItems" style="max-height: 520px; overflow-y: auto;">
                             {% for group in bloc_groups %}
@@ -492,7 +478,7 @@
 
                         <div class="bg-light p-3 rounded mb-3 mt-3">
                             <div class="d-flex justify-content-between align-items-center mb-2" id="alreadyPaidRow" style="display: none;">
-                                <span class="text-muted"><i class="bi bi-check-circle"></i> Déjà payé (non facturé à nouveau) :</span>
+                                <span class="text-muted">Déjà payé (non facturé à nouveau) :</span>
                                 <span id="alreadyPaidAmount" class="text-muted">0.00 DZD</span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-1" id="beforeReductionRow" style="display: none;">
@@ -511,7 +497,7 @@
 
                         <div class="mb-3">
                             <label for="notes" class="form-label">
-                                <i class="bi bi-pencil-square"></i> Notes (facultatif)
+                                Notes (facultatif)
                             </label>
                             <textarea class="form-control" id="notes" rows="2" placeholder="Ajoutez des notes sur cette transaction..."></textarea>
                         </div>
@@ -519,29 +505,28 @@
                         <div class="row g-2">
                             <div class="col-6">
                                 <button type="button" class="btn btn-primary w-100 py-2" onclick="processTransaction('process')">
-                                    <i class="bi bi-cash-coin"></i> Traiter la transaction
+                                    Traiter la transaction
                                 </button>
                             </div>
                             <div class="col-6">
                                 <button type="button" class="btn btn-info w-100 py-2" onclick="processTransaction('print_badge')">
-                                    <i class="bi bi-printer"></i> Imprimer le badge
+                                    Imprimer le badge
                                 </button>
                             </div>
                             <div class="col-12">
                                 <button type="button" class="btn btn-success w-100 py-2" onclick="processTransaction('process_and_print')">
-                                    <i class="bi bi-check-circle"></i> Traiter et imprimer le badge
+                                    Traiter et imprimer le badge
                                 </button>
                             </div>
                             <div class="col-12">
                                 <button type="button" class="btn btn-outline-secondary w-100" onclick="clearForm()">
-                                    <i class="bi bi-x-circle"></i> Annuler
+                                    Annuler
                                 </button>
                             </div>
                         </div>
                     </div>
                     
                     <div id="noParticipantSelected" class="no-participant-selected">
-                        <i class="bi bi-hand-index" style="font-size: 3rem; display: block; margin-bottom: 15px; color: #d1d5db;"></i>
                         <h6 class="text-muted">Sélectionnez un participant dans la liste</h6>
                         <p class="small text-muted">Cliquez sur un participant pour traiter sa transaction</p>
                     </div>
@@ -553,41 +538,20 @@
         <div class="row mt-4 mb-4">
             <div class="col-md-4">
                 <div class="stat-card">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0">
-                            <i class="bi bi-cash-coin" style="font-size: 2.5rem; color: #10b981;"></i>
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <h6 class="text-muted mb-1">Montant total</h6>
-                            <h3 class="mb-0" style="color: #10b981;">{{ total_amount|floatformat:2 }} DZD</h3>
-                        </div>
-                    </div>
+                    <h6 class="text-muted mb-1">Montant total</h6>
+                    <h3 class="mb-0" style="color: #10b981;">{{ total_amount|floatformat:2 }} DZD</h3>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="stat-card">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0">
-                            <i class="bi bi-people-fill" style="font-size: 2.5rem; color: var(--banner-1);"></i>
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <h6 class="text-muted mb-1">Participants</h6>
-                            <h3 class="mb-0" style="color: var(--banner-1);">{{ total_participants }}</h3>
-                        </div>
-                    </div>
+                    <h6 class="text-muted mb-1">Participants</h6>
+                    <h3 class="mb-0" style="color: var(--banner-1);">{{ total_participants }}</h3>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="stat-card">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0">
-                            <i class="bi bi-receipt" style="font-size: 2.5rem; color: #f59e0b;"></i>
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <h6 class="text-muted mb-1">Transactions</h6>
-                            <h3 class="mb-0" style="color: #f59e0b;">{{ transaction_count }}</h3>
-                        </div>
-                    </div>
+                    <h6 class="text-muted mb-1">Transactions</h6>
+                    <h3 class="mb-0" style="color: #f59e0b;">{{ transaction_count }}</h3>
                 </div>
             </div>
         </div>
@@ -598,12 +562,9 @@
                 <div class="stat-card">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="mb-0">
-                            <i class="bi bi-clock-history"></i> Transactions récentes
+                            Transactions récentes
                         </h5>
                         <div class="input-group" style="max-width: 300px;">
-                            <span class="input-group-text">
-                                <i class="bi bi-search"></i>
-                            </span>
                             <input type="text" class="form-control" id="transactionSearchInput"
                                    placeholder="Rechercher des transactions..."
                                    autocomplete="off">
@@ -613,11 +574,11 @@
                         <table class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th><i class="bi bi-person"></i> Participant</th>
-                                    <th><i class="bi bi-cart"></i> Articles</th>
-                                    <th><i class="bi bi-cash"></i> Montant</th>
-                                    <th><i class="bi bi-clock"></i> Heure</th>
-                                    <th><i class="bi bi-gear"></i> Actions</th>
+                                    <th>Participant</th>
+                                    <th>Articles</th>
+                                    <th>Montant</th>
+                                    <th>Heure</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="transactionsTableBody">
@@ -643,14 +604,13 @@
                                     </td>
                                     <td>
                                         <button class="btn btn-sm btn-outline-danger" onclick="confirmCancelTransaction({{ transaction.id }}, '{{ transaction.participant.user.get_full_name|default:transaction.participant.user.username }}', '{{ transaction.total_amount }}')">
-                                            <i class="bi bi-x-circle"></i> Annuler
+                                            Annuler
                                         </button>
                                     </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
                                     <td colspan="5" class="text-center text-muted py-4">
-                                        <i class="bi bi-inbox" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
                                         Aucune transaction pour le moment
                                     </td>
                                 </tr>
@@ -862,7 +822,7 @@
 
             const lines = orders.map(function(order) {
                 const hasDiscount = parseFloat(order.discount_percent) > 0;
-                let html = '<div class="mb-2"><i class="bi bi-bookmark-check"></i> <strong>Inscription réservée</strong></div>';
+                let html = '<div class="mb-2"><strong>Inscription réservée</strong></div>';
                 html += `<div>Montant avant réduction : <strong>${fmtPrice(parseFloat(order.total_before))}</strong></div>`;
 
                 if (hasDiscount) {
@@ -1141,9 +1101,22 @@
                         message += `<br>Montant facturé : <strong>${fmtPrice(data.total_amount)}</strong>`;
                     }
 
-                    customAlert(message, 'Succès').then(() => {
-                        location.reload();
-                    });
+                    if (action === 'print_badge') {
+                        // Printing a badge doesn't change any transaction
+                        // data -- reloading here just threw away the
+                        // current selection/search/filter state for no
+                        // reason (this is what looked like "the page
+                        // keeps reloading" when clicking print).
+                        customAlert(message, 'Succès');
+                        if (buttonElement) {
+                            buttonElement.disabled = false;
+                            buttonElement.innerHTML = buttonElement.originalHTML;
+                        }
+                    } else {
+                        customAlert(message, 'Succès').then(() => {
+                            location.reload();
+                        });
+                    }
                 } else {
                     customAlert('Erreur : ' + data.message, 'Erreur');
                     // Re-enable button on error
