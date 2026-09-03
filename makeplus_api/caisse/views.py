@@ -1290,6 +1290,8 @@ def print_badge(request, participant_id):
         'participant': participant,
         'event': caisse.event,
         'name': participant.user.get_full_name() or participant.user.username,
+        'first_name': participant.user.first_name or participant.user.username,
+        'last_name': participant.user.last_name,
         'email': participant.user.email,
         'badge_id': participant.badge_id,
         'qr_code_base64': qr_code_base64
