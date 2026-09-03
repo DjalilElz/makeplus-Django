@@ -9,9 +9,9 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        /* Badge is printed at its exact physical size: 65mm x 100mm, 2mm padding. */
+        /* Label is 100mm wide x 65mm tall (landscape), 2mm padding. */
         @page {
-            size: 65mm 100mm;
+            size: 100mm 65mm;
             margin: 0;
         }
 
@@ -31,68 +31,61 @@
             }
         }
 
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 30px;
-            min-height: 100vh;
+            background: #e9ecef;
+            padding: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-direction: column;
+            gap: 10px;
         }
 
         .badge-container {
-            width: 65mm;
-            height: 100mm;
+            width: 100mm;
+            height: 65mm;
             padding: 2mm;
             box-sizing: border-box;
             background: white;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
-            justify-content: center;
             gap: 3mm;
-            text-align: center;
-            overflow: hidden;
         }
 
         .qr-code {
-            width: 55mm;
-            height: 55mm;
+            width: 58mm;
+            height: 58mm;
+            flex-shrink: 0;
             display: block;
         }
 
         .participant-name {
-            font-size: 4.2mm;
-            line-height: 1.2;
+            flex: 1;
+            min-width: 0;
+            font-size: 6mm;
+            line-height: 1.15;
             font-weight: 700;
             color: #000;
             text-transform: uppercase;
             word-break: break-word;
-            max-width: 61mm;
         }
 
         .button-group {
-            margin-top: 30px;
             display: flex;
-            gap: 15px;
+            gap: 10px;
             justify-content: center;
         }
 
         .print-button {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: none;
-            padding: 15px 40px;
-            font-size: 1.1rem;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-            transition: transform 0.2s;
-        }
-
-        .print-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
         }
     </style>
 </head>
@@ -105,10 +98,10 @@
     </div>
 
     <div class="button-group no-print">
-        <button onclick="window.print()" class="btn btn-primary btn-lg print-button">
-            <i class="bi bi-printer-fill"></i> Imprimer le badge (Ctrl+P)
+        <button onclick="window.print()" class="btn btn-primary print-button">
+            <i class="bi bi-printer-fill"></i> Imprimer (Ctrl+P)
         </button>
-        <button onclick="window.close()" class="btn btn-secondary btn-lg">
+        <button onclick="window.close()" class="btn btn-secondary">
             <i class="bi bi-x-circle"></i> Fermer
         </button>
     </div>
@@ -116,7 +109,7 @@
     <script>
         // Auto-open print dialog on load
         window.addEventListener('load', function() {
-            // Small delay to ensure images are fully loaded
+            // Small delay to ensure the QR image is fully painted
             setTimeout(function() {
                 window.print();
             }, 800);

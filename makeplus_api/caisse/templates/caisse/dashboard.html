@@ -1059,7 +1059,7 @@
                     // Handle print badge actions
                     if (action === 'print_badge' || action === 'process_and_print') {
                         const printUrl = `{% url 'caisse:print_badge' 0 %}`.replace('0', selectedParticipantId);
-                        window.open(printUrl, '_blank', 'width=800,height=600');
+                        window.open(printUrl, '_blank', 'width=480,height=380');
                     }
                     
                     // Show success message
