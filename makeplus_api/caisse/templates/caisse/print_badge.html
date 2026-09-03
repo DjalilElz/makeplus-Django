@@ -15,22 +15,6 @@
             margin: 0;
         }
 
-        @media print {
-            .no-print {
-                display: none !important;
-            }
-            body {
-                margin: 0;
-                padding: 0;
-                background: white;
-                min-height: 0;
-            }
-            .badge-container {
-                box-shadow: none;
-                border: none;
-            }
-        }
-
         html, body {
             margin: 0;
             padding: 0;
@@ -57,6 +41,29 @@
             flex-direction: row;
             align-items: center;
             gap: 3mm;
+        }
+
+        /* Declared last so it always wins the cascade over the screen
+           rules above (same body/.badge-container selectors, equal
+           specificity -- source order decides the tie, and this must
+           come after them or the print reset gets silently overridden). */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            html, body {
+                width: 100mm;
+                height: 65mm;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                overflow: hidden;
+            }
+            .badge-container {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+            }
         }
 
         .qr-code {
