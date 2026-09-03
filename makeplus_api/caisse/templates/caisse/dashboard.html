@@ -307,6 +307,35 @@
             <div class="custom-modal-footer" id="modalFooter"></div>
         </div>
     </div>
+    <!-- QR Scanner Modal -->
+    <div id="qrScannerModal" class="custom-modal-overlay">
+        <div class="custom-modal-content" style="max-width: 420px;">
+            <div class="custom-modal-header d-flex justify-content-between align-items-center">
+                <h4 class="custom-modal-title mb-0"><i class="bi bi-qr-code-scan"></i> Scanner un badge</h4>
+                <button type="button" class="btn-close" onclick="closeQrScanner()" aria-label="Fermer"></button>
+            </div>
+            <div class="custom-modal-body">
+                <div id="qrScannerWrap" style="position: relative; border-radius: 10px; overflow: hidden; background: #000; aspect-ratio: 1 / 1;">
+                    <video id="qrScannerVideo" playsinline muted autoplay style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    <div id="qrScannerFrame" style="display:none; position:absolute; inset: 14%; border: 3px solid rgba(255,255,255,0.85); border-radius: 14px; box-shadow: 0 0 0 2000px rgba(0,0,0,0.35); pointer-events: none;"></div>
+                    <div id="qrScannerLoading" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; color:#fff; text-align:center; padding:20px;">
+                        <div class="spinner-border text-light"></div>
+                        <div>Activation de la caméra...</div>
+                    </div>
+                    <div id="qrScannerError" style="display:none; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; gap:10px; color:#fff; text-align:center; padding:20px;">
+                        <i class="bi bi-camera-video-off" style="font-size: 2rem;"></i>
+                        <div id="qrScannerErrorText"></div>
+                    </div>
+                </div>
+                <p class="text-muted small mt-2 mb-0 text-center">Placez le QR code du badge du participant dans le cadre.</p>
+            </div>
+            <div class="custom-modal-footer">
+                <button type="button" class="custom-modal-btn custom-modal-btn-secondary" onclick="closeQrScanner()">Fermer</button>
+            </div>
+        </div>
+    </div>
+    <canvas id="qrScannerCanvas" style="display:none;"></canvas>
+
     <!-- Top Header -->
     <div class="top-header">
         <div class="container-fluid">
@@ -334,19 +363,23 @@
                                 <i class="bi bi-search"></i>
                             </span>
                             <input type="text" class="form-control" id="searchInput"
-                                   placeholder="Filtrer par nom, e-mail ou code QR..."
+                                   placeholder="Filtrer par nom, e-mail ou badge..."
                                    autocomplete="off">
+                            <button type="button" class="btn btn-outline-primary" id="scanQrBtn" title="Scanner un badge">
+                                <i class="bi bi-qr-code-scan"></i> Scanner
+                            </button>
                         </div>
                     </div>
-                    
+
                     <div id="participantsList">
                         {% for participant in all_participants %}
-                        <div class="participant-item" 
+                        <div class="participant-item"
                              data-id="{{ participant.id }}"
+                             data-userid="{{ participant.user_id }}"
                              data-name="{{ participant.user.get_full_name|default:participant.user.username }}"
                              data-email="{{ participant.user.email }}"
-                             data-qr="{{ participant.qr_code }}"
-                             data-searchtext="{{ participant.user.get_full_name|default:participant.user.username|lower }} {{ participant.user.email|lower }} {{ participant.qr_code|lower }}"
+                             data-qr="{{ participant.badge_id }}"
+                             data-searchtext="{{ participant.user.get_full_name|default:participant.user.username|lower }} {{ participant.user.email|lower }} {{ participant.badge_id|lower }}"
                              onclick="selectParticipant(this)">
                             <div class="participant-info">
                                 <div class="participant-name">
@@ -356,7 +389,7 @@
                                 <div class="participant-email">
                                     <i class="bi bi-envelope me-1"></i> {{ participant.user.email }}
                                     <span class="ms-2">
-                                        <i class="bi bi-qr-code me-1"></i> {{ participant.qr_code }}
+                                        <i class="bi bi-qr-code me-1"></i> {{ participant.badge_id }}
                                     </span>
                                 </div>
                             </div>
@@ -602,6 +635,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <script>
         let selectedParticipantId = null;
         // Pre-loaded participant paid items data from server
@@ -742,6 +776,157 @@
             document.getElementById('participantCount').textContent = visibleCount;
         });
         
+        // ==================== QR Badge Scanner ====================
+        // Participant badges encode the plain numeric user_id as QR text
+        // (see webapp/templates/webapp/profile.html) -- matched here against
+        // each participant-item's data-userid. Also accepts a raw badge_id
+        // string (data-qr) or a JSON payload with a user_id/badge_id field,
+        // so older printed badges keep working too.
+        var qrScannerStream = null;
+        var qrScannerScanning = false;
+        var qrScannerRafId = null;
+
+        function openQrScanner() {
+            document.getElementById('qrScannerModal').classList.add('show');
+            startQrScanner();
+        }
+
+        function closeQrScanner() {
+            document.getElementById('qrScannerModal').classList.remove('show');
+            stopQrScanner();
+        }
+
+        function startQrScanner() {
+            var loadingEl = document.getElementById('qrScannerLoading');
+            var errorEl = document.getElementById('qrScannerError');
+            var frameEl = document.getElementById('qrScannerFrame');
+            var video = document.getElementById('qrScannerVideo');
+
+            errorEl.style.display = 'none';
+            frameEl.style.display = 'none';
+            loadingEl.style.display = 'flex';
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'flex';
+                document.getElementById('qrScannerErrorText').textContent =
+                    "Ce navigateur ne permet pas d'accéder à la caméra ici.";
+                return;
+            }
+
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                .then(function (stream) {
+                    qrScannerStream = stream;
+                    video.srcObject = stream;
+                    return video.play();
+                })
+                .then(function () {
+                    loadingEl.style.display = 'none';
+                    frameEl.style.display = 'block';
+                    qrScannerScanning = true;
+                    qrScannerRafId = requestAnimationFrame(qrScannerTick);
+                })
+                .catch(function (err) {
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'flex';
+                    document.getElementById('qrScannerErrorText').textContent =
+                        (err.name === 'NotAllowedError')
+                            ? "Autorisez l'accès à la caméra dans les réglages pour scanner un badge."
+                            : "Impossible d'accéder à la caméra sur cet appareil.";
+                });
+        }
+
+        function stopQrScanner() {
+            qrScannerScanning = false;
+            if (qrScannerRafId) cancelAnimationFrame(qrScannerRafId);
+            if (qrScannerStream) {
+                qrScannerStream.getTracks().forEach(function (t) { t.stop(); });
+                qrScannerStream = null;
+            }
+        }
+
+        function qrScannerTick() {
+            if (!qrScannerScanning) return;
+            var video = document.getElementById('qrScannerVideo');
+            var canvas = document.getElementById('qrScannerCanvas');
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                var ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+                if (code && code.data) {
+                    onQrBadgeDecoded(code.data);
+                    return;
+                }
+            }
+            qrScannerRafId = requestAnimationFrame(qrScannerTick);
+        }
+
+        function onQrBadgeDecoded(rawText) {
+            qrScannerScanning = false;
+            if (navigator.vibrate) navigator.vibrate(80);
+
+            var userId = null;
+            var badgeId = null;
+            try {
+                var parsed = JSON.parse(rawText);
+                if (parsed && typeof parsed === 'object') {
+                    userId = parsed.user_id != null ? String(parsed.user_id) : null;
+                    badgeId = parsed.badge_id || null;
+                } else {
+                    userId = String(parsed);
+                }
+            } catch (e) {
+                if (/^\d+$/.test(rawText.trim())) {
+                    userId = rawText.trim();
+                } else {
+                    badgeId = rawText.trim();
+                }
+            }
+
+            var match = null;
+            var items = document.querySelectorAll('.participant-item');
+            for (var i = 0; i < items.length; i++) {
+                var el = items[i];
+                if (userId && el.getAttribute('data-userid') === userId) { match = el; break; }
+                if (badgeId && el.getAttribute('data-qr') === badgeId) { match = el; break; }
+            }
+
+            if (match) {
+                closeQrScanner();
+                // Clear any active text filter so the matched participant is visible.
+                var searchInput = document.getElementById('searchInput');
+                if (searchInput.value) {
+                    searchInput.value = '';
+                    searchInput.dispatchEvent(new Event('input'));
+                }
+                selectParticipant(match);
+                match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                var errorEl = document.getElementById('qrScannerError');
+                var frameEl = document.getElementById('qrScannerFrame');
+                frameEl.style.display = 'none';
+                errorEl.style.display = 'flex';
+                document.getElementById('qrScannerErrorText').textContent =
+                    "Ce badge ne correspond à aucun participant de cet événement.";
+                setTimeout(function () {
+                    if (document.getElementById('qrScannerModal').classList.contains('show')) {
+                        errorEl.style.display = 'none';
+                        qrScannerScanning = true;
+                        qrScannerRafId = requestAnimationFrame(qrScannerTick);
+                    }
+                }, 2000);
+            }
+        }
+
+        document.getElementById('scanQrBtn').addEventListener('click', openQrScanner);
+        document.getElementById('qrScannerModal').addEventListener('click', function (e) {
+            if (e.target === this) closeQrScanner();
+        });
+
         // Select participant for transaction
         function selectParticipant(element) {
             const id = element.getAttribute('data-id');
