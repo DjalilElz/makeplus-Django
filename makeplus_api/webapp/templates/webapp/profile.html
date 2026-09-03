@@ -42,8 +42,12 @@
     });
 
     var ITEM_ICONS = { session: 'bi-mortarboard', access: 'bi-door-open', dinner: 'bi-cup-hot', other: 'bi-ticket-perforated' };
+    var event = Auth.getEvent() || {};
+    var qrRendered = false;
 
-    Api.get('/auth/me/').then(function (r) { return r.json(); }).then(function (me) {
+    loadWithCache('profile_' + (event.id || ''), function () {
+        return Api.get('/auth/me/').then(function (r) { return r.json(); });
+    }, function (me) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('profile-content').style.display = 'block';
 
@@ -55,7 +59,13 @@
         var qr = me.qr_code || {};
         document.getElementById('badge-chip').textContent = 'Badge · ' + (qr.badge_id || '—');
 
-        if (qr.user_id) {
+        // The QR code itself never changes for a given user (it's just
+        // their id), so it's only ever drawn once -- the QRCode library
+        // has no "update" call, only "append a new one", so re-running
+        // this on every refresh would stack duplicate codes on top of
+        // each other.
+        if (qr.user_id && !qrRendered) {
+            qrRendered = true;
             new QRCode(document.getElementById('qr-container'), {
                 text: String(qr.user_id), width: 180, height: 180,
                 colorDark: '#163751', colorLight: '#ffffff',
@@ -64,22 +74,20 @@
 
         var items = qr.paid_items || [];
         var listEl = document.getElementById('paid-items');
-        if (!items.length) {
-            document.getElementById('no-paid-items').style.display = 'block';
-        } else {
-            items.forEach(function (item) {
-                var row = document.createElement('div');
-                row.className = 'list-row';
-                row.innerHTML =
-                    '<span style="font-size:1.2rem;"><i class="bi ' + (ITEM_ICONS[item.type] || 'bi-ticket-perforated') + '"></i></span>' +
-                    '<div style="flex:1; min-width:0;">' +
-                        '<div style="font-weight:600;">' + escapeHtml(item.title) + '</div>' +
-                    '</div>' +
-                    '<span style="font-size:0.78rem; font-weight:700; color:var(--success); background:rgba(52,199,89,0.12); padding:3px 9px; border-radius:999px;">PAYÉ</span>';
-                listEl.appendChild(row);
-            });
-        }
-    }).catch(function () {
+        listEl.innerHTML = '';
+        document.getElementById('no-paid-items').style.display = items.length ? 'none' : 'block';
+        items.forEach(function (item) {
+            var row = document.createElement('div');
+            row.className = 'list-row';
+            row.innerHTML =
+                '<span style="font-size:1.2rem;"><i class="bi ' + (ITEM_ICONS[item.type] || 'bi-ticket-perforated') + '"></i></span>' +
+                '<div style="flex:1; min-width:0;">' +
+                    '<div style="font-weight:600;">' + escapeHtml(item.title) + '</div>' +
+                '</div>' +
+                '<span style="font-size:0.78rem; font-weight:700; color:var(--success); background:rgba(52,199,89,0.12); padding:3px 9px; border-radius:999px;">PAYÉ</span>';
+            listEl.appendChild(row);
+        });
+    }, function () {
         document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger votre profil.</div>';
     });
 })();

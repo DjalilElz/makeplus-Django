@@ -28,6 +28,17 @@
 (function () {
     if (!requireAuth()) return;
     var allScans = [];
+    var searchQuery = '';
+    var event = Auth.getEvent() || {};
+
+    function visibleScans() {
+        if (!searchQuery) return allScans;
+        return allScans.filter(function (scan) {
+            var p = scan.participant || {};
+            return (p.name || '').toLowerCase().indexOf(searchQuery) !== -1
+                || (p.email || '').toLowerCase().indexOf(searchQuery) !== -1;
+        });
+    }
 
     function fmtTime(iso) {
         return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -55,21 +66,21 @@
     }
 
     document.getElementById('search').addEventListener('input', function (e) {
-        var q = e.target.value.trim().toLowerCase();
-        if (!q) { render(allScans); return; }
-        render(allScans.filter(function (scan) {
-            var p = scan.participant || {};
-            return (p.name || '').toLowerCase().indexOf(q) !== -1 || (p.email || '').toLowerCase().indexOf(q) !== -1;
-        }));
+        searchQuery = e.target.value.trim().toLowerCase();
+        render(visibleScans());
     });
 
-    Api.get('/my-room/statistics/').then(function (r) { return r.json(); }).then(function (data) {
+    loadWithCache('controller_stats_' + (event.id || ''), function () {
+        return Api.get('/my-room/statistics/').then(function (r) { return r.json(); });
+    }, function (data) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').style.display = 'block';
         document.getElementById('checkins-today').textContent = data.my_check_ins_today != null ? data.my_check_ins_today : '0';
         allScans = data.recent_scans || [];
-        render(allScans);
-    }).catch(function () {
+        // A background refresh must not silently drop whatever search
+        // filter was already typed in.
+        render(visibleScans());
+    }, function () {
         document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger les statistiques.</div>';
     });
 })();

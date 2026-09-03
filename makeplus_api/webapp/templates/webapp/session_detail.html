@@ -154,10 +154,12 @@
         return wallClockDate(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
     }
 
-    Api.get('/sessions/' + encodeURIComponent(sessionId) + '/').then(function (r) {
-        if (!r.ok) throw new Error('not found');
-        return r.json();
-    }).then(function (s) {
+    loadWithCache('session_' + sessionId, function () {
+        return Api.get('/sessions/' + encodeURIComponent(sessionId) + '/').then(function (r) {
+            if (!r.ok) throw new Error('not found');
+            return r.json();
+        });
+    }, function (s) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').style.display = 'block';
 
@@ -169,7 +171,12 @@
             cover.style.display = 'block';
         }
 
+        // A session can genuinely go live (or its price/type could change)
+        // while this page is open, and the 2-minute poll/pull-to-refresh
+        // re-runs this whole callback -- reset before rebuilding instead
+        // of appending on top of whatever was already there.
         var badges = document.getElementById('badges');
+        badges.innerHTML = '';
         if (s.is_live) badges.innerHTML += '<span style="font-size:0.72rem; font-weight:700; color:#fff; background:var(--error); padding:4px 10px; border-radius:999px;"><i class="bi bi-broadcast"></i> EN DIRECT</span>';
         if (s.is_paid) badges.innerHTML += '<span style="font-size:0.72rem; font-weight:700; color:#fff; background:var(--warning); padding:4px 10px; border-radius:999px;">' + escapeHtml(s.price ? s.price + ' DZD' : 'Payant') + '</span>';
         if (s.session_type) badges.innerHTML += '<span style="font-size:0.72rem; font-weight:700; color:var(--navy); background:var(--surface-2); padding:4px 10px; border-radius:999px;">' + escapeHtml(s.session_type) + '</span>';
@@ -203,7 +210,7 @@
             document.getElementById('description-card').style.display = 'block';
             document.getElementById('description').textContent = s.description;
         }
-    }).catch(function () {
+    }, function () {
         document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger cette session.</div>';
     });
 })();

@@ -211,6 +211,131 @@ function wallClockDate(iso) {
     );
 }
 
+// ---- Page data cache + auto-refresh + pull-to-refresh ----
+// This app is plain server-rendered pages (not an SPA), so a page's own
+// JS state is gone the moment you navigate away -- without this, every
+// single visit to e.g. the program or stats page means a blank spinner
+// until the network round-trip finishes, even for data that barely
+// changes minute to minute. PageCache persists the last-fetched payload
+// per page in localStorage so a revisit renders instantly from that,
+// while loadWithCache() always still fires a real request in the
+// background and updates the view when it lands -- classic
+// stale-while-revalidate, just spanning full page loads instead of one
+// SPA session.
+var PageCache = {
+    PREFIX: 'dq_cache_',
+    get: function (key) {
+        try {
+            var raw = localStorage.getItem(this.PREFIX + key);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+    },
+    set: function (key, data) {
+        try { localStorage.setItem(this.PREFIX + key, JSON.stringify(data)); } catch (e) {}
+    },
+};
+
+// key: cache slot, unique per page+event (so switching events never
+// shows another event's stale data).
+// fetchFn: () => Promise<parsed JSON>.
+// onData: (data, fromCache) => void -- called with the cached copy
+// immediately (if any), then again with every fresh result.
+// onError: (err) => void -- called only when a fetch fails AND there
+// was no cached copy to fall back to (a background refresh failing
+// with cached/stale data still on screen shouldn't blank the page).
+//
+// Also starts a 2-minute poll (paused while the tab/page is hidden,
+// resumed with an immediate refresh when it becomes visible again) and
+// wires up pull-to-refresh, both reusing the same fetchFn/onData pipe.
+function loadWithCache(key, fetchFn, onData, onError) {
+    var cached = PageCache.get(key);
+    if (cached) onData(cached, true);
+
+    function refresh() {
+        return fetchFn().then(function (data) {
+            PageCache.set(key, data);
+            onData(data, false);
+            return data;
+        }).catch(function (err) {
+            if (!cached && onError) onError(err);
+        });
+    }
+
+    refresh();
+
+    var POLL_MS = 120000;
+    var pollId = setInterval(function () {
+        if (!document.hidden) refresh();
+    }, POLL_MS);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) refresh();
+    });
+    window.addEventListener('pagehide', function () { clearInterval(pollId); });
+
+    enablePullToRefresh(refresh);
+
+    return { refresh: refresh };
+}
+
+// A plain drag-down-from-the-top gesture that triggers `onRefresh`,
+// with a small floating spinner badge as feedback -- iOS Safari (this
+// app's primary target) has no native pull-to-refresh for web pages,
+// unlike Android Chrome, so this has to be built by hand. Idempotent:
+// safe to call once per page even if nothing calls it directly (only
+// loadWithCache does), so pages can't end up with two indicators.
+function enablePullToRefresh(onRefresh) {
+    if (document.getElementById('ptr-indicator')) return;
+
+    var indicator = document.createElement('div');
+    indicator.id = 'ptr-indicator';
+    indicator.className = 'ptr-indicator';
+    indicator.innerHTML = '<div class="ptr-spinner"></div>';
+    document.body.appendChild(indicator);
+
+    var startY = null, pulling = false, ready = false, busy = false;
+    var THRESHOLD = 70, MAX_PULL = 90, HIDDEN_Y = -80, ACTIVE_Y = 20;
+
+    function setPull(px) {
+        indicator.style.transform = 'translate(-50%, ' + (HIDDEN_Y + Math.min(px, MAX_PULL)) + 'px)';
+    }
+
+    document.addEventListener('touchstart', function (e) {
+        if (busy || window.scrollY > 0) { startY = null; return; }
+        startY = e.touches[0].clientY;
+        pulling = true;
+        ready = false;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function (e) {
+        if (!pulling || startY === null || busy) return;
+        var dy = e.touches[0].clientY - startY;
+        if (dy <= 0) { setPull(0); ready = false; indicator.classList.remove('ready'); return; }
+        var pull = dy * 0.5;
+        setPull(pull);
+        ready = pull >= THRESHOLD;
+        indicator.classList.toggle('ready', ready);
+    }, { passive: true });
+
+    document.addEventListener('touchend', function () {
+        if (!pulling) return;
+        pulling = false;
+        if (ready && !busy) {
+            busy = true;
+            indicator.classList.add('spinning');
+            indicator.style.transform = 'translate(-50%, ' + ACTIVE_Y + 'px)';
+            Promise.resolve(onRefresh()).catch(function () {}).then(function () {
+                busy = false;
+                indicator.classList.remove('spinning', 'ready');
+                setPull(0);
+            });
+        } else {
+            setPull(0);
+        }
+        startY = null;
+        ready = false;
+    });
+}
+
 // Every page builds its cards via innerHTML from API text fields (titles,
 // names, descriptions) -- escape before interpolating so that content
 // can never be parsed as markup.

@@ -52,7 +52,11 @@
         if (confirm('Se déconnecter ?')) Auth.logout();
     });
 
-    Api.get('/auth/me/').then(function (r) { return r.json(); }).then(function (me) {
+    var cachedEventId = (Auth.getEvent() || {}).id || '';
+
+    loadWithCache('home_' + cachedEventId, function () {
+        return Api.get('/auth/me/').then(function (r) { return r.json(); });
+    }, function (me) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('event-content').style.display = 'block';
         document.getElementById('greeting-name').textContent = me.first_name || me.full_name || '';
@@ -75,10 +79,9 @@
                 start.toLocaleDateString('fr-FR', opts) + ' – ' + end.toLocaleDateString('fr-FR', opts);
         }
 
-        if (event.description && event.description.trim()) {
-            document.getElementById('event-description').textContent = event.description.trim();
-            document.getElementById('description-card-wrap').style.display = 'block';
-        }
+        var hasDescription = event.description && event.description.trim();
+        document.getElementById('event-description').textContent = hasDescription ? event.description.trim() : '';
+        document.getElementById('description-card-wrap').style.display = hasDescription ? 'block' : 'none';
 
         Auth.setSession({
             access: Auth.getAccess(), refresh: Auth.getRefresh(),
@@ -86,7 +89,7 @@
             user: { id: me.id, email: me.email, first_name: me.first_name, last_name: me.last_name },
         });
         applyEventTheme();
-    }).catch(function () {
+    }, function () {
         document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger l\'événement.</div>';
     });
 })();

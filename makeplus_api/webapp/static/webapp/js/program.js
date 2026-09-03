@@ -62,7 +62,7 @@
 
         dayTabsEl.innerHTML = '';
         var allChip = document.createElement('button');
-        allChip.className = 'day-chip active';
+        allChip.className = 'day-chip';
         allChip.textContent = 'Tous';
         allChip.addEventListener('click', function () { setActiveDay(''); });
         dayTabsEl.appendChild(allChip);
@@ -77,6 +77,12 @@
             dayTabsEl.appendChild(chip);
         });
 
+        // Rebuilt on every refresh (background poll, pull-to-refresh) --
+        // drop back to just the template's own static "all" option first
+        // instead of appending on top of it, or a session list that's
+        // refreshed a few times would pile up duplicate <option> entries.
+        while (typeFilterEl.options.length > 1) typeFilterEl.remove(1);
+        while (roomFilterEl.options.length > 1) roomFilterEl.remove(1);
         types.forEach(function (t) {
             var opt = document.createElement('option');
             opt.value = t; opt.textContent = t;
@@ -87,6 +93,14 @@
             opt.value = r; opt.textContent = r;
             roomFilterEl.appendChild(opt);
         });
+
+        // A refresh must not silently reset whatever filter the visitor
+        // already had selected back to "Tous".
+        Array.prototype.forEach.call(dayTabsEl.children, function (chip) {
+            chip.classList.toggle('active', (chip.getAttribute('data-day') || '') === activeDay);
+        });
+        typeFilterEl.value = activeType;
+        roomFilterEl.value = activeRoom;
 
         filterBar.style.display = allSessions.length ? 'block' : 'none';
     }
@@ -144,14 +158,15 @@
         listEl.style.display = 'block';
     }
 
-    Api.get('/sessions/?event_id=' + encodeURIComponent(event.id || '')).then(function (r) { return r.json(); })
-        .then(function (data) {
-            document.getElementById('loading').style.display = 'none';
-            allSessions = Array.isArray(data) ? data : (data.results || []);
-            allSessions.sort(function (a, b) { return new Date(a.start_time) - new Date(b.start_time); });
-            buildFilters();
-            renderList();
-        }).catch(function () {
-            document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger le programme.</div>';
-        });
+    loadWithCache('program_' + (event.id || ''), function () {
+        return Api.get('/sessions/?event_id=' + encodeURIComponent(event.id || '')).then(function (r) { return r.json(); });
+    }, function (data) {
+        document.getElementById('loading').style.display = 'none';
+        allSessions = Array.isArray(data) ? data : (data.results || []);
+        allSessions.sort(function (a, b) { return new Date(a.start_time) - new Date(b.start_time); });
+        buildFilters();
+        renderList();
+    }, function () {
+        document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger le programme.</div>';
+    });
 })();

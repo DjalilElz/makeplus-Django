@@ -46,8 +46,11 @@
     if (!requireAuth()) return;
 
     var STATUS_LABELS = { upcoming: 'À venir', active: 'En cours', completed: 'Terminé', cancelled: 'Annulé' };
+    var cachedEventId = (Auth.getEvent() || {}).id || '';
 
-    Api.get('/auth/me/').then(function (r) { return r.json(); }).then(function (me) {
+    loadWithCache('home_' + cachedEventId, function () {
+        return Api.get('/auth/me/').then(function (r) { return r.json(); });
+    }, function (me) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('event-content').style.display = 'block';
         document.getElementById('greeting-name').textContent = me.first_name || me.full_name || '';
@@ -81,7 +84,7 @@
             user: { id: me.id, email: me.email, first_name: me.first_name, last_name: me.last_name },
         });
         applyEventTheme();
-    }).catch(function () {
+    }, function () {
         document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger l\'événement.</div>';
     });
 })();

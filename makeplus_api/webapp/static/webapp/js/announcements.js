@@ -20,15 +20,22 @@
         return 'Il y a ' + days + 'j';
     }
 
-    Api.get('/annonces/').then(function (r) { return r.json(); }).then(function (data) {
+    var event = Auth.getEvent() || {};
+
+    loadWithCache('announcements_' + (event.id || ''), function () {
+        return Api.get('/annonces/').then(function (r) { return r.json(); });
+    }, function (data) {
         document.getElementById('loading').style.display = 'none';
         var items = Array.isArray(data) ? data : (data.results || []);
         var listEl = document.getElementById('announcement-list');
+        listEl.innerHTML = '';
 
         if (!items.length) {
             document.getElementById('empty').style.display = 'block';
+            listEl.style.display = 'none';
             return;
         }
+        document.getElementById('empty').style.display = 'none';
 
         items.forEach(function (a) {
             var card = document.createElement('div');
@@ -45,7 +52,7 @@
             listEl.appendChild(card);
         });
         listEl.style.display = 'block';
-    }).catch(function () {
+    }, function () {
         document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger les annonces.</div>';
     });
 })();

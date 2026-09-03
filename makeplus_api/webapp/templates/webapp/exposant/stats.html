@@ -3,10 +3,7 @@
 {% block body %}
 <div class="top-bar">
     <span class="title">Statistiques</span>
-    <div style="display:flex; gap:4px;">
-        <button class="action" id="refresh-btn" title="Actualiser"><i class="bi bi-arrow-clockwise"></i></button>
-        <button class="action" id="export-btn" title="Exporter et partager"><i class="bi bi-share"></i></button>
-    </div>
+    <button class="action" id="export-btn" title="Exporter et partager"><i class="bi bi-share"></i></button>
 </div>
 
 <div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
@@ -41,6 +38,15 @@
     if (!requireAuth()) return;
     var event = Auth.getEvent() || {};
     var allScans = [];
+    var searchQuery = '';
+
+    function visibleScans() {
+        if (!searchQuery) return allScans;
+        return allScans.filter(function (scan) {
+            return (scan.scanned_participant_name || '').toLowerCase().indexOf(searchQuery) !== -1
+                || (scan.scanned_participant_email || '').toLowerCase().indexOf(searchQuery) !== -1;
+        });
+    }
 
     // Matches ExposantScanModel.formattedDate exactly (Aujourd'hui/Hier/
     // date, all followed by HH:mm) -- a scan is a real point-in-time
@@ -76,12 +82,8 @@
     }
 
     document.getElementById('search').addEventListener('input', function (e) {
-        var q = e.target.value.trim().toLowerCase();
-        if (!q) { render(allScans); return; }
-        render(allScans.filter(function (scan) {
-            return (scan.scanned_participant_name || '').toLowerCase().indexOf(q) !== -1
-                || (scan.scanned_participant_email || '').toLowerCase().indexOf(q) !== -1;
-        }));
+        searchQuery = e.target.value.trim().toLowerCase();
+        render(visibleScans());
     });
 
     function showToast(message, isError) {
@@ -92,42 +94,19 @@
         setTimeout(function () { toast.style.display = 'none'; }, 3000);
     }
 
-    // [silent] true = refresh underneath whatever is already on screen
-    // (a manual refresh, or coming back to this tab) instead of blanking
-    // it to a full-screen loader again.
-    function loadStats(silent) {
-        var refreshBtn = document.getElementById('refresh-btn');
-        if (silent) refreshBtn.querySelector('i').classList.add('bi-spin');
-
-        Api.get('/exposant-scans/my_scans/?event_id=' + encodeURIComponent(event.id)).then(function (r) {
-            return r.json();
-        }).then(function (data) {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('content').style.display = 'block';
-            document.getElementById('total-visits').textContent = data.total_visits != null ? data.total_visits : '0';
-            document.getElementById('today-visits').textContent = data.today_visits != null ? data.today_visits : '0';
-            allScans = data.scans || [];
-            render(allScans);
-            if (silent) refreshBtn.querySelector('i').classList.remove('bi-spin');
-        }).catch(function () {
-            if (silent) {
-                refreshBtn.querySelector('i').classList.remove('bi-spin');
-                showToast('Impossible d\'actualiser les statistiques.', true);
-            } else {
-                document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger les statistiques.</div>';
-            }
-        });
-    }
-    loadStats(false);
-
-    document.getElementById('refresh-btn').addEventListener('click', function () { loadStats(true); });
-
-    // The closest web equivalent to the mobile app's pull-to-refresh:
-    // re-fetch whenever the visitor comes back to this tab (e.g. after
-    // switching to another app to scan a badge and back), so the stats
-    // don't sit stale just because the page itself was never reloaded.
-    document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) loadStats(true);
+    loadWithCache('exposant_stats_' + (event.id || ''), function () {
+        return Api.get('/exposant-scans/my_scans/?event_id=' + encodeURIComponent(event.id)).then(function (r) { return r.json(); });
+    }, function (data) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+        document.getElementById('total-visits').textContent = data.total_visits != null ? data.total_visits : '0';
+        document.getElementById('today-visits').textContent = data.today_visits != null ? data.today_visits : '0';
+        allScans = data.scans || [];
+        // A background refresh must not silently drop whatever search
+        // filter was already typed in.
+        render(visibleScans());
+    }, function () {
+        document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger les statistiques.</div>';
     });
 
     // Export + share: the mobile app downloads the Excel file then hands
