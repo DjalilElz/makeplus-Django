@@ -44,6 +44,27 @@
             <span class="tab-icon"><i class="bi bi-person tab-icon-inactive"></i><i class="bi bi-person-fill tab-icon-active"></i></span>
             <span class="tab-label">Profil</span>
         </a>
+        {% elif role == 'exposant' %}
+        <a href="/app/exposant/home/" class="{% if active_tab == 'home' %}active{% endif %}">
+            <span class="tab-icon"><i class="bi bi-house tab-icon-inactive"></i><i class="bi bi-house-fill tab-icon-active"></i></span>
+            <span class="tab-label">Accueil</span>
+        </a>
+        <a href="/app/exposant/guide/" class="{% if active_tab == 'guide' %}active{% endif %}">
+            <span class="tab-icon"><i class="bi bi-map tab-icon-inactive"></i><i class="bi bi-map-fill tab-icon-active"></i></span>
+            <span class="tab-label">Guide</span>
+        </a>
+        <a href="/app/exposant/scanner/" class="{% if active_tab == 'scanner' %}active{% endif %}">
+            <span class="tab-icon"><i class="bi bi-qr-code-scan"></i></span>
+            <span class="tab-label">Scanner</span>
+        </a>
+        <a href="/app/exposant/stats/" class="{% if active_tab == 'stats' %}active{% endif %}">
+            <span class="tab-icon"><i class="bi bi-bar-chart tab-icon-inactive"></i><i class="bi bi-bar-chart-fill tab-icon-active"></i></span>
+            <span class="tab-label">Stats</span>
+        </a>
+        <a href="/app/exposant/announcements/" class="{% if active_tab == 'announcements' %}active{% endif %}">
+            <span class="tab-icon"><i class="bi bi-bell tab-icon-inactive"></i><i class="bi bi-bell-fill tab-icon-active"></i></span>
+            <span class="tab-label">Annonces</span>
+        </a>
         {% else %}
         <a href="/app/participant/home/" class="{% if active_tab == 'home' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-house tab-icon-inactive"></i><i class="bi bi-house-fill tab-icon-active"></i></span>

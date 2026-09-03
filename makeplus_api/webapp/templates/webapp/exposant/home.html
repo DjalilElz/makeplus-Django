@@ -1,0 +1,94 @@
+{% extends 'webapp/base.html' %}
+{% block title %}Accueil — DendrIQ Exposant{% endblock %}
+{% block body %}
+<div class="top-bar">
+    <span class="title">Accueil</span>
+    <button class="action" id="logout-btn"><i class="bi bi-box-arrow-right"></i></button>
+</div>
+
+<div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
+<div id="event-content" style="display:none;">
+    <div class="event-hero" style="margin-top:16px;">
+        <div class="greeting-row">
+            <img id="event-logo" class="event-logo" style="display:none;" alt="">
+            <div class="greeting-text">Bonjour, <strong id="greeting-name"></strong></div>
+        </div>
+        <div class="eyebrow">Espace exposant</div>
+        <div class="event-name" id="event-name"></div>
+    </div>
+
+    <div class="section">
+        <div class="card">
+            <div class="detail-item">
+                <i class="bi bi-calendar-event"></i>
+                <div><div class="detail-label">Dates</div><div class="detail-value" id="detail-dates">—</div></div>
+            </div>
+            <div class="detail-item">
+                <i class="bi bi-geo-alt"></i>
+                <div><div class="detail-label">Lieu</div><div class="detail-value" id="detail-location">—</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section" id="description-card-wrap" style="display:none;">
+        <div class="card">
+            <div style="font-weight:700; margin-bottom:6px;">Sur l'événement</div>
+            <div id="event-description" style="font-size:0.9rem; color:var(--text-secondary); line-height:1.6; white-space:pre-line;"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <a href="/app/exposant/scanner/" class="btn btn-primary" style="display:flex; align-items:center; justify-content:center; gap:8px;"><i class="bi bi-qr-code-scan"></i> Scanner un badge</a>
+        <a href="/app/exposant/guide/" class="btn btn-secondary" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px;"><i class="bi bi-map"></i> Voir le guide</a>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+    if (!requireAuth()) return;
+
+    document.getElementById('logout-btn').addEventListener('click', function () {
+        if (confirm('Se déconnecter ?')) Auth.logout();
+    });
+
+    Api.get('/auth/me/').then(function (r) { return r.json(); }).then(function (me) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('event-content').style.display = 'block';
+        document.getElementById('greeting-name').textContent = me.first_name || me.full_name || '';
+
+        var event = me.event || {};
+        document.getElementById('event-name').textContent = event.name || '';
+
+        if (event.logo) {
+            var logo = document.getElementById('event-logo');
+            logo.src = event.logo;
+            logo.style.display = 'block';
+        }
+
+        document.getElementById('detail-location').textContent = event.location || 'Non précisé';
+
+        if (event.start_date && event.end_date) {
+            var start = new Date(event.start_date), end = new Date(event.end_date);
+            var opts = { day: 'numeric', month: 'long', year: 'numeric' };
+            document.getElementById('detail-dates').textContent =
+                start.toLocaleDateString('fr-FR', opts) + ' – ' + end.toLocaleDateString('fr-FR', opts);
+        }
+
+        if (event.description && event.description.trim()) {
+            document.getElementById('event-description').textContent = event.description.trim();
+            document.getElementById('description-card-wrap').style.display = 'block';
+        }
+
+        Auth.setSession({
+            access: Auth.getAccess(), refresh: Auth.getRefresh(),
+            role: me.role, event: me.event,
+            user: { id: me.id, email: me.email, first_name: me.first_name, last_name: me.last_name },
+        });
+        applyEventTheme();
+    }).catch(function () {
+        document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger l\'événement.</div>';
+    });
+})();
+</script>
+{% endblock %}

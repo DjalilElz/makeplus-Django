@@ -1,0 +1,235 @@
+{% extends 'webapp/base.html' %}
+{% block title %}Scanner — DendrIQ{% endblock %}
+{% block extra_head %}
+<style>
+    #scanner-wrap { position: relative; margin: 12px 20px; border-radius: var(--radius-l); overflow: hidden; background: #000; aspect-ratio: 3 / 4; }
+    #scanner-video { width: 100%; height: 100%; object-fit: cover; }
+    #scan-frame {
+        position: absolute; inset: 15% 12%;
+        border: 3px solid rgba(255,255,255,0.85);
+        border-radius: 18px;
+        box-shadow: 0 0 0 2000px rgba(0,0,0,0.35);
+        pointer-events: none;
+    }
+    #camera-error, #camera-loading {
+        position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+        flex-direction: column; gap: 10px; color: #fff; text-align: center; padding: 24px;
+    }
+</style>
+{% endblock %}
+{% block body %}
+<div class="top-bar"><span class="title">Scanner un badge</span></div>
+
+<div id="scanner-wrap">
+    <video id="scanner-video" playsinline muted autoplay></video>
+    <div id="scan-frame" style="display:none;"></div>
+    <div id="camera-loading" class="empty-state" style="color:#fff;"><div class="spinner"></div><div>Activation de la caméra...</div></div>
+    <div id="camera-error" style="display:none;">
+        <div style="font-size:2rem;"><i class="bi bi-camera-video-off"></i></div>
+        <div id="camera-error-text">Accès à la caméra refusé.</div>
+        <button class="btn btn-secondary" id="retry-camera-btn" style="width:auto; padding:10px 20px;">Réessayer</button>
+    </div>
+</div>
+<p class="page-subtitle" style="text-align:center;">Placez le QR code du badge dans le cadre.</p>
+
+<div id="confirm-modal" class="qm-overlay" style="display:none;">
+    <div class="qm-dialog">
+        <div class="qm-title">Enregistrer la visite</div>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <i class="bi bi-person" style="color:var(--navy);"></i>
+            <strong id="confirm-name" style="flex:1; min-width:0;"></strong>
+        </div>
+        <div id="confirm-email-row" style="display:none; align-items:center; gap:8px; color:var(--text-secondary); font-size:0.85rem; margin-bottom:14px;">
+            <i class="bi bi-envelope"></i><span id="confirm-email"></span>
+        </div>
+        <label style="font-size:0.85rem; font-weight:600; margin-bottom:6px; display:block;">Remarque (optionnel)</label>
+        <textarea id="remarque-text" class="qm-textarea" rows="4" placeholder="Intéressé par..."></textarea>
+        <div class="qm-actions">
+            <button type="button" class="btn btn-link" id="confirm-cancel-btn" style="width:auto;">Annuler</button>
+            <button type="button" class="btn btn-primary" id="confirm-save-btn" style="width:auto; padding:10px 20px;">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="qm-toast" style="display:none;"></div>
+{% endblock %}
+{% block extra_scripts %}
+<canvas id="scan-canvas" style="display:none;"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>
+(function () {
+    if (!requireAuth()) return;
+
+    var video = document.getElementById('scanner-video');
+    var canvas = document.getElementById('scan-canvas');
+    var ctx = canvas.getContext('2d', { willReadFrequently: true });
+    var scanning = false;
+    var rafId = null;
+    var stream = null;
+
+    var confirmModal = document.getElementById('confirm-modal');
+    var confirmName = document.getElementById('confirm-name');
+    var confirmEmailRow = document.getElementById('confirm-email-row');
+    var confirmEmail = document.getElementById('confirm-email');
+    var remarqueText = document.getElementById('remarque-text');
+    var pendingQrData = null;
+
+    function startCamera() {
+        document.getElementById('camera-error').style.display = 'none';
+        document.getElementById('camera-loading').style.display = 'flex';
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            document.getElementById('camera-loading').style.display = 'none';
+            document.getElementById('camera-error').style.display = 'flex';
+            document.getElementById('camera-error-text').textContent =
+                "Ce navigateur ne permet pas d'accéder à la caméra ici. Ouvrez cette page dans Safari (iOS) ou Chrome (Android).";
+            return;
+        }
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(function (s) {
+                stream = s;
+                video.srcObject = s;
+                return video.play();
+            })
+            .then(function () {
+                document.getElementById('camera-loading').style.display = 'none';
+                document.getElementById('scan-frame').style.display = 'block';
+                scanning = true;
+                rafId = requestAnimationFrame(tick);
+            })
+            .catch(function (err) {
+                document.getElementById('camera-loading').style.display = 'none';
+                var errEl = document.getElementById('camera-error');
+                errEl.style.display = 'flex';
+                document.getElementById('camera-error-text').textContent =
+                    (err.name === 'NotAllowedError')
+                        ? "Autorisez l'accès à la caméra dans les réglages pour scanner un badge."
+                        : "Impossible d'accéder à la caméra sur cet appareil.";
+            });
+    }
+
+    function stopCamera() {
+        scanning = false;
+        if (rafId) cancelAnimationFrame(rafId);
+        if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    }
+
+    function resumeScanning() {
+        if (!scanning) {
+            scanning = true;
+            rafId = requestAnimationFrame(tick);
+        }
+    }
+
+    function tick() {
+        if (!scanning) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+            if (code && code.data) {
+                onDecoded(code.data);
+                return;
+            }
+        }
+        rafId = requestAnimationFrame(tick);
+    }
+
+    // Same two-step flow as the mobile app's ExposantScannerScreen: look
+    // up the scanned user's display info first (the QR only carries the
+    // id), show a confirmation dialog with an optional remarque, and only
+    // record the booth visit once the exhibitor confirms.
+    function onDecoded(qrData) {
+        scanning = false;
+        if (navigator.vibrate) navigator.vibrate(80);
+
+        Api.get('/participants/?user_id=' + encodeURIComponent(qrData)).then(function (r) {
+            return r.json();
+        }).then(function (data) {
+            var results = data.results || data;
+            if (!Array.isArray(results) || !results.length) throw new Error('not found');
+            var p = results[0];
+            var user = p.user || {};
+            var fullName = ((user.first_name || '') + ' ' + (user.last_name || '')).trim() || user.email || 'Participant';
+            showConfirmDialog(qrData, fullName, user.email || '');
+        }).catch(function () {
+            showToast('Participant introuvable.', true);
+            resumeScanning();
+        });
+    }
+
+    function showConfirmDialog(qrData, name, email) {
+        pendingQrData = qrData;
+        confirmName.textContent = name;
+        if (email) {
+            confirmEmail.textContent = email;
+            confirmEmailRow.style.display = 'flex';
+        } else {
+            confirmEmailRow.style.display = 'none';
+        }
+        remarqueText.value = '';
+        confirmModal.style.display = 'flex';
+    }
+
+    function closeConfirmDialog() {
+        confirmModal.style.display = 'none';
+        pendingQrData = null;
+        resumeScanning();
+    }
+
+    document.getElementById('confirm-cancel-btn').addEventListener('click', closeConfirmDialog);
+    confirmModal.addEventListener('click', function (e) {
+        if (e.target === confirmModal) closeConfirmDialog();
+    });
+
+    // Mirrors the mobile app exactly: the dialog closes and scanning
+    // resumes immediately on "Enregistrer" -- the save happens in the
+    // background and its result shows as a toast over the scanner, not
+    // as a blocking spinner in the dialog.
+    document.getElementById('confirm-save-btn').addEventListener('click', function () {
+        var qrData = pendingQrData;
+        var remarque = remarqueText.value.trim();
+        var name = confirmName.textContent;
+        closeConfirmDialog();
+        if (!qrData) return;
+
+        var event = Auth.getEvent() || {};
+        Api.post('/exposant-scans/scan_participant/', {
+            qr_data: qrData,
+            event_id: event.id,
+            notes: remarque || null,
+        }).then(function (r) {
+            return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+        }).then(function (result) {
+            if (result.ok) {
+                showToast('Visite enregistrée : ' + name, false);
+            } else {
+                showToast(result.data.error || result.data.message || result.data.detail || 'Erreur lors de l\'enregistrement.', true);
+            }
+        }).catch(function () {
+            showToast('Erreur réseau. Vérifiez votre connexion.', true);
+        });
+    });
+
+    function showToast(message, isError) {
+        var toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'qm-toast' + (isError ? ' error' : '');
+        toast.style.display = 'block';
+        setTimeout(function () { toast.style.display = 'none'; }, 3000);
+    }
+
+    document.getElementById('retry-camera-btn').addEventListener('click', startCamera);
+
+    window.addEventListener('pagehide', stopCamera);
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) stopCamera(); else if (!stream) startCamera();
+    });
+
+    startCamera();
+})();
+</script>
+{% endblock %}

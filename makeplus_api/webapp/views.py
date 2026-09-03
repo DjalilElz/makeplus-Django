@@ -141,6 +141,41 @@ def controller_session_detail_view(request, session_id):
 
 
 @never_cache
+def exposant_home_view(request):
+    return render(request, 'webapp/exposant/home.html', {
+        'show_tab_bar': True, 'active_tab': 'home', 'role': 'exposant',
+    })
+
+
+@never_cache
+def exposant_guide_view(request):
+    return render(request, 'webapp/exposant/guide.html', {
+        'show_tab_bar': True, 'active_tab': 'guide', 'role': 'exposant',
+    })
+
+
+@never_cache
+def exposant_scanner_view(request):
+    return render(request, 'webapp/exposant/scanner.html', {
+        'show_tab_bar': True, 'active_tab': 'scanner', 'role': 'exposant',
+    })
+
+
+@never_cache
+def exposant_stats_view(request):
+    return render(request, 'webapp/exposant/stats.html', {
+        'show_tab_bar': True, 'active_tab': 'stats', 'role': 'exposant',
+    })
+
+
+@never_cache
+def exposant_announcements_view(request):
+    return render(request, 'webapp/exposant/announcements.html', {
+        'show_tab_bar': True, 'active_tab': 'announcements', 'role': 'exposant',
+    })
+
+
+@never_cache
 def manifest_json(request):
     """
     Served at a fixed, unhashed /app/manifest.json -- deliberately NOT

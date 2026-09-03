@@ -45,7 +45,9 @@ var Auth = {
     // Where to land after login/select-event, based on role.
     homeUrl: function () {
         var role = this.getRole();
-        return (role === 'controlleur_des_badges') ? '/app/controller/home/' : '/app/participant/home/';
+        if (role === 'controlleur_des_badges') return '/app/controller/home/';
+        if (role === 'exposant') return '/app/exposant/home/';
+        return '/app/participant/home/';
     },
 
     logout: function () {

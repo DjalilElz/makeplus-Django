@@ -28,4 +28,10 @@ urlpatterns = [
     path('controller/statistics/', views.controller_statistics_view, name='controller_statistics'),
     path('controller/scanner/', views.controller_scanner_view, name='controller_scanner'),
     path('controller/session/<uuid:session_id>/', views.controller_session_detail_view, name='controller_session_detail'),
+
+    path('exposant/home/', views.exposant_home_view, name='exposant_home'),
+    path('exposant/guide/', views.exposant_guide_view, name='exposant_guide'),
+    path('exposant/scanner/', views.exposant_scanner_view, name='exposant_scanner'),
+    path('exposant/stats/', views.exposant_stats_view, name='exposant_stats'),
+    path('exposant/announcements/', views.exposant_announcements_view, name='exposant_announcements'),
 ]

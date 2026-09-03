@@ -1,0 +1,159 @@
+{% extends 'webapp/base.html' %}
+{% block title %}Statistiques — DendrIQ{% endblock %}
+{% block body %}
+<div class="top-bar">
+    <span class="title">Statistiques</span>
+    <button class="action" id="export-btn" title="Exporter et partager"><i class="bi bi-share"></i></button>
+</div>
+
+<div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
+
+<div id="content" style="display:none;">
+    <div class="section" style="display:flex; gap:12px;">
+        <div class="card" style="flex:1; text-align:center;">
+            <div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); font-weight:700;">Visiteurs total</div>
+            <div id="total-visits" style="font-size:2rem; font-weight:800; color:var(--navy); margin-top:4px;">—</div>
+        </div>
+        <div class="card" style="flex:1; text-align:center;">
+            <div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); font-weight:700;">Aujourd'hui</div>
+            <div id="today-visits" style="font-size:2rem; font-weight:800; color:var(--sage); margin-top:4px;">—</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="field" style="margin-bottom:12px;">
+            <input type="search" id="search" placeholder="Rechercher un visiteur...">
+        </div>
+        <div style="font-weight:700; margin-bottom:8px; padding:0 4px;" id="list-title">Visiteurs</div>
+        <div id="scan-list" class="list"></div>
+        <div id="empty" class="empty-state" style="display:none;">Aucun visiteur trouvé.</div>
+    </div>
+</div>
+
+<div id="toast" class="qm-toast" style="display:none;"></div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+    if (!requireAuth()) return;
+    var event = Auth.getEvent() || {};
+    var allScans = [];
+
+    // Matches ExposantScanModel.formattedDate exactly (Aujourd'hui/Hier/
+    // date, all followed by HH:mm) -- a scan is a real point-in-time
+    // event, so this intentionally uses the viewer's own local time,
+    // unlike a session's fixed schedule time.
+    function relativeFmt(iso) {
+        var d = new Date(iso);
+        var diffDays = Math.floor((Date.now() - d.getTime()) / 86400000);
+        var hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
+        if (diffDays === 0) return "Aujourd'hui " + hh + ':' + mm;
+        if (diffDays === 1) return 'Hier ' + hh + ':' + mm;
+        return d.getDate() + '/' + (d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + hh + ':' + mm;
+    }
+
+    function render(scans) {
+        var listEl = document.getElementById('scan-list');
+        listEl.innerHTML = '';
+        document.getElementById('empty').style.display = scans.length ? 'none' : 'block';
+        document.getElementById('list-title').textContent = 'Visiteurs (' + scans.length + ')';
+
+        scans.forEach(function (scan) {
+            var row = document.createElement('div');
+            row.className = 'list-row';
+            row.innerHTML =
+                '<span style="font-size:1.1rem; color:var(--navy);"><i class="bi bi-person-circle"></i></span>' +
+                '<div style="flex:1; min-width:0;">' +
+                    '<div style="font-weight:600;">' + escapeHtml(scan.scanned_participant_name || 'Participant') + '</div>' +
+                    (scan.scanned_participant_email ? '<div style="font-size:0.78rem; color:var(--text-secondary);">' + escapeHtml(scan.scanned_participant_email) + '</div>' : '') +
+                '</div>' +
+                '<span style="font-size:0.75rem; color:var(--text-secondary); white-space:nowrap;">' + relativeFmt(scan.scanned_at) + '</span>';
+            listEl.appendChild(row);
+        });
+    }
+
+    document.getElementById('search').addEventListener('input', function (e) {
+        var q = e.target.value.trim().toLowerCase();
+        if (!q) { render(allScans); return; }
+        render(allScans.filter(function (scan) {
+            return (scan.scanned_participant_name || '').toLowerCase().indexOf(q) !== -1
+                || (scan.scanned_participant_email || '').toLowerCase().indexOf(q) !== -1;
+        }));
+    });
+
+    function showToast(message, isError) {
+        var toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'qm-toast' + (isError ? ' error' : '');
+        toast.style.display = 'block';
+        setTimeout(function () { toast.style.display = 'none'; }, 3000);
+    }
+
+    function loadStats() {
+        Api.get('/exposant-scans/my_scans/?event_id=' + encodeURIComponent(event.id)).then(function (r) {
+            return r.json();
+        }).then(function (data) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+            document.getElementById('total-visits').textContent = data.total_visits != null ? data.total_visits : '0';
+            document.getElementById('today-visits').textContent = data.today_visits != null ? data.today_visits : '0';
+            allScans = data.scans || [];
+            render(allScans);
+        }).catch(function () {
+            document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger les statistiques.</div>';
+        });
+    }
+    loadStats();
+
+    // Export + share: the mobile app downloads the Excel file then hands
+    // it to the native share sheet. A browser has no share sheet for
+    // files unless the Web Share API (with file support) is available --
+    // used here when present (mobile Safari/Chrome), falling back to a
+    // plain download everywhere else (desktop browsers).
+    document.getElementById('export-btn').addEventListener('click', function () {
+        var btn = this;
+        btn.disabled = true;
+
+        // The backend already distinguishes ?action=share (inline, for a
+        // share sheet) from the default ?action=download (forces a
+        // download) -- and stamps the exact filename it used in the
+        // X-Filename response header, so both paths here reuse that
+        // instead of inventing their own.
+        var canShareFiles = !!(navigator.share && navigator.canShare);
+        var action = canShareFiles ? 'share' : 'download';
+
+        Api.get('/exposant-scans/export_excel/?action=' + action).then(function (r) {
+            if (!r.ok) throw new Error('export failed');
+            var filename = r.headers.get('X-Filename') || 'Statistiques_Visiteurs.xlsx';
+            return r.blob().then(function (blob) { return { blob: blob, filename: filename }; });
+        }).then(function (result) {
+            var file = new File([result.blob], result.filename, {
+                type: result.blob.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            });
+
+            if (canShareFiles && navigator.canShare({ files: [file] })) {
+                navigator.share({ files: [file], title: 'Statistiques des visiteurs du stand' })
+                    .then(function () { showToast('Fichier partagé avec succès', false); })
+                    .catch(function (err) {
+                        if (err && err.name !== 'AbortError') showToast('Erreur de partage', true);
+                    });
+            } else {
+                var url = URL.createObjectURL(result.blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = result.filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Fichier téléchargé', false);
+            }
+            btn.disabled = false;
+        }).catch(function () {
+            btn.disabled = false;
+            showToast("Erreur lors de l'export", true);
+        });
+    });
+})();
+</script>
+{% endblock %}
