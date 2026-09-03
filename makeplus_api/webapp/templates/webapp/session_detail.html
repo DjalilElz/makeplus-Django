@@ -165,7 +165,7 @@
     }
 
     function fmt(iso) {
-        return new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+        return wallClockDate(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
     }
 
     Api.get('/sessions/' + encodeURIComponent(sessionId) + '/').then(function (r) {
@@ -189,7 +189,7 @@
         if (s.session_type) badges.innerHTML += '<span style="font-size:0.72rem; font-weight:700; color:var(--navy); background:var(--surface-2); padding:4px 10px; border-radius:999px;">' + escapeHtml(s.session_type) + '</span>';
 
         var timeText = s.start_time ? fmt(s.start_time) : '';
-        if (s.end_time) timeText += ' – ' + new Date(s.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        if (s.end_time) timeText += ' – ' + wallClockDate(s.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         document.getElementById('time').textContent = timeText;
 
         if (s.room_name) {

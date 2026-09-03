@@ -37,15 +37,15 @@
     function dayKey(iso) { return iso ? iso.slice(0, 10) : ''; }
     function fmtTime(iso) {
         if (!iso) return '';
-        return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        return wallClockDate(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     }
     function fmtDay(iso) {
         if (!iso) return '';
-        return new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+        return wallClockDate(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
     }
     function fmtDayShort(iso) {
         if (!iso) return '';
-        return new Date(iso).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+        return wallClockDate(iso).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
     }
 
     function buildFilters() {

@@ -184,6 +184,27 @@ function applyEventTheme() {
     root.setProperty('--navy-light', light);
 }
 
+// A session's start_time/end_time is the event's own schedule time
+// (Africa/Algiers wall clock) baked in by the backend, not an instant
+// that should shift depending on where the viewer's device happens to
+// be. `new Date(iso).toLocaleTimeString()` parses the ISO string's
+// timezone offset into an absolute instant and then re-renders it in
+// the *viewer's own* local timezone -- so a session at 14:00 shows as
+// 15:00 (or any other hour) whenever the viewer's device isn't also
+// set to Algiers time. This reads the literal Y/M/D/H/M digits out of
+// the string and builds a Date from those local components directly,
+// so formatting it never re-interprets through any timezone at all --
+// the displayed time is always exactly what the API sent.
+function wallClockDate(iso) {
+    if (!iso) return null;
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):?(\d{2})?/.exec(iso);
+    if (!m) return new Date(iso);
+    return new Date(
+        parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10),
+        parseInt(m[4], 10), parseInt(m[5], 10), m[6] ? parseInt(m[6], 10) : 0
+    );
+}
+
 // Every page builds its cards via innerHTML from API text fields (titles,
 // names, descriptions) -- escape before interpolating so that content
 // can never be parsed as markup.
