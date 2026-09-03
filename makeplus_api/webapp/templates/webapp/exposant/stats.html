@@ -3,7 +3,10 @@
 {% block body %}
 <div class="top-bar">
     <span class="title">Statistiques</span>
-    <button class="action" id="export-btn" title="Exporter et partager"><i class="bi bi-share"></i></button>
+    <div style="display:flex; gap:4px;">
+        <button class="action" id="refresh-btn" title="Actualiser"><i class="bi bi-arrow-clockwise"></i></button>
+        <button class="action" id="export-btn" title="Exporter et partager"><i class="bi bi-share"></i></button>
+    </div>
 </div>
 
 <div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
@@ -89,7 +92,13 @@
         setTimeout(function () { toast.style.display = 'none'; }, 3000);
     }
 
-    function loadStats() {
+    // [silent] true = refresh underneath whatever is already on screen
+    // (a manual refresh, or coming back to this tab) instead of blanking
+    // it to a full-screen loader again.
+    function loadStats(silent) {
+        var refreshBtn = document.getElementById('refresh-btn');
+        if (silent) refreshBtn.querySelector('i').classList.add('bi-spin');
+
         Api.get('/exposant-scans/my_scans/?event_id=' + encodeURIComponent(event.id)).then(function (r) {
             return r.json();
         }).then(function (data) {
@@ -99,11 +108,27 @@
             document.getElementById('today-visits').textContent = data.today_visits != null ? data.today_visits : '0';
             allScans = data.scans || [];
             render(allScans);
+            if (silent) refreshBtn.querySelector('i').classList.remove('bi-spin');
         }).catch(function () {
-            document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger les statistiques.</div>';
+            if (silent) {
+                refreshBtn.querySelector('i').classList.remove('bi-spin');
+                showToast('Impossible d\'actualiser les statistiques.', true);
+            } else {
+                document.getElementById('loading').innerHTML = '<div class="empty-state">Impossible de charger les statistiques.</div>';
+            }
         });
     }
-    loadStats();
+    loadStats(false);
+
+    document.getElementById('refresh-btn').addEventListener('click', function () { loadStats(true); });
+
+    // The closest web equivalent to the mobile app's pull-to-refresh:
+    // re-fetch whenever the visitor comes back to this tab (e.g. after
+    // switching to another app to scan a badge and back), so the stats
+    // don't sit stale just because the page itself was never reloaded.
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) loadStats(true);
+    });
 
     // Export + share: the mobile app downloads the Excel file then hands
     // it to the native share sheet. A browser has no share sheet for

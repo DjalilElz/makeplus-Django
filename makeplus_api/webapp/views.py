@@ -214,7 +214,7 @@ def service_worker(request):
         staticfiles_storage.url('webapp/js/api.js'),
     ]
     js = """
-const CACHE = 'dendriq-shell-v1';
+const CACHE = 'dendriq-shell-v2';
 const SHELL = %s;
 
 self.addEventListener('install', (event) => {
@@ -231,6 +231,15 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
+// Network-first for the app shell: always try the live file first, only
+// falling back to the cached copy when offline. The old cache-first
+// strategy meant that once a browser cached app.css/api.js it kept
+// serving that exact snapshot forever -- since the static file URLs
+// (and this generated sw.js itself, whenever the shell list doesn't
+// change) rarely change bytes between deploys, the browser had no
+// reason to ever re-run install and refresh the cached copies, so
+// nothing the app shipped after that first cache ever reached the
+// user no matter how many times they reloaded.
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
     // Never cache API calls or non-GET requests -- only the static shell.
@@ -238,7 +247,11 @@ self.addEventListener('fetch', (event) => {
     if (SHELL.indexOf(url.pathname) === -1) return;
 
     event.respondWith(
-        caches.match(event.request).then((cached) => cached || fetch(event.request))
+        fetch(event.request).then((response) => {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+            return response;
+        }).catch(() => caches.match(event.request))
     );
 });
 """ % (

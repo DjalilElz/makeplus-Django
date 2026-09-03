@@ -73,6 +73,10 @@ var Api = {
             return fetch(url, {
                 method: options.method || 'GET',
                 headers: headers,
+                // Every response here is dynamic per-request data (session,
+                // event, stats, scan history...) -- never let the browser's
+                // own HTTP cache hand back a stale copy of it.
+                cache: 'no-store',
                 body: options.body && !(options.body instanceof FormData)
                     ? JSON.stringify(options.body) : options.body,
             });
