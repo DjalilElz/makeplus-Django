@@ -8,10 +8,9 @@
     <link rel="icon" type="image/svg+xml" href="{% static 'dashboard/images/makeplus-icon.svg' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* Label is 100mm wide x 65mm tall (landscape) -- matches the
-           Xprinter XP-429B label stock in use -- with 2mm padding. */
+        /* Label is 65mm wide x 100mm tall (portrait), 2mm padding. */
         @page {
-            size: 100mm 65mm;
+            size: 65mm 100mm;
             margin: 0;
         }
 
@@ -31,8 +30,8 @@
         }
 
         .badge-container {
-            width: 100mm;
-            height: 65mm;
+            width: 65mm;
+            height: 100mm;
             padding: 2mm;
             box-sizing: border-box;
             background: white;
@@ -41,7 +40,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 3mm;
+            gap: 4mm;
             overflow: hidden;
         }
 
@@ -54,8 +53,8 @@
                 display: none !important;
             }
             html, body {
-                width: 100mm;
-                height: 65mm;
+                width: 65mm;
+                height: 100mm;
                 margin: 0 !important;
                 padding: 0 !important;
                 background: white !important;
@@ -69,8 +68,8 @@
         }
 
         .qr-code {
-            width: 34mm;
-            height: 34mm;
+            width: 50mm;
+            height: 50mm;
             flex-shrink: 0;
             display: block;
         }
@@ -80,21 +79,24 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 1mm;
-            overflow: hidden;
+            gap: 2mm;
         }
 
-        /* Each half of the name is forced onto its own single line --
-           no mid-word wrapping -- and auto-shrinks to fit the label
-           width (see the fitNameLines script below). */
+        /* First name and last name each get their own line. A word is
+           never split mid-word to make it fit -- if a word doesn't fit
+           on the current line, it wraps whole onto the next line
+           instead (normal word-break, no forced single-line shrink). */
         .name-line {
-            font-size: 7mm;
-            line-height: 1.1;
+            width: 100%;
+            font-size: 6.5mm;
+            line-height: 1.25;
             font-weight: 700;
             color: #000;
             text-transform: uppercase;
             text-align: center;
-            white-space: nowrap;
+            white-space: normal;
+            word-break: keep-all;
+            overflow-wrap: normal;
         }
 
         .button-group {
@@ -130,23 +132,8 @@
     </div>
 
     <script>
-        // Shrinks a single-line name (in 0.5mm steps, down to a 3mm floor)
-        // until it fits its column without wrapping or being clipped --
-        // guarantees the whole first/last name is always readable on one
-        // line, on labels/names of any length, without touching layout.
-        function fitNameLines() {
-            document.querySelectorAll('.name-line').forEach(function (el) {
-                var sizeMm = 7;
-                el.style.fontSize = sizeMm + 'mm';
-                while (el.scrollWidth > el.clientWidth && sizeMm > 3) {
-                    sizeMm -= 0.5;
-                    el.style.fontSize = sizeMm + 'mm';
-                }
-            });
-        }
-
+        // Auto-open print dialog on load
         window.addEventListener('load', function() {
-            fitNameLines();
             // Small delay to ensure the QR image is fully painted
             setTimeout(function() {
                 window.print();
