@@ -226,7 +226,15 @@ def _participant_snapshot_prices_bulk(participants, event, key_to_payable_ids):
     -- a participant can have several RegistrationOrders if they
     submitted more than once, and the newest is authoritative.
 
-    Returns {str(participant_id): {payable_item_id: price_str}}.
+    Also returns each participant's own Status BlocItem id (same
+    resolution process_transaction already uses as existing_status_item_id
+    when pricing a brand-new item added at the caisse today) -- the
+    caller uses it to also correctly live-price items OUTSIDE this
+    participant's own order under their actual Status, instead of the
+    generic no-particular-participant catalog price.
+
+    Returns ({str(participant_id): {payable_item_id: price_str}},
+             {str(participant_id): status_bloc_item_id}).
     """
     from dashboard.models_blocs import RegistrationOrder
 
@@ -237,20 +245,26 @@ def _participant_snapshot_prices_bulk(participants, event, key_to_payable_ids):
     ).order_by('-created_at').only('participant_id', 'items_snapshot'):
         latest_order_by_participant.setdefault(order.participant_id, order)
 
-    result = {}
+    prices_result = {}
+    status_result = {}
     for participant_id, order in latest_order_by_participant.items():
         prices = {}
+        status_item_id = None
         for entry in order.items_snapshot or []:
             kind = entry.get('type')
             ext_id = entry.get('id')
             price = entry.get('price')
+            if entry.get('bloc') == 'status' and ext_id is not None:
+                status_item_id = ext_id
             if kind not in ('item', 'session') or ext_id is None or price is None:
                 continue
             for payable_id in key_to_payable_ids.get((kind, str(ext_id)), []):
                 prices[payable_id] = price
         if prices:
-            result[str(participant_id)] = prices
-    return result
+            prices_result[str(participant_id)] = prices
+        if status_item_id is not None:
+            status_result[str(participant_id)] = status_item_id
+    return prices_result, status_result
 
 
 def caisse_required(view_func):
@@ -577,9 +591,28 @@ def caisse_dashboard(request):
                 for order, pending_ids in pending_orders
             ]
 
-    participant_item_prices = _participant_snapshot_prices_bulk(
+    participant_item_prices, participant_status_ids = _participant_snapshot_prices_bulk(
         all_participants, event, key_to_payable_ids
     )
+
+    # For every distinct Status actually present among these participants,
+    # the live catalog price/visibility resolved AS that Status -- lets the
+    # caisse show the correct price for an item outside a participant's own
+    # order too (not just their already-reserved items, handled above via
+    # their order's own snapshot), instead of the generic no-particular-
+    # participant price, which can be hijacked by some OTHER Status's own
+    # override (see resolve_catalog_prices's docstring).
+    status_catalog = {}
+    if bloc_config:
+        for status_id in set(participant_status_ids.values()):
+            live = resolve_catalog_prices(
+                event, bloc_config, timezone.now().date(), context_status_item_id=status_id
+            )
+            prices_by_payable_id = {}
+            for (kind, ext_id), data in live.items():
+                for payable_id in key_to_payable_ids.get((kind, str(ext_id)), []):
+                    prices_by_payable_id[payable_id] = str(data['price'])
+            status_catalog[str(status_id)] = prices_by_payable_id
 
     # Recent transactions
     recent_transactions = caisse.transactions.filter(
@@ -601,6 +634,8 @@ def caisse_dashboard(request):
         'participant_reserved_items_json': json.dumps(participant_reserved_items),
         'participant_reserved_summary_json': json.dumps(participant_reserved_summary),
         'participant_item_prices_json': json.dumps(participant_item_prices),
+        'participant_status_ids_json': json.dumps(participant_status_ids),
+        'status_catalog_json': json.dumps(status_catalog),
         'blocs_enabled_json': json.dumps(blocs_enabled),
         'bloc_pct_json': json.dumps(bloc_pct),
         'recent_transactions': recent_transactions

@@ -638,6 +638,14 @@
         // can't know a specific participant's Status and so can show the
         // wrong price for a Status-dependent item.
         const participantItemPricesData = {{ participant_item_prices_json|safe }};
+        // Each participant's own Status BlocItem id (resolved the same way
+        // process_transaction does when pricing a new item), and, per
+        // distinct Status actually present, the live catalog price for
+        // EVERY item under that Status -- covers items outside a
+        // participant's own order, which participantItemPricesData above
+        // doesn't (it only has their already-reserved items).
+        const participantStatusIdData = {{ participant_status_ids_json|safe }};
+        const statusCatalogData = {{ status_catalog_json|safe }};
         // Same discount config the registration form uses (dashboard/blocs_service.py
         // compute_order): bloc-count % only (capped at 100), applied to newly-selected
         // bloc items so the live preview matches what actually gets charged. No period
@@ -813,19 +821,46 @@
             loadParticipantReservedItems(id);
             loadParticipantPaidItems(id);
             loadParticipantReservedSummary(id);
+            // Order matters: this participant's own Status catalog first
+            // (covers items outside their own order), then their own
+            // order's frozen snapshot prices on top (covers items inside
+            // it) -- a locked-in reservation price always wins over a
+            // live recompute for that same item.
+            applyParticipantStatusCatalog(id);
             applyParticipantItemPrices(id);
         }
 
-        // The catalog badge's price comes from a generic, status-less live
-        // lookup (resolve_catalog_prices() called once for the whole
-        // dashboard, not per participant) -- for an item whose price
-        // varies by Status, that can show a different amount than what a
-        // given participant actually locked in on their own registration
-        // order. Override the badge for exactly this participant's own
-        // items with the frozen price from their order's snapshot (same
-        // number the event owner's dashboard shows for it); anything
-        // outside their order keeps the generic catalog price set by
-        // resetItemPriceBadge just before this runs.
+        // The generic catalog badge (set by resetItemPriceBadge just
+        // before this runs) can't know a specific participant's Status, so
+        // for an item whose price varies by Status it can show the wrong
+        // amount. Override every item's badge with the live price
+        // resolved specifically under this participant's own Status (same
+        // resolution process_transaction uses when pricing a new item at
+        // the counter) -- covers items OUTSIDE this participant's own
+        // registration order; applyParticipantItemPrices below then
+        // overrides items INSIDE it with their frozen, already-locked-in
+        // price.
+        function applyParticipantStatusCatalog(participantId) {
+            const statusId = participantStatusIdData[participantId];
+            if (statusId === undefined) return;
+            const prices = statusCatalogData[statusId] || {};
+            Object.keys(prices).forEach(function(itemId) {
+                const cb = document.getElementById('item_' + itemId);
+                if (!cb) return;
+                const itemBox = cb.closest('.item-checkbox');
+                const price = prices[itemId];
+                cb.setAttribute('data-price', price);
+                const badge = itemBox.querySelector('.item-price-badge');
+                if (badge) badge.textContent = fmtPrice(parseFloat(price));
+            });
+        }
+
+        // This participant's own PayableItem prices exactly as locked in
+        // on their own registration order (see
+        // _participant_snapshot_prices_bulk in caisse/views.py) -- the
+        // same number the event owner's dashboard shows for it. Always
+        // applied last so it wins over applyParticipantStatusCatalog just
+        // above for any item that's actually part of their own order.
         function applyParticipantItemPrices(participantId) {
             const prices = participantItemPricesData[participantId] || {};
             Object.keys(prices).forEach(function(itemId) {

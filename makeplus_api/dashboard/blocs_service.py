@@ -98,14 +98,22 @@ def resolve_catalog_prices(event, config, on_date, context_status_item_id=None):
 
     Returns {('item', bloc_item_id): {'price': Decimal, 'visible': bool}, ...}
     with the same shape for ('session', str(session_id)) keys.
+
+    status_item_ids passed to _rules_by_target is scoped to AT MOST
+    context_status_item_id -- never every active Status BlocItem in the
+    event (that used to be the default here, unlike compute_order(),
+    whose own status_item_ids is always just whichever Status the caller
+    is actually asking about). A Status-scoped rule outranks a
+    status-less "any status" one in _resolve_rule's precedence, so
+    pulling in every Status meant a caller with no particular
+    participant in mind (e.g. the caisse's generic catalog preview)
+    could have an item's baseline price silently hijacked by whichever
+    OTHER status happened to have its own override for that item -- e.g.
+    an item free only for "Non-membre" showing as free for everyone.
     """
     active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
 
-    status_item_ids = list(
-        BlocItem.objects.filter(event=event, bloc='status', is_active=True).values_list('id', flat=True)
-    )
-    if context_status_item_id:
-        status_item_ids.append(int(context_status_item_id))
+    status_item_ids = [int(context_status_item_id)] if context_status_item_id else []
 
     rules_by_target = _rules_by_target(status_item_ids, active_period)
 
