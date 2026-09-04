@@ -1056,11 +1056,24 @@
                 buttonElement.disabled = true;
                 const originalHTML = buttonElement.innerHTML;
                 buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement...';
-                
+
                 // Store reference for re-enabling
                 buttonElement.originalHTML = originalHTML;
             }
-            
+
+            // Open the print window synchronously, right here in the click
+            // handler -- a browser's popup blocker only allows window.open()
+            // when it's a direct result of a user gesture. Calling it later,
+            // inside the fetch's .then() below, happens asynchronously after
+            // the click already ended, so most browsers silently blocked it
+            // -- "Traiter et imprimer le badge" looked like it did nothing.
+            // Opening a blank window now and pointing it at the real URL
+            // once the transaction succeeds keeps it inside that gesture.
+            let printWindow = null;
+            if (action === 'print_badge' || action === 'process_and_print') {
+                printWindow = window.open('', '_blank', 'width=480,height=380');
+            }
+
             fetch('{% url "caisse:process_transaction" %}', {
                 method: 'POST',
                 headers: {
@@ -1077,12 +1090,21 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Handle print badge actions
+                    // Point the already-open window at the real print page
+                    // now that the transaction actually succeeded.
                     if (action === 'print_badge' || action === 'process_and_print') {
                         const printUrl = `{% url 'caisse:print_badge' 0 %}`.replace('0', selectedParticipantId);
-                        window.open(printUrl, '_blank', 'width=480,height=380');
+                        if (printWindow) {
+                            printWindow.location.href = printUrl;
+                        } else {
+                            // The synchronous open above still got blocked
+                            // (rare, but some browser settings do this) --
+                            // fall back to a plain new-tab open so there's
+                            // still a way to print, even if not automatic.
+                            window.open(printUrl, '_blank');
+                        }
                     }
-                    
+
                     // Show success message
                     let message = 'Action effectuée avec succès !';
                     if (action === 'process') {
@@ -1118,6 +1140,7 @@
                         });
                     }
                 } else {
+                    if (printWindow) printWindow.close();
                     customAlert('Erreur : ' + data.message, 'Erreur');
                     // Re-enable button on error
                     if (buttonElement) {
@@ -1127,6 +1150,7 @@
                 }
             })
             .catch(error => {
+                if (printWindow) printWindow.close();
                 console.error('Error:', error);
                 customAlert('Échec du traitement de la demande', 'Erreur');
                 // Re-enable button on error
