@@ -632,6 +632,12 @@
         const participantReservedItemsData = {{ participant_reserved_items_json|safe }};
         // Per-order discount summary (raw total, discount %, amount already paid)
         const participantReservedSummaryData = {{ participant_reserved_summary_json|safe }};
+        // Each participant's own PayableItem prices exactly as locked in on
+        // their own registration order (see _participant_snapshot_prices_bulk
+        // in caisse/views.py) -- overrides the generic catalog badge, which
+        // can't know a specific participant's Status and so can show the
+        // wrong price for a Status-dependent item.
+        const participantItemPricesData = {{ participant_item_prices_json|safe }};
         // Same discount config the registration form uses (dashboard/blocs_service.py
         // compute_order): bloc-count % only (capped at 100), applied to newly-selected
         // bloc items so the live preview matches what actually gets charged. No period
@@ -782,7 +788,9 @@
             document.getElementById('participantDetails').style.display = 'block';
             document.getElementById('noParticipantSelected').style.display = 'none';
             
-            // Reset all items first
+            // Reset all items first, including price badges back to the
+            // generic catalog price -- see applyParticipantItemPrices below
+            // for why they can be overridden per participant.
             document.querySelectorAll('#payableItems input').forEach(function(cb) {
                 cb.checked = false;
                 cb.disabled = false;
@@ -793,6 +801,7 @@
                 if (paidIndicator) paidIndicator.style.display = 'none';
                 const reservedIndicator = itemBox.querySelector('.reserved-indicator');
                 if (reservedIndicator) reservedIndicator.style.display = 'none';
+                resetItemPriceBadge(itemBox, cb);
             });
 
             document.getElementById('notes').value = '';
@@ -804,6 +813,39 @@
             loadParticipantReservedItems(id);
             loadParticipantPaidItems(id);
             loadParticipantReservedSummary(id);
+            applyParticipantItemPrices(id);
+        }
+
+        // The catalog badge's price comes from a generic, status-less live
+        // lookup (resolve_catalog_prices() called once for the whole
+        // dashboard, not per participant) -- for an item whose price
+        // varies by Status, that can show a different amount than what a
+        // given participant actually locked in on their own registration
+        // order. Override the badge for exactly this participant's own
+        // items with the frozen price from their order's snapshot (same
+        // number the event owner's dashboard shows for it); anything
+        // outside their order keeps the generic catalog price set by
+        // resetItemPriceBadge just before this runs.
+        function applyParticipantItemPrices(participantId) {
+            const prices = participantItemPricesData[participantId] || {};
+            Object.keys(prices).forEach(function(itemId) {
+                const cb = document.getElementById('item_' + itemId);
+                if (!cb) return;
+                const itemBox = cb.closest('.item-checkbox');
+                const price = prices[itemId];
+                cb.setAttribute('data-price', price);
+                const badge = itemBox.querySelector('.item-price-badge');
+                if (badge) badge.textContent = fmtPrice(parseFloat(price));
+            });
+            calculateTotal();
+        }
+
+        function resetItemPriceBadge(itemBox, cb) {
+            const defaultPrice = itemBox.getAttribute('data-default-price');
+            if (defaultPrice === null) return;
+            cb.setAttribute('data-price', defaultPrice);
+            const badge = itemBox.querySelector('.item-price-badge');
+            if (badge) badge.textContent = fmtPrice(parseFloat(defaultPrice));
         }
 
         // Show the real (already-paid, post-discount) amount for a

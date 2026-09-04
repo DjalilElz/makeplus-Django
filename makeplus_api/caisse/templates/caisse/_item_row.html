@@ -1,5 +1,5 @@
 {% with item=item_data.item %}
-<div class="item-checkbox item-{{ item.id }}" data-item-id="{{ item.id }}" {% if item_data.is_full %}data-is-full="true"{% endif %}>
+<div class="item-checkbox item-{{ item.id }}" data-item-id="{{ item.id }}" data-default-price="{{ item.price }}" {% if item_data.is_full %}data-is-full="true"{% endif %}>
     <div class="d-flex align-items-start">
         <input type="{{ input_type|default:'checkbox' }}" class="form-check-input me-2 mt-1"
                id="item_{{ item.id }}"

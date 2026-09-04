@@ -207,6 +207,52 @@ def _pending_orders_with_payable_ids_bulk(participants, event, key_to_payable_id
     return result
 
 
+def _participant_snapshot_prices_bulk(participants, event, key_to_payable_ids):
+    """
+    Each participant's PayableItem prices exactly as locked in on their own
+    (latest, non-rejected) RegistrationOrder -- the frozen, status-correct
+    amount the registration form itself charged. The catalog's generic
+    live price (resolve_catalog_prices(), called once for the whole
+    dashboard with no particular participant in mind) can't know which
+    Status any given participant actually picked, so for an item whose
+    price varies by Status it can show a different amount than what this
+    participant's own order actually has -- reported as the caisse
+    showing "Gratuit" for an item the event owner's dashboard shows was
+    charged a real price. Used to override the catalog badge for exactly
+    the currently-selected participant's own items; anything outside
+    their order still falls back to the generic catalog price.
+
+    Same "only the latest order" rule as _pending_orders_with_payable_ids
+    -- a participant can have several RegistrationOrders if they
+    submitted more than once, and the newest is authoritative.
+
+    Returns {str(participant_id): {payable_item_id: price_str}}.
+    """
+    from dashboard.models_blocs import RegistrationOrder
+
+    participant_ids = [p.id for p in participants]
+    latest_order_by_participant = {}
+    for order in RegistrationOrder.objects.exclude(status='rejected').filter(
+        event=event, participant_id__in=participant_ids
+    ).order_by('-created_at').only('participant_id', 'items_snapshot'):
+        latest_order_by_participant.setdefault(order.participant_id, order)
+
+    result = {}
+    for participant_id, order in latest_order_by_participant.items():
+        prices = {}
+        for entry in order.items_snapshot or []:
+            kind = entry.get('type')
+            ext_id = entry.get('id')
+            price = entry.get('price')
+            if kind not in ('item', 'session') or ext_id is None or price is None:
+                continue
+            for payable_id in key_to_payable_ids.get((kind, str(ext_id)), []):
+                prices[payable_id] = price
+        if prices:
+            result[str(participant_id)] = prices
+    return result
+
+
 def caisse_required(view_func):
     """Decorator to check if caisse is logged in"""
     def wrapper(request, *args, **kwargs):
@@ -531,6 +577,10 @@ def caisse_dashboard(request):
                 for order, pending_ids in pending_orders
             ]
 
+    participant_item_prices = _participant_snapshot_prices_bulk(
+        all_participants, event, key_to_payable_ids
+    )
+
     # Recent transactions
     recent_transactions = caisse.transactions.filter(
         status='completed'
@@ -550,6 +600,7 @@ def caisse_dashboard(request):
         'participant_paid_items_json': json.dumps(participant_paid_items),
         'participant_reserved_items_json': json.dumps(participant_reserved_items),
         'participant_reserved_summary_json': json.dumps(participant_reserved_summary),
+        'participant_item_prices_json': json.dumps(participant_item_prices),
         'blocs_enabled_json': json.dumps(blocs_enabled),
         'bloc_pct_json': json.dumps(bloc_pct),
         'recent_transactions': recent_transactions
