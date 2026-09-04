@@ -29,7 +29,7 @@ events with large shared-email clusters.
 """
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from dashboard.models_blocs import RegistrationOrder
 from events.form_validation_service import create_participant_for_event
@@ -42,6 +42,30 @@ def _normalize(name):
 def _names_match(order_full_name, user):
     user_full_name = f"{user.first_name} {user.last_name}"
     return _normalize(order_full_name) == _normalize(user_full_name)
+
+
+def _next_available_email(email):
+    """
+    auth_user.email has a real DB-level unique constraint in this
+    database (discovered the hard way -- get_or_create_user_by_email/
+    get_or_create_user_for_manual_registration never needed to care
+    since they always look an existing email up first). A split-off
+    account can never reuse the bare email -- by definition it's
+    already taken by the account being split away from -- so this
+    finds the first free +tag variant instead (local+dup2@domain,
+    local+dup3@domain, ...), standard subaddressing that Gmail/Outlook/
+    Yahoo/iCloud and most modern providers deliver to the same inbox
+    as the plain address.
+    """
+    local, _, domain = email.partition('@')
+    if not domain:
+        domain = 'invalid.local'
+    candidate = f'{local}@{domain}'
+    n = 2
+    while User.objects.filter(email__iexact=candidate).exists():
+        candidate = f'{local}+dup{n}@{domain}'
+        n += 1
+    return candidate
 
 
 class Command(BaseCommand):
@@ -78,32 +102,45 @@ class Command(BaseCommand):
             return
 
         fixed = 0
+        failed = 0
         for order in mismatched:
             first_name, _, last_name = order.full_name.strip().partition(' ')
 
-            with transaction.atomic():
-                username_base = order.email.split('@')[0]
-                username = username_base
-                counter = 1
-                while User.objects.filter(username=username).exists():
-                    username = f"{username_base}{counter}"
-                    counter += 1
+            try:
+                with transaction.atomic():
+                    new_email = _next_available_email(order.email)
 
-                new_user = User.objects.create(
-                    username=username, email=order.email,
-                    first_name=first_name, last_name=last_name,
-                )
-                new_user.set_unusable_password()
-                new_user.save(update_fields=['password'])
+                    username_base = new_email.split('@')[0]
+                    username = username_base
+                    counter = 1
+                    while User.objects.filter(username=username).exists():
+                        username = f"{username_base}{counter}"
+                        counter += 1
 
-                new_participant = create_participant_for_event(new_user, order.event)
-                order.participant = new_participant
-                order.save(update_fields=['participant'])
+                    new_user = User.objects.create(
+                        username=username, email=new_email,
+                        first_name=first_name, last_name=last_name,
+                    )
+                    new_user.set_unusable_password()
+                    new_user.save(update_fields=['password'])
 
+                    new_participant = create_participant_for_event(new_user, order.event)
+                    order.participant = new_participant
+                    order.save(update_fields=['participant'])
+            except IntegrityError as exc:
+                # One bad/edge-case row (e.g. a race on the email/username
+                # we just checked) must not take down the whole batch --
+                # the atomic block above already rolled that one row back
+                # cleanly, so it's safe to just log and move on.
+                self.stdout.write(self.style.ERROR(f"  ! Failed to split order {order.id} ({order.email}): {exc}"))
+                failed += 1
+                continue
+
+            note = f" (email changed to {new_email})" if new_email != order.email else ""
             self.stdout.write(self.style.SUCCESS(
                 f"  + Split order {order.id} ({order.email}) -> new participant {new_participant.id} "
-                f"(badge {new_participant.badge_id}, user_id={new_user.id})"
+                f"(badge {new_participant.badge_id}, user_id={new_user.id}){note}"
             ))
             fixed += 1
 
-        self.stdout.write(f"\nFixed: {fixed}")
+        self.stdout.write(f"\nFixed: {fixed}" + (f" | Failed: {failed}" if failed else ""))
