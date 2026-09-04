@@ -69,20 +69,29 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files
     'django.middleware.gzip.GZipMiddleware',  # Compress responses
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.cache.UpdateCacheMiddleware',  # Cache middleware
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.cache.FetchFromCacheMiddleware',  # Cache middleware
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'events.middleware.EventContextMiddleware',  # Extract event context from JWT
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # Must come after UpdateCacheMiddleware above: response-phase
-    # middleware runs bottom-to-top, so this needs to be *below* it in
-    # the list for its no-cache headers to be visible to Update's own
-    # response processing (see dashboard/middleware.py docstring).
     'dashboard.middleware.NoCacheDashboardMiddleware',
 ]
+
+# Django's site-wide response cache (UpdateCacheMiddleware/
+# FetchFromCacheMiddleware) used to run here and was REMOVED. It caches
+# a GET response keyed by URL only, ignoring the Authorization header
+# unless a view explicitly sends `Vary: Authorization` -- nothing in
+# this codebase did. That silently served one user's response to a
+# *different* user hitting the same URL within CACHE_MIDDLEWARE_SECONDS,
+# and bit this app three separate times: a superuser's dashboard page
+# served to another account, a stale CSRF token on the public
+# registration form causing real submissions to fail with 403, and
+# /api/ endpoints (auth/me, participants, etc. -- used by both this
+# webapp and the production Flutter app) mixing up different logged-in
+# users' names/emails. Nothing here deliberately relies on cache_page
+# (confirmed unused), so removing it outright closes the whole bug
+# class instead of patching another path prefix each time it recurs.
 
 # CSRF Settings
 CSRF_TRUSTED_ORIGINS = [
@@ -169,11 +178,6 @@ CACHES = {
         }
     }
 }
-
-# Cache configuration
-CACHE_MIDDLEWARE_ALIAS = 'default'
-CACHE_MIDDLEWARE_SECONDS = 300  # 5 minutes
-CACHE_MIDDLEWARE_KEY_PREFIX = 'makeplus'
 
 # Session optimization
 SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'

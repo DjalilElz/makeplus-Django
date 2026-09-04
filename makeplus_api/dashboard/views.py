@@ -2289,25 +2289,19 @@ def public_form_view(request, slug):
     """
     Public view for custom registration forms.
 
-    @never_cache is load-bearing, not just belt-and-suspenders: this
-    project runs Django's site-wide page cache (UpdateCacheMiddleware /
-    CACHE_MIDDLEWARE_SECONDS = 300 in settings.py), and its caching
-    decision (django.utils.cache.get_max_age) ONLY looks for a numeric
-    max-age token -- it ignores no-cache/no-store entirely. The manual
-    `response['Cache-Control'] = 'no-cache, no-store, must-revalidate'`
-    lines further down in this view (kept for the browser's own
-    benefit) have NO effect on Django's own page cache, which still
-    stores and replays the response for up to 5 minutes.
-
-    Every GET here embeds a fresh CSRF token via {% csrf_token %}. A
-    cached response embeds ONE frozen token in its HTML body forever
-    (until the cache entry expires), while each subsequent visitor's
-    own csrftoken cookie is unrelated to it -- so any visitor served
-    from that cache entry gets a "CSRF token from POST incorrect" 403
-    on submit, silently dropping a real registration. @never_cache is
-    the one thing that actually sets max-age=0, which is what
-    get_max_age() checks to skip caching -- that's why it's needed
-    here in addition to (not instead of) the manual headers.
+    Every GET here embeds a fresh CSRF token via {% csrf_token %}. This
+    project used to run Django's site-wide page cache
+    (UpdateCacheMiddleware, CACHE_MIDDLEWARE_SECONDS = 300), which
+    cached one visitor's response -- frozen CSRF token and all -- and
+    replayed it to every other visitor hitting this URL for up to 5
+    minutes, so anyone served from that cache entry got a "CSRF token
+    from POST incorrect" 403 on submit, silently dropping a real
+    registration. That middleware has since been removed from
+    settings.py entirely (it caused this same class of bug more than
+    once elsewhere in the app too). @never_cache is kept here as
+    belt-and-suspenders for the browser's/any proxy's own cache, same
+    as the manual `response['Cache-Control'] = 'no-cache, no-store,
+    must-revalidate'` lines further down in this view.
     """
     from dashboard.models_form import FormConfiguration, FormSubmission
     from django.utils import timezone
