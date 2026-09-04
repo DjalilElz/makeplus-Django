@@ -347,13 +347,22 @@ class CaisseDiscountedReservationTests(TestCase):
         payload = response.json()
         self.assertTrue(payload['success'], payload)
         self.assertEqual(payload['payment_method'], 'bank_transfer')
-        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('1200.00'))
+        # Confirming an already-paid (bank transfer) reservation with
+        # nothing new added doesn't put any new money in the cashier's
+        # hand -- the recorded/shown amount is what was actually collected
+        # THIS visit (nothing), not the reservation's own value. The full
+        # 1200 is still recorded on the order itself (asserted below) and
+        # in the transaction's notes, just not double-counted as new caisse
+        # revenue.
+        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('0'))
 
         txn = CaisseTransaction.objects.get(id=payload['transaction_id'])
-        self.assertEqual(txn.total_amount, Decimal('1200.00'))
+        self.assertEqual(txn.total_amount, Decimal('0'))
+        self.assertIn('1200.00 DZD', txn.notes)
 
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, 'approved')
+        self.assertEqual(self.order.total_after_reduction, Decimal('1200.00'))
 
     def test_confirming_partial_order_is_rejected(self):
         self._login_caisse()
@@ -388,8 +397,15 @@ class CaisseDiscountedReservationTests(TestCase):
         payload = response.json()
         self.assertTrue(payload['success'], payload)
         self.assertEqual(payload['payment_method'], 'mixed')
-        # 1200 (discounted reservation) + 200 (walk-up) = 1400
-        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('1400.00'))
+        # 1200 (discounted reservation, already paid by bank transfer) is
+        # only being confirmed here, not newly collected -- the recorded/
+        # shown amount is just the 200 walk-up item actually paid at the
+        # counter THIS visit, not the combined 1400. The 1200 is still
+        # fully recorded in the transaction's notes.
+        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('200.00'))
+
+        txn = CaisseTransaction.objects.get(id=payload['transaction_id'])
+        self.assertIn('1200.00 DZD', txn.notes)
 
 
 class CaisseBlocGroupingTests(TestCase):

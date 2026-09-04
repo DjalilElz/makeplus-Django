@@ -921,7 +921,17 @@ def process_transaction(request):
 
     plain_cash_amount = sum((item.price for item in plain_cash_items), Decimal('0'))
     cash_amount = recomputed_bloc_amount + plain_cash_amount
-    total_amount = bank_transfer_amount + cash_amount
+
+    # What the caisse operator actually collects right now. Confirming an
+    # existing bank-transfer reservation doesn't put any new money in the
+    # cashier's hand -- that amount was already received before this visit
+    # -- so it must not inflate this transaction's recorded amount, which
+    # is exactly what get_total_amount()/"Transactions récentes" show as
+    # revenue collected AT this caisse (e.g. a reservation confirmed for
+    # 4000 plus 3000 of new items added at the counter must record 3000,
+    # not 7000). The full picture (including the bank-transfer portion)
+    # stays fully auditable in the transaction's own notes below.
+    recorded_amount = cash_amount
 
     if bank_transfer_items and cash_items:
         payment_method = 'mixed'
@@ -960,7 +970,7 @@ def process_transaction(request):
             transaction = CaisseTransaction.objects.create(
                 caisse=caisse,
                 participant=participant,
-                total_amount=total_amount,
+                total_amount=recorded_amount,
                 payment_method=payment_method,
                 status='completed',
                 notes=final_notes,
@@ -1046,15 +1056,18 @@ def process_transaction(request):
     participant.qr_code_data = updated_qr_data
     participant.save(update_fields=['qr_code_data'])
     
-    total_before_reduction = bank_transfer_before + recomputed_bloc_before + plain_cash_amount
+    # Mirrors recorded_amount above -- the confirmation the cashier sees
+    # must show the same number that just got saved, not the combined
+    # figure including whatever was already paid by bank transfer.
+    total_before_reduction = recomputed_bloc_before + plain_cash_amount
     return JsonResponse({
         'success': True,
         'message': 'Transaction processed successfully',
         'transaction_id': transaction.id,
-        'total_amount': float(total_amount),
+        'total_amount': float(recorded_amount),
         'total_before_reduction': float(total_before_reduction),
         'total_discount_percent': float(
-            (1 - (total_amount / total_before_reduction)) * 100
+            (1 - (recorded_amount / total_before_reduction)) * 100
         ) if total_before_reduction > 0 else 0.0,
         'payment_method': payment_method,
         'action': action
