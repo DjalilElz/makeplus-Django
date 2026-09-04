@@ -843,8 +843,14 @@ class ParticipantViewSet(viewsets.ModelViewSet):
         # Used by the exhibitor scanner to look up name/email/badge_id
         # for a scanned user id before saving the visit -- the QR code
         # only carries the id now, see dashboard/views.py _qr_display_payload.
+        # A badge printed before that convention (or any other garbage a
+        # camera might misread) sends something non-numeric here -- id is
+        # an integer column, so filtering on it directly raised an
+        # unhandled ValueError (500) instead of just matching nothing.
         user_id = self.request.query_params.get('user_id')
         if user_id:
+            if not user_id.isdigit():
+                return queryset.none()
             queryset = queryset.filter(user_id=user_id)
 
         return queryset
