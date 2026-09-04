@@ -861,6 +861,19 @@ class ParticipantViewSet(viewsets.ModelViewSet):
 
         qr_data = request.data.get('qr_data')
         if not qr_data:
+            # Temporary diagnostic for a "QR data is required" report from
+            # the controller webapp scanner where the client should always
+            # send a non-empty value -- logs exactly what actually arrived
+            # so the next repro pins down whether this is a parsing issue
+            # (wrong content-type) vs. the client genuinely sending nothing.
+            try:
+                body_preview = request.body[:200].decode('utf-8', errors='replace')
+            except Exception:
+                body_preview = '<unreadable>'
+            logger.warning(
+                f"[SCAN] Empty qr_data -- content_type={request.content_type!r} "
+                f"data={dict(request.data)!r} body={body_preview!r}"
+            )
             return Response({
                 'status': 'invalid',
                 'message': 'QR data is required'
