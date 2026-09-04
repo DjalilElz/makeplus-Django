@@ -387,6 +387,23 @@ def caisse_dashboard(request):
         else:
             live = None
 
+        # An item some participant actually has locked into their own
+        # registration order is never hidden, regardless of its current
+        # visibility rule -- e.g. a Status like "Invité" that's normally
+        # hidden from the public self-registration form (only assignable
+        # by the event owner directly) but that a real participant's
+        # order already includes. Hiding it entirely made that
+        # participant's own reservation impossible to confirm at the
+        # caisse: process_transaction requires every item bundled into
+        # the same order to be confirmed together, but the operator had
+        # no checkbox to confirm it with, since it never rendered here.
+        reservation_key = None
+        if item.bloc_item_id:
+            reservation_key = ('item', str(item.bloc_item_id))
+        elif item.session_id:
+            reservation_key = ('session', str(item.session_id))
+        is_reserved_by_someone = bool(reservation_key and reservation_participants.get(reservation_key))
+
         # Only offer items the registration form itself currently offers.
         # A PayableItem is a separately-maintained row that mirrors a
         # BlocItem/Session at the time someone created it -- if that
@@ -400,7 +417,9 @@ def caisse_dashboard(request):
         # enforced when this event actually uses blocs (bloc_config set)
         # -- otherwise there is no registration-page catalog to compare
         # against, so every active PayableItem is left as-is.
-        if bloc_config and (not data_bloc or live is None or not live['visible'] or not _bloc_visible(bloc_config, data_bloc)):
+        if bloc_config and not is_reserved_by_someone and (
+            not data_bloc or live is None or not live['visible'] or not _bloc_visible(bloc_config, data_bloc)
+        ):
             continue
 
         # In-memory only (never saved) -- makes every place that already
