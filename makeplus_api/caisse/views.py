@@ -17,7 +17,7 @@ import base64
 
 from caisse.models import Caisse, PayableItem, CaisseTransaction
 from events.models import Participant, Event
-from dashboard.blocs_service import resolve_catalog_prices
+from dashboard.blocs_service import resolve_catalog_prices, _bloc_visible
 
 
 def _reservation_data(event, payable_items):
@@ -326,6 +326,22 @@ def caisse_dashboard(request):
             live = live_prices.get(('session', str(item.session_id)))
         else:
             live = None
+
+        # Only offer items the registration form itself currently offers.
+        # A PayableItem is a separately-maintained row that mirrors a
+        # BlocItem/Session at the time someone created it -- if that
+        # BlocItem/Session was later deactivated, hidden by a
+        # BlocItemStatusRule, or its whole bloc got turned off
+        # (EventBlocConfig.show_*), nothing here removes/deactivates the
+        # PayableItem to match, so it kept showing up (and staying
+        # payable) at the caisse after disappearing from registration. A
+        # plain caisse-only item with no bloc_item/session link at all
+        # never had a registration-page counterpart to begin with. Only
+        # enforced when this event actually uses blocs (bloc_config set)
+        # -- otherwise there is no registration-page catalog to compare
+        # against, so every active PayableItem is left as-is.
+        if bloc_config and (not data_bloc or live is None or not live['visible'] or not _bloc_visible(bloc_config, data_bloc)):
+            continue
 
         # In-memory only (never saved) -- makes every place that already
         # renders item.price (the catalog badge, the JS selection preview)
