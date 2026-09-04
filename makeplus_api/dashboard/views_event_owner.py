@@ -395,7 +395,7 @@ def event_owner_new_registration(request, event_id):
     """
     from django.core.files.storage import default_storage
     import uuid as uuid_lib
-    from events.form_validation_service import create_participant_for_event, get_or_create_user_by_email
+    from events.form_validation_service import create_participant_for_event, get_or_create_user_for_manual_registration
     from .models_form import FormSubmission
 
     event = get_object_or_404(Event, id=event_id)
@@ -487,7 +487,7 @@ def event_owner_new_registration(request, event_id):
             )
             user_agent = request.META.get('HTTP_USER_AGENT', '')[:1000]
 
-            user = get_or_create_user_by_email(email, first_name, last_name)
+            user = get_or_create_user_for_manual_registration(email, first_name, last_name)
             participant = create_participant_for_event(user, event)
 
             submission = FormSubmission.objects.create(

@@ -155,6 +155,58 @@ def get_or_create_user_by_email(email, first_name='', last_name=''):
         return User.objects.filter(email=email).first()
 
 
+def get_or_create_user_for_manual_registration(email, first_name='', last_name=''):
+    """
+    Like get_or_create_user_by_email, but for the event owner's own manual
+    "Nouvelle inscription" entry, where the same email is routinely shared
+    by many genuinely different attendees -- a sponsor's guest list, a
+    receptionist's inbox used for walk-ins without their own email, etc.
+    get_or_create_user_by_email's plain email lookup would silently merge
+    every one of them into whichever person happened to be entered first
+    under that email (Participant/badge/UserEventAssignment are all keyed
+    off the User account, not the name on the order), which is exactly
+    what made every later registration under a shared email invisible at
+    the caisse -- their name only ever existed on their own order, never
+    on the account caisse actually searches/displays.
+
+    Only treated as the same returning person (reusing their account and
+    badge) when BOTH the email and the name already match; a different
+    name under the same email always gets its own account.
+    """
+    existing = User.objects.filter(
+        email__iexact=email, first_name__iexact=first_name, last_name__iexact=last_name,
+    ).first()
+    if existing:
+        return existing
+
+    username = email.split('@')[0]
+    original_username = username
+    counter = 1
+    while User.objects.filter(username=username).exists():
+        username = f"{original_username}{counter}"
+        counter += 1
+
+    try:
+        with transaction.atomic():
+            user = User.objects.create(
+                username=username,
+                email=email,
+                first_name=first_name or '',
+                last_name=last_name or '',
+            )
+            user.set_unusable_password()
+            user.save(update_fields=['password'])
+        return user
+    except IntegrityError:
+        # Lost a race against a concurrent submission for the same
+        # email+name -- the username loop above already avoided a plain
+        # username collision, so this means someone else just created
+        # the exact same person.
+        return User.objects.filter(
+            email__iexact=email, first_name__iexact=first_name, last_name__iexact=last_name,
+        ).first()
+
+
 def verify_form_registration(email, form_slug, code, ip_address=None, user_agent=''):
     """
     Verify form registration code and create participant record
