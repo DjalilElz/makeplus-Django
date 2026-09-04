@@ -1270,14 +1270,22 @@ def print_badge(request, participant_id):
         messages.error(request, 'Participant introuvable')
         return redirect('caisse:dashboard')
     
-    # Generate QR code image
+    # Generate QR code image -- must encode the plain user_id, not
+    # badge_id: every real scan endpoint (events/views.py
+    # ParticipantViewSet/ExposantScanViewSet scan_participant) and the
+    # mobile app's own QR only ever accept that plain id and look
+    # everything else (badge_id included) up fresh from the database.
+    # Encoding badge_id here made every badge printed from the caisse
+    # fail to scan with "Invalid QR code format" -- see
+    # dashboard/views.py's _qr_display_payload for the canonical format
+    # this must stay in sync with.
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
         box_size=10,
         border=4,
     )
-    qr.add_data(participant.badge_id)
+    qr.add_data(str(participant.user_id))
     qr.make(fit=True)
     
     img = qr.make_image(fill_color="black", back_color="white")
