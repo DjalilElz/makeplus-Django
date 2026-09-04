@@ -40,6 +40,11 @@ var Auth = {
 
     clear: function () {
         Object.keys(this.KEYS).forEach(function (k) { localStorage.removeItem(Auth.KEYS[k]); });
+        // Also drop every cached page payload -- on a shared/reused device,
+        // leaving them behind means the next account to log in could
+        // briefly render this account's cached name/email before its own
+        // fresh data arrives.
+        if (typeof PageCache !== 'undefined') PageCache.clearAll();
     },
 
     // Where to land after login/select-event, based on role.
@@ -224,14 +229,31 @@ function wallClockDate(iso) {
 // SPA session.
 var PageCache = {
     PREFIX: 'dq_cache_',
+    // Scoped by the currently logged-in user's id, not just page+event --
+    // otherwise a shared/reused device (e.g. a kiosk different controllers
+    // log into in turn) would render the PREVIOUS account's cached name,
+    // email, etc. for a moment (or longer, if the fresh fetch is slow/
+    // fails) before the real data for the new account loads.
+    _scopedKey: function (key) {
+        var user = Auth.getUser();
+        var uid = (user && user.id != null) ? user.id : 'anon';
+        return this.PREFIX + uid + '_' + key;
+    },
     get: function (key) {
         try {
-            var raw = localStorage.getItem(this.PREFIX + key);
+            var raw = localStorage.getItem(this._scopedKey(key));
             return raw ? JSON.parse(raw) : null;
         } catch (e) { return null; }
     },
     set: function (key, data) {
-        try { localStorage.setItem(this.PREFIX + key, JSON.stringify(data)); } catch (e) {}
+        try { localStorage.setItem(this._scopedKey(key), JSON.stringify(data)); } catch (e) {}
+    },
+    clearAll: function () {
+        try {
+            Object.keys(localStorage).filter(function (k) {
+                return k.indexOf(PageCache.PREFIX) === 0;
+            }).forEach(function (k) { localStorage.removeItem(k); });
+        } catch (e) {}
     },
 };
 
