@@ -271,6 +271,54 @@ def resolve_current_event(user):
     return None, None
 
 
+def resolve_scanned_user(qr_data):
+    """
+    Resolve the User a scanned badge QR refers to, accepting every format
+    this app has ever printed or shown:
+      - a plain numeric user_id (the current format -- see
+        dashboard/views.py's _qr_display_payload and caisse/views.py's
+        print_badge)
+      - a badge_id string like "USER-392-B9FDF0BC" (what caisse's
+        print_badge used to encode before it was fixed to match the
+        format above -- badges already printed and handed out under the
+        old format have to keep scanning; there's no way to retroactively
+        fix paper already in someone's pocket)
+      - the old rich-JSON payload ({"user_id": ..., ...}) from even
+        earlier printed/downloaded badges
+
+    Returns the User, or None if qr_data is empty or doesn't resolve to
+    anyone. Never raises -- every caller used to hand-roll its own
+    version of this and at least two of them (RoomViewSet.scan_participant/
+    verify_access) called .get('user_id') assuming qr_data always parses
+    to a dict, which crashes with an unhandled AttributeError on the
+    now-current plain-number format instead of returning a clean error.
+    """
+    import json
+    from django.contrib.auth.models import User
+    from .models import Participant
+
+    if not qr_data:
+        return None
+
+    try:
+        parsed = json.loads(qr_data) if isinstance(qr_data, str) else qr_data
+    except (json.JSONDecodeError, TypeError):
+        parsed = qr_data
+
+    candidate = parsed.get('user_id') if isinstance(parsed, dict) else parsed
+    if candidate is None:
+        return None
+    candidate = str(candidate).strip()
+    if not candidate:
+        return None
+
+    if candidate.isdigit():
+        return User.objects.filter(id=candidate).first()
+
+    participant = Participant.objects.filter(badge_id=candidate).select_related('user').first()
+    return participant.user if participant else None
+
+
 def get_accessible_event_ids(user):
     """
     Event IDs a user can access, combining both membership models: staff-type

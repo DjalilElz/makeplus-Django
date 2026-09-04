@@ -271,21 +271,18 @@ class RoomViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Parse QR data
-            import json
-            qr_dict = json.loads(qr_data) if isinstance(qr_data, str) else qr_data
-            user_id = qr_dict.get('user_id')
-            
-            if not user_id:
+            # Accepts every QR format this app has ever printed (plain
+            # user_id, legacy badge_id, or old rich-JSON) -- see
+            # resolve_scanned_user's own docstring.
+            from .utils import resolve_scanned_user
+            user = resolve_scanned_user(qr_data)
+
+            if not user:
                 return Response({
                     'status': 'invalid',
-                    'message': 'Invalid QR code format'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Get user
-            from django.contrib.auth.models import User
-            user = User.objects.get(id=user_id)
-            
+                    'message': 'Invalid QR code - user not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+
             # Get participant profile
             participant = Participant.objects.filter(user=user).first()
             
@@ -309,7 +306,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                         'id': str(participant.id),
                         'name': user.get_full_name(),
                         'email': user.email,
-                        'badge_id': qr_dict.get('badge_id')
+                        'badge_id': participant.badge_id
                     }
                 }, status=status.HTTP_403_FORBIDDEN)
             
@@ -406,7 +403,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                     'id': str(participant.id),
                     'name': user.get_full_name(),
                     'email': user.email,
-                    'badge_id': qr_dict.get('badge_id')
+                    'badge_id': participant.badge_id
                 },
                 'room': {
                     'id': str(room.id),
@@ -422,23 +419,13 @@ class RoomViewSet(viewsets.ModelViewSet):
                 'total_free_items': len(free_items_list),
                 'has_access': True  # Participant always has access if registered for event
             })
-            
-        except User.DoesNotExist:
-            return Response({
-                'status': 'invalid',
-                'message': 'Invalid QR code - user not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-        except json.JSONDecodeError:
-            return Response({
-                'status': 'invalid',
-                'message': 'Invalid QR code format'
-            }, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
             return Response({
                 'status': 'error',
                 'message': f'Error: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
     @action(detail=False, methods=['post'], url_path='debug-transactions')
     def debug_transactions(self, request):
         """Debug endpoint to check participant transactions"""
@@ -535,21 +522,18 @@ class RoomViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Parse QR data (user-level QR code)
-            import json
-            qr_dict = json.loads(qr_data) if isinstance(qr_data, str) else qr_data
-            user_id = qr_dict.get('user_id')
-            
-            if not user_id:
+            # Accepts every QR format this app has ever printed (plain
+            # user_id, legacy badge_id, or old rich-JSON) -- see
+            # resolve_scanned_user's own docstring.
+            from .utils import resolve_scanned_user
+            user = resolve_scanned_user(qr_data)
+
+            if not user:
                 return Response({
                     'status': 'invalid',
-                    'message': 'Invalid QR code format'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Get user
-            from django.contrib.auth.models import User
-            user = User.objects.get(id=user_id)
-            
+                    'message': 'Invalid QR code - user not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+
             # Get session
             session = Session.objects.get(id=session_id)
             
@@ -599,7 +583,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                     'participant': {
                         'id': str(participant.id),
                         'name': user.get_full_name(),
-                        'badge_id': qr_dict.get('badge_id')
+                        'badge_id': participant.badge_id
                     }
                 }, status=status.HTTP_403_FORBIDDEN)
             
@@ -628,7 +612,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                         'participant': {
                             'id': str(participant.id),
                             'name': user.get_full_name(),
-                            'badge_id': qr_dict.get('badge_id')
+                            'badge_id': participant.badge_id
                         },
                         'session': {
                             'id': str(session.id),
@@ -654,7 +638,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                     'id': str(participant.id),
                     'name': user.get_full_name(),
                     'email': user.email,
-                    'badge_id': qr_dict.get('badge_id')
+                    'badge_id': participant.badge_id
                 },
                 'session': {
                     'id': str(session.id),
@@ -667,21 +651,11 @@ class RoomViewSet(viewsets.ModelViewSet):
                 }
             }, status=status.HTTP_200_OK)
             
-        except User.DoesNotExist:
-            return Response({
-                'status': 'invalid',
-                'message': 'Invalid QR code - user not found'
-            }, status=status.HTTP_404_NOT_FOUND)
         except Session.DoesNotExist:
             return Response({
                 'status': 'invalid',
                 'message': 'Session not found'
             }, status=status.HTTP_404_NOT_FOUND)
-        except json.JSONDecodeError:
-            return Response({
-                'status': 'invalid',
-                'message': 'Invalid QR code format'
-            }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({
                 'status': 'error',
@@ -840,18 +814,23 @@ class ParticipantViewSet(viewsets.ModelViewSet):
         if event_id:
             queryset = queryset.filter(events__id=event_id)
 
-        # Used by the exhibitor scanner to look up name/email/badge_id
-        # for a scanned user id before saving the visit -- the QR code
-        # only carries the id now, see dashboard/views.py _qr_display_payload.
-        # A badge printed before that convention (or any other garbage a
-        # camera might misread) sends something non-numeric here -- id is
-        # an integer column, so filtering on it directly raised an
-        # unhandled ValueError (500) instead of just matching nothing.
+        # Used by the exhibitor scanner to look up name/email/badge_id for
+        # a scanned badge before saving the visit -- the client sends
+        # whatever the QR decoded to, verbatim. Current badges encode the
+        # plain user_id (see dashboard/views.py's _qr_display_payload);
+        # anything non-numeric is a legacy badge_id (e.g.
+        # "USER-392-B9FDF0BC", what caisse's print_badge used to encode
+        # before it was fixed to match the format above) -- already-
+        # printed/handed-out badges still need to resolve rather than 500
+        # (id is an integer column; filtering it directly with a
+        # non-numeric string used to raise an unhandled ValueError) or
+        # silently match nothing.
         user_id = self.request.query_params.get('user_id')
         if user_id:
-            if not user_id.isdigit():
-                return queryset.none()
-            queryset = queryset.filter(user_id=user_id)
+            if user_id.isdigit():
+                queryset = queryset.filter(user_id=user_id)
+            else:
+                queryset = queryset.filter(badge_id=user_id)
 
         return queryset
     
@@ -886,34 +865,21 @@ class ParticipantViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # QR content is just the user id as plain text (see
-            # dashboard/views.py _qr_display_payload). Still accept the old
-            # rich-JSON format here so already-printed/downloaded badges
-            # from before this change keep scanning.
-            try:
-                parsed = json.loads(qr_data) if isinstance(qr_data, str) else qr_data
-            except (json.JSONDecodeError, TypeError):
-                parsed = qr_data
-            user_id = parsed.get('user_id') if isinstance(parsed, dict) else parsed
+            # Accepts every QR format this app has ever printed or shown:
+            # the current plain user_id (dashboard/views.py's
+            # _qr_display_payload), the legacy badge_id string that
+            # caisse's print_badge used to encode before it was fixed to
+            # match that format (already-printed/handed-out badges have
+            # to keep scanning), or the old rich-JSON payload.
+            from .utils import resolve_scanned_user
+            user = resolve_scanned_user(qr_data)
 
-            if not user_id:
+            if not user:
                 return Response({
                     'status': 'invalid',
-                    'message': 'Invalid QR code format - user_id missing'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                    'message': 'Invalid QR code - user not found'
+                }, status=status.HTTP_404_NOT_FOUND)
 
-            try:
-                user_id = int(user_id)
-            except (TypeError, ValueError):
-                return Response({
-                    'status': 'invalid',
-                    'message': 'Invalid QR code format'
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # Get user
-            from django.contrib.auth.models import User
-            user = User.objects.get(id=user_id)
-            
             # Get participant profile
             participant = Participant.objects.filter(user=user).first()
             
@@ -1083,17 +1049,7 @@ class ParticipantViewSet(viewsets.ModelViewSet):
                 'total_amount': total_amount,
                 'has_access': True  # Participant always has access if registered for event
             })
-            
-        except User.DoesNotExist:
-            return Response({
-                'status': 'invalid',
-                'message': 'Invalid QR code - user not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-        except json.JSONDecodeError:
-            return Response({
-                'status': 'invalid',
-                'message': 'Invalid QR code format'
-            }, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
             logger.error(f"[SCAN] Error: {str(e)}")
             return Response({
@@ -1449,8 +1405,6 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
     def scan_participant(self, request):
         """Scan a participant's QR code to record a booth visit"""
         try:
-            import json
-            
             # Get QR data and event ID
             qr_data = request.data.get('qr_data')
             event_id = request.data.get('event_id')
@@ -1462,24 +1416,13 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
             if not event_id:
                 return Response({'error': 'event_id is required'}, status=status.HTTP_400_BAD_REQUEST)
             
-            # QR content is just the user id as plain text (see
-            # dashboard/views.py _qr_display_payload). Still accept the old
-            # rich-JSON format so already-printed/downloaded badges from
-            # before this change keep scanning.
-            try:
-                parsed = json.loads(qr_data) if isinstance(qr_data, str) else qr_data
-            except (json.JSONDecodeError, TypeError):
-                parsed = qr_data
-            user_id = parsed.get('user_id') if isinstance(parsed, dict) else parsed
-
-            if not user_id:
-                return Response({'error': 'Invalid QR code format - user_id missing'}, status=status.HTTP_400_BAD_REQUEST)
-
-            try:
-                user_id = int(user_id)
-            except (TypeError, ValueError):
+            # Accepts every QR format this app has ever printed or shown --
+            # see resolve_scanned_user's own docstring.
+            from .utils import resolve_scanned_user
+            scanned_user = resolve_scanned_user(qr_data)
+            if not scanned_user:
                 return Response({'error': 'Invalid QR code format'}, status=status.HTTP_400_BAD_REQUEST)
-            
+
             # Get event
             try:
                 event = Event.objects.get(id=event_id)
@@ -1498,10 +1441,8 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
             
             # Get scanned participant
             try:
-                from django.contrib.auth.models import User
-                user = User.objects.get(id=user_id)
-                scanned_participant = Participant.objects.get(user=user)
-            except (Participant.DoesNotExist, User.DoesNotExist):
+                scanned_participant = Participant.objects.get(user=scanned_user)
+            except Participant.DoesNotExist:
                 return Response({'error': 'Participant not found'}, status=status.HTTP_404_NOT_FOUND)
             
             # Check if participant is registered for this event
@@ -1528,9 +1469,7 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsExposant])
     def export_excel(self, request):
         """Export all booth visits to Excel file"""
