@@ -1168,13 +1168,36 @@
                 }
             });
 
+            // Blocs already covered by anything else this transaction isn't
+            // re-pricing -- a fully-matched pending order being confirmed
+            // alongside a brand-new item, or an item already paid for in an
+            // earlier completed transaction -- so a new item's own
+            // discount tier reflects the participant's FULL combined
+            // selection, not just what's freshly checked in isolation.
+            // Matches process_transaction's own existing_blocs_covered,
+            // which also doesn't require a nonzero price here (only the
+            // NEW selection's own blocs need at least one payable item --
+            // see the newBlocsSeen loop below). Status never counts.
+            const existingBlocsCovered = new Set();
+            document.querySelectorAll('#payableItems input').forEach(function(cb) {
+                const id = parseInt(cb.value, 10);
+                const bloc = cb.getAttribute('data-bloc');
+                if (!bloc || bloc === 'status') return;
+                if (covered.has(id) || (cb.checked && cb.disabled)) {
+                    existingBlocsCovered.add(bloc);
+                }
+            });
+
             // Already-paid items (checked+disabled) are shown separately --
             // they're informational only, not part of what this transaction
             // will actually charge, so they no longer inflate the total.
             // Newly-picked bloc items (not part of an existing reservation)
             // get the same period%+bloc-count% discount the registration
             // form would apply, computed live across just this new group --
-            // plain (non-bloc) items are just added at face value.
+            // plain (non-bloc) items are just added at face value. A bloc
+            // only counts toward the NEW selection's own tier if it has at
+            // least one payable (nonzero-price) item, same as compute_order;
+            // Status never counts either way.
             let alreadyPaid = 0;
             let newBlocSubtotal = 0;
             const newBlocsSeen = new Set();
@@ -1189,7 +1212,7 @@
                 const bloc = checkbox.getAttribute('data-bloc');
                 if (bloc) {
                     newBlocSubtotal += price;
-                    newBlocsSeen.add(bloc);
+                    if (bloc !== 'status' && price > 0) newBlocsSeen.add(bloc);
                 } else {
                     newCharge += price;
                     newChargeBefore += price;
@@ -1197,7 +1220,7 @@
             });
 
             if (newBlocSubtotal > 0) {
-                const distinct = newBlocsSeen.size;
+                const distinct = new Set([...newBlocsSeen, ...existingBlocsCovered]).size;
                 const blocsPct = BLOCS_ENABLED ? (parseFloat(BLOC_PCT[distinct]) || 0) : 0;
                 let totalPct = blocsPct;
                 if (totalPct > 100) totalPct = 100;
