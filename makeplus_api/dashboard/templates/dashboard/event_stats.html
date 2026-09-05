@@ -17,7 +17,10 @@
         </div>
     </div>
 
-    <!-- Date range filter -- applies to every tab below (money, presence, scans) -->
+    <!-- Date + caisse filter -- date range applies to every tab below
+         (money, presence, scans); the caisse filter narrows the Aperçu
+         cards and the Transactions tab (presence/scans aren't tied to a
+         specific caisse station, so it doesn't apply to those). -->
     <div class="stat-card mb-4">
         <form method="get" class="row g-2 align-items-end">
             <div class="col-auto">
@@ -29,9 +32,20 @@
                 <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
             </div>
             <div class="col-auto">
+                <label class="form-label small text-muted mb-1" for="caisse_id">Caisse</label>
+                <select class="form-select" id="caisse_id" name="caisse_id">
+                    <option value="">Toutes les caisses</option>
+                    {% for caisse in caisses %}
+                    <option value="{{ caisse.id }}" {% if caisse_id == caisse.id|stringformat:"s" %}selected{% endif %}>
+                        {{ caisse.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrer</button>
             </div>
-            {% if date_from or date_to %}
+            {% if date_from or date_to or caisse_id %}
             <div class="col-auto">
                 <a href="{% url 'dashboard:event_stats' event.id %}" class="btn btn-outline-secondary">
                     <i class="bi bi-x-circle"></i> Réinitialiser
@@ -73,7 +87,7 @@
                     <div class="stat-card text-center">
                         <h6 class="text-muted mb-1">Montant total collecté</h6>
                         <h3 class="mb-0" style="color: #10b981;">{{ money_stats.total_amount|default:0|floatformat:2 }} DZD</h3>
-                        <small class="text-muted">toutes caisses confondues</small>
+                        <small class="text-muted">{% if selected_caisse %}{{ selected_caisse.name }}{% else %}toutes caisses confondues{% endif %}</small>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -218,6 +232,7 @@
                 <form method="get" class="row g-2 align-items-end">
                     <input type="hidden" name="date_from" value="{{ date_from }}">
                     <input type="hidden" name="date_to" value="{{ date_to }}">
+                    <input type="hidden" name="caisse_id" value="{{ caisse_id }}">
                     <div class="col-auto">
                         <label class="form-label small text-muted mb-1" for="scan_search">Rechercher un participant</label>
                         <input type="text" class="form-control" id="scan_search" name="scan_search"

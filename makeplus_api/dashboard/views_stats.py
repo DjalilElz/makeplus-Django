@@ -425,16 +425,27 @@ def event_stats(request, event_id):
     narrow it to a specific day/range.
     """
     from events.models import Event, ParticipantEventRegistration, ControllerScan, ExposantScan
-    from caisse.models import CaisseTransaction
+    from caisse.models import Caisse, CaisseTransaction
 
     event = get_object_or_404(Event, id=event_id)
     date_from, date_to, date_from_str, date_to_str = _parse_stats_date_range(request)
     scan_search = request.GET.get('scan_search', '').strip()
 
-    # ---- Money & transactions (every caisse station combined) ----
+    caisses = list(Caisse.objects.filter(event=event).order_by('name'))
+    caisse_id = request.GET.get('caisse_id', '').strip()
+    selected_caisse = None
+    if caisse_id:
+        selected_caisse = next((c for c in caisses if str(c.id) == caisse_id), None)
+        if not selected_caisse:
+            caisse_id = ''  # unknown/stale id -- fall back to "all caisses"
+
+    # ---- Money & transactions (every caisse station combined, unless one
+    # is selected in the filter bar) ----
+    transactions_qs = CaisseTransaction.objects.filter(caisse__event=event, status='completed')
+    if selected_caisse:
+        transactions_qs = transactions_qs.filter(caisse=selected_caisse)
     transactions_qs = _in_date_range(
-        CaisseTransaction.objects.filter(caisse__event=event, status='completed'),
-        'created_at', date_from, date_to,
+        transactions_qs, 'created_at', date_from, date_to,
     ).select_related('caisse', 'participant__user').prefetch_related('items')
 
     money_stats = transactions_qs.aggregate(
@@ -486,6 +497,9 @@ def event_stats(request, event_id):
         'date_from': date_from_str,
         'date_to': date_to_str,
         'scan_search': scan_search,
+        'caisses': caisses,
+        'caisse_id': caisse_id,
+        'selected_caisse': selected_caisse,
         'money_stats': money_stats,
         'per_caisse_stats': per_caisse_stats,
         'transactions': transactions_qs.order_by('-created_at')[:_EVENT_STATS_LIST_LIMIT],
