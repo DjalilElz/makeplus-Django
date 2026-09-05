@@ -36,6 +36,7 @@ from dashboard.models_email import get_event_email_template
 from events.models import Event, ParticipantEventRegistration, UserEventAssignment
 from .blocs_service import (
     compute_order, serialize_status_rules_for_period, serialize_period_baseline_rules,
+    apply_compute_result_to_pending_order,
 )
 from .models_blocs import RegistrationOrder
 from .views_blocs import get_public_bloc_context
@@ -782,20 +783,7 @@ def registration_order_blocs_save(request, order_id):
         # which also saves order's pricing fields itself.
         resync_confirmed_registration_order(order, result, edited_by=request.user)
     else:
-        order.period_id = result['active_period_id']
-        order.items_snapshot = result['snapshot']
-        order.subtotals = result['subtotals']
-        order.distinct_blocs_count = result['distinct_blocs_count']
-        order.total_before_reduction = result['total_before_reduction']
-        order.period_discount_percent = result['period_discount_percent']
-        order.blocs_discount_percent = result['blocs_discount_percent']
-        order.total_discount_percent = result['total_discount_percent']
-        order.total_after_reduction = result['total_after_reduction']
-        order.save(update_fields=[
-            'period', 'items_snapshot', 'subtotals', 'distinct_blocs_count',
-            'total_before_reduction', 'period_discount_percent', 'blocs_discount_percent',
-            'total_discount_percent', 'total_after_reduction',
-        ])
+        apply_compute_result_to_pending_order(order, result)
 
     return JsonResponse({'ok': True})
 

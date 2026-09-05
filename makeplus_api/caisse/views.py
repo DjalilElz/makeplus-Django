@@ -1350,6 +1350,111 @@ def reject_reservation(request):
     })
 
 
+@caisse_required
+@require_http_methods(["POST"])
+def modify_pending_order(request):
+    """
+    Let the caisse operator change what a NOT-YET-CONFIRMED participant
+    actually reserved -- e.g. swap one workshop for another, add/remove
+    a Social Event pack -- before processing/paying for it.
+    process_transaction requires every item bundled into the same order
+    to be confirmed together and has no way to change that bundle, so
+    without this, a participant whose reservation no longer matches what
+    they actually want (or what the caisse operator agrees to give them)
+    could never be confirmed at all.
+
+    Reuses the exact same compute_order() engine, cardinality rules
+    (single-select blocs, Status mandatory), and save path
+    (apply_compute_result_to_pending_order) as the event owner's own
+    "Modifier les blocs" editor (dashboard.views_event_owner.
+    registration_order_blocs_save) so pricing can never quietly drift
+    between the two. Deliberately refuses once the order is 'approved'
+    -- a confirmed order has real money/access effects (SessionAccess, a
+    completed CaisseTransaction) that only the event owner's own editor
+    is set up to safely resync; this is purely for a reservation that
+    hasn't been paid for yet.
+    """
+    from dashboard.models_blocs import RegistrationOrder
+    from dashboard.blocs_service import compute_order, apply_compute_result_to_pending_order
+    from dashboard.views_blocs import get_public_bloc_context
+
+    caisse = request.caisse
+
+    try:
+        data = json.loads(request.body)
+        participant_id = data.get('participant_id')
+        item_ids = data.get('items', [])
+    except json.JSONDecodeError:
+        participant_id = request.POST.get('participant_id')
+        item_ids = request.POST.getlist('items[]')
+
+    if not participant_id:
+        return JsonResponse({'success': False, 'message': 'Participant ID required'})
+
+    try:
+        participant = Participant.objects.get(id=participant_id)
+        if not participant.is_registered_for_event(caisse.event):
+            return JsonResponse({'success': False, 'message': 'Participant not registered for this event'})
+    except Participant.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Participant not found'})
+
+    order = RegistrationOrder.objects.filter(
+        event=caisse.event, participant=participant
+    ).exclude(status__in=['rejected', 'approved']).order_by('-created_at').first()
+    if not order:
+        return JsonResponse({
+            'success': False,
+            'message': 'This participant has no pending reservation to modify.'
+        })
+
+    bloc_context = get_public_bloc_context(caisse.event, include_inactive=True)
+    if not bloc_context:
+        return JsonResponse({
+            'success': False,
+            'message': "This event's registration options are no longer available."
+        })
+
+    items = PayableItem.objects.filter(
+        id__in=item_ids, event=caisse.event
+    ).select_related('bloc_item', 'session')
+
+    picked_by_bloc = {}
+    selected_session_ids = []
+    for item in items:
+        if item.bloc_item_id:
+            picked_by_bloc.setdefault(item.bloc_item.bloc, []).append(str(item.bloc_item_id))
+        elif item.session_id:
+            selected_session_ids.append(str(item.session_id))
+
+    selected_item_ids = []
+    errors = []
+    for bloc in bloc_context['custom_blocs']:
+        picked = picked_by_bloc.get(bloc['key'], [])
+        if bloc['select_mode'] == 'single' and len(picked) > 1:
+            errors.append(f"Veuillez sélectionner une seule option dans {bloc['label']}.")
+        if bloc['key'] == 'status' and len(picked) == 0:
+            errors.append(f"Veuillez sélectionner une option dans {bloc['label']}.")
+        selected_item_ids.extend(picked)
+
+    if errors:
+        return JsonResponse({'success': False, 'message': ' '.join(errors)})
+
+    result = compute_order(
+        event=caisse.event, config=bloc_context['config'],
+        selected_item_ids=selected_item_ids, selected_session_ids=selected_session_ids,
+        on_date=timezone.now().date(), include_inactive=True, period=order.period,
+        ignore_visibility_rules=True,
+    )
+    apply_compute_result_to_pending_order(order, result)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Reservation updated.',
+        'total_before_reduction': float(result['total_before_reduction']),
+        'total_after_reduction': float(result['total_after_reduction']),
+    })
+
+
 # ==================== Transaction History ====================
 
 @caisse_required

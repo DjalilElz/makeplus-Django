@@ -433,6 +433,9 @@
 
                         <div id="reservedSummary" class="alert alert-primary mb-3 py-2" style="display: none;">
                             <div id="reservedSummaryText"></div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="modifyReservationBtn" onclick="modifyPendingOrder()">
+                                Modifier l'inscription
+                            </button>
                             <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="rejectReservationBtn" onclick="rejectReservation()">
                                 Rejeter la réservation (preuve de paiement invalide)
                             </button>
@@ -1013,6 +1016,55 @@
                 }
             } catch (err) {
                 await customAlert('Échec du rejet de la réservation : ' + err, 'Erreur');
+            }
+        }
+
+        // Save whatever is currently checked in "Sélectionner les articles"
+        // as this participant's new reservation -- e.g. swapping one
+        // workshop for another -- before it's actually confirmed/paid.
+        // Only possible while the reservation is still pending: only
+        // shown inside #reservedSummary, which only appears for a
+        // pending reservation in the first place. Charges nothing by
+        // itself; "Traiter la transaction" afterwards confirms and
+        // collects whatever the updated selection now costs.
+        async function modifyPendingOrder() {
+            if (!selectedParticipantId) return;
+
+            const confirmed = await customConfirm(
+                'Enregistrer cette sélection comme la nouvelle réservation de ce participant ? '
+                + 'Cela remplace ce qu\'il avait choisi à l\'inscription. Rien n\'est facturé ici -- '
+                + 'utilisez "Traiter la transaction" ensuite pour confirmer et encaisser.',
+                'Modifier l\'inscription'
+            );
+            if (!confirmed) return;
+
+            // Excludes disabled (already separately paid) checkboxes --
+            // those belong to a completed transaction unrelated to this
+            // pending reservation and shouldn't get folded into it.
+            const selectedItems = Array.from(document.querySelectorAll('#payableItems input:checked:not(:disabled)'))
+                .map(cb => cb.value);
+
+            try {
+                const response = await fetch('{% url "caisse:modify_pending_order" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        participant_id: selectedParticipantId,
+                        items: selectedItems
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    await customAlert('Inscription mise à jour.', 'Succès');
+                    window.location.reload();
+                } else {
+                    await customAlert(data.message, 'Erreur');
+                }
+            } catch (err) {
+                await customAlert('Échec de la mise à jour de l\'inscription : ' + err, 'Erreur');
             }
         }
 

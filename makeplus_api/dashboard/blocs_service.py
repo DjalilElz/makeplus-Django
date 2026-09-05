@@ -293,6 +293,35 @@ def compute_order(
     }
 
 
+def apply_compute_result_to_pending_order(order, result):
+    """
+    Save a fresh compute_order() result onto a NOT-YET-APPROVED
+    RegistrationOrder -- the same fields the event owner's "Modifier les
+    blocs" editor writes for its non-approved branch
+    (dashboard.views_event_owner.registration_order_blocs_save), factored
+    out here so caisse's own "edit a still-pending reservation" action
+    (caisse.views.modify_pending_order) saves through the exact same
+    path instead of a second copy of this field list that could quietly
+    drift from it. Never call this on an 'approved' order -- that case
+    has real money/access effects and goes through
+    caisse.services.resync_confirmed_registration_order instead.
+    """
+    order.period_id = result['active_period_id']
+    order.items_snapshot = result['snapshot']
+    order.subtotals = result['subtotals']
+    order.distinct_blocs_count = result['distinct_blocs_count']
+    order.total_before_reduction = result['total_before_reduction']
+    order.period_discount_percent = result['period_discount_percent']
+    order.blocs_discount_percent = result['blocs_discount_percent']
+    order.total_discount_percent = result['total_discount_percent']
+    order.total_after_reduction = result['total_after_reduction']
+    order.save(update_fields=[
+        'period', 'items_snapshot', 'subtotals', 'distinct_blocs_count',
+        'total_before_reduction', 'period_discount_percent', 'blocs_discount_percent',
+        'total_discount_percent', 'total_after_reduction',
+    ])
+
+
 def _target_key(rule):
     return f"item_{rule.target_item_id}" if rule.target_kind == 'item' else f"session_{rule.target_session_id}"
 
