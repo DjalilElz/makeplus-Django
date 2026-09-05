@@ -3,13 +3,14 @@ Views for displaying email campaign and form analytics statistics.
 Provides Brevo-like interface for viewing detailed stats.
 """
 from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q, Avg, Sum, F
 from django.db.models.functions import Trunc
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime, time
 from .models_email import EmailCampaign, EmailRecipient, EmailLink, EmailClick, EmailOpen
 from .models_form import FormConfiguration, FormAnalytics, FormView, FormFieldInteraction
+from .views import is_staff_user
 
 
 @login_required
@@ -363,5 +364,140 @@ def form_list_with_stats(request):
     context = {
         'form_stats': form_stats,
     }
-    
+
     return render(request, 'dashboard/form_list_with_stats.html', context)
+
+
+# ==================== Event Stats (combined caisse/attendance/scans) ====================
+
+# Dashboard tables here (transactions, presence, scans) are display-only
+# overviews, not exports -- capped so a large event's history can't make
+# this page itself slow to render.
+_EVENT_STATS_LIST_LIMIT = 200
+
+
+def _parse_stats_date_range(request):
+    """
+    (date_from, date_to, date_from_str, date_to_str) from ?date_from=&date_to=
+    (YYYY-MM-DD, from an <input type="date">) -- date_from/date_to are
+    timezone-aware datetimes spanning the full day(s) so a filter of
+    "just today" doesn't miss anything from later in the day due to
+    truncating to midnight. Invalid/missing values fall back to no bound
+    (the empty string is also what re-populates the form's own inputs).
+    """
+    date_from_str = request.GET.get('date_from', '').strip()
+    date_to_str = request.GET.get('date_to', '').strip()
+    date_from = None
+    date_to = None
+    if date_from_str:
+        try:
+            date_from = timezone.make_aware(
+                datetime.combine(datetime.strptime(date_from_str, '%Y-%m-%d').date(), time.min)
+            )
+        except ValueError:
+            date_from_str = ''
+    if date_to_str:
+        try:
+            date_to = timezone.make_aware(
+                datetime.combine(datetime.strptime(date_to_str, '%Y-%m-%d').date(), time.max)
+            )
+        except ValueError:
+            date_to_str = ''
+    return date_from, date_to, date_from_str, date_to_str
+
+
+def _in_date_range(queryset, field, date_from, date_to):
+    if date_from:
+        queryset = queryset.filter(**{f'{field}__gte': date_from})
+    if date_to:
+        queryset = queryset.filter(**{f'{field}__lte': date_to})
+    return queryset
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def event_stats(request, event_id):
+    """
+    Combined, date-filterable view of everything happening at an event on
+    the ground: money collected across ALL caisses (not just one
+    station's own dashboard), who's actually present, and scan history --
+    previously scattered with no single place to see it all together or
+    narrow it to a specific day/range.
+    """
+    from events.models import Event, ParticipantEventRegistration, ControllerScan, ExposantScan
+    from caisse.models import CaisseTransaction
+
+    event = get_object_or_404(Event, id=event_id)
+    date_from, date_to, date_from_str, date_to_str = _parse_stats_date_range(request)
+    scan_search = request.GET.get('scan_search', '').strip()
+
+    # ---- Money & transactions (every caisse station combined) ----
+    transactions_qs = _in_date_range(
+        CaisseTransaction.objects.filter(caisse__event=event, status='completed'),
+        'created_at', date_from, date_to,
+    ).select_related('caisse', 'participant__user').prefetch_related('items')
+
+    money_stats = transactions_qs.aggregate(
+        total_amount=Sum('total_amount'),
+        transaction_count=Count('id'),
+        total_participants=Count('participant_id', distinct=True),
+    )
+    per_caisse_stats = transactions_qs.values('caisse_id', 'caisse__name').annotate(
+        total_amount=Sum('total_amount'),
+        transaction_count=Count('id'),
+        total_participants=Count('participant_id', distinct=True),
+    ).order_by('caisse__name')
+
+    # ---- Presence (event-wide check-in, from any caisse or badge scan) ----
+    presence_qs = _in_date_range(
+        ParticipantEventRegistration.objects.filter(event=event, is_checked_in=True),
+        'checked_in_at', date_from, date_to,
+    ).select_related('participant__user').order_by('-checked_in_at')
+    presence_count = presence_qs.count()
+    total_registered = ParticipantEventRegistration.objects.filter(event=event).count()
+
+    # ---- Scans (badge controllers + exhibitor booth visits), filterable
+    # by the same date range and by a specific participant ----
+    controller_scans_qs = _in_date_range(
+        ControllerScan.objects.filter(event=event), 'scanned_at', date_from, date_to,
+    ).select_related('controller')
+    exposant_scans_qs = _in_date_range(
+        ExposantScan.objects.filter(event=event), 'scanned_at', date_from, date_to,
+    ).select_related('exposant__user', 'scanned_participant__user')
+
+    if scan_search:
+        controller_scans_qs = controller_scans_qs.filter(
+            Q(participant_name__icontains=scan_search)
+            | Q(participant_email__icontains=scan_search)
+            | Q(badge_id__icontains=scan_search)
+        )
+        exposant_scans_qs = exposant_scans_qs.filter(
+            Q(scanned_participant__user__first_name__icontains=scan_search)
+            | Q(scanned_participant__user__last_name__icontains=scan_search)
+            | Q(scanned_participant__user__email__icontains=scan_search)
+            | Q(scanned_participant__badge_id__icontains=scan_search)
+        )
+
+    controller_scans_qs = controller_scans_qs.order_by('-scanned_at')
+    exposant_scans_qs = exposant_scans_qs.order_by('-scanned_at')
+
+    context = {
+        'event': event,
+        'date_from': date_from_str,
+        'date_to': date_to_str,
+        'scan_search': scan_search,
+        'money_stats': money_stats,
+        'per_caisse_stats': per_caisse_stats,
+        'transactions': transactions_qs.order_by('-created_at')[:_EVENT_STATS_LIST_LIMIT],
+        'transactions_total_count': money_stats['transaction_count'] or 0,
+        'transactions_truncated': (money_stats['transaction_count'] or 0) > _EVENT_STATS_LIST_LIMIT,
+        'presence_list': presence_qs[:_EVENT_STATS_LIST_LIMIT],
+        'presence_count': presence_count,
+        'presence_truncated': presence_count > _EVENT_STATS_LIST_LIMIT,
+        'total_registered': total_registered,
+        'controller_scans': controller_scans_qs[:_EVENT_STATS_LIST_LIMIT],
+        'controller_scans_count': controller_scans_qs.count(),
+        'exposant_scans': exposant_scans_qs[:_EVENT_STATS_LIST_LIMIT],
+        'exposant_scans_count': exposant_scans_qs.count(),
+    }
+    return render(request, 'dashboard/event_stats.html', context)

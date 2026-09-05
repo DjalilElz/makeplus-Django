@@ -1,0 +1,306 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Stats - {{ event.name }}{% endblock %}
+{% block page_title %}Stats{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-0">{{ event.name }}</h4>
+            <small class="text-muted">Statistiques combinées : caisses, présence et scans</small>
+        </div>
+        <div>
+            <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Retour à l'événement
+            </a>
+        </div>
+    </div>
+
+    <!-- Date range filter -- applies to every tab below (money, presence, scans) -->
+    <div class="stat-card mb-4">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small text-muted mb-1" for="date_from">Du</label>
+                <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
+            </div>
+            <div class="col-auto">
+                <label class="form-label small text-muted mb-1" for="date_to">Au</label>
+                <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrer</button>
+            </div>
+            {% if date_from or date_to %}
+            <div class="col-auto">
+                <a href="{% url 'dashboard:event_stats' event.id %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> Réinitialiser
+                </a>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="statsTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button">
+                <i class="bi bi-info-circle"></i> Aperçu
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="transactions-tab" data-bs-toggle="tab" data-bs-target="#transactions" type="button">
+                <i class="bi bi-cash-register"></i> Transactions ({{ transactions_total_count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="presence-tab" data-bs-toggle="tab" data-bs-target="#presence" type="button">
+                <i class="bi bi-person-check"></i> Présence ({{ presence_count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="scans-tab" data-bs-toggle="tab" data-bs-target="#scans" type="button">
+                <i class="bi bi-qr-code-scan"></i> Scans
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="statsTabsContent">
+        <!-- Overview -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel">
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="stat-card text-center">
+                        <h6 class="text-muted mb-1">Montant total collecté</h6>
+                        <h3 class="mb-0" style="color: #10b981;">{{ money_stats.total_amount|default:0|floatformat:2 }} DZD</h3>
+                        <small class="text-muted">toutes caisses confondues</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card text-center">
+                        <h6 class="text-muted mb-1">Transactions</h6>
+                        <h3 class="mb-0">{{ money_stats.transaction_count|default:0 }}</h3>
+                        <small class="text-muted">{{ money_stats.total_participants|default:0 }} participant(s) traité(s)</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card text-center">
+                        <h6 class="text-muted mb-1">Participants présents</h6>
+                        <h3 class="mb-0">{{ presence_count }}</h3>
+                        <small class="text-muted">sur {{ total_registered }} inscrit(s)</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card text-center">
+                        <h6 class="text-muted mb-1">Scans</h6>
+                        <h3 class="mb-0">{{ controller_scans_count|add:exposant_scans_count }}</h3>
+                        <small class="text-muted">{{ controller_scans_count }} contrôleurs · {{ exposant_scans_count }} exposants</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <h5 class="mb-3"><i class="bi bi-cash-register"></i> Détail par caisse</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Caisse</th>
+                                <th>Montant</th>
+                                <th>Transactions</th>
+                                <th>Participants</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in per_caisse_stats %}
+                            <tr>
+                                <td>{{ row.caisse__name }}</td>
+                                <td>{{ row.total_amount|floatformat:2 }} DZD</td>
+                                <td>{{ row.transaction_count }}</td>
+                                <td>{{ row.total_participants }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center text-muted py-4">Aucune transaction pour cette période</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transactions -->
+        <div class="tab-pane fade" id="transactions" role="tabpanel">
+            <div class="stat-card">
+                {% if transactions_truncated %}
+                <p class="text-muted small mb-3">
+                    <i class="bi bi-info-circle"></i>
+                    Affichage des {{ transactions|length }} transactions les plus récentes sur {{ transactions_total_count }} pour cette période.
+                </p>
+                {% endif %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Participant</th>
+                                <th>Caisse</th>
+                                <th>Articles</th>
+                                <th>Montant</th>
+                                <th>Méthode</th>
+                                <th>Heure</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for txn in transactions %}
+                            <tr>
+                                <td>
+                                    <strong>{{ txn.participant.user.get_full_name|default:txn.participant.user.username }}</strong><br>
+                                    <small class="text-muted">{{ txn.participant.user.email }}</small>
+                                </td>
+                                <td>{{ txn.caisse.name }}</td>
+                                <td>
+                                    <small>
+                                        {% for item in txn.items.all %}<span class="badge bg-secondary">{{ item.name }}</span>{% endfor %}
+                                    </small>
+                                </td>
+                                <td><span class="badge bg-success">{{ txn.total_amount }} DZD</span></td>
+                                <td>{{ txn.get_payment_method_display }}</td>
+                                <td><small class="text-muted">{{ txn.created_at|date:"d/m/Y H:i" }}</small></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-center text-muted py-4">Aucune transaction pour cette période</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Presence -->
+        <div class="tab-pane fade" id="presence" role="tabpanel">
+            <div class="stat-card">
+                {% if presence_truncated %}
+                <p class="text-muted small mb-3">
+                    <i class="bi bi-info-circle"></i>
+                    Affichage des {{ presence_list|length }} présences les plus récentes sur {{ presence_count }} pour cette période.
+                </p>
+                {% endif %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Participant</th>
+                                <th>Badge</th>
+                                <th>Présent depuis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for reg in presence_list %}
+                            <tr>
+                                <td>
+                                    <strong>{{ reg.participant.user.get_full_name|default:reg.participant.user.username }}</strong><br>
+                                    <small class="text-muted">{{ reg.participant.user.email }}</small>
+                                </td>
+                                <td><small class="text-muted">{{ reg.participant.badge_id }}</small></td>
+                                <td><small class="text-muted">{{ reg.checked_in_at|date:"d/m/Y H:i" }}</small></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="text-center text-muted py-4">Aucun participant présent pour cette période</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scans -->
+        <div class="tab-pane fade" id="scans" role="tabpanel">
+            <div class="stat-card mb-4">
+                <form method="get" class="row g-2 align-items-end">
+                    <input type="hidden" name="date_from" value="{{ date_from }}">
+                    <input type="hidden" name="date_to" value="{{ date_to }}">
+                    <div class="col-auto">
+                        <label class="form-label small text-muted mb-1" for="scan_search">Rechercher un participant</label>
+                        <input type="text" class="form-control" id="scan_search" name="scan_search"
+                               value="{{ scan_search }}" placeholder="Nom, e-mail ou badge...">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Rechercher</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="stat-card mb-4">
+                <h5 class="mb-3"><i class="bi bi-person-badge"></i> Scans des contrôleurs de badges ({{ controller_scans_count }})</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Participant</th>
+                                <th>Badge</th>
+                                <th>Contrôleur</th>
+                                <th>Statut</th>
+                                <th>Heure</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for scan in controller_scans %}
+                            <tr>
+                                <td>
+                                    <strong>{{ scan.participant_name }}</strong><br>
+                                    <small class="text-muted">{{ scan.participant_email }}</small>
+                                </td>
+                                <td><small class="text-muted">{{ scan.badge_id }}</small></td>
+                                <td>{{ scan.controller.get_full_name|default:scan.controller.username }}</td>
+                                <td>
+                                    {% if scan.status == 'success' %}
+                                        <span class="badge bg-success">Succès</span>
+                                    {% elif scan.status == 'not_registered' %}
+                                        <span class="badge bg-warning text-dark">Non inscrit</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Erreur</span>
+                                    {% endif %}
+                                </td>
+                                <td><small class="text-muted">{{ scan.scanned_at|date:"d/m/Y H:i" }}</small></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center text-muted py-4">Aucun scan pour ces critères</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <h5 class="mb-3"><i class="bi bi-shop"></i> Scans des exposants ({{ exposant_scans_count }})</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Participant scanné</th>
+                                <th>Exposant</th>
+                                <th>Notes</th>
+                                <th>Heure</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for scan in exposant_scans %}
+                            <tr>
+                                <td>
+                                    <strong>{{ scan.scanned_participant.user.get_full_name|default:scan.scanned_participant.user.username }}</strong><br>
+                                    <small class="text-muted">{{ scan.scanned_participant.user.email }}</small>
+                                </td>
+                                <td>{{ scan.exposant.user.get_full_name|default:scan.exposant.user.username }}</td>
+                                <td><small class="text-muted">{{ scan.notes|default:"—" }}</small></td>
+                                <td><small class="text-muted">{{ scan.scanned_at|date:"d/m/Y H:i" }}</small></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center text-muted py-4">Aucun scan pour ces critères</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

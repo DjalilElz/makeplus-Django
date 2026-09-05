@@ -64,6 +64,11 @@
             </a>
         </li>
         <li class="nav-item" role="presentation">
+            <a href="{% url 'dashboard:event_stats' event.id %}" class="nav-link">
+                <i class="bi bi-graph-up"></i> Stats
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
             <a href="{% url 'dashboard:contributions_dashboard' event.id %}" class="nav-link">
                 <i class="bi bi-file-earmark-text"></i> Contributions scientifiques
             </a>

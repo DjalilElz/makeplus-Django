@@ -163,6 +163,9 @@ urlpatterns = [
     path('contributions/<uuid:event_id>/settings/', views_eposter_management.eposter_form_settings, name='contributions_form_settings'),
     path('contributions/copy/<uuid:source_event_id>/<uuid:target_event_id>/', views_eposter_management.eposter_copy_settings, name='contributions_copy_settings'),
     
+    # Combined caisse/attendance/scans stats - Event Specific
+    path('events/<uuid:event_id>/stats/', views_stats.event_stats, name='event_stats'),
+
     # Scientific Contributions Management - Event Specific
     path('events/<uuid:event_id>/contributions/', views_eposter_dashboard.eposter_dashboard, name='contributions_dashboard'),
     path('events/<uuid:event_id>/contributions/submissions/', views_eposter_dashboard.eposter_submissions_list, name='contributions_submissions_list'),
