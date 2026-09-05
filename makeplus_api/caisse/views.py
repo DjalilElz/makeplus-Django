@@ -267,6 +267,23 @@ def _participant_snapshot_prices_bulk(participants, event, key_to_payable_ids):
     return prices_result, status_result
 
 
+def _mark_participant_present(participant, event):
+    """
+    Set the same event-wide check-in flag/timestamp the event owner's own
+    participant list already shows (events.models.ParticipantEventRegistration
+    .is_checked_in/checked_in_at) -- this is deliberately the one shared
+    signal for "has this person physically shown up", not a caisse-only
+    concept, so a caisse action and a controller's badge scan both feed
+    the same place. Only writes if not already checked in, so an earlier
+    genuine arrival timestamp (e.g. from a badge scan at the door) is
+    never overwritten by a later caisse visit.
+    """
+    from events.models import ParticipantEventRegistration
+    ParticipantEventRegistration.objects.filter(
+        participant=participant, event=event, is_checked_in=False
+    ).update(is_checked_in=True, checked_in_at=timezone.now())
+
+
 def caisse_required(view_func):
     """Decorator to check if caisse is logged in"""
     def wrapper(request, *args, **kwargs):
@@ -644,7 +661,18 @@ def caisse_dashboard(request):
     recent_transactions = caisse.transactions.filter(
         status='completed'
     ).select_related('participant__user').prefetch_related('items').order_by('-created_at')[:10]
-    
+
+    # Everyone checked in for this event -- from a completed transaction
+    # here (any amount, including 0 DZD) or an explicit "Marquer comme
+    # présent" click (see _mark_participant_present), same as a badge
+    # controller's scan at the door would set. Event-wide, not scoped to
+    # this one caisse station, since it's really "who has shown up",
+    # not "who this specific counter processed".
+    from events.models import ParticipantEventRegistration
+    presence_list = ParticipantEventRegistration.objects.filter(
+        event=event, is_checked_in=True
+    ).select_related('participant__user').order_by('-checked_in_at')[:10]
+
     context = {
         'caisse': caisse,
         'event': event,
@@ -664,7 +692,8 @@ def caisse_dashboard(request):
         'status_catalog_json': json.dumps(status_catalog),
         'blocs_enabled_json': json.dumps(blocs_enabled),
         'bloc_pct_json': json.dumps(bloc_pct),
-        'recent_transactions': recent_transactions
+        'recent_transactions': recent_transactions,
+        'presence_list': presence_list,
     }
     
     return render(request, 'caisse/dashboard.html', context)
@@ -816,9 +845,36 @@ def process_transaction(request):
             'action': 'print_badge'
         })
     
-    # For process and process_and_print, items are required
+    # For process and process_and_print, items are normally required -- but
+    # a participant with nothing left to confirm (everything they
+    # registered is already paid/confirmed, or they never selected
+    # anything at all) isn't an error case, they're just here to be
+    # marked present: no CaisseTransaction, just the same check-in
+    # flag/timestamp the event owner's own participant list already
+    # shows. If they actually DO still have something pending that
+    # simply wasn't selected, refuse instead of silently skipping it --
+    # this button never substitutes for a real confirmation.
     if not item_ids:
-        return JsonResponse({'success': False, 'message': 'Please select at least one item'})
+        pending = _pending_orders_with_payable_ids(participant, caisse.event)
+        if pending:
+            pending_payable_ids = set()
+            for _, ids in pending:
+                pending_payable_ids |= ids
+            pending_names = list(
+                PayableItem.objects.filter(id__in=pending_payable_ids).values_list('name', flat=True)
+            )
+            return JsonResponse({
+                'success': False,
+                'message': 'This participant still has a pending reservation to confirm: '
+                + ', '.join(pending_names)
+            })
+        _mark_participant_present(participant, caisse.event)
+        return JsonResponse({
+            'success': True,
+            'message': 'Participant marked present',
+            'action': action,
+            'marked_present_only': True,
+        })
     
     # Get items and calculate total
     items = PayableItem.objects.filter(id__in=item_ids, event=caisse.event, is_active=True)
@@ -1159,6 +1215,11 @@ def process_transaction(request):
                 order.reviewed_by_caisse = caisse
                 order.reviewed_at = timezone.now()
                 order.save(update_fields=['status', 'reviewed_by_caisse', 'reviewed_at'])
+
+            # A completed transaction -- paid or 0 DZD, doesn't matter --
+            # means this participant is physically at the counter right
+            # now, same as clicking "Marquer comme présent" directly.
+            _mark_participant_present(participant, caisse.event)
 
             logger.info(f"[CAISSE] ✅ Transaction {transaction.id} created successfully")
             logger.info(f"[CAISSE] Participant: {participant.user.email}")

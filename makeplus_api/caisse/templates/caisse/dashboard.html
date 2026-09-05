@@ -621,6 +621,50 @@
                 </div>
             </div>
         </div>
+
+        <!-- Presence -->
+        <div class="row mt-4 mb-4">
+            <div class="col-12">
+                <div class="stat-card">
+                    <h5 class="mb-3">
+                        Présence
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Participant</th>
+                                    <th>Badge</th>
+                                    <th>Heure</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for reg in presence_list %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ reg.participant.user.get_full_name|default:reg.participant.user.username }}</strong><br>
+                                        <small class="text-muted">{{ reg.participant.user.email }}</small>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ reg.participant.badge_id }}</small>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ reg.checked_in_at|date:"d/m/Y H:i" }}</small>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">
+                                        Aucun participant présent pour le moment
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -1105,8 +1149,31 @@
                 beforeReductionRow.style.display = 'none';
                 reductionRow.style.display = 'none';
             }
+
+            updateActionButtons();
         }
-        
+
+        // A checked, non-disabled item is something that still genuinely
+        // needs confirming -- reserved-but-unpaid, or freshly added by the
+        // operator -- even if its price is 0 DZD (a free item still needs
+        // its own real confirmation, see process_transaction). Only when
+        // NOTHING like that is checked (everything is either already paid
+        // or nothing is selected at all) is there truly nothing left to
+        // process, and the buttons switch to just marking presence.
+        function updateActionButtons() {
+            const hasActionableItem = document.querySelectorAll('#payableItems input:checked:not(:disabled)').length > 0;
+            const processBtn = document.querySelector('button[onclick="processTransaction(\'process\')"]');
+            const processPrintBtn = document.querySelector('button[onclick="processTransaction(\'process_and_print\')"]');
+            if (processBtn) {
+                processBtn.textContent = hasActionableItem ? 'Traiter la transaction' : 'Marquer comme présent';
+            }
+            if (processPrintBtn) {
+                processPrintBtn.textContent = hasActionableItem
+                    ? 'Traiter et imprimer le badge'
+                    : 'Marquer comme présent et imprimer le badge';
+            }
+        }
+
         // Process transaction
         function processTransaction(action) {
             if (!selectedParticipantId) {
@@ -1114,16 +1181,15 @@
                 return;
             }
             
-            // For print_badge action, no items need to be selected
+            // For print_badge action, no items need to be selected. For
+            // process/process_and_print, an empty selection is no longer
+            // an error here -- it's the "Marquer comme présent" case (see
+            // updateActionButtons), and the server decides whether that's
+            // actually valid (nothing pending) or must be refused (a real
+            // reservation was left unconfirmed).
             const selectedItems = Array.from(document.querySelectorAll('#payableItems input:checked:not(:disabled)'))
                 .map(cb => cb.value);
-            
-            // Validate items for process and process_and_print actions
-            if ((action === 'process' || action === 'process_and_print') && selectedItems.length === 0) {
-                customAlert('Veuillez sélectionner au moins un article à traiter', 'Erreur');
-                return;
-            }
-            
+
             const notes = document.getElementById('notes').value;
             
             // Find which button was clicked and disable it
@@ -1191,7 +1257,11 @@
 
                     // Show success message
                     let message = 'Action effectuée avec succès !';
-                    if (action === 'process') {
+                    if (data.marked_present_only) {
+                        message = action === 'process_and_print'
+                            ? 'Participant marqué présent ! Fenêtre d\'impression ouverte !'
+                            : 'Participant marqué présent !';
+                    } else if (action === 'process') {
                         message = 'Transaction traitée avec succès ! Accès accordé.';
                     } else if (action === 'print_badge') {
                         message = 'Fenêtre d\'impression ouverte !';
