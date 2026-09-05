@@ -606,6 +606,13 @@ def caisse_dashboard(request):
                     'discount_percent': str(order.total_discount_percent),
                     'total_after': str(order.total_after_reduction),
                     'payable_ids': list(pending_ids),
+                    # Whether this reservation was ever actually paid for
+                    # (a real bank receipt on file) -- if not, confirming
+                    # it collects real cash right now and must say so
+                    # instead of claiming it's "already paid by bank
+                    # transfer" (see process_transaction's receipt_file
+                    # check for the matching server-side fix).
+                    'has_receipt': bool(order.receipt_file),
                 }
                 for order, pending_ids in pending_orders
             ]
@@ -878,8 +885,24 @@ def process_transaction(request):
     bank_transfer_amount = Decimal('0')
     bank_transfer_before = Decimal('0')
     bank_transfer_item_ids = set()
+    # A reservation with no receipt_file was never actually paid for --
+    # either this event doesn't require payment proof at all
+    # (EventBlocConfig.require_payment_proof=False) or the item was free
+    # when they registered. Confirming it here is the participant's FIRST
+    # real payment, collected as cash right now -- it must NOT be treated
+    # like a genuine bank-transfer reservation (money already received
+    # elsewhere, excluded from what this transaction records), or a real
+    # cash payment silently gets recorded as 0. Charged at the exact
+    # amount already quoted to the operator/participant
+    # (order.total_after_reduction) rather than a fresh live recompute
+    # that could drift from what was promised (e.g. a pricing period
+    # changing between registration and the caisse visit).
+    unpaid_order_amount = Decimal('0')
+    unpaid_order_before = Decimal('0')
+    unpaid_order_item_ids = set()
     fully_confirmed_orders = []
     bank_transfer_breakdown_parts = []
+    unpaid_order_breakdown_parts = []
     incomplete_order_errors = []
     for order, pending_ids in pending_orders:
         if not (pending_ids & selected_ids):
@@ -894,9 +917,6 @@ def process_transaction(request):
                 "(reserved together in the same registration and discounted as one)."
             )
             continue
-        bank_transfer_amount += order.total_after_reduction
-        bank_transfer_before += order.total_before_reduction
-        bank_transfer_item_ids |= pending_ids
         fully_confirmed_orders.append(order)
 
         detail = f"{order.total_before_reduction} DZD"
@@ -911,7 +931,17 @@ def process_transaction(request):
                 reduction += f" ({' + '.join(pieces)})"
             detail += f" {reduction}"
         detail += f" -> {order.total_after_reduction} DZD"
-        bank_transfer_breakdown_parts.append(detail)
+
+        if order.receipt_file:
+            bank_transfer_amount += order.total_after_reduction
+            bank_transfer_before += order.total_before_reduction
+            bank_transfer_item_ids |= pending_ids
+            bank_transfer_breakdown_parts.append(detail)
+        else:
+            unpaid_order_amount += order.total_after_reduction
+            unpaid_order_before += order.total_before_reduction
+            unpaid_order_item_ids |= pending_ids
+            unpaid_order_breakdown_parts.append(detail)
 
     if incomplete_order_errors:
         return JsonResponse({
@@ -919,8 +949,12 @@ def process_transaction(request):
             'message': 'Cannot process transaction:\n' + '\n'.join(incomplete_order_errors)
         })
 
-    cash_items = [item for item in items if item.id not in bank_transfer_item_ids]
+    cash_items = [
+        item for item in items
+        if item.id not in bank_transfer_item_ids and item.id not in unpaid_order_item_ids
+    ]
     bank_transfer_items = [item for item in items if item.id in bank_transfer_item_ids]
+    unpaid_order_items = [item for item in items if item.id in unpaid_order_item_ids]
 
     # New bloc items the operator adds today (not part of any existing
     # reservation) are treated the same as if picked on the registration
@@ -1041,7 +1075,12 @@ def process_transaction(request):
             plain_cash_items.extend(new_bloc_keys.values())
 
     plain_cash_amount = sum((item.price for item in plain_cash_items), Decimal('0'))
-    cash_amount = recomputed_bloc_amount + plain_cash_amount
+    # unpaid_order_amount is real cash being collected for the first time
+    # right now (see the receipt_file check above) -- it belongs in the
+    # recorded total exactly like plain_cash_amount, unlike a genuine
+    # bank-transfer reservation (bank_transfer_amount), whose money was
+    # already received before this visit.
+    cash_amount = recomputed_bloc_amount + plain_cash_amount + unpaid_order_amount
 
     # What the caisse operator actually collects right now. Confirming an
     # existing bank-transfer reservation doesn't put any new money in the
@@ -1054,7 +1093,7 @@ def process_transaction(request):
     # stays fully auditable in the transaction's own notes below.
     recorded_amount = cash_amount
 
-    if bank_transfer_items and cash_items:
+    if bank_transfer_items and (cash_items or unpaid_order_items):
         payment_method = 'mixed'
     elif bank_transfer_items:
         payment_method = 'bank_transfer'
@@ -1066,6 +1105,12 @@ def process_transaction(request):
         method_note_parts.append(
             f"Paid via bank transfer (registration receipt): {'; '.join(bank_transfer_breakdown_parts)}. Items: "
             + ", ".join(i.name for i in bank_transfer_items)
+        )
+    if unpaid_order_items:
+        method_note_parts.append(
+            f"Reservation confirmed and paid in cash at the counter (no prior receipt), "
+            f"{'; '.join(unpaid_order_breakdown_parts)}. Items: "
+            + ", ".join(i.name for i in unpaid_order_items)
         )
     if recomputed_bloc_items:
         method_note_parts.append(
@@ -1180,7 +1225,7 @@ def process_transaction(request):
     # Mirrors recorded_amount above -- the confirmation the cashier sees
     # must show the same number that just got saved, not the combined
     # figure including whatever was already paid by bank transfer.
-    total_before_reduction = recomputed_bloc_before + plain_cash_amount
+    total_before_reduction = recomputed_bloc_before + plain_cash_amount + unpaid_order_before
     return JsonResponse({
         'success': True,
         'message': 'Transaction processed successfully',

@@ -916,7 +916,14 @@
                     html += '<div>Réduction : aucune</div>';
                 }
 
-                html += `<div>Montant après réduction (déjà payé par virement bancaire) : `
+                // Only claim this was already paid by bank transfer when a
+                // real receipt is actually on file -- otherwise this is the
+                // participant's first real payment, collected as cash right
+                // now (see process_transaction's receipt_file check).
+                const afterLabel = order.has_receipt
+                    ? 'Montant après réduction (déjà payé par virement bancaire)'
+                    : 'Montant après réduction (à payer maintenant en espèces)';
+                html += `<div>${afterLabel} : `
                     + `<strong>${fmtPrice(parseFloat(order.total_after))}</strong></div>`;
                 return `<div class="mb-2">${html}</div>`;
             });
