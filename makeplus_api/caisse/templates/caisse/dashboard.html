@@ -433,11 +433,21 @@
 
                         <div id="reservedSummary" class="alert alert-primary mb-3 py-2" style="display: none;">
                             <div id="reservedSummaryText"></div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="modifyReservationBtn" onclick="modifyPendingOrder()">
-                                Modifier l'inscription
-                            </button>
                             <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="rejectReservationBtn" onclick="rejectReservation()">
                                 Rejeter la réservation (preuve de paiement invalide)
+                            </button>
+                        </div>
+
+                        <!-- Shown for ANY registration that isn't confirmed yet
+                             (pending/reserved/to_contact/to_recontact) -- not
+                             only when something is currently flagged as
+                             needing confirmation, since a not-yet-confirmed
+                             registration can still be modified even when
+                             nothing about it is showing as "pending" right
+                             this moment (see participantEditableOrderIds). -->
+                        <div id="modifyOrderBox" class="mb-3" style="display: none;">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="modifyReservationBtn" onclick="modifyPendingOrder()">
+                                Modifier l'inscription
                             </button>
                         </div>
 
@@ -693,6 +703,11 @@
         // doesn't (it only has their already-reserved items).
         const participantStatusIdData = {{ participant_status_ids_json|safe }};
         const statusCatalogData = {{ status_catalog_json|safe }};
+        // Participant ids whose latest registration order isn't 'approved'
+        // yet -- controls "Modifier l'inscription", independent of
+        // whether anything is currently flagged as a pending reservation
+        // to confirm (see modify_pending_order in caisse/views.py).
+        const participantEditableOrderIds = new Set({{ participant_editable_order_ids_json|safe }});
         // Same discount config the registration form uses (dashboard/blocs_service.py
         // compute_order): bloc-count % only (capped at 100), applied to newly-selected
         // bloc items so the live preview matches what actually gets charged. No period
@@ -842,7 +857,10 @@
             document.getElementById('participantNameInline').textContent = name;
             document.getElementById('participantDetails').style.display = 'block';
             document.getElementById('noParticipantSelected').style.display = 'none';
-            
+
+            document.getElementById('modifyOrderBox').style.display =
+                participantEditableOrderIds.has(id) ? 'block' : 'none';
+
             // Reset all items first, including price badges back to the
             // generic catalog price -- see applyParticipantItemPrices below
             // for why they can be overridden per participant.
@@ -1022,11 +1040,12 @@
         // Save whatever is currently checked in "Sélectionner les articles"
         // as this participant's new reservation -- e.g. swapping one
         // workshop for another -- before it's actually confirmed/paid.
-        // Only possible while the reservation is still pending: only
-        // shown inside #reservedSummary, which only appears for a
-        // pending reservation in the first place. Charges nothing by
-        // itself; "Traiter la transaction" afterwards confirms and
-        // collects whatever the updated selection now costs.
+        // Shown (see #modifyOrderBox in selectParticipant) for ANY
+        // registration that isn't 'approved' yet, not only when
+        // something is currently flagged as needing confirmation right
+        // now. Charges nothing by itself; "Traiter la transaction"
+        // afterwards confirms and collects whatever the updated
+        // selection now costs.
         async function modifyPendingOrder() {
             if (!selectedParticipantId) return;
 

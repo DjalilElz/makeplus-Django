@@ -638,6 +638,24 @@ def caisse_dashboard(request):
         all_participants, event, key_to_payable_ids
     )
 
+    # Participants whose latest (non-rejected) registration order isn't
+    # 'approved' yet -- i.e. anything still editable via "Modifier
+    # l'inscription" (modify_pending_order), regardless of whether any
+    # of its items currently show as "pending confirmation" specifically.
+    # A registration can be 'pending'/'reserved'/'to_contact'/
+    # 'to_recontact' and still have nothing left to confirm right now
+    # (all handled elsewhere) yet still be exactly the kind of not-yet-
+    # confirmed registration this button is for.
+    from dashboard.models_blocs import RegistrationOrder as _RegistrationOrder
+    latest_order_status_by_participant = {}
+    for order in _RegistrationOrder.objects.filter(
+        event=event, participant_id__in=[p.id for p in all_participants]
+    ).exclude(status='rejected').order_by('-created_at').only('participant_id', 'status'):
+        latest_order_status_by_participant.setdefault(order.participant_id, order.status)
+    participant_editable_order_ids = [
+        str(pid) for pid, status in latest_order_status_by_participant.items() if status != 'approved'
+    ]
+
     # For every distinct Status actually present among these participants,
     # the live catalog price/visibility resolved AS that Status -- lets the
     # caisse show the correct price for an item outside a participant's own
@@ -690,6 +708,7 @@ def caisse_dashboard(request):
         'participant_item_prices_json': json.dumps(participant_item_prices),
         'participant_status_ids_json': json.dumps(participant_status_ids),
         'status_catalog_json': json.dumps(status_catalog),
+        'participant_editable_order_ids_json': json.dumps(participant_editable_order_ids),
         'blocs_enabled_json': json.dumps(blocs_enabled),
         'bloc_pct_json': json.dumps(bloc_pct),
         'recent_transactions': recent_transactions,
@@ -1398,13 +1417,19 @@ def modify_pending_order(request):
     except Participant.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Participant not found'})
 
+    # The participant's actual latest submission, whatever its status --
+    # checked AFTER picking it, not before. Excluding 'approved'/
+    # 'rejected' from the filter first (as this used to) could pick an
+    # older, already-superseded order instead of correctly recognizing
+    # that the real, current one is already confirmed.
     order = RegistrationOrder.objects.filter(
         event=caisse.event, participant=participant
-    ).exclude(status__in=['rejected', 'approved']).order_by('-created_at').first()
-    if not order:
+    ).exclude(status='rejected').order_by('-created_at').first()
+    if not order or order.status == 'approved':
         return JsonResponse({
             'success': False,
-            'message': 'This participant has no pending reservation to modify.'
+            'message': 'This participant has no editable registration '
+            '(either nothing registered, or it is already confirmed).'
         })
 
     bloc_context = get_public_bloc_context(caisse.event, include_inactive=True)
