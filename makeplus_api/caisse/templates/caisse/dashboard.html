@@ -858,8 +858,15 @@
             document.getElementById('participantDetails').style.display = 'block';
             document.getElementById('noParticipantSelected').style.display = 'none';
 
-            document.getElementById('modifyOrderBox').style.display =
-                participantEditableOrderIds.has(id) ? 'block' : 'none';
+            // Either signal means there's something to modify: the order's
+            // own status isn't 'approved' yet, OR (order.status can be
+            // stale 'approved' from an old admin-review flow even when
+            // its items were never actually confirmed by a real
+            // transaction -- see _pending_orders_with_payable_ids's own
+            // docstring) it still has a genuinely unconfirmed item.
+            const hasEditableOrder = participantEditableOrderIds.has(id)
+                || (participantReservedSummaryData[id] || []).length > 0;
+            document.getElementById('modifyOrderBox').style.display = hasEditableOrder ? 'block' : 'none';
 
             // Reset all items first, including price badges back to the
             // generic catalog price -- see applyParticipantItemPrices below

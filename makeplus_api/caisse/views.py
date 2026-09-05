@@ -1425,7 +1425,18 @@ def modify_pending_order(request):
     order = RegistrationOrder.objects.filter(
         event=caisse.event, participant=participant
     ).exclude(status='rejected').order_by('-created_at').first()
-    if not order or order.status == 'approved':
+    # order.status can be stale 'approved' from an old admin-review flow
+    # even when none of its items were ever actually confirmed by a real
+    # CaisseTransaction (see _pending_orders_with_payable_ids's own
+    # docstring -- the caisse dashboard/process_transaction already treat
+    # "confirmed" this same way, not by trusting status alone). So a
+    # status of 'approved' only actually blocks editing here when there
+    # is also nothing left pending for this participant -- otherwise
+    # it's safe, nothing real has happened to these items yet.
+    still_editable = order and (
+        order.status != 'approved' or bool(_pending_orders_with_payable_ids(participant, caisse.event))
+    )
+    if not still_editable:
         return JsonResponse({
             'success': False,
             'message': 'This participant has no editable registration '
