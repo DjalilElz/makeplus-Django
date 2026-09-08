@@ -6,6 +6,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q, Avg, Sum, F
 from django.db.models.functions import Trunc
+from django.http import HttpResponse
 from django.utils import timezone
 from datetime import timedelta, datetime, time
 from .models_email import EmailCampaign, EmailRecipient, EmailLink, EmailClick, EmailOpen
@@ -378,12 +379,16 @@ _EVENT_STATS_LIST_LIMIT = 200
 
 def _parse_stats_date_range(request):
     """
-    (date_from, date_to, date_from_str, date_to_str) from ?date_from=&date_to=
-    (YYYY-MM-DD, from an <input type="date">) -- date_from/date_to are
-    timezone-aware datetimes spanning the full day(s) so a filter of
-    "just today" doesn't miss anything from later in the day due to
-    truncating to midnight. Invalid/missing values fall back to no bound
-    (the empty string is also what re-populates the form's own inputs).
+    (date_from, date_to, date_from_str, date_to_str) from ?date_from=&date_to=,
+    submitted by an <input type="datetime-local"> so the filter can narrow
+    to an exact hour/minute ("between X and Y"), not just a whole day.
+    date_from/date_to come back as exact timezone-aware instants (no
+    start/end-of-day padding) since the input already carries a time.
+    A bare YYYY-MM-DD (an older bookmarked link, or a browser that only
+    submits a date) is still accepted and expanded to the full day so
+    those links keep working. Invalid/missing values fall back to no
+    bound (the empty string is also what re-populates the form's own
+    inputs).
     """
     date_from_str = request.GET.get('date_from', '').strip()
     date_to_str = request.GET.get('date_to', '').strip()
@@ -391,18 +396,24 @@ def _parse_stats_date_range(request):
     date_to = None
     if date_from_str:
         try:
-            date_from = timezone.make_aware(
-                datetime.combine(datetime.strptime(date_from_str, '%Y-%m-%d').date(), time.min)
-            )
+            date_from = timezone.make_aware(datetime.strptime(date_from_str, '%Y-%m-%dT%H:%M'))
         except ValueError:
-            date_from_str = ''
+            try:
+                date_from = timezone.make_aware(
+                    datetime.combine(datetime.strptime(date_from_str, '%Y-%m-%d').date(), time.min)
+                )
+            except ValueError:
+                date_from_str = ''
     if date_to_str:
         try:
-            date_to = timezone.make_aware(
-                datetime.combine(datetime.strptime(date_to_str, '%Y-%m-%d').date(), time.max)
-            )
+            date_to = timezone.make_aware(datetime.strptime(date_to_str, '%Y-%m-%dT%H:%M'))
         except ValueError:
-            date_to_str = ''
+            try:
+                date_to = timezone.make_aware(
+                    datetime.combine(datetime.strptime(date_to_str, '%Y-%m-%d').date(), time.max)
+                )
+            except ValueError:
+                date_to_str = ''
     return date_from, date_to, date_from_str, date_to_str
 
 
@@ -414,22 +425,21 @@ def _in_date_range(queryset, field, date_from, date_to):
     return queryset
 
 
-@login_required
-@user_passes_test(is_staff_user)
-def event_stats(request, event_id):
+def _gather_event_stats(request, event):
     """
-    Combined, date-filterable view of everything happening at an event on
-    the ground: money collected across ALL caisses (not just one
-    station's own dashboard), who's actually present, and scan history --
-    previously scattered with no single place to see it all together or
-    narrow it to a specific day/range.
+    Shared filter + query logic for the Stats page and its PDF/Excel
+    exports, so an export always matches exactly what's on screen for the
+    same filters (date range/hour, caisse, presence search, scan search).
+    Returns unsliced querysets -- the page caps list sizes for render
+    speed (_EVENT_STATS_LIST_LIMIT), the exports don't, since an export is
+    explicitly asked for the full detail.
     """
-    from events.models import Event, ParticipantEventRegistration, ControllerScan, ExposantScan
+    from events.models import ParticipantEventRegistration, ControllerScan, ExposantScan
     from caisse.models import Caisse, CaisseTransaction
 
-    event = get_object_or_404(Event, id=event_id)
     date_from, date_to, date_from_str, date_to_str = _parse_stats_date_range(request)
     scan_search = request.GET.get('scan_search', '').strip()
+    presence_search = request.GET.get('presence_search', '').strip()
 
     caisses = list(Caisse.objects.filter(event=event).order_by('name'))
     caisse_id = request.GET.get('caisse_id', '').strip()
@@ -441,40 +451,80 @@ def event_stats(request, event_id):
 
     # ---- Money & transactions (every caisse station combined, unless one
     # is selected in the filter bar) ----
-    transactions_qs = CaisseTransaction.objects.filter(caisse__event=event, status='completed')
+    # NOTE: the per-caisse .values().annotate() grouping below must run
+    # against an UN-ordered queryset -- Django folds order_by() fields into
+    # GROUP BY for a .values().annotate() call, which would silently break
+    # the grouping (one row per transaction instead of per caisse) if
+    # '-created_at' were applied first. The list(...) call materializes it
+    # immediately, so reordering the queryset afterwards for display is safe.
+    transactions_base_qs = CaisseTransaction.objects.filter(caisse__event=event, status='completed')
     if selected_caisse:
-        transactions_qs = transactions_qs.filter(caisse=selected_caisse)
-    transactions_qs = _in_date_range(
-        transactions_qs, 'created_at', date_from, date_to,
-    ).select_related('caisse', 'participant__user').prefetch_related('items')
+        transactions_base_qs = transactions_base_qs.filter(caisse=selected_caisse)
+    transactions_base_qs = _in_date_range(transactions_base_qs, 'created_at', date_from, date_to)
 
-    money_stats = transactions_qs.aggregate(
+    money_stats = transactions_base_qs.aggregate(
         total_amount=Sum('total_amount'),
         transaction_count=Count('id'),
         total_participants=Count('participant_id', distinct=True),
     )
-    per_caisse_stats = transactions_qs.values('caisse_id', 'caisse__name').annotate(
+    per_caisse_stats = list(transactions_base_qs.values('caisse_id', 'caisse__name').annotate(
         total_amount=Sum('total_amount'),
         transaction_count=Count('id'),
         total_participants=Count('participant_id', distinct=True),
-    ).order_by('caisse__name')
+    ).order_by('caisse__name'))
 
-    # ---- Presence (event-wide check-in, from any caisse or badge scan) ----
+    transactions_qs = transactions_base_qs.select_related(
+        'caisse', 'participant__user',
+    ).prefetch_related('items').order_by('-created_at')
+
+    # ---- Presence (event-wide check-in, from any caisse or badge scan),
+    # optionally narrowed to a participant by name/e-mail/badge ----
     presence_qs = _in_date_range(
         ParticipantEventRegistration.objects.filter(event=event, is_checked_in=True),
         'checked_in_at', date_from, date_to,
-    ).select_related('participant__user').order_by('-checked_in_at')
+    ).select_related('participant__user')
+    if presence_search:
+        presence_qs = presence_qs.filter(
+            Q(participant__user__first_name__icontains=presence_search)
+            | Q(participant__user__last_name__icontains=presence_search)
+            | Q(participant__user__email__icontains=presence_search)
+            | Q(participant__badge_id__icontains=presence_search)
+        )
+    presence_qs = presence_qs.order_by('-checked_in_at')
     presence_count = presence_qs.count()
     total_registered = ParticipantEventRegistration.objects.filter(event=event).count()
 
     # ---- Scans (badge controllers + exhibitor booth visits), filterable
-    # by the same date range and by a specific participant ----
+    # by the same date range, by a specific scanned participant, and by
+    # WHICH controller/exposant did the scanning ----
+    controller_id = request.GET.get('controller_id', '').strip()
+    exposant_id = request.GET.get('exposant_id', '').strip()
+
+    # Dropdown options are the controllers/exposants who actually have scan
+    # history for this event (not every assigned controller/exposant) --
+    # anyone with zero scans has nothing to filter down to anyway.
+    controller_options = list(
+        ControllerScan.objects.filter(event=event).select_related('controller')
+        .values('controller_id', 'controller__first_name', 'controller__last_name', 'controller__username')
+        .distinct().order_by('controller__first_name', 'controller__last_name')
+    )
+    exposant_options = list(
+        ExposantScan.objects.filter(event=event).select_related('exposant__user')
+        .values('exposant_id', 'exposant__user__first_name', 'exposant__user__last_name', 'exposant__user__username')
+        .distinct().order_by('exposant__user__first_name', 'exposant__user__last_name')
+    )
+
     controller_scans_qs = _in_date_range(
         ControllerScan.objects.filter(event=event), 'scanned_at', date_from, date_to,
     ).select_related('controller')
     exposant_scans_qs = _in_date_range(
         ExposantScan.objects.filter(event=event), 'scanned_at', date_from, date_to,
     ).select_related('exposant__user', 'scanned_participant__user')
+
+    if controller_id:
+        controller_scans_qs = controller_scans_qs.filter(controller_id=controller_id)
+    if exposant_id:
+        exposant_scans_qs = exposant_scans_qs.filter(exposant_id=exposant_id)
 
     if scan_search:
         controller_scans_qs = controller_scans_qs.filter(
@@ -492,26 +542,350 @@ def event_stats(request, event_id):
     controller_scans_qs = controller_scans_qs.order_by('-scanned_at')
     exposant_scans_qs = exposant_scans_qs.order_by('-scanned_at')
 
+    return {
+        'date_from_str': date_from_str, 'date_to_str': date_to_str,
+        'scan_search': scan_search, 'presence_search': presence_search,
+        'caisses': caisses, 'caisse_id': caisse_id, 'selected_caisse': selected_caisse,
+        'money_stats': money_stats, 'per_caisse_stats': per_caisse_stats,
+        'transactions_qs': transactions_qs,
+        'presence_qs': presence_qs, 'presence_count': presence_count, 'total_registered': total_registered,
+        'controller_scans_qs': controller_scans_qs, 'exposant_scans_qs': exposant_scans_qs,
+        'controller_id': controller_id, 'exposant_id': exposant_id,
+        'controller_options': controller_options, 'exposant_options': exposant_options,
+    }
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def event_stats(request, event_id):
+    """
+    Combined, date-filterable view of everything happening at an event on
+    the ground: money collected across ALL caisses (not just one
+    station's own dashboard), who's actually present, and scan history --
+    previously scattered with no single place to see it all together or
+    narrow it to a specific day/hour range.
+    """
+    from events.models import Event
+
+    event = get_object_or_404(Event, id=event_id)
+    data = _gather_event_stats(request, event)
+
+    transactions_qs = data['transactions_qs']
+    transaction_count = data['money_stats']['transaction_count'] or 0
+    controller_scans_qs = data['controller_scans_qs']
+    exposant_scans_qs = data['exposant_scans_qs']
+
     context = {
         'event': event,
-        'date_from': date_from_str,
-        'date_to': date_to_str,
-        'scan_search': scan_search,
-        'caisses': caisses,
-        'caisse_id': caisse_id,
-        'selected_caisse': selected_caisse,
-        'money_stats': money_stats,
-        'per_caisse_stats': per_caisse_stats,
-        'transactions': transactions_qs.order_by('-created_at')[:_EVENT_STATS_LIST_LIMIT],
-        'transactions_total_count': money_stats['transaction_count'] or 0,
-        'transactions_truncated': (money_stats['transaction_count'] or 0) > _EVENT_STATS_LIST_LIMIT,
-        'presence_list': presence_qs[:_EVENT_STATS_LIST_LIMIT],
-        'presence_count': presence_count,
-        'presence_truncated': presence_count > _EVENT_STATS_LIST_LIMIT,
-        'total_registered': total_registered,
+        'date_from': data['date_from_str'],
+        'date_to': data['date_to_str'],
+        'scan_search': data['scan_search'],
+        'presence_search': data['presence_search'],
+        'controller_id': data['controller_id'],
+        'exposant_id': data['exposant_id'],
+        'controller_options': data['controller_options'],
+        'exposant_options': data['exposant_options'],
+        'caisses': data['caisses'],
+        'caisse_id': data['caisse_id'],
+        'selected_caisse': data['selected_caisse'],
+        'money_stats': data['money_stats'],
+        'per_caisse_stats': data['per_caisse_stats'],
+        'transactions': transactions_qs[:_EVENT_STATS_LIST_LIMIT],
+        'transactions_total_count': transaction_count,
+        'transactions_truncated': transaction_count > _EVENT_STATS_LIST_LIMIT,
+        'presence_list': data['presence_qs'][:_EVENT_STATS_LIST_LIMIT],
+        'presence_count': data['presence_count'],
+        'presence_truncated': data['presence_count'] > _EVENT_STATS_LIST_LIMIT,
+        'total_registered': data['total_registered'],
         'controller_scans': controller_scans_qs[:_EVENT_STATS_LIST_LIMIT],
         'controller_scans_count': controller_scans_qs.count(),
         'exposant_scans': exposant_scans_qs[:_EVENT_STATS_LIST_LIMIT],
         'exposant_scans_count': exposant_scans_qs.count(),
+        'export_querystring': request.GET.urlencode(),
     }
     return render(request, 'dashboard/event_stats.html', context)
+
+
+def _stats_period_label(data):
+    return f"{data['date_from_str'] or 'depuis le début'} → {data['date_to_str'] or 'aujourd’hui'}"
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def event_stats_export_excel(request, event_id):
+    """
+    Full-detail Excel export of the Stats page for the exact filters
+    currently applied -- one workbook, one sheet per tab, uncapped (the
+    on-page tables cap at _EVENT_STATS_LIST_LIMIT for render speed; an
+    export is explicitly asked for everything).
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from events.models import Event
+
+    event = get_object_or_404(Event, id=event_id)
+    data = _gather_event_stats(request, event)
+    money_stats = data['money_stats']
+
+    header_fill = PatternFill(start_color="2D1B6B", end_color="2D1B6B", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin'),
+    )
+
+    def _write_header(ws, row_num, headers):
+        for col, label in enumerate(headers, start=1):
+            cell = ws.cell(row=row_num, column=col, value=label)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+
+    def _write_sheet(ws, headers, rows):
+        _write_header(ws, 1, headers)
+        for row in rows:
+            ws.append(row)
+        for col in range(1, len(headers) + 1):
+            ws.column_dimensions[get_column_letter(col)].width = 24
+
+    wb = Workbook()
+
+    # ---- Aperçu ----
+    ws = wb.active
+    ws.title = "Aperçu"
+    ws.append(["Événement", event.name])
+    ws.append(["Période", _stats_period_label(data)])
+    ws.append(["Caisse", data['selected_caisse'].name if data['selected_caisse'] else 'Toutes les caisses'])
+    ws.append([])
+    ws.append(["Montant total collecté (DZD)", float(money_stats['total_amount'] or 0)])
+    ws.append(["Transactions", money_stats['transaction_count'] or 0])
+    ws.append(["Participants traités", money_stats['total_participants'] or 0])
+    ws.append(["Participants présents", data['presence_count']])
+    ws.append(["Total inscrits", data['total_registered']])
+    ws.append([])
+    header_row = ws.max_row + 1
+    _write_header(ws, header_row, ["Caisse", "Montant (DZD)", "Transactions", "Participants"])
+    total_amount = 0.0
+    total_txn = 0
+    for row in data['per_caisse_stats']:
+        amount = float(row['total_amount'] or 0)
+        ws.append([row['caisse__name'], amount, row['transaction_count'], row['total_participants']])
+        total_amount += amount
+        total_txn += row['transaction_count']
+    ws.append(["TOTAL", total_amount, total_txn, money_stats['total_participants'] or 0])
+    for col in range(1, 5):
+        ws.cell(row=ws.max_row, column=col).font = Font(bold=True)
+        ws.column_dimensions[get_column_letter(col)].width = 26
+
+    # ---- Transactions ----
+    rows = []
+    for txn in data['transactions_qs']:
+        items = ', '.join(i.name for i in txn.items.all())
+        rows.append([
+            txn.participant.user.get_full_name() or txn.participant.user.username,
+            txn.participant.user.email,
+            txn.caisse.name,
+            items,
+            float(txn.total_amount),
+            txn.get_payment_method_display(),
+            timezone.localtime(txn.created_at).strftime('%d/%m/%Y %H:%M'),
+        ])
+    _write_sheet(
+        wb.create_sheet("Transactions"),
+        ["Participant", "E-mail", "Caisse", "Articles", "Montant (DZD)", "Méthode", "Heure"], rows,
+    )
+
+    # ---- Présence ----
+    rows = []
+    for reg in data['presence_qs']:
+        rows.append([
+            reg.participant.user.get_full_name() or reg.participant.user.username,
+            reg.participant.user.email,
+            reg.participant.badge_id,
+            timezone.localtime(reg.checked_in_at).strftime('%d/%m/%Y %H:%M') if reg.checked_in_at else '',
+        ])
+    _write_sheet(wb.create_sheet("Présence"), ["Participant", "E-mail", "Badge", "Présent depuis"], rows)
+
+    # ---- Scans contrôleurs ----
+    rows = []
+    for scan in data['controller_scans_qs']:
+        rows.append([
+            scan.participant_name, scan.participant_email, scan.badge_id,
+            scan.controller.get_full_name() or scan.controller.username,
+            scan.get_status_display(),
+            timezone.localtime(scan.scanned_at).strftime('%d/%m/%Y %H:%M'),
+        ])
+    _write_sheet(
+        wb.create_sheet("Scans contrôleurs"),
+        ["Participant", "E-mail", "Badge", "Contrôleur", "Statut", "Heure"], rows,
+    )
+
+    # ---- Scans exposants ----
+    rows = []
+    for scan in data['exposant_scans_qs']:
+        rows.append([
+            scan.scanned_participant.user.get_full_name() or scan.scanned_participant.user.username,
+            scan.scanned_participant.user.email,
+            scan.exposant.user.get_full_name() or scan.exposant.user.username,
+            scan.notes or '',
+            timezone.localtime(scan.scanned_at).strftime('%d/%m/%Y %H:%M'),
+        ])
+    _write_sheet(
+        wb.create_sheet("Scans exposants"),
+        ["Participant scanné", "E-mail", "Exposant", "Notes", "Heure"], rows,
+    )
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="stats_{event.name}_{timezone.now().date()}.xlsx"'
+    wb.save(response)
+    return response
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def event_stats_export_pdf(request, event_id):
+    """
+    Full-detail PDF export of the Stats page, same filters/data as the
+    Excel export -- landscape A4 so the wider tables (transactions, scans)
+    stay readable; each table auto-paginates across pages.
+    """
+    from io import BytesIO
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+    from events.models import Event
+
+    event = get_object_or_404(Event, id=event_id)
+    data = _gather_event_stats(request, event)
+    money_stats = data['money_stats']
+    styles = getSampleStyleSheet()
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        topMargin=15 * mm, bottomMargin=15 * mm, leftMargin=12 * mm, rightMargin=12 * mm,
+    )
+    elements = [
+        Paragraph(f"Statistiques — {event.name}", styles['Title']),
+        Paragraph(
+            f"Période : {_stats_period_label(data)} &nbsp;&nbsp;|&nbsp;&nbsp; "
+            f"Caisse : {data['selected_caisse'].name if data['selected_caisse'] else 'Toutes les caisses'}",
+            styles['Normal'],
+        ),
+        Spacer(1, 8),
+    ]
+
+    summary_table = Table([
+        ["Montant total collecté", f"{float(money_stats['total_amount'] or 0):.2f} DZD"],
+        ["Transactions", str(money_stats['transaction_count'] or 0)],
+        ["Participants traités", str(money_stats['total_participants'] or 0)],
+        ["Participants présents", f"{data['presence_count']} / {data['total_registered']}"],
+    ], colWidths=[220, 160])
+    summary_table.setStyle(TableStyle([
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#2D1B6B')),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.white),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 14))
+
+    def _section(title, headers, rows, empty_message):
+        elements.append(Paragraph(title, styles['Heading2']))
+        if not rows:
+            elements.append(Paragraph(empty_message, styles['Italic']))
+            elements.append(Spacer(1, 10))
+            return
+        table = Table([headers] + rows, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2D1B6B')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 14))
+
+    per_caisse_rows = []
+    total_amount = 0.0
+    total_txn = 0
+    for row in data['per_caisse_stats']:
+        amount = float(row['total_amount'] or 0)
+        per_caisse_rows.append([row['caisse__name'], f"{amount:.2f} DZD", str(row['transaction_count']), str(row['total_participants'])])
+        total_amount += amount
+        total_txn += row['transaction_count']
+    per_caisse_rows.append(["TOTAL", f"{total_amount:.2f} DZD", str(total_txn), str(money_stats['total_participants'] or 0)])
+    _section(
+        "Détail par caisse", ["Caisse", "Montant", "Transactions", "Participants"],
+        per_caisse_rows, "Aucune transaction pour cette période.",
+    )
+
+    elements.append(PageBreak())
+    txn_rows = []
+    for txn in data['transactions_qs']:
+        items = ', '.join(i.name for i in txn.items.all())
+        txn_rows.append([
+            txn.participant.user.get_full_name() or txn.participant.user.username,
+            txn.caisse.name, items, f"{float(txn.total_amount):.2f} DZD",
+            txn.get_payment_method_display(),
+            timezone.localtime(txn.created_at).strftime('%d/%m/%Y %H:%M'),
+        ])
+    _section(
+        "Transactions", ["Participant", "Caisse", "Articles", "Montant", "Méthode", "Heure"],
+        txn_rows, "Aucune transaction pour cette période.",
+    )
+
+    presence_rows = []
+    for reg in data['presence_qs']:
+        presence_rows.append([
+            reg.participant.user.get_full_name() or reg.participant.user.username,
+            reg.participant.badge_id,
+            timezone.localtime(reg.checked_in_at).strftime('%d/%m/%Y %H:%M') if reg.checked_in_at else '',
+        ])
+    _section(
+        "Présence", ["Participant", "Badge", "Présent depuis"],
+        presence_rows, "Aucun participant présent pour cette période.",
+    )
+
+    controller_rows = []
+    for scan in data['controller_scans_qs']:
+        controller_rows.append([
+            scan.participant_name, scan.badge_id,
+            scan.controller.get_full_name() or scan.controller.username,
+            scan.get_status_display(),
+            timezone.localtime(scan.scanned_at).strftime('%d/%m/%Y %H:%M'),
+        ])
+    _section(
+        "Scans des contrôleurs de badges", ["Participant", "Badge", "Contrôleur", "Statut", "Heure"],
+        controller_rows, "Aucun scan pour ces critères.",
+    )
+
+    exposant_rows = []
+    for scan in data['exposant_scans_qs']:
+        exposant_rows.append([
+            scan.scanned_participant.user.get_full_name() or scan.scanned_participant.user.username,
+            scan.exposant.user.get_full_name() or scan.exposant.user.username,
+            scan.notes or '',
+            timezone.localtime(scan.scanned_at).strftime('%d/%m/%Y %H:%M'),
+        ])
+    _section(
+        "Scans des exposants", ["Participant scanné", "Exposant", "Notes", "Heure"],
+        exposant_rows, "Aucun scan pour ces critères.",
+    )
+
+    doc.build(elements)
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="stats_{event.name}_{timezone.now().date()}.pdf"'
+    return response

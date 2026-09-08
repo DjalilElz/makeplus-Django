@@ -10,26 +10,37 @@
             <h4 class="mb-0">{{ event.name }}</h4>
             <small class="text-muted">Statistiques combinées : caisses, présence et scans</small>
         </div>
-        <div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'dashboard:event_stats_export_excel' event.id %}?{{ export_querystring }}" class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-excel"></i> Exporter Excel
+            </a>
+            <a href="{% url 'dashboard:event_stats_export_pdf' event.id %}?{{ export_querystring }}" class="btn btn-outline-danger">
+                <i class="bi bi-file-earmark-pdf"></i> Exporter PDF
+            </a>
             <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Retour à l'événement
             </a>
         </div>
     </div>
 
-    <!-- Date + caisse filter -- date range applies to every tab below
-         (money, presence, scans); the caisse filter narrows the Aperçu
-         cards and the Transactions tab (presence/scans aren't tied to a
-         specific caisse station, so it doesn't apply to those). -->
+    <!-- Date/heure + caisse filter -- the range applies to every tab below
+         (money, presence, scans) down to the minute (datetime-local, not
+         just a whole day); the caisse filter narrows the Aperçu cards and
+         the Transactions tab (presence/scans aren't tied to a specific
+         caisse station, so it doesn't apply to those). -->
     <div class="stat-card mb-4">
         <form method="get" class="row g-2 align-items-end">
+            <input type="hidden" name="scan_search" value="{{ scan_search }}">
+            <input type="hidden" name="presence_search" value="{{ presence_search }}">
+            <input type="hidden" name="controller_id" value="{{ controller_id }}">
+            <input type="hidden" name="exposant_id" value="{{ exposant_id }}">
             <div class="col-auto">
                 <label class="form-label small text-muted mb-1" for="date_from">Du</label>
-                <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
+                <input type="datetime-local" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
             </div>
             <div class="col-auto">
                 <label class="form-label small text-muted mb-1" for="date_to">Au</label>
-                <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
+                <input type="datetime-local" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
             </div>
             <div class="col-auto">
                 <label class="form-label small text-muted mb-1" for="caisse_id">Caisse</label>
@@ -45,7 +56,7 @@
             <div class="col-auto">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrer</button>
             </div>
-            {% if date_from or date_to or caisse_id %}
+            {% if date_from or date_to or caisse_id or scan_search or presence_search or controller_id or exposant_id %}
             <div class="col-auto">
                 <a href="{% url 'dashboard:event_stats' event.id %}" class="btn btn-outline-secondary">
                     <i class="bi bi-x-circle"></i> Réinitialiser
@@ -115,6 +126,9 @@
 
             <div class="stat-card">
                 <h5 class="mb-3"><i class="bi bi-cash-register"></i> Détail par caisse</h5>
+                <p class="text-muted small mb-2">
+                    <i class="bi bi-info-circle"></i> Cliquez sur une caisse pour voir ses transactions dans l'onglet Transactions.
+                </p>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -128,7 +142,10 @@
                         <tbody>
                             {% for row in per_caisse_stats %}
                             <tr>
-                                <td>{{ row.caisse__name }}</td>
+                                <td>
+                                    <a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ row.caisse_id }}&scan_search={{ scan_search|urlencode }}&presence_search={{ presence_search|urlencode }}&controller_id={{ controller_id|urlencode }}&exposant_id={{ exposant_id|urlencode }}#transactions"
+                                       class="stats-caisse-link">{{ row.caisse__name }}</a>
+                                </td>
                                 <td>{{ row.total_amount|floatformat:2 }} DZD</td>
                                 <td>{{ row.transaction_count }}</td>
                                 <td>{{ row.total_participants }}</td>
@@ -137,6 +154,16 @@
                             <tr><td colspan="4" class="text-center text-muted py-4">Aucune transaction pour cette période</td></tr>
                             {% endfor %}
                         </tbody>
+                        {% if per_caisse_stats %}
+                        <tfoot>
+                            <tr class="fw-bold">
+                                <td>TOTAL</td>
+                                <td>{{ money_stats.total_amount|default:0|floatformat:2 }} DZD</td>
+                                <td>{{ money_stats.transaction_count|default:0 }}</td>
+                                <td>{{ money_stats.total_participants|default:0 }}</td>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
                     </table>
                 </div>
             </div>
@@ -191,6 +218,30 @@
 
         <!-- Presence -->
         <div class="tab-pane fade" id="presence" role="tabpanel">
+            <div class="stat-card mb-4">
+                <form method="get" class="row g-2 align-items-end">
+                    <input type="hidden" name="date_from" value="{{ date_from }}">
+                    <input type="hidden" name="date_to" value="{{ date_to }}">
+                    <input type="hidden" name="caisse_id" value="{{ caisse_id }}">
+                    <input type="hidden" name="scan_search" value="{{ scan_search }}">
+                    <input type="hidden" name="controller_id" value="{{ controller_id }}">
+                    <input type="hidden" name="exposant_id" value="{{ exposant_id }}">
+                    <div class="col-auto">
+                        <label class="form-label small text-muted mb-1" for="presence_search">Rechercher un participant</label>
+                        <input type="text" class="form-control" id="presence_search" name="presence_search"
+                               value="{{ presence_search }}" placeholder="Nom, e-mail ou badge...">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Rechercher</button>
+                    </div>
+                    {% if presence_search %}
+                    <div class="col-auto">
+                        <a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ caisse_id|urlencode }}&scan_search={{ scan_search|urlencode }}&controller_id={{ controller_id|urlencode }}&exposant_id={{ exposant_id|urlencode }}#presence"
+                           class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Effacer</a>
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
             <div class="stat-card">
                 {% if presence_truncated %}
                 <p class="text-muted small mb-3">
@@ -233,14 +284,43 @@
                     <input type="hidden" name="date_from" value="{{ date_from }}">
                     <input type="hidden" name="date_to" value="{{ date_to }}">
                     <input type="hidden" name="caisse_id" value="{{ caisse_id }}">
+                    <input type="hidden" name="presence_search" value="{{ presence_search }}">
                     <div class="col-auto">
-                        <label class="form-label small text-muted mb-1" for="scan_search">Rechercher un participant</label>
+                        <label class="form-label small text-muted mb-1" for="scan_search">Participant scanné</label>
                         <input type="text" class="form-control" id="scan_search" name="scan_search"
                                value="{{ scan_search }}" placeholder="Nom, e-mail ou badge...">
                     </div>
                     <div class="col-auto">
+                        <label class="form-label small text-muted mb-1" for="controller_id">Contrôleur</label>
+                        <select class="form-select" id="controller_id" name="controller_id">
+                            <option value="">Tous les contrôleurs</option>
+                            {% for c in controller_options %}
+                            <option value="{{ c.controller_id }}" {% if controller_id == c.controller_id|stringformat:"s" %}selected{% endif %}>
+                                {{ c.controller__first_name }} {{ c.controller__last_name }}{% if not c.controller__first_name and not c.controller__last_name %}{{ c.controller__username }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label small text-muted mb-1" for="exposant_id">Exposant</label>
+                        <select class="form-select" id="exposant_id" name="exposant_id">
+                            <option value="">Tous les exposants</option>
+                            {% for e in exposant_options %}
+                            <option value="{{ e.exposant_id }}" {% if exposant_id == e.exposant_id|stringformat:"s" %}selected{% endif %}>
+                                {{ e.exposant__user__first_name }} {{ e.exposant__user__last_name }}{% if not e.exposant__user__first_name and not e.exposant__user__last_name %}{{ e.exposant__user__username }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-auto">
                         <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Rechercher</button>
                     </div>
+                    {% if scan_search or controller_id or exposant_id %}
+                    <div class="col-auto">
+                        <a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ caisse_id|urlencode }}&presence_search={{ presence_search|urlencode }}#scans"
+                           class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Effacer</a>
+                    </div>
+                    {% endif %}
                 </form>
             </div>
 
@@ -318,4 +398,19 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Jump straight to a tab (e.g. clicking a caisse in "Détail par caisse"
+// links to #transactions) instead of always landing back on Aperçu.
+document.addEventListener('DOMContentLoaded', function () {
+    var hash = window.location.hash;
+    if (!hash) return;
+    var trigger = document.querySelector('#statsTabs button[data-bs-target="' + hash + '"]');
+    if (trigger) {
+        new bootstrap.Tab(trigger).show();
+    }
+});
+</script>
 {% endblock %}

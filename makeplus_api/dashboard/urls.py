@@ -165,6 +165,8 @@ urlpatterns = [
     
     # Combined caisse/attendance/scans stats - Event Specific
     path('events/<uuid:event_id>/stats/', views_stats.event_stats, name='event_stats'),
+    path('events/<uuid:event_id>/stats/export/excel/', views_stats.event_stats_export_excel, name='event_stats_export_excel'),
+    path('events/<uuid:event_id>/stats/export/pdf/', views_stats.event_stats_export_pdf, name='event_stats_export_pdf'),
 
     # Scientific Contributions Management - Event Specific
     path('events/<uuid:event_id>/contributions/', views_eposter_dashboard.eposter_dashboard, name='contributions_dashboard'),
