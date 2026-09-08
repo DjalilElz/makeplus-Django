@@ -749,9 +749,12 @@ def event_stats_export_excel(request, event_id):
 @user_passes_test(is_staff_user)
 def event_stats_export_pdf(request, event_id):
     """
-    Full-detail PDF export of the Stats page, same filters/data as the
-    Excel export -- landscape A4 so the wider tables (transactions, scans)
-    stay readable; each table auto-paginates across pages.
+    Printable summary report -- the money side (caisse breakdown +
+    transactions) is the whole point of a PDF here, so it gets full detail
+    and a properly proportioned layout. Présence and scans are individually
+    huge, low-signal-per-row lists that don't read well on paper -- they
+    get one summary line each instead of a full dump; anyone who needs the
+    row-by-row detail has the Excel export for that.
     """
     from io import BytesIO
     from reportlab.lib import colors
@@ -766,6 +769,9 @@ def event_stats_export_pdf(request, event_id):
     money_stats = data['money_stats']
     styles = getSampleStyleSheet()
 
+    page_width, _page_height = landscape(A4)
+    usable_width = page_width - 24 * mm  # minus left+right margins below
+
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=landscape(A4),
@@ -778,15 +784,22 @@ def event_stats_export_pdf(request, event_id):
             f"Caisse : {data['selected_caisse'].name if data['selected_caisse'] else 'Toutes les caisses'}",
             styles['Normal'],
         ),
-        Spacer(1, 8),
+        Spacer(1, 10),
     ]
+
+    controller_scans_count = data['controller_scans_qs'].count()
+    exposant_scans_count = data['exposant_scans_qs'].count()
 
     summary_table = Table([
         ["Montant total collecté", f"{float(money_stats['total_amount'] or 0):.2f} DZD"],
         ["Transactions", str(money_stats['transaction_count'] or 0)],
         ["Participants traités", str(money_stats['total_participants'] or 0)],
         ["Participants présents", f"{data['presence_count']} / {data['total_registered']}"],
-    ], colWidths=[220, 160])
+        [
+            "Scans", f"{controller_scans_count + exposant_scans_count} au total "
+            f"({controller_scans_count} contrôleurs, {exposant_scans_count} exposants)",
+        ],
+    ], colWidths=[usable_width * 0.35, usable_width * 0.65])
     summary_table.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#2D1B6B')),
@@ -796,27 +809,31 @@ def event_stats_export_pdf(request, event_id):
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
     elements.append(summary_table)
-    elements.append(Spacer(1, 14))
+    elements.append(Spacer(1, 16))
 
-    def _section(title, headers, rows, empty_message):
+    def _section(title, headers, rows, empty_message, col_widths=None):
         elements.append(Paragraph(title, styles['Heading2']))
         if not rows:
             elements.append(Paragraph(empty_message, styles['Italic']))
             elements.append(Spacer(1, 10))
             return
-        table = Table([headers] + rows, repeatRows=1)
+        table = Table([headers] + rows, colWidths=col_widths, repeatRows=1)
         table.setStyle(TableStyle([
             ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2D1B6B')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 0), (-1, -1), 4),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ]))
         elements.append(table)
         elements.append(Spacer(1, 14))
 
+    # ---- Détail par caisse -- the core financial breakdown this export
+    # exists for, given an explicit width split so it fills the page
+    # properly instead of shrinking to its own content on a wide layout ----
     per_caisse_rows = []
     total_amount = 0.0
     total_txn = 0
@@ -829,6 +846,7 @@ def event_stats_export_pdf(request, event_id):
     _section(
         "Détail par caisse", ["Caisse", "Montant", "Transactions", "Participants"],
         per_caisse_rows, "Aucune transaction pour cette période.",
+        col_widths=[usable_width * 0.40, usable_width * 0.20, usable_width * 0.20, usable_width * 0.20],
     )
 
     elements.append(PageBreak())
@@ -844,44 +862,10 @@ def event_stats_export_pdf(request, event_id):
     _section(
         "Transactions", ["Participant", "Caisse", "Articles", "Montant", "Méthode", "Heure"],
         txn_rows, "Aucune transaction pour cette période.",
-    )
-
-    presence_rows = []
-    for reg in data['presence_qs']:
-        presence_rows.append([
-            reg.participant.user.get_full_name() or reg.participant.user.username,
-            reg.participant.badge_id,
-            timezone.localtime(reg.checked_in_at).strftime('%d/%m/%Y %H:%M') if reg.checked_in_at else '',
-        ])
-    _section(
-        "Présence", ["Participant", "Badge", "Présent depuis"],
-        presence_rows, "Aucun participant présent pour cette période.",
-    )
-
-    controller_rows = []
-    for scan in data['controller_scans_qs']:
-        controller_rows.append([
-            scan.participant_name, scan.badge_id,
-            scan.controller.get_full_name() or scan.controller.username,
-            scan.get_status_display(),
-            timezone.localtime(scan.scanned_at).strftime('%d/%m/%Y %H:%M'),
-        ])
-    _section(
-        "Scans des contrôleurs de badges", ["Participant", "Badge", "Contrôleur", "Statut", "Heure"],
-        controller_rows, "Aucun scan pour ces critères.",
-    )
-
-    exposant_rows = []
-    for scan in data['exposant_scans_qs']:
-        exposant_rows.append([
-            scan.scanned_participant.user.get_full_name() or scan.scanned_participant.user.username,
-            scan.exposant.user.get_full_name() or scan.exposant.user.username,
-            scan.notes or '',
-            timezone.localtime(scan.scanned_at).strftime('%d/%m/%Y %H:%M'),
-        ])
-    _section(
-        "Scans des exposants", ["Participant scanné", "Exposant", "Notes", "Heure"],
-        exposant_rows, "Aucun scan pour ces critères.",
+        col_widths=[
+            usable_width * 0.20, usable_width * 0.13, usable_width * 0.27,
+            usable_width * 0.13, usable_width * 0.14, usable_width * 0.13,
+        ],
     )
 
     doc.build(elements)
