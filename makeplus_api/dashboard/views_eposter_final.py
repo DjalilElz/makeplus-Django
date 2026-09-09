@@ -7,6 +7,9 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods, require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.cache import never_cache
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.conf import settings
@@ -265,13 +268,15 @@ def handle_final_submission(request, event, expected_type):
             final_submission.auteurs = auteurs
             final_submission.co_auteurs = co_auteurs
             final_submission.abstract_file = abstract_file
+            final_submission.submission_type = expected_type
             final_submission.ip_address = request.META.get('REMOTE_ADDR')
             final_submission.user_agent = request.META.get('HTTP_USER_AGENT', '')
             final_submission.save()
 
             message = 'Soumission finale mise à jour avec succès'
         else:
-            # Create new final submission linked to original
+            # Create new final submission linked to original (or
+            # standalone -- original_submission may be None)
             final_submission = ScientificContributionFinalSubmission.objects.create(
                 original_submission=original_submission,
                 event=event,
@@ -285,6 +290,7 @@ def handle_final_submission(request, event, expected_type):
                 auteurs=auteurs,
                 co_auteurs=co_auteurs,
                 abstract_file=abstract_file,
+                submission_type=expected_type,
                 ip_address=request.META.get('REMOTE_ADDR'),
                 user_agent=request.META.get('HTTP_USER_AGENT', '')
             )
@@ -318,9 +324,13 @@ def eposter_public_gallery(request, event_id):
 
     query = request.GET.get('q', '').strip()
 
+    # Filtered by submission_type, not original_submission__type_participation
+    # -- a standalone final submission (no original_submission at all, for
+    # events with no call-for-abstracts stage) has no original to look
+    # that up on, and was invisible here before this field existed.
     submissions = ScientificContributionFinalSubmission.objects.filter(
         event=event,
-        original_submission__type_participation='e_poster'
+        submission_type='e_poster'
     ).select_related('original_submission').order_by('-submitted_at')
 
     if query:
@@ -339,6 +349,74 @@ def eposter_public_gallery(request, event_id):
         'page_obj': page_obj,
         'submissions': page_obj.object_list,
         'query': query,
+        'is_staff_viewer': request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser),
     }
 
     return render(request, 'dashboard/eposter/public_gallery.html', context)
+
+
+@never_cache
+@login_required
+@require_http_methods(["GET", "POST"])
+def final_submission_edit(request, submission_id):
+    """
+    Admin-only edit of a final submission (e-poster or communication
+    orale, linked or standalone) -- lets staff fix a typo, correct a
+    contribution number, or swap the PDF without deleting and asking the
+    author to resubmit.
+    """
+    submission = get_object_or_404(
+        ScientificContributionFinalSubmission.objects.select_related('event', 'original_submission'),
+        id=submission_id,
+    )
+    if not (request.user.is_staff or request.user.is_superuser):
+        raise PermissionDenied("Seuls les administrateurs peuvent modifier une soumission finale.")
+
+    if request.method == 'POST':
+        contribution_number = request.POST.get('contribution_number', '').strip()
+
+        if contribution_number and submission.original_submission_id:
+            taken = ScientificContributionSubmission.objects.filter(
+                contribution_code=contribution_number
+            ).exclude(id=submission.original_submission_id).exists()
+            if taken:
+                messages.error(request, f'Le numéro « {contribution_number} » est déjà utilisé par une autre soumission.')
+                return render(request, 'dashboard/eposter/final_submission_edit.html', {'submission': submission})
+            submission.original_submission.contribution_code = contribution_number
+            submission.original_submission.save(update_fields=['contribution_code', 'updated_at'])
+
+        submission.nom = request.POST.get('nom', '').strip()
+        submission.email = request.POST.get('email', '').strip()
+        submission.telephone = request.POST.get('telephone', '').strip()
+        submission.titre = request.POST.get('titre', '').strip()
+        submission.auteurs = request.POST.get('auteurs', '').strip()
+        submission.co_auteurs = request.POST.get('co_auteurs', '').strip()
+        submission.contribution_number = contribution_number
+        new_file = request.FILES.get('abstract_file')
+        if new_file:
+            submission.abstract_file = new_file
+        submission.save()
+
+        messages.success(request, 'Soumission finale mise à jour.')
+        return redirect('dashboard:final_submission_edit', submission_id=submission.id)
+
+    return render(request, 'dashboard/eposter/final_submission_edit.html', {'submission': submission})
+
+
+@never_cache
+@login_required
+@require_POST
+def final_submission_delete(request, submission_id):
+    """Admin-only delete of a final submission (gallery or communications list)."""
+    submission = get_object_or_404(ScientificContributionFinalSubmission, id=submission_id)
+    if not (request.user.is_staff or request.user.is_superuser):
+        raise PermissionDenied("Seuls les administrateurs peuvent supprimer une soumission finale.")
+
+    event_id = submission.event_id
+    submission_type = submission.submission_type
+    submission.delete()
+    messages.success(request, 'Soumission finale supprimée.')
+
+    if submission_type == 'communication_orale':
+        return redirect('dashboard:final_communications', event_id=event_id)
+    return redirect('public_eposter_gallery', event_id=event_id)

@@ -258,6 +258,11 @@ class ScientificContributionFinalSubmission(models.Model):
         ('divers', 'Divers'),
     ]
     
+    SUBMISSION_TYPE_CHOICES = [
+        ('e_poster', 'E-Poster'),
+        ('communication_orale', 'Communication Orale'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     original_submission = models.OneToOneField(
         'ScientificContributionSubmission',
@@ -266,6 +271,15 @@ class ScientificContributionFinalSubmission(models.Model):
         verbose_name="Soumission originale",
         null=True,
         blank=True
+    )
+    # Needed independently of original_submission -- a final submission
+    # can exist standalone (no original_submission at all, for events with
+    # no call-for-abstracts stage), so this is the only reliable way to
+    # tell an E-Poster final submission apart from a Communication Orale
+    # one for those. Always set on save (see handle_final_submission).
+    submission_type = models.CharField(
+        max_length=30, choices=SUBMISSION_TYPE_CHOICES, blank=True, null=True,
+        verbose_name="Type de participation",
     )
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='contribution_final_submissions')
     

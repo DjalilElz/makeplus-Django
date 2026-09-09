@@ -65,9 +65,13 @@ def final_communications(request, event_id):
 
     query = request.GET.get('q', '').strip()
 
+    # Filtered by submission_type, not original_submission__type_participation
+    # -- a standalone final submission (no original_submission at all, for
+    # events with no call-for-abstracts stage) has no original to look
+    # that up on, and was invisible here before this field existed.
     submissions = ScientificContributionFinalSubmission.objects.filter(
         event=event,
-        original_submission__type_participation='communication_orale'
+        submission_type='communication_orale'
     ).select_related('original_submission').order_by('-submitted_at')
 
     if query:
@@ -97,7 +101,7 @@ def download_final_communication(request, submission_id):
     submission = get_object_or_404(
         ScientificContributionFinalSubmission.objects.select_related('event', 'original_submission'),
         id=submission_id,
-        original_submission__type_participation='communication_orale'
+        submission_type='communication_orale'
     )
 
     if not _can_access_event_communications(request.user, submission.event):

@@ -483,6 +483,11 @@
                             <a href="{{ submission.abstract_file.url }}" class="btn-outline-primary" target="_blank" rel="noopener">
                                 <i class="bi bi-file-earmark-pdf"></i> Voir le PDF
                             </a>
+                            {% if is_staff_viewer %}
+                            <a href="{% url 'dashboard:final_submission_edit' submission.id %}" class="btn-outline-primary mt-2">
+                                <i class="bi bi-pencil-square"></i> Modifier / Supprimer
+                            </a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

@@ -163,13 +163,19 @@
                             <th>Auteur</th>
                             <th>Soumis le</th>
                             <th class="text-end">Fichier</th>
+                            {% if is_staff_viewer %}<th class="text-end">Gestion</th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for submission in submissions %}
                         <tr>
                             <td><code class="small">{{ submission.contribution_number }}</code></td>
-                            <td>{{ submission.titre }}</td>
+                            <td>
+                                {{ submission.titre }}
+                                {% if not submission.original_submission %}
+                                <span class="badge bg-secondary">Soumission directe</span>
+                                {% endif %}
+                            </td>
                             <td>{{ submission.auteurs }}</td>
                             <td><small>{{ submission.submitted_at|date:"d/m/Y H:i" }}</small></td>
                             <td class="text-end">
@@ -177,6 +183,13 @@
                                     <i class="bi bi-download"></i> Télécharger
                                 </a>
                             </td>
+                            {% if is_staff_viewer %}
+                            <td class="text-end">
+                                <a href="{% url 'dashboard:final_submission_edit' submission.id %}" class="download-btn" title="Modifier / Supprimer">
+                                    <i class="bi bi-pencil-square"></i> Modifier
+                                </a>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>

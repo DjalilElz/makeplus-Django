@@ -200,6 +200,8 @@ urlpatterns = [
     path('my-final-communications/', views_final_communications.my_final_communications_home, name='my_final_communications_home'),
     path('events/<uuid:event_id>/final-communications/', views_final_communications.final_communications, name='final_communications'),
     path('final-communications/<uuid:submission_id>/download/', views_final_communications.download_final_communication, name='download_final_communication'),
+    path('contributions/final-submissions/<uuid:submission_id>/edit/', views_eposter_final.final_submission_edit, name='final_submission_edit'),
+    path('contributions/final-submissions/<uuid:submission_id>/delete/', views_eposter_final.final_submission_delete, name='final_submission_delete'),
 
     # Registration submissions (staff + event owners, read-only)
     path('my-submissions/', views_event_owner.event_owner_submissions_home, name='event_owner_submissions_home'),

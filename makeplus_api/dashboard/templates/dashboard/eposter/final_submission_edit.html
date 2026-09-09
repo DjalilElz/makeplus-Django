@@ -1,0 +1,95 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Modifier la soumission finale{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 800px;">
+    <div class="mb-4 d-flex justify-content-between">
+        {% if submission.submission_type == 'communication_orale' %}
+        <a href="{% url 'dashboard:final_communications' submission.event.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Retour
+        </a>
+        {% else %}
+        <a href="{% url 'public_eposter_gallery' submission.event.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Retour à la galerie
+        </a>
+        {% endif %}
+        <form method="post" action="{% url 'dashboard:final_submission_delete' submission.id %}"
+              onsubmit="return confirm('Supprimer définitivement cette soumission finale ? Cette action est irréversible.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger">
+                <i class="bi bi-trash"></i> Supprimer
+            </button>
+        </form>
+    </div>
+
+    <h2><i class="bi bi-pencil-square"></i> Modifier la soumission finale</h2>
+    <p class="text-muted">
+        {{ submission.event.name }} --
+        {% if submission.submission_type == 'communication_orale' %}Communication Orale{% else %}E-Poster{% endif %}
+        {% if not submission.original_submission %}<span class="badge bg-secondary ms-1">Soumission directe (sans soumission initiale)</span>{% endif %}
+    </p>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Nom</label>
+                        <input type="text" class="form-control" name="nom" value="{{ submission.nom }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">E-mail</label>
+                        <input type="email" class="form-control" name="email" value="{{ submission.email }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Téléphone</label>
+                        <input type="text" class="form-control" name="telephone" value="{{ submission.telephone }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Numéro de contribution (code)</label>
+                        <input type="text" class="form-control" name="contribution_number" value="{{ submission.contribution_number|default:'' }}">
+                        {% if submission.original_submission %}
+                        <div class="form-text">Modifie aussi le code officiel de la soumission originale liée.</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Titre</label>
+                        <input type="text" class="form-control" name="titre" value="{{ submission.titre }}" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Auteurs</label>
+                        <input type="text" class="form-control" name="auteurs" value="{{ submission.auteurs }}" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Co-auteurs</label>
+                        <textarea class="form-control" name="co_auteurs" rows="3">{{ submission.co_auteurs }}</textarea>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Fichier (PDF)</label>
+                        <div class="mb-2">
+                            <a href="{{ submission.abstract_file.url }}" target="_blank">
+                                <i class="bi bi-file-earmark-pdf"></i> Fichier actuel
+                            </a>
+                        </div>
+                        <input type="file" class="form-control" name="abstract_file" accept="application/pdf">
+                        <div class="form-text">Laissez vide pour garder le fichier actuel.</div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary mt-4">
+                    <i class="bi bi-save"></i> Enregistrer
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
