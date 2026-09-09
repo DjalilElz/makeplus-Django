@@ -82,14 +82,17 @@ def handle_final_submission(request, event, expected_type):
     Handle final submission POST request for both E-Poster and Communication Orale.
 
     Always links to an accepted original ScientificContributionSubmission --
-    there is no standalone path. It's found one of two ways:
-    1. contribution_number given -> exact match on contribution_code (plus
-       type/email cross-checks), same as always.
-    2. contribution_number blank -> only reachable when this event's
-       EventFormConfiguration.require_contribution_number is False; falls
-       back to matching by e-mail + participation type among accepted
-       submissions for this event (ambiguous/no match -> error asking for
-       the code instead).
+    there is no standalone path. How it's found depends on this event's
+    EventFormConfiguration.require_contribution_number, not on whether the
+    field happens to be filled in:
+    1. Required -> contribution_number must exactly match a
+       contribution_code for this event (plus type/email cross-checks).
+    2. Not required -> codes aren't used for this event at all, so
+       whatever was typed (or left blank) is saved as-is and never
+       compared against contribution_code; the original submission is
+       matched by e-mail + participation type among accepted submissions
+       instead (ambiguous/no match -> error asking to contact the
+       organizer).
     """
     try:
         # Get form data
@@ -155,8 +158,9 @@ def handle_final_submission(request, event, expected_type):
             'communication_orale': 'Communication Orale'
         }
 
-        if contribution_number:
-            # Matched by code, as before -- exact match required.
+        if code_required:
+            # Codes are in use for this event -- exact match required,
+            # same validation as always.
             original_submission = ScientificContributionSubmission.objects.filter(
                 contribution_code=contribution_number,
                 event=event
@@ -180,9 +184,12 @@ def handle_final_submission(request, event, expected_type):
                     'error': 'L\'email ne correspond pas à la soumission originale. Veuillez utiliser l\'email avec lequel vous avez soumis initialement.'
                 }, status=400)
         else:
-            # No code given (only reachable when the event doesn't require
-            # one) -- fall back to matching the accepted original
-            # submission by e-mail + participation type instead.
+            # Codes aren't used for this event at all -- there is no real
+            # contribution_code to match against, so whatever was typed
+            # (or left blank) is taken as-is and saved on the final
+            # submission unchanged. Matching the original accepted
+            # submission is always done by e-mail + participation type
+            # here, never by comparing the typed text to a code.
             candidates = list(ScientificContributionSubmission.objects.filter(
                 event=event,
                 email__iexact=email,
@@ -195,21 +202,17 @@ def handle_final_submission(request, event, expected_type):
                     'success': False,
                     'error': "Aucune soumission acceptée de type "
                              f"{type_names.get(expected_type)} n'a été trouvée pour cet e-mail. "
-                             "Vérifiez l'adresse utilisée lors de la soumission initiale, ou saisissez votre code de contribution."
+                             "Vérifiez l'adresse utilisée lors de la soumission initiale, ou contactez l'organisateur."
                 }, status=400)
 
             if len(candidates) > 1:
                 return JsonResponse({
                     'success': False,
-                    'error': "Plusieurs soumissions acceptées correspondent à cet e-mail. "
-                             "Merci de saisir votre code de contribution pour identifier la bonne."
+                    'error': "Plusieurs soumissions acceptées correspondent à cet e-mail pour ce type de participation. "
+                             "Merci de contacter l'organisateur."
                 }, status=400)
 
             original_submission = candidates[0]
-            # No code was typed in, but the original submission may already
-            # have one set by the committee -- keep it on record even
-            # though the author didn't need to know/enter it.
-            contribution_number = original_submission.contribution_code or ''
 
         # Check if final submission already exists for this original submission
         final_submission = ScientificContributionFinalSubmission.objects.filter(
