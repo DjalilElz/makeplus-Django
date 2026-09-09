@@ -757,10 +757,11 @@ def event_stats_export_pdf(request, event_id):
     row-by-row detail has the Excel export for that.
     """
     from io import BytesIO
+    from xml.sax.saxutils import escape as xml_escape
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.units import mm
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
     from events.models import Event
 
@@ -768,6 +769,24 @@ def event_stats_export_pdf(request, event_id):
     data = _gather_event_stats(request, event)
     money_stats = data['money_stats']
     styles = getSampleStyleSheet()
+
+    # Plain strings in a reportlab Table are drawn as a single line and
+    # never wrap -- long content (a full name, a comma-joined item list)
+    # just overflows past the cell into whatever is below it, which is
+    # the row-overlap the PDF was shipped with. Paragraph cells wrap
+    # properly AND report the real multi-line height back to the Table,
+    # so the row grows to fit instead of overlapping the next one.
+    cell_style = ParagraphStyle('TableCell', fontName='Helvetica', fontSize=8, leading=10)
+    header_cell_style = ParagraphStyle(
+        'TableHeaderCell', fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=colors.white,
+    )
+    summary_label_style = ParagraphStyle(
+        'SummaryLabel', fontName='Helvetica-Bold', fontSize=10, leading=13, textColor=colors.white,
+    )
+    summary_value_style = ParagraphStyle('SummaryValue', fontName='Helvetica', fontSize=10, leading=13)
+
+    def _cell(value, style):
+        return Paragraph(xml_escape(str(value)), style)
 
     page_width, _page_height = landscape(A4)
     usable_width = page_width - 24 * mm  # minus left+right margins below
@@ -790,7 +809,7 @@ def event_stats_export_pdf(request, event_id):
     controller_scans_count = data['controller_scans_qs'].count()
     exposant_scans_count = data['exposant_scans_qs'].count()
 
-    summary_table = Table([
+    summary_rows_raw = [
         ["Montant total collecté", f"{float(money_stats['total_amount'] or 0):.2f} DZD"],
         ["Transactions", str(money_stats['transaction_count'] or 0)],
         ["Participants traités", str(money_stats['total_participants'] or 0)],
@@ -799,12 +818,15 @@ def event_stats_export_pdf(request, event_id):
             "Scans", f"{controller_scans_count + exposant_scans_count} au total "
             f"({controller_scans_count} contrôleurs, {exposant_scans_count} exposants)",
         ],
-    ], colWidths=[usable_width * 0.35, usable_width * 0.65])
+    ]
+    summary_table = Table(
+        [[_cell(label, summary_label_style), _cell(value, summary_value_style)] for label, value in summary_rows_raw],
+        colWidths=[usable_width * 0.35, usable_width * 0.65],
+    )
     summary_table.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#2D1B6B')),
-        ('TEXTCOLOR', (0, 0), (0, -1), colors.white),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
@@ -817,13 +839,12 @@ def event_stats_export_pdf(request, event_id):
             elements.append(Paragraph(empty_message, styles['Italic']))
             elements.append(Spacer(1, 10))
             return
-        table = Table([headers] + rows, colWidths=col_widths, repeatRows=1)
+        header_row = [_cell(h, header_cell_style) for h in headers]
+        body_rows = [[_cell(v, cell_style) for v in row] for row in rows]
+        table = Table([header_row] + body_rows, colWidths=col_widths, repeatRows=1)
         table.setStyle(TableStyle([
             ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2D1B6B')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 0), (-1, -1), 4),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
