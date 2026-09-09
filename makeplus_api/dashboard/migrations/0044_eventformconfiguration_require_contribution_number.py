@@ -11,6 +11,13 @@ class Migration(migrations.Migration):
     not run bare makemigrations for this app until that drift is
     reconciled -- write migrations by hand and verify their operations
     list matches only the intended change.
+
+    The actual DB operation is idempotent (ADD COLUMN IF NOT EXISTS) --
+    see the project's documented recurring issue: production's
+    django_migrations bookkeeping keeps losing track of migrations
+    between Render deploys, so a plain AddField here already crashed
+    once with "column already exists" when this same migration got
+    re-run against a database that already had it.
     """
 
     dependencies = [
@@ -18,13 +25,29 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='eventformconfiguration',
-            name='require_contribution_number',
-            field=models.BooleanField(
-                default=True,
-                verbose_name='Numéro de contribution obligatoire à la soumission finale',
-                help_text="Si désactivé, l'auteur peut soumettre sans code -- le rapprochement se fait alors par e-mail + type de participation.",
-            ),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AddField(
+                    model_name='eventformconfiguration',
+                    name='require_contribution_number',
+                    field=models.BooleanField(
+                        default=True,
+                        verbose_name='Numéro de contribution obligatoire à la soumission finale',
+                        help_text="Si désactivé, l'auteur peut soumettre sans code -- le rapprochement se fait alors par e-mail + type de participation.",
+                    ),
+                ),
+            ],
+            database_operations=[
+                migrations.RunSQL(
+                    sql=(
+                        "ALTER TABLE dashboard_eventformconfiguration "
+                        "ADD COLUMN IF NOT EXISTS require_contribution_number boolean NOT NULL DEFAULT TRUE;"
+                    ),
+                    reverse_sql=(
+                        "ALTER TABLE dashboard_eventformconfiguration "
+                        "DROP COLUMN IF EXISTS require_contribution_number;"
+                    ),
+                ),
+            ],
         ),
     ]
