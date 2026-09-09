@@ -81,20 +81,25 @@ def handle_final_submission(request, event, expected_type):
     """
     Handle final submission POST request for both E-Poster and Communication Orale.
 
-    Always links to an accepted original ScientificContributionSubmission --
-    there is no standalone path. How it's found depends on this event's
-    EventFormConfiguration.require_contribution_number, not on whether the
-    field happens to be filled in:
+    How this links back to an original ScientificContributionSubmission
+    depends on this event's EventFormConfiguration.require_contribution_number,
+    not on whether the field happens to be filled in:
     1. Required -> contribution_number must exactly match a
        contribution_code for this event (plus type/email cross-checks).
+       No original found -> rejected (there IS supposed to be one).
     2. Not required -> codes aren't used for this event at all, so the
        typed value is never compared against an existing
-       contribution_code. The original submission is matched by e-mail +
-       participation type among accepted submissions instead
-       (ambiguous/no match -> error asking to contact the organizer).
-       Whatever was typed (non-blank) then BECOMES that submission's
-       official contribution_code (rejected if another submission
-       already has that exact code).
+       contribution_code. Matched by e-mail + participation type among
+       accepted submissions instead:
+       - exactly one match -> link to it, and whatever was typed
+         (non-blank) BECOMES that submission's official
+         contribution_code (rejected if another submission already has
+         that exact code).
+       - more than one match -> ambiguous, error asking to contact the
+         organizer.
+       - no match at all -> this event has no "first" (call-for-abstracts)
+         submission stage; the final submission is accepted standalone,
+         with no original_submission to link to.
     """
     try:
         # Get form data
@@ -199,14 +204,6 @@ def handle_final_submission(request, event, expected_type):
                 status='accepted',
             ))
 
-            if not candidates:
-                return JsonResponse({
-                    'success': False,
-                    'error': "Aucune soumission acceptée de type "
-                             f"{type_names.get(expected_type)} n'a été trouvée pour cet e-mail. "
-                             "Vérifiez l'adresse utilisée lors de la soumission initiale, ou contactez l'organisateur."
-                }, status=400)
-
             if len(candidates) > 1:
                 return JsonResponse({
                     'success': False,
@@ -214,30 +211,47 @@ def handle_final_submission(request, event, expected_type):
                              "Merci de contacter l'organisateur."
                 }, status=400)
 
-            original_submission = candidates[0]
+            if candidates:
+                original_submission = candidates[0]
 
-            # Whatever the author typed becomes that submission's official
-            # contribution_code -- since codes aren't otherwise assigned
-            # for this event, their own entry (e.g. "54") IS the number
-            # from here on (visible on the submission's committee page,
-            # in exports, etc.), not just free text kept on the final
-            # submission record.
-            if contribution_number and contribution_number != original_submission.contribution_code:
-                taken = ScientificContributionSubmission.objects.filter(
-                    contribution_code=contribution_number
-                ).exclude(id=original_submission.id).exists()
-                if taken:
-                    return JsonResponse({
-                        'success': False,
-                        'error': f'Le numéro « {contribution_number} » est déjà utilisé par une autre soumission. Veuillez en choisir un autre.'
-                    }, status=400)
-                original_submission.contribution_code = contribution_number
-                original_submission.save(update_fields=['contribution_code', 'updated_at'])
+                # Whatever the author typed becomes that submission's official
+                # contribution_code -- since codes aren't otherwise assigned
+                # for this event, their own entry (e.g. "54") IS the number
+                # from here on (visible on the submission's committee page,
+                # in exports, etc.), not just free text kept on the final
+                # submission record.
+                if contribution_number and contribution_number != original_submission.contribution_code:
+                    taken = ScientificContributionSubmission.objects.filter(
+                        contribution_code=contribution_number
+                    ).exclude(id=original_submission.id).exists()
+                    if taken:
+                        return JsonResponse({
+                            'success': False,
+                            'error': f'Le numéro « {contribution_number} » est déjà utilisé par une autre soumission. Veuillez en choisir un autre.'
+                        }, status=400)
+                    original_submission.contribution_code = contribution_number
+                    original_submission.save(update_fields=['contribution_code', 'updated_at'])
+            else:
+                # No prior submission at all for this event/e-mail/type --
+                # for events with codes optional, that just means there
+                # was never a "first" (call-for-abstracts) submission
+                # stage to begin with. Don't error out asking for
+                # something that doesn't exist: take this final
+                # submission directly, standalone, with no original to
+                # link to.
+                original_submission = None
 
-        # Check if final submission already exists for this original submission
-        final_submission = ScientificContributionFinalSubmission.objects.filter(
-            original_submission=original_submission
-        ).first()
+        # Check if a final submission already exists to update. Only
+        # meaningful when linked to a real original_submission -- a
+        # standalone one (no original, no type stored on this model)
+        # can't be reliably matched back to "the same" prior standalone
+        # submission, so it always creates a fresh record instead.
+        final_submission = (
+            ScientificContributionFinalSubmission.objects.filter(
+                original_submission=original_submission
+            ).first()
+            if original_submission is not None else None
+        )
 
         if final_submission:
             # Update existing final submission - override changed fields
