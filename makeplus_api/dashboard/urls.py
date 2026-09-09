@@ -174,6 +174,7 @@ urlpatterns = [
     path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/', views_eposter_dashboard.eposter_submission_detail, name='contributions_submission_detail'),
     path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/validate/', views_eposter_dashboard.eposter_validate_submission, name='contributions_validate_submission'),
     path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/set-status/', views_eposter_dashboard.eposter_set_status, name='contributions_set_status'),
+    path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/set-code/', views_eposter_dashboard.eposter_set_contribution_code, name='contributions_set_contribution_code'),
     path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/realtime/', views_eposter_dashboard.eposter_realtime_status, name='contributions_realtime_status'),
     path('events/<uuid:event_id>/contributions/email-templates/', views_eposter_dashboard.eposter_email_templates, name='contributions_email_templates'),
     path('events/<uuid:event_id>/contributions/email-templates/create/', views_eposter_dashboard.eposter_email_template_create, name='contributions_email_template_create'),

@@ -60,6 +60,28 @@
         </div>
         {% endif %}
 
+        {% if submission.requires_final_submission %}
+        <div class="breakdown-panel mb-4">
+            <div class="breakdown-title mb-2"><i class="bi bi-upc-scan me-1"></i> Code de contribution</div>
+            {% if user_membership or is_supervisor %}
+            <p class="text-muted small mb-2">
+                À communiquer à l'auteur -- il en aura besoin pour sa soumission finale. Peut être renseigné à tout moment, pas nécessairement maintenant.
+            </p>
+            <form id="contribution-code-form" class="d-flex gap-2 align-items-center">
+                {% csrf_token %}
+                <input type="text" class="form-control" name="contribution_code" id="contribution_code_input"
+                       value="{{ submission.contribution_code|default:'' }}"
+                       placeholder="Ex : {% if submission.type_participation == 'e_poster' %}EPOSTER{% else %}COMORAL{% endif %}-XXXXXXXX-001">
+                <button type="submit" class="btn btn-outline-elegant text-nowrap">
+                    <i class="bi bi-save me-1"></i> Enregistrer
+                </button>
+            </form>
+            {% else %}
+            <p class="mb-0">{{ submission.contribution_code|default:"Pas encore attribué" }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <div class="mb-4">
             <h2 class="event-title" style="color: var(--banner-1); font-size: 1.4rem;">{{ submission.titre_travail }}</h2>
             <span class="badge me-2" style="background: var(--steel-blue); color: #fff;">{{ submission.get_type_participation_display }}</span>
@@ -259,6 +281,41 @@ document.addEventListener('DOMContentLoaded', function() {
                         window.ButtonStateManager.resetButton(submitBtn);
                     }
                     alert(data.error || 'Erreur lors de l\'enregistrement');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                if (window.ButtonStateManager && submitBtn) {
+                    window.ButtonStateManager.resetButton(submitBtn);
+                }
+                alert('Erreur de connexion');
+            });
+        });
+    }
+
+    const codeForm = document.getElementById('contribution-code-form');
+    if (codeForm) {
+        codeForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const submitBtn = codeForm.querySelector('button[type="submit"]');
+            if (window.ButtonStateManager && submitBtn) {
+                window.ButtonStateManager.setProcessing(submitBtn, 'Enregistrement...');
+            }
+            const formData = new FormData(codeForm);
+            fetch('{% url "dashboard:contributions_set_contribution_code" event.id submission.id %}', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': formData.get('csrfmiddlewaretoken') },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (window.ButtonStateManager && submitBtn) {
+                    window.ButtonStateManager.resetButton(submitBtn);
+                }
+                if (data.success) {
+                    alert('Code de contribution enregistré.');
+                } else {
+                    alert(data.error || "Erreur lors de l'enregistrement du code");
                 }
             })
             .catch(error => {

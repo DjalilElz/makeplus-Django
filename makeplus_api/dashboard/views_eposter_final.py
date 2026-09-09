@@ -10,8 +10,19 @@ from django.views.decorators.cache import never_cache
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.conf import settings
-from .models_eposter import ScientificContributionSubmission, ScientificContributionFinalSubmission
+from .models_eposter import ScientificContributionSubmission, ScientificContributionFinalSubmission, EventFormConfiguration
 from events.models import Event
+
+
+def _require_contribution_number(event):
+    """
+    Whether the "Numéro de Contribution (Code)" field is mandatory on the
+    final submission form for this event -- per-event toggle on the
+    communicant EventFormConfiguration, defaulting to True (today's
+    behavior) when no config row exists yet for this event.
+    """
+    config = EventFormConfiguration.objects.filter(event=event, form_type='communicant').first()
+    return config.require_contribution_number if config else True
 
 
 @require_http_methods(["GET", "POST"])
@@ -22,7 +33,7 @@ def eposter_final_submission_form(request, event_id):
     No login required - uses contribution code for verification
     """
     event = get_object_or_404(Event, id=event_id)
-    
+
     if request.method == 'GET':
         # Display the form
         context = {
@@ -32,9 +43,10 @@ def eposter_final_submission_form(request, event_id):
             'file_label': 'E-Poster Final (PDF)',
             'specialite_choices': ScientificContributionFinalSubmission.SPECIALITE_CHOICES,
             'domaine_choices': ScientificContributionFinalSubmission.DOMAINE_COMMUNICATION_CHOICES,
+            'require_contribution_number': _require_contribution_number(event),
         }
         return render(request, 'dashboard/eposter/final_submission_form.html', context)
-    
+
     elif request.method == 'POST':
         return handle_final_submission(request, event, 'e_poster')
 
@@ -47,7 +59,7 @@ def communication_orale_final_submission_form(request, event_id):
     No login required - uses contribution code for verification
     """
     event = get_object_or_404(Event, id=event_id)
-    
+
     if request.method == 'GET':
         # Display the form
         context = {
@@ -57,20 +69,27 @@ def communication_orale_final_submission_form(request, event_id):
             'file_label': 'Présentation Finale (PDF)',
             'specialite_choices': ScientificContributionFinalSubmission.SPECIALITE_CHOICES,
             'domaine_choices': ScientificContributionFinalSubmission.DOMAINE_COMMUNICATION_CHOICES,
+            'require_contribution_number': _require_contribution_number(event),
         }
         return render(request, 'dashboard/eposter/final_submission_form.html', context)
-    
+
     elif request.method == 'POST':
         return handle_final_submission(request, event, 'communication_orale')
 
 
 def handle_final_submission(request, event, expected_type):
     """
-    Handle final submission POST request for both E-Poster and Communication Orale
-    
-    Two cases:
-    1. User with original submission + email match → Update/link to original
-    2. User without original submission → Create standalone final submission
+    Handle final submission POST request for both E-Poster and Communication Orale.
+
+    Always links to an accepted original ScientificContributionSubmission --
+    there is no standalone path. It's found one of two ways:
+    1. contribution_number given -> exact match on contribution_code (plus
+       type/email cross-checks), same as always.
+    2. contribution_number blank -> only reachable when this event's
+       EventFormConfiguration.require_contribution_number is False; falls
+       back to matching by e-mail + participation type among accepted
+       submissions for this event (ambiguous/no match -> error asking for
+       the code instead).
     """
     try:
         # Get form data
@@ -106,109 +125,135 @@ def handle_final_submission(request, event, expected_type):
         specialite = (grade if grade != 'autre' else grade_autre) or 'non_specifie'
         domaine_communication = theme if theme else 'divers'
         
-        # Ensure contribution_number is not empty
-        if not contribution_number:
+        # Whether the code field is mandatory for this event -- if not,
+        # authors who don't have (or lost) their code can still submit,
+        # matched instead by e-mail + participation type below.
+        code_required = _require_contribution_number(event)
+        if code_required and not contribution_number:
             return JsonResponse({
                 'success': False,
                 'error': 'Le numéro de contribution est requis'
             }, status=400)
-        
-        # Validate required fields
-        if not all([contribution_number, nom, prenom, email, telephone, secteur, etablissement, wilaya, titre, abstract_file]):
+
+        # Validate required fields (contribution_number is handled above,
+        # independently, since whether it's required depends on the event)
+        if not all([nom, prenom, email, telephone, secteur, etablissement, wilaya, titre, abstract_file]):
             return JsonResponse({
                 'success': False,
                 'error': 'Tous les champs obligatoires doivent être remplis'
             }, status=400)
-        
+
         # Validate file type (PDF only)
         if not abstract_file.name.lower().endswith('.pdf'):
             return JsonResponse({
                 'success': False,
                 'error': 'File must be in PDF format'
             }, status=400)
-        
-        # Check if contribution code exists in original submissions
-        original_submission = ScientificContributionSubmission.objects.filter(
-            contribution_code=contribution_number,
-            event=event
-        ).first()
-        
-        if original_submission:
-            # Case 1: Original submission exists
-            
-            # Validate submission type matches
+
+        type_names = {
+            'e_poster': 'E-Poster',
+            'communication_orale': 'Communication Orale'
+        }
+
+        if contribution_number:
+            # Matched by code, as before -- exact match required.
+            original_submission = ScientificContributionSubmission.objects.filter(
+                contribution_code=contribution_number,
+                event=event
+            ).first()
+
+            if not original_submission:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Ce numéro de contribution n\'existe pas dans notre système. Veuillez vérifier le numéro ou contacter l\'organisateur.'
+                }, status=400)
+
             if original_submission.type_participation != expected_type:
-                type_names = {
-                    'e_poster': 'E-Poster',
-                    'communication_orale': 'Communication Orale'
-                }
                 return JsonResponse({
                     'success': False,
                     'error': f'Ce numéro de contribution est pour {type_names.get(original_submission.type_participation)}. Veuillez utiliser le bon formulaire de soumission finale.'
                 }, status=400)
-            
-            # Validate email matches
+
             if original_submission.email.lower() != email.lower():
                 return JsonResponse({
                     'success': False,
                     'error': 'L\'email ne correspond pas à la soumission originale. Veuillez utiliser l\'email avec lequel vous avez soumis initialement.'
                 }, status=400)
-            
-            # Email and type match - proceed with update/create
-            # Check if final submission already exists for this original submission
-            final_submission = ScientificContributionFinalSubmission.objects.filter(
-                original_submission=original_submission
-            ).first()
-            
-            if final_submission:
-                # Update existing final submission - override changed fields
-                final_submission.nom = nom
-                final_submission.email = email
-                final_submission.telephone = telephone
-                final_submission.specialite = specialite
-                final_submission.domaine_communication = domaine_communication
-                final_submission.contribution_number = contribution_number
-                final_submission.titre = titre
-                final_submission.auteurs = auteurs
-                final_submission.co_auteurs = co_auteurs
-                final_submission.abstract_file = abstract_file
-                final_submission.ip_address = request.META.get('REMOTE_ADDR')
-                final_submission.user_agent = request.META.get('HTTP_USER_AGENT', '')
-                final_submission.save()
-                
-                message = 'Soumission finale mise à jour avec succès'
-            else:
-                # Create new final submission linked to original
-                print(f"DEBUG: Creating final submission with contribution_number={contribution_number}")
-                print(f"DEBUG: specialite={specialite}, domaine_communication={domaine_communication}")
-                
-                final_submission = ScientificContributionFinalSubmission.objects.create(
-                    original_submission=original_submission,
-                    event=event,
-                    nom=nom,
-                    email=email,
-                    telephone=telephone,
-                    specialite=specialite,
-                    domaine_communication=domaine_communication,
-                    contribution_number=contribution_number,
-                    titre=titre,
-                    auteurs=auteurs,
-                    co_auteurs=co_auteurs,
-                    abstract_file=abstract_file,
-                    ip_address=request.META.get('REMOTE_ADDR'),
-                    user_agent=request.META.get('HTTP_USER_AGENT', '')
-                )
-                
-                print(f"DEBUG: Final submission created successfully with ID: {final_submission.id}")
-                message = 'Soumission finale enregistrée avec succès'
-            
         else:
-            # Case 2: No original submission found
-            return JsonResponse({
-                'success': False,
-                'error': 'Ce numéro de contribution n\'existe pas dans notre système. Veuillez vérifier le numéro ou contacter l\'organisateur.'
-            }, status=400)
-        
+            # No code given (only reachable when the event doesn't require
+            # one) -- fall back to matching the accepted original
+            # submission by e-mail + participation type instead.
+            candidates = list(ScientificContributionSubmission.objects.filter(
+                event=event,
+                email__iexact=email,
+                type_participation=expected_type,
+                status='accepted',
+            ))
+
+            if not candidates:
+                return JsonResponse({
+                    'success': False,
+                    'error': "Aucune soumission acceptée de type "
+                             f"{type_names.get(expected_type)} n'a été trouvée pour cet e-mail. "
+                             "Vérifiez l'adresse utilisée lors de la soumission initiale, ou saisissez votre code de contribution."
+                }, status=400)
+
+            if len(candidates) > 1:
+                return JsonResponse({
+                    'success': False,
+                    'error': "Plusieurs soumissions acceptées correspondent à cet e-mail. "
+                             "Merci de saisir votre code de contribution pour identifier la bonne."
+                }, status=400)
+
+            original_submission = candidates[0]
+            # No code was typed in, but the original submission may already
+            # have one set by the committee -- keep it on record even
+            # though the author didn't need to know/enter it.
+            contribution_number = original_submission.contribution_code or ''
+
+        # Check if final submission already exists for this original submission
+        final_submission = ScientificContributionFinalSubmission.objects.filter(
+            original_submission=original_submission
+        ).first()
+
+        if final_submission:
+            # Update existing final submission - override changed fields
+            final_submission.nom = nom
+            final_submission.email = email
+            final_submission.telephone = telephone
+            final_submission.specialite = specialite
+            final_submission.domaine_communication = domaine_communication
+            final_submission.contribution_number = contribution_number
+            final_submission.titre = titre
+            final_submission.auteurs = auteurs
+            final_submission.co_auteurs = co_auteurs
+            final_submission.abstract_file = abstract_file
+            final_submission.ip_address = request.META.get('REMOTE_ADDR')
+            final_submission.user_agent = request.META.get('HTTP_USER_AGENT', '')
+            final_submission.save()
+
+            message = 'Soumission finale mise à jour avec succès'
+        else:
+            # Create new final submission linked to original
+            final_submission = ScientificContributionFinalSubmission.objects.create(
+                original_submission=original_submission,
+                event=event,
+                nom=nom,
+                email=email,
+                telephone=telephone,
+                specialite=specialite,
+                domaine_communication=domaine_communication,
+                contribution_number=contribution_number,
+                titre=titre,
+                auteurs=auteurs,
+                co_auteurs=co_auteurs,
+                abstract_file=abstract_file,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            )
+
+            message = 'Soumission finale enregistrée avec succès'
+
         return JsonResponse({
             'success': True,
             'message': message,

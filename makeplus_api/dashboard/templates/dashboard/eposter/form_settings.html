@@ -90,6 +90,21 @@
                     <div class="form-text">Un thème par ligne. Utilisé uniquement si « Liste déroulante » est sélectionné ci-dessus.</div>
                 </div>
 
+                <hr class="my-4">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Soumission finale</label>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="require_contribution_number" name="require_contribution_number"
+                               {% if config.require_contribution_number %}checked{% endif %}>
+                        <label class="form-check-label" for="require_contribution_number">Numéro de contribution obligatoire</label>
+                    </div>
+                    <div class="form-text">
+                        Le code n'est plus généré automatiquement -- le comité le saisit manuellement depuis la fiche de chaque soumission.
+                        Si désactivé ici, l'auteur peut soumettre son fichier final sans code : il sera identifié par son e-mail à la place.
+                    </div>
+                </div>
+
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-save"></i> Enregistrer
                 </button>

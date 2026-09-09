@@ -274,6 +274,7 @@ def eposter_form_settings(request, event_id):
         config.enable_communication_orale = request.POST.get('enable_communication_orale') == 'on'
         config.enable_table_ronde = request.POST.get('enable_table_ronde') == 'on'
         config.enable_atelier = request.POST.get('enable_atelier') == 'on'
+        config.require_contribution_number = request.POST.get('require_contribution_number') == 'on'
 
         theme_field_mode = request.POST.get('theme_field_mode', 'free_text')
         if theme_field_mode not in dict(EventFormConfiguration.THEME_FIELD_MODE_CHOICES):

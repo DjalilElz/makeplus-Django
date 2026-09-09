@@ -464,8 +464,49 @@ def eposter_set_status(request, event_id, submission_id):
         send_decision_email(submission, request=request)
     
     messages.success(request, f'Statut mis à jour: {submission.get_status_display()}')
-    
+
     return redirect('dashboard:contributions_submission_detail', event_id=event_id, submission_id=submission_id)
+
+
+@never_cache
+@login_required
+def eposter_set_contribution_code(request, event_id, submission_id):
+    """
+    Manually set (or clear) a submission's contribution code -- replaces
+    the old auto-generation. The committee/staff types the code in
+    themselves, and can do so at any time (not just at the moment of
+    approving): before, during, or well after the decision.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    event = get_object_or_404(Event, id=event_id)
+
+    if not check_event_access(request.user, event):
+        return JsonResponse({'error': "Vous n'avez pas accès à cet événement."}, status=403)
+
+    submission = get_object_or_404(EPosterSubmission, id=submission_id, event=event)
+
+    if not submission.requires_final_submission():
+        return JsonResponse(
+            {'error': "Ce type de participation n'utilise pas de code de contribution."}, status=400,
+        )
+
+    code = request.POST.get('contribution_code', '').strip()
+
+    if code:
+        duplicate = EPosterSubmission.objects.filter(contribution_code=code).exclude(id=submission.id).exists()
+        if duplicate:
+            return JsonResponse(
+                {'error': f"Le code « {code} » est déjà utilisé par une autre soumission."}, status=400,
+            )
+        submission.contribution_code = code
+    else:
+        submission.contribution_code = None
+
+    submission.save(update_fields=['contribution_code', 'updated_at'])
+
+    return JsonResponse({'success': True, 'contribution_code': submission.contribution_code or ''})
 
 
 def send_decision_email(submission, request=None):
@@ -487,13 +528,11 @@ def send_decision_email(submission, request=None):
             print(f"No email template found for type '{template_type}' and event '{submission.event.name}'")
             return False
         
-        # Generate contribution code if accepted and not already generated
-        # Only for e_poster and communication_orale types
-        if submission.status == 'accepted' and not submission.contribution_code:
-            if submission.requires_final_submission():
-                submission.generate_contribution_code()
-                submission.save(update_fields=['contribution_code'])
-        
+        # contribution_code is set manually by the committee (see
+        # eposter_set_contribution_code) -- it may still be empty here if
+        # nobody has set it yet, and that's fine; it's settable any time
+        # after acceptance, not required before the decision email goes out.
+
         # Build final submission URL (only for types that require final submission).
         # Derived from the actual incoming request whenever one is available,
         # not the SITE_URL setting -- that env var has drifted to a retired

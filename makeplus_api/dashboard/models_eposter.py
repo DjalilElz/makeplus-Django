@@ -124,8 +124,10 @@ class ScientificContributionSubmission(models.Model):
     acceptance_email_sent = models.BooleanField(default=False)
     rejection_email_sent = models.BooleanField(default=False)
     
-    # Code for final submission (generated when accepted)
-    # Only for e_poster and communication_orale types
+    # Code for final submission -- set manually by the committee (see
+    # eposter_set_contribution_code), not auto-generated. Only meaningful
+    # for e_poster and communication_orale types; settable any time after
+    # acceptance, not required at the moment of approval.
     contribution_code = models.CharField(max_length=50, blank=True, null=True, unique=True, verbose_name="Code de Contribution", db_column='eposter_code')
     
     # Metadata
@@ -181,10 +183,10 @@ class ScientificContributionSubmission(models.Model):
         # If enough approvals, mark as accepted
         if approvals >= self.validations_required:
             self.status = 'accepted'
-            # Generate contribution code if not already generated
-            if not self.contribution_code:
-                self.generate_contribution_code()
-            self.save(update_fields=['status', 'contribution_code', 'updated_at'])
+            # contribution_code is set manually by the committee (see
+            # eposter_set_contribution_code) -- it's fine for it to still
+            # be empty here, it's settable at any point after acceptance.
+            self.save(update_fields=['status', 'updated_at'])
             return True
         
         # If more rejections than possible remaining approvals, reject
@@ -196,43 +198,6 @@ class ScientificContributionSubmission(models.Model):
             return True
         
         return False
-    
-    def generate_contribution_code(self):
-        """
-        Generate unique code for this event based on submission type.
-        Only e_poster and communication_orale get codes (for final submission).
-        Table_ronde and atelier do NOT get codes.
-        """
-        # Only generate codes for types that have final submission
-        if self.type_participation not in ['e_poster', 'communication_orale']:
-            return None
-        
-        # Separate number sequences for each type
-        if self.type_participation == 'e_poster':
-            prefix = 'EPOSTER'
-        elif self.type_participation == 'communication_orale':
-            prefix = 'COMORAL'
-        else:
-            return None
-        
-        # Get count of accepted submissions of this type for this event
-        count = ScientificContributionSubmission.objects.filter(
-            event=self.event,
-            type_participation=self.type_participation,
-            status='accepted'
-        ).exclude(contribution_code='').count() + 1
-        
-        # Format: {PREFIX}-{EVENT_ID_SHORT}-{NUMBER}
-        event_short = str(self.event.id)[:8].upper()
-        code = f"{prefix}-{event_short}-{count:03d}"
-        
-        # Ensure uniqueness
-        while ScientificContributionSubmission.objects.filter(contribution_code=code).exists():
-            count += 1
-            code = f"{prefix}-{event_short}-{count:03d}"
-        
-        self.contribution_code = code
-        return code
     
     def requires_final_submission(self):
         """Check if this submission type requires a final submission"""
@@ -579,7 +544,17 @@ class EventFormConfiguration(models.Model):
         verbose_name="Options du thème (si liste déroulante)",
         help_text="Liste des thèmes proposés quand le mode est 'Liste déroulante'",
     )
-    
+
+    # Whether "Numéro de Contribution (Code)" is mandatory on the final
+    # submission form (only meaningful for form_type='communicant', since
+    # only accepted e_poster/communication_orale submissions go through
+    # final submission). Defaults to True to keep today's behavior.
+    require_contribution_number = models.BooleanField(
+        default=True,
+        verbose_name="Numéro de contribution obligatoire à la soumission finale",
+        help_text="Si désactivé, l'auteur peut soumettre sans code -- le rapprochement se fait alors par e-mail + type de participation.",
+    )
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
