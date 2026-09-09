@@ -87,12 +87,14 @@ def handle_final_submission(request, event, expected_type):
     field happens to be filled in:
     1. Required -> contribution_number must exactly match a
        contribution_code for this event (plus type/email cross-checks).
-    2. Not required -> codes aren't used for this event at all, so
-       whatever was typed (or left blank) is saved as-is and never
-       compared against contribution_code; the original submission is
-       matched by e-mail + participation type among accepted submissions
-       instead (ambiguous/no match -> error asking to contact the
-       organizer).
+    2. Not required -> codes aren't used for this event at all, so the
+       typed value is never compared against an existing
+       contribution_code. The original submission is matched by e-mail +
+       participation type among accepted submissions instead
+       (ambiguous/no match -> error asking to contact the organizer).
+       Whatever was typed (non-blank) then BECOMES that submission's
+       official contribution_code (rejected if another submission
+       already has that exact code).
     """
     try:
         # Get form data
@@ -213,6 +215,24 @@ def handle_final_submission(request, event, expected_type):
                 }, status=400)
 
             original_submission = candidates[0]
+
+            # Whatever the author typed becomes that submission's official
+            # contribution_code -- since codes aren't otherwise assigned
+            # for this event, their own entry (e.g. "54") IS the number
+            # from here on (visible on the submission's committee page,
+            # in exports, etc.), not just free text kept on the final
+            # submission record.
+            if contribution_number and contribution_number != original_submission.contribution_code:
+                taken = ScientificContributionSubmission.objects.filter(
+                    contribution_code=contribution_number
+                ).exclude(id=original_submission.id).exists()
+                if taken:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Le numéro « {contribution_number} » est déjà utilisé par une autre soumission. Veuillez en choisir un autre.'
+                    }, status=400)
+                original_submission.contribution_code = contribution_number
+                original_submission.save(update_fields=['contribution_code', 'updated_at'])
 
         # Check if final submission already exists for this original submission
         final_submission = ScientificContributionFinalSubmission.objects.filter(
