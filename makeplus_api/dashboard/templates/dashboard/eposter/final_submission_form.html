@@ -823,22 +823,19 @@
                                     Identification de la contribution
                                 </h2>
 
+                                {% if require_contribution_number %}
                                 <div class="alert" style="background: var(--warm-white); border: 2px solid var(--light-gold); border-radius: 12px; margin-bottom: 30px;">
                                     <i class="bi bi-info-circle me-2" style="color: var(--gold-tan);"></i>
                                     <span style="color: var(--deep-purple);">
-                                        {% if require_contribution_number %}
                                         Veuillez entrer votre numéro de contribution {{ submission_label }} reçu dans votre e-mail d'acceptation.
-                                        {% else %}
-                                        Si vous avez reçu un numéro de contribution {{ submission_label }} dans votre e-mail d'acceptation, entrez-le ci-dessous. Sinon, vous pouvez laisser ce champ vide -- nous vous identifierons par votre e-mail.
-                                        {% endif %}
                                     </span>
                                 </div>
+                                {% endif %}
 
                                 <div class="row g-4">
                                     <div class="col-12">
                                         <label class="form-label{% if require_contribution_number %} required-field{% endif %}">Numéro de contribution ({{ submission_label }})</label>
                                         <input type="text" name="contribution_number" class="form-control" {% if require_contribution_number %}required{% endif %}
-                                               placeholder="ex. : {% if submission_type == 'e_poster' %}EPOSTER-1876634C-001{% else %}COMORAL-1876634C-001{% endif %}"
                                                style="font-family: monospace; font-size: 1.1rem; font-weight: 600;">
                                         {% if not require_contribution_number %}
                                         <small class="text-muted">Optionnel</small>
