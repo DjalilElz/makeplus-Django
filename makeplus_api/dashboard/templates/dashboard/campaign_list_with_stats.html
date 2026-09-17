@@ -19,6 +19,9 @@
             <p class="text-muted mb-0">Créez, gérez et suivez vos campagnes e-mail</p>
         </div>
         <div class="d-flex gap-2">
+            <a href="{% url 'dashboard:brevo_status' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-envelope-check"></i> Statut Brevo
+            </a>
             <a href="{% url 'dashboard:campaign_create' %}" class="btn btn-success">
                 <i class="bi bi-plus-circle"></i> Créer une campagne
             </a>

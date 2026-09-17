@@ -102,6 +102,7 @@ urlpatterns = [
     path('campaigns/<uuid:campaign_id>/unarchive/', views_email.campaign_unarchive, name='campaign_unarchive'),
     path('campaigns/<uuid:campaign_id>/test/', views_email.campaign_send_test, name='campaign_send_test'),
     path('campaigns/<uuid:campaign_id>/send/', views_email.campaign_send, name='campaign_send'),
+    path('campaigns/brevo-status/', views_email.brevo_status, name='brevo_status'),
     path('campaigns/<uuid:campaign_id>/sync-stats/', views_email.campaign_sync_stats, name='campaign_sync_stats'),
     path('campaigns/<uuid:campaign_id>/add-recipient/', views_email.campaign_add_recipient, name='campaign_add_recipient'),
     path('campaigns/<uuid:campaign_id>/bulk-add-recipients/', views_email.campaign_bulk_add_recipients, name='campaign_bulk_add_recipients'),

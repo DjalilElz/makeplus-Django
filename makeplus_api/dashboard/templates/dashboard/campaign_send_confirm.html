@@ -71,35 +71,6 @@
                         </div>
                     </div>
 
-                    <!-- Checklist -->
-                    <div class="mb-4">
-                        <h5 class="mb-3"><i class="bi bi-check2-square"></i> Liste de vérification avant envoi</h5>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="check1">
-                            <label class="form-check-label" for="check1">
-                                J'ai vérifié le contenu de la campagne et l'objet
-                            </label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="check2">
-                            <label class="form-check-label" for="check2">
-                                J'ai envoyé un e-mail de test et vérifié qu'il s'affiche correctement
-                            </label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="check3">
-                            <label class="form-check-label" for="check3">
-                                J'ai vérifié que la liste des destinataires est correcte ({{ recipient_count }} destinataires)
-                            </label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="check4">
-                            <label class="form-check-label" for="check4">
-                                Je comprends que cette action est irréversible
-                            </label>
-                        </div>
-                    </div>
-
                     <!-- Batch Sending Info -->
                     <div class="alert alert-info mb-4" id="batchInfo">
                         <i class="bi bi-info-circle"></i>
@@ -119,7 +90,7 @@
                         <a href="{% url 'dashboard:campaign_detail' campaign.id %}" class="btn btn-secondary btn-lg" id="cancelLink">
                             <i class="bi bi-x-circle"></i> Annuler
                         </a>
-                        <button type="button" class="btn btn-success btn-lg" id="sendButton" disabled>
+                        <button type="button" class="btn btn-success btn-lg" id="sendButton">
                             <i class="bi bi-send"></i> Envoyer la campagne maintenant
                         </button>
                     </div>
@@ -130,23 +101,12 @@
 </div>
 
 <script>
-// Enable send button only when all checkboxes are checked
-const checkboxes = document.querySelectorAll('input[type="checkbox"]');
 const sendButton = document.getElementById('sendButton');
 const cancelLink = document.getElementById('cancelLink');
 const progressBlock = document.getElementById('progressBlock');
 const progressBar = document.getElementById('progressBar');
 const progressText = document.getElementById('progressText');
 const totalRecipients = {{ recipient_count }};
-
-function updateSendButton() {
-    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-    sendButton.disabled = !allChecked;
-}
-
-checkboxes.forEach(cb => {
-    cb.addEventListener('change', updateSendButton);
-});
 
 function setProgress(sentSoFar) {
     const pct = totalRecipients > 0 ? Math.min(100, Math.round((sentSoFar / totalRecipients) * 100)) : 100;

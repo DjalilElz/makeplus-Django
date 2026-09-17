@@ -2105,6 +2105,41 @@ def campaign_send(request, campaign_id):
 
 
 @login_required
+def brevo_status(request):
+    """
+    Self-service Brevo connection check: is BREVO_API_KEY configured at
+    all, and if so, does it actually authenticate against Brevo's own
+    /account endpoint right now (proves the key really works, not just
+    that a value is present) -- including which plan/how many e-mail
+    credits are left, since a free-plan daily cap silently degrades
+    delivery long before anything looks like an "error".
+    """
+    from .brevo_client import get_brevo_client
+
+    api_key_configured = bool(getattr(settings, 'BREVO_API_KEY', ''))
+    account_info = None
+    plan_info = None
+    error = None
+
+    if api_key_configured:
+        try:
+            client = get_brevo_client()
+            account_info = client.get_account_info()
+            plan = account_info.get('plan')
+            plan_info = plan[0] if isinstance(plan, list) and plan else (plan if isinstance(plan, dict) else None)
+        except Exception as e:
+            error = str(e)
+
+    context = {
+        'api_key_configured': api_key_configured,
+        'account_info': account_info,
+        'plan_info': plan_info,
+        'error': error,
+    }
+    return render(request, 'dashboard/brevo_status.html', context)
+
+
+@login_required
 def campaign_sync_stats(request, campaign_id):
     """Sync campaign statistics from Brevo API"""
     from .models_email import EmailCampaign

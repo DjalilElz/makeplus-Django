@@ -1,0 +1,77 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Statut Brevo{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 700px;">
+    <div class="mb-4">
+        <a href="{% url 'dashboard:campaign_list_with_stats' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Retour aux campagnes
+        </a>
+        <h2 class="d-inline-block ms-2 mb-0"><i class="bi bi-envelope-check"></i> Statut de l'envoi d'e-mails (Brevo)</h2>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {% if not api_key_configured %}
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle"></i>
+                <strong>Brevo n'est pas configuré.</strong> La clé BREVO_API_KEY n'est pas définie sur le serveur.
+                Les e-mails partent actuellement par un envoi de secours (SMTP) beaucoup moins fiable pour un
+                envoi en masse. Ajoutez BREVO_API_KEY dans les variables d'environnement de Render pour activer Brevo.
+            </div>
+
+            {% elif error %}
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle"></i>
+                <strong>Brevo est configuré mais la connexion a échoué :</strong>
+                <div class="mt-2"><code>{{ error }}</code></div>
+                <div class="mt-2">Vérifiez que la clé BREVO_API_KEY est correcte et toujours active sur votre compte Brevo.</div>
+            </div>
+
+            {% else %}
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i>
+                <strong>Brevo est connecté et fonctionne.</strong>
+            </div>
+
+            <table class="table table-bordered mb-0">
+                <tbody>
+                    <tr>
+                        <th style="width: 40%;">Compte Brevo connecté</th>
+                        <td>{{ account_info.email|default:"—" }}</td>
+                    </tr>
+                    {% if account_info.companyName %}
+                    <tr>
+                        <th>Organisation</th>
+                        <td>{{ account_info.companyName }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if plan_info %}
+                    <tr>
+                        <th>Type de plan</th>
+                        <td>{{ plan_info.type|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Crédits e-mail restants</th>
+                        <td>
+                            <strong class="{% if plan_info.credits == 0 %}text-danger{% endif %}">{{ plan_info.credits|default:"—" }}</strong>
+                            {% if plan_info.type == 'free' %}
+                            <div class="form-text">Plan gratuit : la limite d'envoi quotidienne peut ralentir un envoi en masse important. Passez à un plan payant sur Brevo pour la lever.</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{% url 'dashboard:brevo_status' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-clockwise"></i> Revérifier maintenant
+        </a>
+    </div>
+</div>
+{% endblock %}
