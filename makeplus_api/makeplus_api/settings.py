@@ -266,9 +266,30 @@ STATICFILES_DIRS = []
 
 # Media files configuration
 # Use cPanel HTTP upload for persistent storage
+USE_SUPABASE_STORAGE = config('USE_SUPABASE_STORAGE', default=False, cast=bool)
 USE_CPANEL_STORAGE = config('USE_CPANEL_STORAGE', default=False, cast=bool)
 
-if USE_CPANEL_STORAGE:
+if USE_SUPABASE_STORAGE:
+    # Supabase Storage (REST API, public bucket) -- reuses the same
+    # SUPABASE_URL/SUPABASE_SERVICE_KEY project as the database, so no
+    # new credentials beyond a service key are needed if that's already
+    # configured. Bucket must exist and be public first: run
+    # `manage.py setup_supabase_bucket` once after setting these.
+    STORAGES = {
+        "default": {
+            "BACKEND": "makeplus_api.supabase_storage.SupabaseStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+
+    SUPABASE_URL = config('SUPABASE_URL')
+    SUPABASE_SERVICE_KEY = config('SUPABASE_SERVICE_KEY')
+    SUPABASE_STORAGE_BUCKET = config('SUPABASE_STORAGE_BUCKET', default='media')
+    MEDIA_URL = f"{SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{SUPABASE_STORAGE_BUCKET}/"
+
+elif USE_CPANEL_STORAGE:
     # cPanel HTTP Storage Configuration
     STORAGES = {
         "default": {
