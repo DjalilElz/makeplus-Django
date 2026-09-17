@@ -1,0 +1,79 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Envoi en cours - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 700px;">
+    <h2><i class="bi bi-send"></i> Envoi des attestations</h2>
+    <p class="text-muted">{{ event.name }}</p>
+
+    <div class="card">
+        <div class="card-body">
+            <p id="progress-text">Préparation de l'envoi...</p>
+            <div class="progress" style="height: 24px;">
+                <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+            </div>
+            <a href="{% url 'dashboard:attestation_history' event.id %}" class="btn btn-outline-secondary mt-4 d-none" id="done-link">
+                <i class="bi bi-clock-history"></i> Voir l'historique des envois
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const total = {{ total }};
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const doneLink = document.getElementById('done-link');
+
+    function setProgress(doneSoFar) {
+        const pct = total > 0 ? Math.min(100, Math.round((doneSoFar / total) * 100)) : 100;
+        progressBar.style.width = pct + '%';
+        progressBar.textContent = pct + '%';
+        progressText.textContent = `${doneSoFar} / ${total} traité(s)...`;
+    }
+
+    async function sendNextBatch(doneSoFar, sentTotal, failedTotal) {
+        let data;
+        try {
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=batch',
+            });
+            data = await response.json();
+        } catch (err) {
+            progressText.textContent = "Erreur réseau pendant l'envoi. Rechargez la page pour réessayer.";
+            progressText.classList.add('text-danger');
+            return;
+        }
+
+        if (!data.success) {
+            progressText.textContent = data.error || "Échec de l'envoi.";
+            progressText.classList.add('text-danger');
+            return;
+        }
+
+        const newDoneSoFar = doneSoFar + data.sent_this_batch + data.failed_this_batch;
+        const newSentTotal = sentTotal + data.sent_this_batch;
+        const newFailedTotal = failedTotal + data.failed_this_batch;
+        setProgress(newDoneSoFar);
+
+        if (data.done) {
+            progressText.textContent = `Terminé : ${newSentTotal} envoyé(s)` + (newFailedTotal > 0 ? `, ${newFailedTotal} échoué(s).` : '.');
+            doneLink.classList.remove('d-none');
+            return;
+        }
+
+        setTimeout(() => sendNextBatch(newDoneSoFar, newSentTotal, newFailedTotal), 400);
+    }
+
+    setProgress(0);
+    sendNextBatch(0, 0, 0);
+})();
+</script>
+{% endblock %}

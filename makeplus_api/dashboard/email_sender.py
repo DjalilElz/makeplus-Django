@@ -15,11 +15,11 @@ from django.core.mail import send_mail as django_send_mail
 from .brevo_client import get_brevo_client
 
 
-def send_email_via_brevo_api(to_email, subject, html_content, from_email=None, to_name=None, 
-                              track_opens=True, track_clicks=True):
+def send_email_via_brevo_api(to_email, subject, html_content, from_email=None, to_name=None,
+                              track_opens=True, track_clicks=True, attachments=None):
     """
     Send a single email using Brevo's API with tracking.
-    
+
     Args:
         to_email: Recipient email address
         subject: Email subject line
@@ -28,16 +28,17 @@ def send_email_via_brevo_api(to_email, subject, html_content, from_email=None, t
         to_name: Recipient name (optional)
         track_opens: Enable open tracking (default: True)
         track_clicks: Enable click tracking (default: True)
-    
+        attachments: optional list of {'name': str, 'content': base64 str}
+
     Returns:
         tuple: (success: bool, error_message: str or None, message_id: str or None)
     """
     try:
         client = get_brevo_client()
-        
+
         recipient_name = to_name or to_email.split('@')[0]
         from_address = from_email or settings.DEFAULT_FROM_EMAIL
-        
+
         response = client.send_transactional_email(
             to_email=to_email,
             to_name=recipient_name,
@@ -46,59 +47,72 @@ def send_email_via_brevo_api(to_email, subject, html_content, from_email=None, t
             from_email=from_address,
             from_name='MakePlus',
             track_opens=track_opens,
-            track_clicks=track_clicks
+            track_clicks=track_clicks,
+            attachments=attachments
         )
-        
+
         message_id = response.get('messageId', '')
         return True, None, message_id
-        
+
     except Exception as e:
         return False, str(e), None
 
 
 
-def send_email_via_smtp(to_email, subject, html_content, from_email=None):
+def send_email_via_smtp(to_email, subject, html_content, from_email=None, attachments=None):
     """
     Send email using Django's SMTP backend.
-    
+
     Args:
         to_email: Recipient email address
         subject: Email subject line
         html_content: HTML body of the email
         from_email: Sender email (optional, uses DEFAULT_FROM_EMAIL)
-    
+        attachments: optional list of {'name': str, 'content': bytes, 'mimetype': str}
+            (raw bytes here, NOT base64 -- unlike the Brevo API path)
+
     Returns:
         tuple: (success: bool, error_message: str or None)
     """
     from_address = from_email or settings.DEFAULT_FROM_EMAIL
-    
+
     try:
-        result = django_send_mail(
-            subject=subject,
-            message='',  # Plain text version (empty, we use HTML)
-            from_email=from_address,
-            recipient_list=[to_email],
-            html_message=html_content,
-            fail_silently=False,
-        )
-        
-        if result > 0:
+        if attachments:
+            from django.core.mail import EmailMultiAlternatives
+            message = EmailMultiAlternatives(
+                subject=subject, body='', from_email=from_address, to=[to_email],
+            )
+            message.attach_alternative(html_content, 'text/html')
+            for att in attachments:
+                message.attach(att['name'], att['content'], att.get('mimetype', 'application/octet-stream'))
+            sent_count = message.send(fail_silently=False)
+        else:
+            sent_count = django_send_mail(
+                subject=subject,
+                message='',  # Plain text version (empty, we use HTML)
+                from_email=from_address,
+                recipient_list=[to_email],
+                html_message=html_content,
+                fail_silently=False,
+            )
+
+        if sent_count > 0:
             return True, None
         else:
             return False, 'Email was not sent (unknown reason)'
-            
+
     except Exception as e:
         return False, str(e)
 
 
-def send_email(to_email, subject, html_content, from_email=None, to_name=None, use_api=True):
+def send_email(to_email, subject, html_content, from_email=None, to_name=None, use_api=True, attachments=None):
     """
     Send email using the best available method.
-    
+
     Priority:
     1. Brevo API (handles tracking automatically) - RECOMMENDED
     2. SMTP fallback (for local development)
-    
+
     Args:
         to_email: Recipient email address
         subject: Email subject line
@@ -106,26 +120,38 @@ def send_email(to_email, subject, html_content, from_email=None, to_name=None, u
         from_email: Sender email (optional, uses DEFAULT_FROM_EMAIL)
         to_name: Recipient name (optional)
         use_api: Use Brevo API (True) or SMTP (False) - default True
-    
+        attachments: optional list of {'name': str, 'content': bytes, 'mimetype': str}.
+            content is raw bytes here -- this function base64-encodes it
+            itself for the Brevo API path, and passes raw bytes straight
+            through for the SMTP path (Django's EmailMessage.attach()
+            wants raw bytes, not base64).
+
     Returns:
         tuple: (success: bool, error_message: str or None, message_id: str or None)
     """
     # Try Brevo API first (recommended for production)
     if use_api:
         brevo_api_key = getattr(settings, 'BREVO_API_KEY', '')
-        
+
         if brevo_api_key:
+            brevo_attachments = None
+            if attachments:
+                import base64
+                brevo_attachments = [
+                    {'name': att['name'], 'content': base64.b64encode(att['content']).decode('ascii')}
+                    for att in attachments
+                ]
             success, error, message_id = send_email_via_brevo_api(
                 to_email, subject, html_content, from_email, to_name,
-                track_opens=True, track_clicks=True
+                track_opens=True, track_clicks=True, attachments=brevo_attachments
             )
             if success:
                 return True, None, message_id
             # Log error but try SMTP fallback
             print(f"Brevo API failed: {error}, trying SMTP fallback...")
-    
+
     # Try SMTP as fallback
-    success, error = send_email_via_smtp(to_email, subject, html_content, from_email)
+    success, error = send_email_via_smtp(to_email, subject, html_content, from_email, attachments=attachments)
     return success, error, None
 
 

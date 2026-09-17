@@ -1,0 +1,130 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Envoyer les attestations - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 900px;">
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <div>
+            <a href="{% url 'dashboard:attestation_settings' event.id %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Retour
+            </a>
+            <h2 class="d-inline-block ms-2 mb-0"><i class="bi bi-send"></i> Envoyer les attestations</h2>
+        </div>
+        <a href="{% url 'dashboard:attestation_history' event.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-clock-history"></i> Historique des envois
+        </a>
+    </div>
+    <p class="text-muted">{{ event.name }}</p>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-8">
+            <input type="text" class="form-control" name="search" placeholder="Rechercher par nom, e-mail ou badge..." value="{{ search }}">
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-outline-secondary w-100">
+                <i class="bi bi-search"></i> Rechercher
+            </button>
+        </div>
+        {% if search %}
+        <div class="col-md-2">
+            <a href="{% url 'dashboard:attestation_send' event.id %}" class="btn btn-outline-secondary w-100">
+                <i class="bi bi-x-lg"></i> Effacer
+            </a>
+        </div>
+        {% endif %}
+    </form>
+
+    <form method="post" action="{% url 'dashboard:attestation_send' event.id %}" id="send-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="start">
+
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="select-all">
+                        <label class="form-check-label fw-bold" for="select-all">Tout sélectionner ({{ registrations|length }})</label>
+                    </div>
+                    <span id="selected-count" class="text-muted small">0 sélectionné(s)</span>
+                </div>
+
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"></th>
+                                <th>Participant</th>
+                                <th>Badge</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for reg in registrations %}
+                            <tr>
+                                <td>
+                                    <input type="checkbox" class="form-check-input participant-checkbox" name="participant_ids" value="{{ reg.participant.id }}">
+                                </td>
+                                <td>
+                                    <strong>{{ reg.participant.user.get_full_name|default:reg.participant.user.username }}</strong><br>
+                                    <small class="text-muted">{{ reg.participant.user.email }}</small>
+                                </td>
+                                <td><small class="text-muted">{{ reg.participant.badge_id }}</small></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="text-center text-muted py-4">Aucun participant trouvé</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-3" id="submit-btn" disabled>
+            <i class="bi bi-send"></i> Générer et envoyer
+        </button>
+    </form>
+</div>
+
+<script>
+(function() {
+    const selectAll = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll('.participant-checkbox');
+    const submitBtn = document.getElementById('submit-btn');
+    const countLabel = document.getElementById('selected-count');
+    const form = document.getElementById('send-form');
+
+    function updateCount() {
+        const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
+        countLabel.textContent = checked + ' sélectionné(s)';
+        submitBtn.disabled = checked === 0;
+        selectAll.checked = checked === checkboxes.length && checkboxes.length > 0;
+    }
+
+    selectAll.addEventListener('change', function() {
+        checkboxes.forEach(cb => { cb.checked = selectAll.checked; });
+        updateCount();
+    });
+
+    checkboxes.forEach(cb => cb.addEventListener('change', updateCount));
+
+    form.addEventListener('submit', function(e) {
+        const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
+        if (checked === 0) {
+            e.preventDefault();
+            return;
+        }
+        if (!confirm(`Générer et envoyer l'attestation à ${checked} participant(s) ? Un e-mail sera envoyé à chacun.`)) {
+            e.preventDefault();
+        }
+    });
+
+    updateCount();
+})();
+</script>
+{% endblock %}

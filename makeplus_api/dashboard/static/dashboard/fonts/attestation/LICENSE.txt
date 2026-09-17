@@ -1,0 +1,5 @@
+Fonts in this directory are from Google Fonts (https://fonts.google.com):
+- GreatVibes-Regular.ttf, PlayfairDisplay-Regular.ttf: SIL Open Font License 1.1
+- Montserrat-Regular.ttf: SIL Open Font License 1.1
+All are free to embed, use, and redistribute. Full license text:
+https://scripts.sil.org/OFL

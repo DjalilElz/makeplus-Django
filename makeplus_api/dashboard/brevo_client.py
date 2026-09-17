@@ -55,12 +55,13 @@ class BrevoClient:
         except Exception as e:
             raise Exception(f'Request failed: {str(e)}')
     
-    def send_transactional_email(self, to_email, to_name, subject, html_content, 
-                                 from_email=None, from_name=None, 
-                                 track_opens=True, track_clicks=True):
+    def send_transactional_email(self, to_email, to_name, subject, html_content,
+                                 from_email=None, from_name=None,
+                                 track_opens=True, track_clicks=True,
+                                 attachments=None):
         """
         Send a single transactional email with tracking
-        
+
         Args:
             to_email: Recipient email address
             to_name: Recipient name
@@ -70,13 +71,16 @@ class BrevoClient:
             from_name: Sender name (optional, defaults to 'MakePlus')
             track_opens: Enable open tracking (default: True)
             track_clicks: Enable click tracking (default: True)
-        
+            attachments: optional list of {'name': str, 'content': base64 str}
+                (Brevo's own attachment format -- content must already be
+                base64-encoded, not raw bytes)
+
         Returns:
             dict: Response with messageId
         """
         from_address = from_email or settings.DEFAULT_FROM_EMAIL
         sender_name = from_name or 'MakePlus'
-        
+
         data = {
             'sender': {
                 'name': sender_name,
@@ -93,7 +97,9 @@ class BrevoClient:
                 'trackClicks': track_clicks
             }
         }
-        
+        if attachments:
+            data['attachment'] = attachments
+
         return self._make_request('/smtp/email', method='POST', data=data)
     
     def get_message_stats(self, message_id):

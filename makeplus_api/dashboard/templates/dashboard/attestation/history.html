@@ -1,0 +1,61 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Historique des attestations - {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 900px;">
+    <div class="mb-4">
+        <a href="{% url 'dashboard:attestation_send' event.id %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Retour
+        </a>
+        <h2 class="d-inline-block ms-2 mb-0"><i class="bi bi-clock-history"></i> Historique des envois</h2>
+    </div>
+    <p class="text-muted">{{ event.name }}</p>
+
+    <div class="card">
+        <div class="card-body">
+            {% if logs %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Participant</th>
+                            <th>Statut</th>
+                            <th>Détail</th>
+                            <th>Envoyé le</th>
+                            <th>Par</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>
+                                <strong>{{ log.participant.user.get_full_name|default:log.participant.user.username }}</strong><br>
+                                <small class="text-muted">{{ log.participant.user.email }}</small>
+                            </td>
+                            <td>
+                                {% if log.status == 'sent' %}
+                                <span class="badge bg-success">Envoyé</span>
+                                {% else %}
+                                <span class="badge bg-danger">Échoué</span>
+                                {% endif %}
+                            </td>
+                            <td><small class="text-muted">{{ log.error_message|default:"—" }}</small></td>
+                            <td><small class="text-muted">{{ log.sent_at|date:"d/m/Y H:i" }}</small></td>
+                            <td>
+                                <small class="text-muted">
+                                    {% if log.sent_by %}{{ log.sent_by.get_full_name|default:log.sent_by.username }}{% else %}—{% endif %}
+                                </small>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-center text-muted py-4">Aucune attestation envoyée pour le moment.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

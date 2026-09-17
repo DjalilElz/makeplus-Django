@@ -18,3 +18,6 @@ from .models_blocs import (
     ReductionPeriod,
     RegistrationOrder,
 )
+
+# Import attestation (certificate) generation models
+from .models_attestation import AttestationTemplate, AttestationSendLog
