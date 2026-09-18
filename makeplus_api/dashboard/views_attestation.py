@@ -180,15 +180,52 @@ def attestation_send(request, event_id):
             registrations__event=event,
         ).distinct()
 
-        logs = [
-            AttestationSendLog(event=event, participant=p, status='pending', sent_by=request.user)
-            for p in participants
-        ]
-        AttestationSendLog.objects.bulk_create(logs)
+        # Unlike campaign_send (whose recipient rows already exist as
+        # 'pending' before a send is ever started, so re-running is
+        # naturally a resume), this used to bulk_create a fresh 'pending'
+        # row per participant every time -- so closing the progress tab
+        # partway through a large send (closer to certain the bigger the
+        # list is) and clicking "send" again re-queued everyone, including
+        # people who'd already received their PDF, sending it twice.
+        # Now: skip anyone already sent/pending, and retry (not duplicate)
+        # anyone whose last attempt failed.
+        existing_by_participant = {
+            log.participant_id: log
+            for log in AttestationSendLog.objects.filter(event=event, participant__in=participants)
+        }
+
+        new_logs = []
+        retried = 0
+        already_in_progress = 0
+        for p in participants:
+            existing = existing_by_participant.get(p.id)
+            if existing is None:
+                new_logs.append(AttestationSendLog(event=event, participant=p, status='pending', sent_by=request.user))
+            elif existing.status == 'failed':
+                existing.status = 'pending'
+                existing.error_message = ''
+                existing.sent_by = request.user
+                existing.save(update_fields=['status', 'error_message', 'sent_by'])
+                retried += 1
+            else:
+                already_in_progress += 1
+
+        AttestationSendLog.objects.bulk_create(new_logs)
+        total = len(new_logs) + retried
+
+        if already_in_progress:
+            messages.info(
+                request,
+                f"{already_in_progress} participant(s) avaient déjà reçu leur attestation (ou étaient déjà en cours d'envoi) et ont été ignorés."
+            )
+
+        if total == 0:
+            messages.warning(request, "Tous les participants sélectionnés ont déjà reçu leur attestation.")
+            return redirect('dashboard:attestation_send', event_id=event.id)
 
         return render(request, 'dashboard/attestation/send_progress.html', {
             'event': event,
-            'total': len(logs),
+            'total': total,
         })
 
     if request.method == 'POST' and request.POST.get('action') == 'batch':
