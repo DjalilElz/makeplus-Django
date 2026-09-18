@@ -43,9 +43,14 @@
             <h2 class="d-inline-block ms-2 mb-0"><i class="bi bi-award"></i> Attestations</h2>
         </div>
         {% if template %}
-        <a href="{% url 'dashboard:attestation_send' event.id %}" class="btn btn-primary">
-            <i class="bi bi-send"></i> Générer et envoyer
-        </a>
+        <div class="d-flex gap-2">
+            <a href="{% url 'dashboard:attestation_preview_pdf' event.id %}" target="_blank" class="btn btn-outline-secondary">
+                <i class="bi bi-file-earmark-pdf"></i> Aperçu PDF
+            </a>
+            <a href="{% url 'dashboard:attestation_send' event.id %}" class="btn btn-primary">
+                <i class="bi bi-send"></i> Générer et envoyer
+            </a>
+        </div>
         {% endif %}
     </div>
     <p class="text-muted">{{ event.name }}</p>
@@ -63,7 +68,13 @@
 
                 <div class="mb-3">
                     <label class="form-label fw-bold">Image du modèle (PNG ou JPG)</label>
-                    <input type="file" class="form-control" name="template_image" id="template_image_input" accept="image/png,image/jpeg" {% if not template %}required{% endif %}>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <label for="template_image_input" class="btn btn-outline-primary mb-0">
+                            <i class="bi bi-upload"></i> {% if template %}Changer l'attestation{% else %}Choisir une image{% endif %}
+                        </label>
+                        <span id="template_image_filename" class="text-muted small">Aucun fichier sélectionné</span>
+                    </div>
+                    <input type="file" class="d-none" name="template_image" id="template_image_input" accept="image/png,image/jpeg" {% if not template %}required{% endif %}>
                     {% if template %}
                     <div class="form-text">Laissez vide pour garder l'image actuelle.</div>
                     {% endif %}
@@ -116,6 +127,19 @@
         </div>
     </div>
 </div>
+
+<script>
+// Custom file-input button label -- the native "Choose file" control is
+// hidden (d-none) in favor of a styled label wired to the same input,
+// so this just mirrors the selected filename back next to it.
+(function() {
+    const fileInput = document.getElementById('template_image_input');
+    const filenameLabel = document.getElementById('template_image_filename');
+    fileInput.addEventListener('change', function() {
+        filenameLabel.textContent = fileInput.files.length ? fileInput.files[0].name : 'Aucun fichier sélectionné';
+    });
+})();
+</script>
 
 {% if template %}
 <script>

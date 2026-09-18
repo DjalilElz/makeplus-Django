@@ -207,6 +207,7 @@ urlpatterns = [
 
     # Attestation (certificate) generation
     path('events/<uuid:event_id>/attestations/settings/', views_attestation.attestation_settings, name='attestation_settings'),
+    path('events/<uuid:event_id>/attestations/preview/', views_attestation.attestation_preview_pdf, name='attestation_preview_pdf'),
     path('events/<uuid:event_id>/attestations/send/', views_attestation.attestation_send, name='attestation_send'),
     path('events/<uuid:event_id>/attestations/history/', views_attestation.attestation_history, name='attestation_history'),
 

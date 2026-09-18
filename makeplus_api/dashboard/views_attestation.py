@@ -6,7 +6,7 @@ a personalized PDF to each of them.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.cache import never_cache
 
@@ -81,6 +81,36 @@ def attestation_settings(request, event_id):
         'align_choices': AttestationTemplate.ALIGN_CHOICES,
     }
     return render(request, 'dashboard/attestation/settings.html', context)
+
+
+@never_cache
+@login_required
+@user_passes_test(is_staff_user)
+def attestation_preview_pdf(request, event_id):
+    """
+    Renders a real sample PDF using the exact same Pillow pipeline that
+    real sends use (not the CSS approximation on the settings page), so
+    the admin can verify font/position/color/size on the actual output
+    before generating anything for real participants. Opens inline in
+    a new tab rather than forcing a download.
+    """
+    event = get_object_or_404(Event, id=event_id)
+    template = AttestationTemplate.objects.filter(event=event).first()
+
+    if not template:
+        messages.error(request, "Enregistrez d'abord un modèle d'attestation avant de prévisualiser.")
+        return redirect('dashboard:attestation_settings', event_id=event.id)
+
+    from .attestation_service import generate_attestation_pdf
+    try:
+        pdf_bytes = generate_attestation_pdf(template, "Jean Dupont")
+    except Exception as e:
+        messages.error(request, f"Erreur lors de la génération de l'aperçu : {e}")
+        return redirect('dashboard:attestation_settings', event_id=event.id)
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = 'inline; filename="apercu_attestation.pdf"'
+    return response
 
 
 @never_cache
