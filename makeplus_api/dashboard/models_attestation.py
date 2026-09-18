@@ -31,7 +31,11 @@ class AttestationTemplate(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.OneToOneField(Event, on_delete=models.CASCADE, related_name='attestation_template')
 
-    template_image = models.ImageField(upload_to='events/attestation_templates/', verbose_name="Image du modèle")
+    # max_length=255, not Django's default 100 -- a real uploaded filename
+    # plus the upload_to prefix routinely exceeds 100 characters (this
+    # broke in production with a real descriptive filename), and Postgres
+    # enforces the column's varchar length strictly.
+    template_image = models.ImageField(upload_to='events/attestation_templates/', max_length=255, verbose_name="Image du modèle")
 
     text_x = models.FloatField(default=0.5, verbose_name="Position X (fraction de la largeur)")
     text_y = models.FloatField(default=0.5, verbose_name="Position Y (fraction de la hauteur)")
