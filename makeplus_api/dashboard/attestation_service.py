@@ -10,7 +10,7 @@ views_email.py::campaign_send).
 import io
 import os
 from django.conf import settings
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 FONTS_DIR = os.path.join(settings.BASE_DIR, 'dashboard', 'static', 'dashboard', 'fonts', 'attestation')
 
@@ -38,6 +38,14 @@ def generate_attestation_pdf(template, full_name):
     with template.template_image.open('rb') as f:
         img = Image.open(f)
         img.load()
+
+    # Browsers auto-rotate a displayed <img> per its EXIF orientation tag,
+    # but Pillow does not -- without this, a template photo with an
+    # orientation tag (common from phones/exports) keeps its raw,
+    # unrotated width/height here while text_x/text_y were picked against
+    # the browser's rotated dimensions, throwing off both position and
+    # apparent font size relative to the image.
+    img = ImageOps.exif_transpose(img)
     img = img.convert('RGB')
 
     draw = ImageDraw.Draw(img)
