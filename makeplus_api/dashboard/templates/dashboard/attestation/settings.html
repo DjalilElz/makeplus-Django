@@ -44,9 +44,11 @@
         </div>
         {% if template %}
         <div class="d-flex gap-2">
-            <a href="{% url 'dashboard:attestation_preview_pdf' event.id %}" target="_blank" class="btn btn-outline-secondary">
+            <button type="submit" form="attestation-form"
+                    formaction="{% url 'dashboard:attestation_preview_pdf' event.id %}" formtarget="_blank"
+                    class="btn btn-outline-secondary">
                 <i class="bi bi-file-earmark-pdf"></i> Aperçu PDF
-            </a>
+            </button>
             <a href="{% url 'dashboard:attestation_send' event.id %}" class="btn btn-primary">
                 <i class="bi bi-send"></i> Générer et envoyer
             </a>

@@ -9,6 +9,16 @@ from django.contrib.auth.models import User
 from events.models import Event, Participant
 import uuid
 
+# Shared with views_attestation.py's live-preview endpoint, which builds
+# a throwaway (unsaved) stand-in for this model out of the settings
+# form's current values -- both need the exact same font_choice ->
+# filename mapping, so it lives here once rather than duplicated.
+FONT_FILES = {
+    'great_vibes': 'GreatVibes-Regular.ttf',
+    'playfair': 'PlayfairDisplay-Regular.ttf',
+    'montserrat': 'Montserrat-Regular.ttf',
+}
+
 
 class AttestationTemplate(models.Model):
     """
@@ -58,11 +68,7 @@ class AttestationTemplate(models.Model):
         return f"Attestation - {self.event.name}"
 
     def font_file_name(self):
-        return {
-            'great_vibes': 'GreatVibes-Regular.ttf',
-            'playfair': 'PlayfairDisplay-Regular.ttf',
-            'montserrat': 'Montserrat-Regular.ttf',
-        }[self.font_choice]
+        return FONT_FILES[self.font_choice]
 
 
 class AttestationSendLog(models.Model):

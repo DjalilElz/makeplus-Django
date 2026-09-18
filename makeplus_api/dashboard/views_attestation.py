@@ -3,6 +3,8 @@ Attestation (certificate) generation views: admin uploads/configures a
 per-event template, picks recipients, and the system generates + e-mails
 a personalized PDF to each of them.
 """
+from types import SimpleNamespace
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Q
@@ -11,10 +13,47 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.cache import never_cache
 
 from events.models import Event, Participant, ParticipantEventRegistration
-from .models_attestation import AttestationTemplate, AttestationSendLog
+from .models_attestation import AttestationTemplate, AttestationSendLog, FONT_FILES
 from .views import is_staff_user
 
 BATCH_SIZE = 10
+
+
+def _parse_template_fields_from_post(post_data):
+    """
+    Shared field parsing/validation for the settings form -- used both
+    when actually saving the template and when building a throwaway,
+    unsaved preview object straight from the same submitted form (see
+    attestation_preview_pdf). Never raises; falls back to safe defaults
+    for anything missing or invalid.
+    """
+    try:
+        text_x = float(post_data.get('text_x', 0.5))
+        text_y = float(post_data.get('text_y', 0.5))
+    except (TypeError, ValueError):
+        text_x, text_y = 0.5, 0.5
+
+    text_align = post_data.get('text_align', 'center')
+    if text_align not in dict(AttestationTemplate.ALIGN_CHOICES):
+        text_align = 'center'
+
+    font_choice = post_data.get('font_choice', 'playfair')
+    if font_choice not in dict(AttestationTemplate.FONT_CHOICES):
+        font_choice = 'playfair'
+
+    try:
+        font_size = max(8, min(300, int(post_data.get('font_size', 60))))
+    except (TypeError, ValueError):
+        font_size = 60
+
+    font_color = post_data.get('font_color', '#000000').strip()
+    if not (len(font_color) == 7 and font_color.startswith('#')):
+        font_color = '#000000'
+
+    return {
+        'text_x': text_x, 'text_y': text_y, 'text_align': text_align,
+        'font_choice': font_choice, 'font_size': font_size, 'font_color': font_color,
+    }
 
 
 @never_cache
@@ -43,32 +82,8 @@ def attestation_settings(request, event_id):
         if image_file:
             template.template_image = image_file
 
-        try:
-            template.text_x = float(request.POST.get('text_x', template.text_x if template.pk else 0.5))
-            template.text_y = float(request.POST.get('text_y', template.text_y if template.pk else 0.5))
-        except (TypeError, ValueError):
-            messages.error(request, "Position invalide -- cliquez sur l'aperçu pour repositionner le nom.")
-            return redirect('dashboard:attestation_settings', event_id=event.id)
-
-        text_align = request.POST.get('text_align', 'center')
-        if text_align not in dict(AttestationTemplate.ALIGN_CHOICES):
-            text_align = 'center'
-        template.text_align = text_align
-
-        font_choice = request.POST.get('font_choice', 'playfair')
-        if font_choice not in dict(AttestationTemplate.FONT_CHOICES):
-            font_choice = 'playfair'
-        template.font_choice = font_choice
-
-        try:
-            font_size = int(request.POST.get('font_size', 60))
-            template.font_size = max(8, min(300, font_size))
-        except (TypeError, ValueError):
-            template.font_size = 60
-
-        font_color = request.POST.get('font_color', '#000000').strip()
-        if len(font_color) == 7 and font_color.startswith('#'):
-            template.font_color = font_color
+        for field, value in _parse_template_fields_from_post(request.POST).items():
+            setattr(template, field, value)
 
         template.save()
         messages.success(request, "Modèle d'attestation enregistré.")
@@ -88,22 +103,43 @@ def attestation_settings(request, event_id):
 @user_passes_test(is_staff_user)
 def attestation_preview_pdf(request, event_id):
     """
-    Renders a real sample PDF using the exact same Pillow pipeline that
-    real sends use (not the CSS approximation on the settings page), so
-    the admin can verify font/position/color/size on the actual output
-    before generating anything for real participants. Opens inline in
-    a new tab rather than forcing a download.
+    Renders a real sample PDF using the exact same Pillow pipeline as
+    real sends -- submitted as a POST from the settings form itself
+    (via formaction/formtarget="_blank" on the "Aperçu PDF" button, see
+    the template) so it reflects whatever is CURRENTLY in the form,
+    even unsaved changes, rather than only the last-saved template.
+
+    That mismatch was the actual bug reported: the live click-to-position
+    preview shows wherever you just clicked, but a plain link to this
+    view always regenerated from the last SAVED position -- so clicking
+    a new spot and previewing without saving first compared two
+    different templates and looked "wrong" without anything really
+    being broken.
     """
     event = get_object_or_404(Event, id=event_id)
-    template = AttestationTemplate.objects.filter(event=event).first()
+    saved_template = AttestationTemplate.objects.filter(event=event).first()
 
-    if not template:
-        messages.error(request, "Enregistrez d'abord un modèle d'attestation avant de prévisualiser.")
-        return redirect('dashboard:attestation_settings', event_id=event.id)
+    if request.method != 'POST':
+        if not saved_template:
+            messages.error(request, "Enregistrez d'abord un modèle d'attestation avant de prévisualiser.")
+            return redirect('dashboard:attestation_settings', event_id=event.id)
+        preview = saved_template
+    else:
+        image_file = request.FILES.get('template_image')
+        if not image_file and not saved_template:
+            messages.error(request, "Choisissez une image avant de prévisualiser.")
+            return redirect('dashboard:attestation_settings', event_id=event.id)
+
+        fields = _parse_template_fields_from_post(request.POST)
+        preview = SimpleNamespace(
+            template_image=image_file or saved_template.template_image,
+            font_file_name=lambda: FONT_FILES[fields['font_choice']],
+            **fields,
+        )
 
     from .attestation_service import generate_attestation_pdf
     try:
-        pdf_bytes = generate_attestation_pdf(template, "Jean Dupont")
+        pdf_bytes = generate_attestation_pdf(preview, "Jean Dupont")
     except Exception as e:
         messages.error(request, f"Erreur lors de la génération de l'aperçu : {e}")
         return redirect('dashboard:attestation_settings', event_id=event.id)
