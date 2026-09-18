@@ -122,7 +122,7 @@
                 </div>
                 {% endif %}
 
-                <button type="submit" class="btn btn-primary mt-4">
+                <button type="submit" class="btn btn-primary mt-4" id="save-template-btn">
                     <i class="bi bi-save"></i> Enregistrer
                 </button>
             </form>
@@ -139,6 +139,22 @@
     const filenameLabel = document.getElementById('template_image_filename');
     fileInput.addEventListener('change', function() {
         filenameLabel.textContent = fileInput.files.length ? fileInput.files[0].name : 'Aucun fichier sélectionné';
+    });
+})();
+
+(function() {
+    // The form also has the "Aperçu PDF" button (formtarget="_blank"),
+    // which submits the same form but opens the result in a new tab --
+    // e.submitter tells us which button actually triggered this submit
+    // so only the real save (which navigates away in this tab, and can
+    // take a moment with a large template image) gets a loading state.
+    const form = document.getElementById('attestation-form');
+    const saveBtn = document.getElementById('save-template-btn');
+    form.addEventListener('submit', function(e) {
+        if (e.submitter && e.submitter.id === 'save-template-btn') {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Enregistrement...';
+        }
     });
 })();
 </script>

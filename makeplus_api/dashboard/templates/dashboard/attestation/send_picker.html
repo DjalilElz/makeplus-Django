@@ -121,7 +121,14 @@
         }
         if (!confirm(`Générer et envoyer l'attestation à ${checked} participant(s) ? Un e-mail sera envoyé à chacun.`)) {
             e.preventDefault();
+            return;
         }
+        // The server has to check every selected participant against
+        // existing send logs before it can show the progress page --
+        // for a large list that's not instant, and with no feedback the
+        // button just sits there looking unresponsive after the click.
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Préparation de l\'envoi...';
     });
 
     updateCount();
