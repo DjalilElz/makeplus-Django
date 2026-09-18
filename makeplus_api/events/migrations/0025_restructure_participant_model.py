@@ -11,6 +11,23 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Step 0: This migration's own history row has been lost in
+        # production before (django_migrations losing rows for this app
+        # is a known recurring issue), causing Django to genuinely
+        # re-attempt this whole migration even though its schema changes
+        # already landed. Every other step below already guards itself
+        # (IF NOT EXISTS / constraint-existence checks) so a re-run is a
+        # fast no-op -- except Step 3, which used to re-copy the entire
+        # (ever-growing) participant table on every accidental re-run.
+        # This raises the timeout for just this migration's transaction
+        # so a genuinely-needed first run on a now-larger table -- or a
+        # slow re-run before the Step 3 guard below existed -- can't be
+        # killed by the pooler's short default statement_timeout.
+        migrations.RunSQL(
+            sql="SET LOCAL statement_timeout = '10min';",
+            reverse_sql=migrations.RunSQL.noop,
+        ),
+
         # Step 1: Create new ParticipantEventRegistration table
         migrations.RunSQL(
             sql="""
@@ -46,11 +63,24 @@ class Migration(migrations.Migration):
             reverse_sql="DROP TABLE IF EXISTS events_participanteventregistration_allowed_rooms CASCADE;"
         ),
         
-        # Step 3: Backup existing participant data
+        # Step 3: Backup existing participant data -- IF NOT EXISTS only
+        # protects against the backup table already existing, not against
+        # this whole migration having already completed and dropped it
+        # (Step 9). Gated on the same "has this already run" signal Step 5
+        # uses, so an accidental re-run skips the full-table copy entirely
+        # instead of re-copying an ever-growing production table.
         migrations.RunSQL(
             sql="""
-            CREATE TABLE IF NOT EXISTS events_participant_backup AS 
-            SELECT * FROM events_participant;
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'events_participant_user_id_unique'
+                ) THEN
+                    CREATE TABLE IF NOT EXISTS events_participant_backup AS
+                    SELECT * FROM events_participant;
+                END IF;
+            END $$;
             """,
             reverse_sql="DROP TABLE IF EXISTS events_participant_backup;"
         ),
