@@ -114,9 +114,17 @@ CSRF_FAILURE_VIEW = 'dashboard.views.csrf_failure'
 # an event with enough of each blows past Django's default 1000-field cap
 # (TooManyFieldsSent -> 400) well before hitting any real resource limit.
 # That view is staff-only, so a generous ceiling here is safe; the
-# separate DATA_UPLOAD_MAX_MEMORY_SIZE (default 2.5MB) still caps the
-# raw request body size regardless of field count.
+# separate DATA_UPLOAD_MAX_MEMORY_SIZE below still caps the raw request
+# body size regardless of field count.
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 20000
+
+# Django's default is 2.5MB -- too small for a genuinely print-quality
+# upload (a 300 DPI A4 certificate/attestation image is routinely
+# several MB). Both settings must be raised together: DATA_UPLOAD caps
+# the whole request body, FILE_UPLOAD caps how much of an individual
+# file Django will hold in memory before spilling to a temp file.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15MB
 
 ROOT_URLCONF = 'makeplus_api.urls'
 
