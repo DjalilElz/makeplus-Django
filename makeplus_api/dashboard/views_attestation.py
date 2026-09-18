@@ -70,26 +70,7 @@ def attestation_settings(request, event_id):
         if len(font_color) == 7 and font_color.startswith('#'):
             template.font_color = font_color
 
-        try:
-            template.save()
-        except Exception as e:
-            # A storage-backend failure (bad/expired credentials, network
-            # issue, misconfigured bucket) must not crash the whole page
-            # with a raw 500 -- surface it as a normal, readable error
-            # instead so the admin knows exactly what to check.
-            error_text = str(e)
-            if 'AccessDenied' in error_text or 'Invalid Compact JWS' in error_text or 'Unauthorized' in error_text:
-                messages.error(
-                    request,
-                    "Échec de l'enregistrement : la clé de connexion au stockage (SUPABASE_SERVICE_KEY) "
-                    "semble invalide ou expirée. Vérifiez-la dans les paramètres du serveur (Render) -- elle "
-                    "doit être la clé « service_role » du projet Supabase, pas la clé « anon » ni le mot de passe. "
-                    f"Détail technique : {error_text}"
-                )
-            else:
-                messages.error(request, f"Échec de l'enregistrement du modèle : {error_text}")
-            return redirect('dashboard:attestation_settings', event_id=event.id)
-
+        template.save()
         messages.success(request, "Modèle d'attestation enregistré.")
         return redirect('dashboard:attestation_settings', event_id=event.id)
 
