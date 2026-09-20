@@ -1,0 +1,259 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Modèle d'e-mail - {{ recipient_type_label }} - {{ event.name }}{% endblock %}
+
+{% block content %}
+<style>
+    #email-editor-container {
+        height: 700px;
+        width: 100%;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .form-section {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .section-title {
+        font-size: 1.1em;
+        font-weight: 600;
+        margin-bottom: 15px;
+        color: #333;
+        border-bottom: 2px solid #0d6efd;
+        padding-bottom: 8px;
+    }
+
+    .editor-loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 700px;
+        background: rgba(255, 255, 255, 0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+    }
+</style>
+
+<div class="container-fluid">
+    <form method="post" id="templateForm">
+        {% csrf_token %}
+        <input type="hidden" name="body_html" id="body_html">
+        <input type="hidden" name="design_json" id="design_json">
+        <input type="hidden" name="body_text" id="body_text">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <a href="{% url 'dashboard:attestation_settings' event.id %}" class="btn btn-outline-secondary btn-sm mb-2">
+                    <i class="bi bi-arrow-left"></i> Retour
+                </a>
+                <h3 class="mb-0">
+                    <i class="bi bi-envelope"></i> E-mail d'attestation -- {{ recipient_type_label }}
+                </h3>
+                <p class="text-muted mb-0">{{ event.name }}</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-primary" id="previewBtn">
+                    <i class="bi bi-eye"></i> Aperçu
+                </button>
+                <button type="submit" class="btn btn-success" id="saveBtn">
+                    <i class="bi bi-check-circle"></i> Enregistrer
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-3">
+                <div class="form-section sticky-top" style="top: 20px;">
+                    <div class="section-title">
+                        <i class="bi bi-code-square"></i> Variables
+                    </div>
+                    <p class="small text-muted mb-2">Cliquez pour copier</p>
+
+                    <h6 class="small fw-bold text-primary mb-2">Participant</h6>
+                    <div class="mb-3">
+                        {% verbatim %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{prenom}}">{{prenom}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{nom}}">{{nom}}</button>
+                        {% endverbatim %}
+                    </div>
+
+                    {% if recipient_type == 'eposter' %}
+                    <h6 class="small fw-bold text-info mb-2">ePoster</h6>
+                    <div class="mb-3">
+                        {% verbatim %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{titre}}">{{titre}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{co_auteurs}}">{{co_auteurs}}</button>
+                        {% endverbatim %}
+                    </div>
+                    {% endif %}
+
+                    <h6 class="small fw-bold text-success mb-2">Événement</h6>
+                    <div class="mb-3">
+                        {% verbatim %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{event_name}}">{{event_name}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{event_location}}">{{event_location}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{event_start_date}}">{{event_start_date}}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn" data-var="{{event_end_date}}">{{event_end_date}}</button>
+                        {% endverbatim %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-9">
+                <div class="form-section mb-3">
+                    <div class="mb-0">
+                        <label class="form-label fw-bold">Sujet de l'email <span class="text-danger">*</span></label>
+                        <input type="text" name="subject" id="subject" class="form-control form-control-lg" required
+                               value="{{ template.subject|default:defaults.subject }}"
+                               placeholder="Ex: Votre attestation - {% verbatim %}{{event_name}}{% endverbatim %}">
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">
+                        <i class="bi bi-brush"></i> Conception de l'email
+                    </div>
+                    <div style="position: relative;">
+                        <div id="email-editor-container"></div>
+                        <div class="editor-loading-overlay" id="editorLoadingOverlay">
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
+                                <p class="mt-3 fw-bold">Chargement de l'éditeur...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye"></i> Aperçu de l'email</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 p-3 bg-light border-bottom">
+                    <strong>Sujet:</strong> <span id="previewSubject"></span>
+                </div>
+                <iframe id="previewFrame" style="width: 100%; height: 600px; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://editor.unlayer.com/embed.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+
+    // Rendered server-side as JSON (see the view) specifically so the
+    // literal "{{varname}}" placeholder strings inside never pass
+    // through Django's own template engine, which would otherwise treat
+    // them as ITS OWN (undefined) variables and silently blank them out.
+    const mergeTags = {{ merge_tags_json|safe }};
+    const sampleValues = {{ sample_values_json|safe }};
+
+    const emailEditor = unlayer.createEditor({
+        id: 'email-editor-container',
+        projectId: 1234,
+        displayMode: 'email',
+        appearance: { theme: 'light', panels: { tools: { dock: 'left' } } },
+        features: { preview: true, imageEditor: true, textEditor: { tables: true, emojis: true } },
+        tools: { form: { enabled: false } },
+        mergeTags: mergeTags,
+    });
+
+    emailEditor.addEventListener('editor:ready', function() {
+        document.getElementById('editorLoadingOverlay').style.display = 'none';
+        {% if template and template.design_json %}
+        try {
+            emailEditor.loadDesign({{ template.design_json|safe }});
+        } catch (e) {
+            console.error('Error loading design:', e);
+        }
+        {% endif %}
+    });
+
+    document.getElementById('previewBtn').addEventListener('click', function() {
+        emailEditor.exportHtml(function(data) {
+            let html = data.html;
+            document.getElementById('previewSubject').textContent = document.getElementById('subject').value || 'Pas de sujet';
+            Object.keys(sampleValues).forEach(function(key) {
+                html = html.replace(new RegExp('\\{\\{' + key + '\\}\\}', 'g'), sampleValues[key]);
+            });
+            document.getElementById('previewFrame').srcdoc = html;
+            previewModal.show();
+        });
+    });
+
+    document.getElementById('templateForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const subject = document.getElementById('subject').value;
+        if (!subject) {
+            alert('Veuillez remplir le sujet');
+            return;
+        }
+
+        const saveBtn = document.getElementById('saveBtn');
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enregistrement...';
+
+        emailEditor.exportHtml(function(data) {
+            const { design, html } = data;
+            if (!html || html.trim().length === 0) {
+                alert("Le contenu de l'email ne peut pas être vide");
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="bi bi-check-circle"></i> Enregistrer';
+                return;
+            }
+
+            document.getElementById('body_html').value = html;
+            try {
+                document.getElementById('design_json').value = JSON.stringify(design);
+            } catch (err) {
+                document.getElementById('design_json').value = '{}';
+            }
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            document.getElementById('body_text').value = tempDiv.textContent || tempDiv.innerText || '';
+
+            e.target.submit();
+        });
+    });
+
+    document.querySelectorAll('.variable-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const varText = this.dataset.var;
+            navigator.clipboard.writeText(varText).then(() => {
+                this.classList.remove('btn-outline-secondary');
+                this.classList.add('btn-success');
+                const originalText = this.textContent;
+                this.textContent = '✓ Copié !';
+                setTimeout(() => {
+                    this.classList.remove('btn-success');
+                    this.classList.add('btn-outline-secondary');
+                    this.textContent = originalText;
+                }, 2000);
+            }).catch(() => alert('Copié: ' + varText));
+        });
+    });
+});
+</script>
+{% endblock %}

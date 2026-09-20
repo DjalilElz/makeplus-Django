@@ -23,6 +23,35 @@
         {% endfor %}
     {% endif %}
 
+    {% if status.pending %}
+    <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <div>
+            <i class="bi bi-exclamation-triangle"></i>
+            Un envoi est en cours ou a été interrompu : <strong>{{ status.pending }}</strong> attestation(s) restent à envoyer.
+        </div>
+        <a href="{% url 'dashboard:attestation_send_resume' event.id %}" class="btn btn-warning btn-sm">
+            <i class="bi bi-play-fill"></i> Reprendre l'envoi
+        </a>
+    </div>
+    {% endif %}
+
+    {% if status.total %}
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="d-flex justify-content-between small text-muted mb-1">
+                <span>Envoyés : <strong class="text-success">{{ status.sent }}</strong>
+                    {% if status.failed %} · Échoués : <strong class="text-danger">{{ status.failed }}</strong>{% endif %}
+                    {% if status.pending %} · En attente : <strong class="text-warning">{{ status.pending }}</strong>{% endif %}
+                </span>
+                <a href="{% url 'dashboard:attestation_history' event.id %}">Voir l'historique</a>
+            </div>
+            <div class="progress" style="height: 8px;">
+                <div class="progress-bar bg-success" style="width: {{ status.done_pct }}%;"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <form method="get" class="row g-2 mb-3">
         <div class="col-md-8">
             <input type="text" class="form-control" name="search" placeholder="Rechercher par nom, e-mail ou badge..." value="{{ search }}">

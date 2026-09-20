@@ -209,7 +209,9 @@ urlpatterns = [
     path('events/<uuid:event_id>/attestations/settings/', views_attestation.attestation_settings, name='attestation_settings'),
     path('events/<uuid:event_id>/attestations/preview/', views_attestation.attestation_preview_pdf, name='attestation_preview_pdf'),
     path('events/<uuid:event_id>/attestations/send/', views_attestation.attestation_send, name='attestation_send'),
+    path('events/<uuid:event_id>/attestations/send/resume/', views_attestation.attestation_send_resume, name='attestation_send_resume'),
     path('events/<uuid:event_id>/attestations/history/', views_attestation.attestation_history, name='attestation_history'),
+    path('events/<uuid:event_id>/attestations/email/<str:recipient_type>/', views_attestation.attestation_email_template_edit, name='attestation_email_template_edit'),
 
     # Registration submissions (staff + event owners, read-only)
     path('my-submissions/', views_event_owner.event_owner_submissions_home, name='event_owner_submissions_home'),

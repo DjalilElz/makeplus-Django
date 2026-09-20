@@ -6,8 +6,12 @@
 {% block content %}
 <style>
     @font-face { font-family: 'AttestGreatVibes'; src: url('{% static "dashboard/fonts/attestation/GreatVibes-Regular.ttf" %}'); }
-    @font-face { font-family: 'AttestPlayfair'; src: url('{% static "dashboard/fonts/attestation/PlayfairDisplay-Regular.ttf" %}'); }
-    @font-face { font-family: 'AttestMontserrat'; src: url('{% static "dashboard/fonts/attestation/Montserrat-Regular.ttf" %}'); }
+    /* font-weight: 100 900 -- these two files are variable fonts; the
+       range tells the browser to actually interpolate weight from the
+       CSS font-weight value instead of only ever showing one instance,
+       matching Pillow's set_variation_by_name() on the server side. */
+    @font-face { font-family: 'AttestPlayfair'; src: url('{% static "dashboard/fonts/attestation/PlayfairDisplay-Regular.ttf" %}'); font-weight: 100 900; }
+    @font-face { font-family: 'AttestMontserrat'; src: url('{% static "dashboard/fonts/attestation/Montserrat-Regular.ttf" %}'); font-weight: 100 900; }
 
     #attestation-preview-wrap {
         position: relative;
@@ -24,18 +28,25 @@
         height: auto;
         user-select: none;
     }
-    #attestation-preview-text {
+    .attestation-preview-text {
         position: absolute;
         white-space: nowrap;
         transform: translate(-50%, -50%);
         pointer-events: none;
     }
-    #attestation-preview-text.align-left { transform: translate(0, -50%); }
-    #attestation-preview-text.align-right { transform: translate(-100%, -50%); }
+    .attestation-preview-text.align-left { transform: translate(0, -50%); }
+    .attestation-preview-text.align-right { transform: translate(-100%, -50%); }
+    .attestation-preview-text.field-active {
+        outline: 2px dashed #0d6efd;
+        outline-offset: 4px;
+    }
+    #field-selector .btn.active {
+        pointer-events: none;
+    }
 </style>
 
 <div class="container-fluid" style="max-width: 900px;">
-    <div class="mb-4 d-flex justify-content-between align-items-center">
+    <div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
             <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left"></i> Retour
@@ -43,7 +54,13 @@
             <h2 class="d-inline-block ms-2 mb-0"><i class="bi bi-award"></i> Attestations</h2>
         </div>
         {% if template %}
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'dashboard:attestation_email_template_edit' event.id 'participant' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-envelope"></i> E-mail (participant)
+            </a>
+            <a href="{% url 'dashboard:attestation_email_template_edit' event.id 'eposter' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-envelope"></i> E-mail (ePoster)
+            </a>
             <button type="submit" form="attestation-form"
                     formaction="{% url 'dashboard:attestation_preview_pdf' event.id %}" formtarget="_blank"
                     class="btn btn-outline-secondary">
@@ -67,6 +84,7 @@
         <div class="card-body">
             <form method="post" enctype="multipart/form-data" id="attestation-form">
                 {% csrf_token %}
+                <input type="hidden" name="eposter_preview" id="eposter_preview_input" value="0">
 
                 <div class="mb-3">
                     <label class="form-label fw-bold">Image du modèle (PNG ou JPG)</label>
@@ -84,40 +102,75 @@
 
                 {% if template %}
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Aperçu -- cliquez à l'endroit où le nom doit apparaître</label>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                        <label class="form-label fw-bold mb-0">Aperçu -- sélectionnez un élément puis cliquez sur l'image pour le positionner</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="eposter-preview-toggle">
+                            <label class="form-check-label small" for="eposter-preview-toggle">Aperçu présentateur ePoster (titre + co-auteurs)</label>
+                        </div>
+                    </div>
+
+                    <div class="btn-group btn-group-sm mb-2" role="group" id="field-selector">
+                        <button type="button" class="btn btn-outline-primary active" data-field="name">Nom du participant</button>
+                        <button type="button" class="btn btn-outline-secondary d-none" data-field="title">Titre du poster</button>
+                        <button type="button" class="btn btn-outline-secondary d-none" data-field="co_authors">Co-auteurs</button>
+                    </div>
+
                     <div id="attestation-preview-wrap">
                         <img id="attestation-preview-img" src="{{ template.template_image.url }}" alt="Modèle d'attestation">
-                        <div id="attestation-preview-text" class="align-{{ template.text_align }}">Jean Dupont</div>
+                        <div id="preview-text-name" class="attestation-preview-text align-{{ template.text_align }} field-active">Jean Dupont</div>
+                        <div id="preview-text-title" class="attestation-preview-text align-{{ template.title_align }} d-none">Titre de l'étude scientifique présentée</div>
+                        <div id="preview-text-co_authors" class="attestation-preview-text align-{{ template.co_authors_align }} d-none">Amine Kaci, Sarah Belkacem, Yacine Meziane</div>
                     </div>
+                    <div class="form-text">Le titre et les co-auteurs ne sont dessinés que pour les présentateurs ePoster (détectés automatiquement par e-mail) -- ils sont pris tels quels depuis leur soumission.</div>
                 </div>
 
                 <input type="hidden" name="text_x" id="text_x_input" value="{{ template.text_x }}">
                 <input type="hidden" name="text_y" id="text_y_input" value="{{ template.text_y }}">
+                <input type="hidden" name="title_x" id="title_x_input" value="{{ template.title_x }}">
+                <input type="hidden" name="title_y" id="title_y_input" value="{{ template.title_y }}">
+                <input type="hidden" name="co_authors_x" id="co_authors_x_input" value="{{ template.co_authors_x }}">
+                <input type="hidden" name="co_authors_y" id="co_authors_y_input" value="{{ template.co_authors_y }}">
 
                 <div class="row g-3">
                     <div class="col-md-4">
-                        <label class="form-label fw-bold">Alignement</label>
-                        <select class="form-select" name="text_align" id="text_align_input">
+                        <label class="form-label fw-bold" id="align-label">Alignement -- Nom</label>
+                        <select class="form-select" id="active-align-input">
                             {% for value, label in align_choices %}
-                            <option value="{{ value }}" {% if template.text_align == value %}selected{% endif %}>{{ label }}</option>
+                            <option value="{{ value }}">{{ label }}</option>
                             {% endfor %}
                         </select>
+                        <input type="hidden" name="text_align" id="text_align_input" value="{{ template.text_align }}">
+                        <input type="hidden" name="title_align" id="title_align_input" value="{{ template.title_align }}">
+                        <input type="hidden" name="co_authors_align" id="co_authors_align_input" value="{{ template.co_authors_align }}">
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-bold">Police</label>
+                        <label class="form-label fw-bold" id="size-label">Taille (px) -- Nom</label>
+                        <input type="number" class="form-control" id="active-size-input" min="8" max="300">
+                        <input type="hidden" name="font_size" id="font_size_input" value="{{ template.font_size }}">
+                        <input type="hidden" name="title_font_size" id="title_font_size_input" value="{{ template.title_font_size }}">
+                        <input type="hidden" name="co_authors_font_size" id="co_authors_font_size_input" value="{{ template.co_authors_font_size }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Couleur (partagée)</label>
+                        <input type="color" class="form-control form-control-color" name="font_color" id="font_color_input" value="{{ template.font_color }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Police (partagée)</label>
                         <select class="form-select" name="font_choice" id="font_choice_input">
                             {% for value, label in font_choices %}
                             <option value="{{ value }}" {% if template.font_choice == value %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold">Taille (px)</label>
-                        <input type="number" class="form-control" name="font_size" id="font_size_input" min="8" max="300" value="{{ template.font_size }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold">Couleur</label>
-                        <input type="color" class="form-control form-control-color" name="font_color" id="font_color_input" value="{{ template.font_color }}">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Poids de la police (partagé)</label>
+                        <select class="form-select" name="font_weight" id="font_weight_input">
+                            {% for value, label in weight_choices %}
+                            <option value="{{ value }}" {% if template.font_weight == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Sans effet pour Great Vibes (police à un seul poids).</div>
                     </div>
                 </div>
                 {% endif %}
@@ -164,19 +217,46 @@
 (function() {
     const wrap = document.getElementById('attestation-preview-wrap');
     const img = document.getElementById('attestation-preview-img');
-    const textEl = document.getElementById('attestation-preview-text');
-    const xInput = document.getElementById('text_x_input');
-    const yInput = document.getElementById('text_y_input');
-    const alignInput = document.getElementById('text_align_input');
+    const fieldSelector = document.getElementById('field-selector');
+    const eposterToggle = document.getElementById('eposter-preview-toggle');
+    const eposterPreviewInput = document.getElementById('eposter_preview_input');
+    const alignLabel = document.getElementById('align-label');
+    const sizeLabel = document.getElementById('size-label');
+    const activeAlignInput = document.getElementById('active-align-input');
+    const activeSizeInput = document.getElementById('active-size-input');
     const fontChoiceInput = document.getElementById('font_choice_input');
-    const fontSizeInput = document.getElementById('font_size_input');
+    const fontWeightInput = document.getElementById('font_weight_input');
     const fontColorInput = document.getElementById('font_color_input');
+
+    // Each positionable element on the certificate: its own overlay,
+    // hidden x/y/align/size inputs, and a human label for the shared
+    // Alignement/Taille controls above.
+    const FIELDS = {
+        name: {
+            label: 'Nom', el: document.getElementById('preview-text-name'),
+            x: document.getElementById('text_x_input'), y: document.getElementById('text_y_input'),
+            align: document.getElementById('text_align_input'), size: document.getElementById('font_size_input'),
+        },
+        title: {
+            label: 'Titre du poster', el: document.getElementById('preview-text-title'),
+            x: document.getElementById('title_x_input'), y: document.getElementById('title_y_input'),
+            align: document.getElementById('title_align_input'), size: document.getElementById('title_font_size_input'),
+        },
+        co_authors: {
+            label: 'Co-auteurs', el: document.getElementById('preview-text-co_authors'),
+            x: document.getElementById('co_authors_x_input'), y: document.getElementById('co_authors_y_input'),
+            align: document.getElementById('co_authors_align_input'), size: document.getElementById('co_authors_font_size_input'),
+        },
+    };
+    let activeField = 'name';
 
     const FONT_CSS_MAP = {
         great_vibes: 'AttestGreatVibes',
         playfair: 'AttestPlayfair',
         montserrat: 'AttestMontserrat',
     };
+    const WEIGHT_CSS_MAP = { regular: 400, medium: 500, bold: 700 };
+
     // Preview font-size is scaled down from the real (full-resolution)
     // pixel size to match however small the browser is displaying the
     // image -- otherwise the preview text looks huge/tiny compared to
@@ -185,41 +265,90 @@
         return img.clientWidth / (img.naturalWidth || img.clientWidth || 1);
     }
 
-    function updatePosition(xFrac, yFrac) {
-        textEl.style.left = (xFrac * 100) + '%';
-        textEl.style.top = (yFrac * 100) + '%';
-        xInput.value = xFrac.toFixed(4);
-        yInput.value = yFrac.toFixed(4);
+    function updatePosition(fieldKey, xFrac, yFrac) {
+        const f = FIELDS[fieldKey];
+        f.el.style.left = (xFrac * 100) + '%';
+        f.el.style.top = (yFrac * 100) + '%';
+        f.x.value = xFrac.toFixed(4);
+        f.y.value = yFrac.toFixed(4);
     }
 
-    function updateStyle() {
-        textEl.className = 'align-' + alignInput.value;
-        textEl.style.fontFamily = FONT_CSS_MAP[fontChoiceInput.value] || 'serif';
-        textEl.style.fontSize = (parseInt(fontSizeInput.value || '60', 10) * displayScale()) + 'px';
-        textEl.style.color = fontColorInput.value;
+    function updateFieldStyle(fieldKey) {
+        const f = FIELDS[fieldKey];
+        f.el.className = 'attestation-preview-text align-' + f.align.value + (fieldKey === activeField ? ' field-active' : '');
+        f.el.style.fontFamily = FONT_CSS_MAP[fontChoiceInput.value] || 'serif';
+        f.el.style.fontWeight = WEIGHT_CSS_MAP[fontWeightInput.value] || 400;
+        f.el.style.fontSize = (parseInt(f.size.value || '20', 10) * displayScale()) + 'px';
+        f.el.style.color = fontColorInput.value;
     }
+
+    function updateAllStyles() {
+        Object.keys(FIELDS).forEach(updateFieldStyle);
+    }
+
+    function selectField(fieldKey) {
+        activeField = fieldKey;
+        fieldSelector.querySelectorAll('button').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.field === fieldKey);
+            btn.classList.toggle('btn-primary', btn.dataset.field === fieldKey);
+            btn.classList.toggle('btn-outline-primary', btn.dataset.field === fieldKey);
+            btn.classList.toggle('btn-outline-secondary', btn.dataset.field !== fieldKey);
+        });
+        const f = FIELDS[fieldKey];
+        alignLabel.textContent = 'Alignement -- ' + f.label;
+        sizeLabel.textContent = 'Taille (px) -- ' + f.label;
+        activeAlignInput.value = f.align.value;
+        activeSizeInput.value = f.size.value;
+        updateAllStyles();
+    }
+
+    fieldSelector.querySelectorAll('button').forEach(function(btn) {
+        btn.addEventListener('click', function() { selectField(btn.dataset.field); });
+    });
+
+    eposterToggle.addEventListener('change', function() {
+        const showEposterFields = eposterToggle.checked;
+        eposterPreviewInput.value = showEposterFields ? '1' : '0';
+        FIELDS.title.el.classList.toggle('d-none', !showEposterFields);
+        FIELDS.co_authors.el.classList.toggle('d-none', !showEposterFields);
+        fieldSelector.querySelector('[data-field="title"]').classList.toggle('d-none', !showEposterFields);
+        fieldSelector.querySelector('[data-field="co_authors"]').classList.toggle('d-none', !showEposterFields);
+        if (!showEposterFields && activeField !== 'name') {
+            selectField('name');
+        }
+    });
+
+    activeAlignInput.addEventListener('change', function() {
+        FIELDS[activeField].align.value = activeAlignInput.value;
+        updateAllStyles();
+    });
+    activeSizeInput.addEventListener('input', function() {
+        FIELDS[activeField].size.value = activeSizeInput.value;
+        updateAllStyles();
+    });
+    fontChoiceInput.addEventListener('change', updateAllStyles);
+    fontWeightInput.addEventListener('change', updateAllStyles);
+    fontColorInput.addEventListener('input', updateAllStyles);
+    window.addEventListener('resize', updateAllStyles);
 
     wrap.addEventListener('click', function(e) {
         const rect = img.getBoundingClientRect();
         const xFrac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
         const yFrac = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
-        updatePosition(xFrac, yFrac);
+        updatePosition(activeField, xFrac, yFrac);
     });
 
-    alignInput.addEventListener('change', updateStyle);
-    fontChoiceInput.addEventListener('change', updateStyle);
-    fontSizeInput.addEventListener('input', updateStyle);
-    fontColorInput.addEventListener('input', updateStyle);
-    window.addEventListener('resize', updateStyle);
+    function initPositions() {
+        Object.keys(FIELDS).forEach(function(key) {
+            updatePosition(key, parseFloat(FIELDS[key].x.value), parseFloat(FIELDS[key].y.value));
+        });
+        selectField('name');
+    }
 
     if (img.complete) {
-        updatePosition(parseFloat(xInput.value), parseFloat(yInput.value));
-        updateStyle();
+        initPositions();
     } else {
-        img.addEventListener('load', function() {
-            updatePosition(parseFloat(xInput.value), parseFloat(yInput.value));
-            updateStyle();
-        });
+        img.addEventListener('load', initPositions);
     }
 })();
 </script>
