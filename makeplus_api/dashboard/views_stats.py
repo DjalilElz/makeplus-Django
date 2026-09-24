@@ -514,15 +514,30 @@ def _gather_event_stats(request, event):
         .distinct().order_by('exposant__user__first_name', 'exposant__user__last_name')
     )
 
-    controller_scans_qs = _in_date_range(
+    controller_scans_base_qs = _in_date_range(
         ControllerScan.objects.filter(event=event), 'scanned_at', date_from, date_to,
-    ).select_related('controller')
+    )
+    if controller_id:
+        controller_scans_base_qs = controller_scans_base_qs.filter(controller_id=controller_id)
+
+    # Per-controller breakdown (mirrors per_caisse_stats below): one row
+    # per controller with their own scan count and distinct participants
+    # scanned, independent of every other controller's numbers -- not
+    # just a dropdown to view one controller's raw list at a time.
+    # Must run against an UN-ordered queryset (see per_caisse_stats'
+    # note) -- order_by() gets folded into GROUP BY otherwise.
+    per_controller_stats = list(controller_scans_base_qs.values(
+        'controller_id', 'controller__first_name', 'controller__last_name', 'controller__username'
+    ).annotate(
+        scan_count=Count('id'),
+        unique_participants=Count('participant_user_id', distinct=True),
+    ).order_by('controller__first_name', 'controller__last_name'))
+
+    controller_scans_qs = controller_scans_base_qs.select_related('controller')
     exposant_scans_qs = _in_date_range(
         ExposantScan.objects.filter(event=event), 'scanned_at', date_from, date_to,
     ).select_related('exposant__user', 'scanned_participant__user')
 
-    if controller_id:
-        controller_scans_qs = controller_scans_qs.filter(controller_id=controller_id)
     if exposant_id:
         exposant_scans_qs = exposant_scans_qs.filter(exposant_id=exposant_id)
 
@@ -552,6 +567,7 @@ def _gather_event_stats(request, event):
         'controller_scans_qs': controller_scans_qs, 'exposant_scans_qs': exposant_scans_qs,
         'controller_id': controller_id, 'exposant_id': exposant_id,
         'controller_options': controller_options, 'exposant_options': exposant_options,
+        'per_controller_stats': per_controller_stats,
     }
 
 
@@ -590,6 +606,7 @@ def event_stats(request, event_id):
         'selected_caisse': data['selected_caisse'],
         'money_stats': data['money_stats'],
         'per_caisse_stats': data['per_caisse_stats'],
+        'per_controller_stats': data['per_controller_stats'],
         'transactions': transactions_qs[:_EVENT_STATS_LIST_LIMIT],
         'transactions_total_count': transaction_count,
         'transactions_truncated': transaction_count > _EVENT_STATS_LIST_LIMIT,
@@ -678,6 +695,13 @@ def event_stats_export_excel(request, event_id):
     for col in range(1, 5):
         ws.cell(row=ws.max_row, column=col).font = Font(bold=True)
         ws.column_dimensions[get_column_letter(col)].width = 26
+
+    ws.append([])
+    header_row = ws.max_row + 1
+    _write_header(ws, header_row, ["Contrôleur", "Scans", "Participants distincts"])
+    for row in data['per_controller_stats']:
+        name = f"{row['controller__first_name']} {row['controller__last_name']}".strip() or row['controller__username']
+        ws.append([name, row['scan_count'], row['unique_participants']])
 
     # ---- Transactions ----
     rows = []
