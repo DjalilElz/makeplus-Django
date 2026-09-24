@@ -11,7 +11,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db.models import Q, F
+from django.db.models import Q, F, CharField
+from django.db.models.functions import Coalesce
 from django.conf import settings
 from .models_eposter import ScientificContributionSubmission, ScientificContributionFinalSubmission, EventFormConfiguration
 from events.models import Event
@@ -328,14 +329,23 @@ def eposter_public_gallery(request, event_id):
     # -- a standalone final submission (no original_submission at all, for
     # events with no call-for-abstracts stage) has no original to look
     # that up on, and was invisible here before this field existed.
-    # Classified by contribution number (the code the committee assigns
-    # each poster), not submission time -- nulls_last so any poster that
-    # hasn't been assigned a number yet lands at the end instead of
-    # jumbled in at the top ahead of numbered ones.
+    #
+    # display_number falls back to the ORIGINAL submission's
+    # contribution_code when the final submission's own
+    # contribution_number is blank -- a number assigned via the
+    # committee's "set contribution code" tool (on the original
+    # abstract submission, before the final PDF was ever uploaded) never
+    # gets copied onto the final submission, so reading only
+    # contribution_number showed nothing for posters numbered that way.
+    # Classified by this same effective number, not submission time --
+    # nulls_last so any poster with no number from either source lands
+    # at the end instead of jumbled in at the top ahead of numbered ones.
     submissions = ScientificContributionFinalSubmission.objects.filter(
         event=event,
         submission_type='e_poster'
-    ).select_related('original_submission').order_by(F('contribution_number').asc(nulls_last=True))
+    ).select_related('original_submission').annotate(
+        display_number=Coalesce('contribution_number', 'original_submission__contribution_code', output_field=CharField())
+    ).order_by(F('display_number').asc(nulls_last=True))
 
     if query:
         submissions = submissions.filter(

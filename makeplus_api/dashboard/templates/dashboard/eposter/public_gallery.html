@@ -466,7 +466,7 @@
                 <div class="col-sm-6 col-lg-4 col-xl-3">
                     <div class="poster-card">
                         <div class="poster-card-header">
-                            {{ submission.contribution_number }}
+                            {{ submission.display_number|default:"—" }}
                         </div>
                         <div class="poster-card-body">
                             <div class="poster-title" title="{{ submission.titre }}">
