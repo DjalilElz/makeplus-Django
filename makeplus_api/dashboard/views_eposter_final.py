@@ -11,7 +11,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, F
 from django.conf import settings
 from .models_eposter import ScientificContributionSubmission, ScientificContributionFinalSubmission, EventFormConfiguration
 from events.models import Event
@@ -328,10 +328,14 @@ def eposter_public_gallery(request, event_id):
     # -- a standalone final submission (no original_submission at all, for
     # events with no call-for-abstracts stage) has no original to look
     # that up on, and was invisible here before this field existed.
+    # Classified by contribution number (the code the committee assigns
+    # each poster), not submission time -- nulls_last so any poster that
+    # hasn't been assigned a number yet lands at the end instead of
+    # jumbled in at the top ahead of numbered ones.
     submissions = ScientificContributionFinalSubmission.objects.filter(
         event=event,
         submission_type='e_poster'
-    ).select_related('original_submission').order_by('-submitted_at')
+    ).select_related('original_submission').order_by(F('contribution_number').asc(nulls_last=True))
 
     if query:
         submissions = submissions.filter(
