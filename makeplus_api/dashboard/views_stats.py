@@ -571,6 +571,27 @@ def _gather_event_stats(request, event):
     }
 
 
+def _group_scans_by_controller(controller_scans_qs, per_controller_stats):
+    """
+    The per-controller table isn't just counts -- each controller needs
+    their own actual list of scans underneath, not a click-through to a
+    separate combined list. Reuses the same _EVENT_STATS_LIST_LIMIT cap
+    as every other on-page list here, so a controller's shown scans can
+    fall short of their real total (scan_count, from the exact aggregate
+    query) if the global cap is hit first -- shown_count lets the
+    template flag that per group instead of silently under-reporting.
+    """
+    scans_by_controller = {}
+    for scan in controller_scans_qs[:_EVENT_STATS_LIST_LIMIT]:
+        scans_by_controller.setdefault(scan.controller_id, []).append(scan)
+
+    return [
+        {**row, 'scans': scans_by_controller.get(row['controller_id'], []),
+         'shown_count': len(scans_by_controller.get(row['controller_id'], []))}
+        for row in per_controller_stats
+    ]
+
+
 @login_required
 @user_passes_test(is_staff_user)
 def event_stats(request, event_id):
@@ -616,6 +637,7 @@ def event_stats(request, event_id):
         'total_registered': data['total_registered'],
         'controller_scans': controller_scans_qs[:_EVENT_STATS_LIST_LIMIT],
         'controller_scans_count': controller_scans_qs.count(),
+        'controller_scans_grouped': _group_scans_by_controller(controller_scans_qs, data['per_controller_stats']),
         'exposant_scans': exposant_scans_qs[:_EVENT_STATS_LIST_LIMIT],
         'exposant_scans_count': exposant_scans_qs.count(),
         'export_querystring': request.GET.urlencode(),
