@@ -377,6 +377,9 @@
                     <i class="bi bi-plus-circle"></i> Nouvelle inscription
                 </a>
                 {% endif %}
+                <a href="{% url 'dashboard:participant_import_upload' event.id %}" class="btn btn-outline-elegant btn-sm">
+                    <i class="bi bi-cloud-upload"></i> Importer des participants
+                </a>
                 <a href="{% url 'dashboard:event_owner_export_excel' event.id %}?{{ request.GET.urlencode }}" class="btn btn-outline-elegant btn-sm">
                     <i class="bi bi-file-earmark-excel"></i> Exporter Excel
                 </a>

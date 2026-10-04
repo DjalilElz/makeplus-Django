@@ -1,0 +1,141 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aperçu de l'import — {{ event.name }}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'dashboard/images/makeplus-icon.svg' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --banner-1: #2D1B6B; --banner-2: #46309a; --banner-3: #3a2480;
+            --cream: #FAF6F0; --border-light: #E7E2DC;
+            --font-serif: 'Playfair Display', serif; --font-sans: 'Inter', sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: var(--cream); font-family: var(--font-sans); min-height: 100vh; color: #2c2c2c; }
+        .elegant-banner {
+            background: linear-gradient(135deg, var(--banner-1) 0%, var(--banner-2) 55%, var(--banner-3) 100%);
+            color: #fff; padding: 36px 20px 44px; position: relative; overflow: hidden;
+        }
+        .banner-content { position: relative; z-index: 2; max-width: 1200px; margin: 0 auto; }
+        .banner-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; }
+        .back-link { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.85rem; }
+        .back-link:hover { color: #fff; }
+        .banner-eyebrow { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: #E8B9B9; margin-bottom: 8px; }
+        .event-title { font-family: var(--font-serif); font-size: 1.9rem; font-weight: 700; }
+        .page-wrapper { max-width: 1200px; margin: -20px auto 0; padding: 0 20px 60px; position: relative; z-index: 3; }
+        .content-card { background: #fff; border-radius: 18px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); padding: 28px; }
+        .btn-elegant { background: var(--banner-1); color: #fff; border-radius: 10px; border: none; }
+        .btn-elegant:hover { background: var(--banner-2); color: #fff; }
+        .btn-elegant:disabled { background: #b8b3ac; }
+        .summary-tile { text-align: center; padding: 16px; border-radius: 12px; }
+        .summary-tile .num { font-size: 1.8rem; font-weight: 700; font-family: var(--font-serif); }
+        .summary-tile .label { font-size: 0.78rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.05em; }
+    </style>
+</head>
+<body>
+    <div class="elegant-banner">
+        <div class="banner-content">
+            <div class="banner-topbar">
+                <a href="{% url 'dashboard:participant_import_upload' event.id %}" class="back-link"><i class="bi bi-arrow-left"></i> Importer un autre fichier</a>
+            </div>
+            <div class="banner-eyebrow">Aperçu de l'import -- rien n'a encore été créé</div>
+            <h1 class="event-title">{{ event.name }}</h1>
+        </div>
+    </div>
+
+    <div class="page-wrapper">
+        <div class="content-card">
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="summary-tile" style="background:#e8f5e9;">
+                        <div class="num text-success">{{ counts.valid }}</div>
+                        <div class="label">Prêt(e)s à importer</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="summary-tile" style="background:#fdecea;">
+                        <div class="num text-danger">{{ counts.error }}</div>
+                        <div class="label">En erreur</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="summary-tile" style="background:#fff8e1;">
+                        <div class="num text-warning">{{ counts.skipped_duplicate }}</div>
+                        <div class="label">Déjà inscrit(e)s -- ignoré(e)s</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive mb-4" style="max-height: 500px; overflow-y: auto;">
+                <table class="table table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Ligne</th>
+                            <th>Nom</th>
+                            <th>E-mail</th>
+                            <th>Statut</th>
+                            <th>Détail</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td><small class="text-muted">{{ row.row_number }}</small></td>
+                            <td>{{ row.full_name|default:"—" }}</td>
+                            <td><small>{{ row.email|default:"—" }}</small></td>
+                            <td>
+                                {% if row.status == 'valid' %}
+                                    <span class="badge bg-success">Valide</span>
+                                {% elif row.status == 'error' %}
+                                    <span class="badge bg-danger">Erreur</span>
+                                {% elif row.status == 'skipped_duplicate' %}
+                                    <span class="badge bg-warning text-dark">Ignoré</span>
+                                {% endif %}
+                            </td>
+                            <td><small class="text-muted">{{ row.error_message }}</small></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if counts.valid %}
+            <form method="post" action="{% url 'dashboard:participant_import_process' event.id batch.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="start">
+                <button type="submit" class="btn btn-elegant" id="confirmBtn">
+                    <i class="bi bi-check-circle"></i> Confirmer l'import de {{ counts.valid }} participant{{ counts.valid|pluralize }}
+                </button>
+            </form>
+            {% else %}
+            <p class="text-muted">Aucune ligne valide à importer -- corrigez le fichier et réessayez.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+    document.querySelector('form')?.addEventListener('submit', function(e) {
+        if (!confirm('Importer {{ counts.valid }} participant(s) pour {{ event.name|escapejs }} ? Chaque inscription sera créée comme une inscription normale (non payée).')) {
+            e.preventDefault();
+            return;
+        }
+        const btn = document.getElementById('confirmBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Préparation...';
+    });
+    </script>
+</body>
+</html>

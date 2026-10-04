@@ -20,4 +20,7 @@ from .models_blocs import (
 )
 
 # Import attestation (certificate) generation models
-from .models_attestation import AttestationTemplate, AttestationSendLog
+from .models_attestation import AttestationTemplate, AttestationSendLog, AttestationEmailTemplate
+
+# Import bulk participant import models
+from .models_import import ParticipantImportBatch, ParticipantImportRow

@@ -13,6 +13,7 @@ from . import views_final_communications
 from . import views_attestation
 from . import views_blocs
 from . import views_event_owner
+from . import views_participant_import
 from . import views_questions
 
 app_name = 'dashboard'
@@ -218,6 +219,10 @@ urlpatterns = [
     path('events/<uuid:event_id>/my-submissions/', views_event_owner.event_owner_submissions, name='event_owner_submissions'),
     path('events/<uuid:event_id>/my-submissions/new/', views_event_owner.event_owner_new_registration, name='event_owner_new_registration'),
     path('events/<uuid:event_id>/my-submissions/export/', views_event_owner.event_owner_export_excel, name='event_owner_export_excel'),
+    path('events/<uuid:event_id>/my-submissions/import/template/', views_participant_import.participant_import_template, name='participant_import_template'),
+    path('events/<uuid:event_id>/my-submissions/import/', views_participant_import.participant_import_upload, name='participant_import_upload'),
+    path('events/<uuid:event_id>/my-submissions/import/<uuid:batch_id>/', views_participant_import.participant_import_preview, name='participant_import_preview'),
+    path('events/<uuid:event_id>/my-submissions/import/<uuid:batch_id>/process/', views_participant_import.participant_import_process, name='participant_import_process'),
     path('my-submissions/<uuid:order_id>/status/', views_event_owner.registration_status_save, name='registration_status_save'),
     path('my-submissions/<uuid:order_id>/notes/', views_event_owner.registration_notes_save, name='registration_notes_save'),
     path('my-submissions/<uuid:order_id>/blocs/', views_event_owner.registration_order_blocs_save, name='registration_order_blocs_save'),

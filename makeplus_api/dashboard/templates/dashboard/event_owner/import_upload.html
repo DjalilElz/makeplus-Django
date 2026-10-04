@@ -1,0 +1,121 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importer des participants — {{ event.name }}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'dashboard/images/makeplus-icon.svg' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --banner-1: #2D1B6B; --banner-2: #46309a; --banner-3: #3a2480;
+            --steel-blue: #7BA7BC; --dusty-rose: #E8B9B9; --dusty-rose-dark: #8B4B4B;
+            --dusty-rose-bg: #F5E3E1; --cream: #FAF6F0; --border-light: #E7E2DC;
+            --font-serif: 'Playfair Display', serif; --font-sans: 'Inter', sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: var(--cream); font-family: var(--font-sans); min-height: 100vh; color: #2c2c2c; }
+        .elegant-banner {
+            background: linear-gradient(135deg, var(--banner-1) 0%, var(--banner-2) 55%, var(--banner-3) 100%);
+            color: #fff; padding: 36px 20px 44px; position: relative; overflow: hidden;
+        }
+        .banner-content { position: relative; z-index: 2; max-width: 900px; margin: 0 auto; }
+        .banner-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; }
+        .back-link { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.85rem; }
+        .back-link:hover { color: #fff; }
+        .banner-eyebrow { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--dusty-rose); margin-bottom: 8px; }
+        .event-title { font-family: var(--font-serif); font-size: 1.9rem; font-weight: 700; }
+        .page-wrapper { max-width: 900px; margin: -20px auto 0; padding: 0 20px 60px; position: relative; z-index: 3; }
+        .content-card { background: #fff; border-radius: 18px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); padding: 28px; }
+        .btn-elegant { background: var(--banner-1); color: #fff; border-radius: 10px; border: none; }
+        .btn-elegant:hover { background: var(--banner-2); color: #fff; }
+        .btn-outline-elegant { background: transparent; border: 1px solid var(--banner-1); color: var(--banner-1); border-radius: 10px; font-size: 0.85rem; font-weight: 600; padding: 8px 18px; }
+        .btn-outline-elegant:hover { background: var(--banner-1); color: #fff; }
+        .section-heading { font-family: var(--font-serif); font-size: 1.1rem; font-weight: 700; color: var(--banner-1); margin-bottom: 12px; }
+        .step-card { border: 1px solid var(--border-light); border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+        .step-number {
+            display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+            border-radius: 50%; background: var(--banner-1); color: #fff; font-weight: 700; font-size: 0.85rem; margin-right: 10px;
+        }
+        .column-badge {
+            display: inline-block; background: var(--dusty-rose-bg); color: var(--dusty-rose-dark);
+            font-size: 0.75rem; font-weight: 600; padding: 3px 10px; border-radius: 12px; margin: 2px 4px 2px 0;
+        }
+        .column-badge.required { background: var(--banner-1); color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="elegant-banner">
+        <div class="banner-content">
+            <div class="banner-topbar">
+                <a href="{% url 'dashboard:event_owner_submissions' event.id %}" class="back-link"><i class="bi bi-arrow-left"></i> Retour aux inscriptions</a>
+            </div>
+            <div class="banner-eyebrow">Import en masse</div>
+            <h1 class="event-title">{{ event.name }}</h1>
+        </div>
+    </div>
+
+    <div class="page-wrapper">
+        <div class="content-card">
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="step-card">
+                <h5 class="section-heading"><span class="step-number">1</span>Télécharger le modèle</h5>
+                <p class="text-muted small">
+                    Le modèle est généré spécifiquement pour cet événement : il contient exactement les champs
+                    du formulaire d'inscription et les blocs (statut, restauration, ateliers, événement social)
+                    actuellement activés pour <strong>{{ event.name }}</strong>.
+                </p>
+                <div class="mb-2">
+                    {% for f in columns.form_fields %}
+                    <span class="column-badge {% if f.required %}required{% endif %}">{{ f.label }}{% if f.required %} *{% endif %}</span>
+                    {% endfor %}
+                    {% for c in columns.bloc_columns %}
+                    <span class="column-badge {% if c.required %}required{% endif %}">{{ c.header }}</span>
+                    {% endfor %}
+                </div>
+                <a href="{% url 'dashboard:participant_import_template' event.id %}" class="btn btn-elegant">
+                    <i class="bi bi-download"></i> Télécharger le modèle Excel
+                </a>
+            </div>
+
+            <div class="step-card">
+                <h5 class="section-heading"><span class="step-number">2</span>Remplir et importer</h5>
+                <p class="text-muted small">
+                    Pour les colonnes de blocs (Statut, Restauration, Ateliers, Événement social), utilisez
+                    exactement les valeurs listées dans l'onglet « Valeurs valides » du fichier téléchargé.
+                    Plusieurs valeurs se séparent par une virgule quand plusieurs choix sont autorisés.
+                    Rien n'est créé tout de suite -- la ligne suivante vous montrera un rapport de validation
+                    avant toute création réelle.
+                </p>
+                <form method="post" enctype="multipart/form-data" id="uploadForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <input type="file" class="form-control" name="import_file" accept=".xlsx" required>
+                    </div>
+                    <button type="submit" class="btn btn-elegant" id="uploadBtn">
+                        <i class="bi bi-upload"></i> Vérifier le fichier
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.getElementById('uploadForm').addEventListener('submit', function() {
+        const btn = document.getElementById('uploadBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Analyse en cours...';
+    });
+    </script>
+</body>
+</html>
