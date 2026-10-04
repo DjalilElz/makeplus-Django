@@ -176,6 +176,13 @@
                                 </a>
                             </dd>
 
+                            <dt class="col-sm-3">Inscriptions :</dt>
+                            <dd class="col-sm-9">
+                                <a href="{% url 'dashboard:event_owner_submissions' event.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-people"></i> Voir les inscriptions / importer des participants
+                                </a>
+                            </dd>
+
                             {% if event.logo %}
                             <dt class="col-sm-3">Logo :</dt>
                             <dd class="col-sm-9">
