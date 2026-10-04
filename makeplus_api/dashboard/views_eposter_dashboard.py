@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.core.mail import send_mail
@@ -82,6 +83,35 @@ def _permission_denied_redirect(user):
     if user.is_staff or user.is_superuser:
         return redirect('dashboard:contributions_management_home')
     return redirect('dashboard:eposter_committee_home')
+
+
+def can_see_submission_identity(user, event):
+    """
+    Blind review: a plain 'member' never sees who wrote a submission
+    (name, e-mail, phone, institution) -- only its scientific content.
+    Supervisors/staff always see everything, same as every other
+    elevated-visibility check in this file.
+    """
+    return check_supervisor_access(user, event)
+
+
+def generate_next_eposter_number(event):
+    """
+    Next "P-<n>" number for this event's e_poster submissions, locking
+    the event row for the duration so two near-simultaneous final
+    approvals can't compute the same next number -- call only from
+    inside a transaction.atomic() block that already holds that lock
+    (see eposter_set_status).
+    """
+    existing = EPosterSubmission.objects.filter(
+        event=event, type_participation='e_poster', contribution_code__regex=r'^P-\d+$'
+    ).values_list('contribution_code', flat=True)
+    max_n = 0
+    for code in existing:
+        n = int(code.split('-', 1)[1])
+        if n > max_n:
+            max_n = n
+    return f'P-{max_n + 1}'
 
 
 @never_cache
@@ -203,8 +233,15 @@ def eposter_submissions_list(request, event_id):
     
     # Clear cache to ensure fresh data
     cache.clear()
-    
+
+    is_supervisor = check_supervisor_access(request.user, event)
     submissions = EPosterSubmission.objects.filter(event=event)
+
+    # Blind review + assignment: a plain member only ever sees
+    # submissions the supervisor explicitly assigned them -- not every
+    # submission for the event.
+    if not is_supervisor:
+        submissions = submissions.filter(assigned_to=request.user)
 
     # Filters
     status_filter = request.GET.get('status', '')
@@ -218,36 +255,43 @@ def eposter_submissions_list(request, event_id):
     if type_filter:
         submissions = submissions.filter(type_participation=type_filter)
 
-    if member_filter:
+    if member_filter and is_supervisor:
         submissions = submissions.filter(final_decision_by_id=member_filter)
 
     if search:
-        submissions = submissions.filter(
-            Q(nom__icontains=search) |
-            Q(prenom__icontains=search) |
-            Q(titre_travail__icontains=search) |
-            Q(email__icontains=search) |
-            Q(etablissement__icontains=search)
-        )
-    
+        if is_supervisor:
+            submissions = submissions.filter(
+                Q(nom__icontains=search) |
+                Q(prenom__icontains=search) |
+                Q(titre_travail__icontains=search) |
+                Q(email__icontains=search) |
+                Q(etablissement__icontains=search)
+            )
+        else:
+            # Blind review -- a member can't search by identity fields
+            # they can't even see (that would let them fish out an
+            # author's name/e-mail by trial and error).
+            submissions = submissions.filter(
+                Q(titre_travail__icontains=search) | Q(theme__icontains=search)
+            )
+
     # Annotate with validation counts
     submissions = submissions.annotate(
         validations_count=Count('validations', filter=Q(validations__is_approved=True)),
         rejections_count=Count('validations', filter=Q(validations__is_approved=False))
     ).order_by('-submitted_at')
-    
+
     # Pagination
     paginator = Paginator(submissions, 20)
     page = request.GET.get('page', 1)
     submissions_page = paginator.get_page(page)
 
-    # The "filter by committee member" dropdown (who decided it) is
-    # supervisor/staff only, same visibility rule as everywhere else
-    # "who decided this" is shown.
-    is_supervisor = check_supervisor_access(request.user, event)
+    # The "filter by committee member" dropdown (who decided it) and the
+    # assignment picker are supervisor/staff only.
     committee = EPosterCommitteeMember.objects.filter(
         event=event, is_active=True
     ).select_related('user').order_by('user__first_name', 'user__last_name') if is_supervisor else []
+    assignable_members = [m for m in committee if not m.is_supervisor()]
 
     context = {
         'event': event,
@@ -260,6 +304,7 @@ def eposter_submissions_list(request, event_id):
         'type_choices': EPosterSubmission.TYPE_PARTICIPATION_CHOICES,
         'is_supervisor': is_supervisor,
         'committee': committee,
+        'assignable_members': assignable_members,
     }
     
     # Add no-cache headers
@@ -267,8 +312,64 @@ def eposter_submissions_list(request, event_id):
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
-    
+
     return response
+
+
+@never_cache
+@login_required
+def eposter_assign_submissions(request, event_id):
+    """
+    Supervisor picks a set of submissions + one member -- that member
+    gets added to each submission's assigned_to (additive: doesn't
+    remove any other member already assigned to the same submissions).
+    """
+    if request.method != 'POST':
+        return redirect('dashboard:contributions_submissions_list', event_id=event_id)
+
+    event = get_object_or_404(Event, id=event_id)
+    if not check_supervisor_access(request.user, event):
+        messages.error(request, "Seul le superviseur du comité peut assigner des soumissions.")
+        return _permission_denied_redirect(request.user)
+
+    member_id = request.POST.get('member_id')
+    submission_ids = request.POST.getlist('submission_ids')
+
+    member = EPosterCommitteeMember.objects.filter(
+        event=event, user_id=member_id, is_active=True
+    ).select_related('user').first()
+    if not member or not submission_ids:
+        messages.error(request, "Veuillez sélectionner un membre et au moins une soumission.")
+        return redirect('dashboard:contributions_submissions_list', event_id=event_id)
+
+    submissions = EPosterSubmission.objects.filter(event=event, id__in=submission_ids)
+    for submission in submissions:
+        submission.assigned_to.add(member.user)
+
+    messages.success(
+        request,
+        f"{submissions.count()} soumission(s) assignée(s) à {member.user.get_full_name() or member.user.username}."
+    )
+    return redirect('dashboard:contributions_submissions_list', event_id=event_id)
+
+
+@never_cache
+@login_required
+def eposter_unassign_submission(request, event_id, submission_id):
+    """Removes one member from one submission's assignment (correcting a mistake)."""
+    if request.method != 'POST':
+        return redirect('dashboard:contributions_submission_detail', event_id=event_id, submission_id=submission_id)
+
+    event = get_object_or_404(Event, id=event_id)
+    if not check_supervisor_access(request.user, event):
+        messages.error(request, "Seul le superviseur du comité peut modifier les assignations.")
+        return _permission_denied_redirect(request.user)
+
+    submission = get_object_or_404(EPosterSubmission, id=submission_id, event=event)
+    member_id = request.POST.get('member_id')
+    submission.assigned_to.remove(member_id)
+
+    return redirect('dashboard:contributions_submission_detail', event_id=event_id, submission_id=submission_id)
 
 
 @never_cache
@@ -278,25 +379,35 @@ def eposter_submission_detail(request, event_id, submission_id):
     View detailed submission with validation interface
     """
     event = get_object_or_404(Event, id=event_id)
-    
+
     # Check access permission
     if not check_event_access(request.user, event):
         messages.error(request, "Vous n'avez pas accès à cet événement.")
         return _permission_denied_redirect(request.user)
-    
+
     submission = get_object_or_404(
         EPosterSubmission.objects.prefetch_related('validations__committee_member'),
         id=submission_id,
         event=event
     )
-    
+
+    is_supervisor = check_supervisor_access(request.user, event)
+
     # Check if current user is a committee member
     user_membership = EPosterCommitteeMember.objects.filter(
         event=event,
         user=request.user,
         is_active=True
     ).first()
-    
+
+    # A plain member only ever reaches submissions the supervisor
+    # explicitly assigned them -- blocks direct-URL access to one that
+    # isn't theirs, not just hiding it from their list.
+    if user_membership and not is_supervisor:
+        if not submission.assigned_to.filter(id=request.user.id).exists():
+            messages.error(request, "Cette soumission ne vous a pas été assignée.")
+            return _permission_denied_redirect(request.user)
+
     # Get user's existing validation if any
     user_validation = None
     if user_membership:
@@ -304,13 +415,13 @@ def eposter_submission_detail(request, event_id, submission_id):
             submission=submission,
             committee_member=request.user
         ).first()
-    
+
     # Get all committee members and their validation status
     committee = EPosterCommitteeMember.objects.filter(
         event=event,
         is_active=True
     ).select_related('user')
-    
+
     committee_status = []
     for member in committee:
         validation = submission.validations.filter(
@@ -320,7 +431,7 @@ def eposter_submission_detail(request, event_id, submission_id):
             'member': member,
             'validation': validation
         })
-    
+
     context = {
         'event': event,
         'submission': submission,
@@ -328,9 +439,10 @@ def eposter_submission_detail(request, event_id, submission_id):
         'user_validation': user_validation,
         'committee_status': committee_status,
         'can_validate': user_membership is not None and submission.status == 'pending',
-        # Only supervisors/staff see who made the final decision -- plain
-        # members just see the resulting status (pending/accepted/rejected).
-        'is_supervisor': check_supervisor_access(request.user, event),
+        # Only supervisors/staff see who made the final decision, the
+        # author's identity (blind review), and can make the final call
+        # -- plain members just see the content + the resulting status.
+        'is_supervisor': is_supervisor,
     }
 
     return render(request, 'dashboard/eposter/submission_detail.html', context)
@@ -340,32 +452,44 @@ def eposter_submission_detail(request, event_id, submission_id):
 @login_required
 def eposter_validate_submission(request, event_id, submission_id):
     """
-    Handle committee member validation
-    One committee member's decision is final - no voting system
+    Record ONE committee member's own recommendation -- never final on
+    its own, for a plain member OR a supervisor: it never changes the
+    submission's status, never sets final_decision_by/date, and never
+    sends the decision e-mail. It's purely visible to the supervisor
+    (via committee_status on the detail page) as input toward their own
+    decision. The actual final decision -- status change, numbering,
+    e-mail -- only ever happens through eposter_set_status, supervisor/
+    staff only.
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
-    
+
     event = get_object_or_404(Event, id=event_id)
     submission = get_object_or_404(EPosterSubmission, id=submission_id, event=event)
-    
+
     # Check if user is committee member
     membership = EPosterCommitteeMember.objects.filter(
         event=event,
         user=request.user,
         is_active=True
     ).first()
-    
+
     if not membership:
         return JsonResponse({'error': 'Vous n\'êtes pas membre du comité'}, status=403)
-    
+
+    # A plain member can only recommend on what's actually been
+    # assigned to them -- supervisors/staff aren't restricted.
+    if not check_supervisor_access(request.user, event):
+        if not submission.assigned_to.filter(id=request.user.id).exists():
+            return JsonResponse({'error': "Cette soumission ne vous a pas été assignée."}, status=403)
+
     if submission.status != 'pending':
         return JsonResponse({'error': 'Cette soumission n\'est plus en attente'}, status=400)
-    
+
     # Get validation data
     is_approved = request.POST.get('is_approved') == 'true'
     comments = request.POST.get('comments', '')
-    
+
     # Create or update validation (no rating needed)
     validation, created = EPosterValidation.objects.update_or_create(
         submission=submission,
@@ -376,42 +500,14 @@ def eposter_validate_submission(request, event_id, submission_id):
             'rating': None,  # No rating system
         }
     )
-    
-    # Immediately update submission status based on this single decision
-    if is_approved:
-        submission.status = 'accepted'
-    else:
-        submission.status = 'rejected'
-    
-    submission.final_decision_date = timezone.now()
-    submission.final_decision_by = request.user
-    submission.save()
-    
-    print(f"Submission {submission.id} status updated to: {submission.status}")
-    
-    # Send decision email
-    email_sent = False
-    try:
-        email_sent = send_decision_email(submission, request=request)
-        if email_sent:
-            print(f"Decision email sent successfully for submission {submission.id}")
-        else:
-            print(f"Failed to send decision email for submission {submission.id}")
-    except Exception as e:
-        print(f"Exception while sending decision email: {e}")
-        import traceback
-        traceback.print_exc()
-    
+
     return JsonResponse({
         'success': True,
-        'email_sent': email_sent,
         'validation': {
             'id': str(validation.id),
             'is_approved': validation.is_approved,
             'comments': validation.comments,
         },
-        'submission_status': submission.status,
-        'status_changed': True,
     })
 
 
@@ -419,50 +515,62 @@ def eposter_validate_submission(request, event_id, submission_id):
 @login_required
 def eposter_set_status(request, event_id, submission_id):
     """
-    Manually set submission status (admin/president only)
+    The FINAL decision -- supervisor/staff only. This is the only action
+    that changes a submission's status, sends the decision e-mail, and
+    (for an e_poster being accepted) assigns its "P-<n>" number. A plain
+    member's own validate/recommend action (eposter_validate_submission)
+    never touches any of this -- it's purely a recommendation the
+    supervisor sees, never final on its own.
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
-    
+
     event = get_object_or_404(Event, id=event_id)
-    
+
     # Check access permission
     if not check_event_access(request.user, event):
         return JsonResponse({'error': "You don't have access to this event."}, status=403)
-    
+
     submission = get_object_or_404(EPosterSubmission, id=submission_id, event=event)
-    
-    # Check if user is president or admin
-    is_president = EPosterCommitteeMember.objects.filter(
-        event=event,
-        user=request.user,
-        role='president',
-        is_active=True
-    ).exists()
-    
-    if not is_president and not request.user.is_staff:
+
+    # Was hard-coded to the legacy 'president' role only, which meant a
+    # modern 'supervisor' assignment (non-staff) saw this action in the
+    # UI but got a 403 the moment they actually used it.
+    if not check_supervisor_access(request.user, event):
         return JsonResponse(
-            {'error': 'Seul le président du comité ou un admin peut modifier le statut'},
+            {'error': 'Seul le superviseur du comité ou un admin peut modifier le statut'},
             status=403
         )
-    
+
     new_status = request.POST.get('status')
     if new_status not in ['pending', 'accepted', 'rejected', 'revision_requested']:
         return JsonResponse({'error': 'Statut invalide'}, status=400)
-    
-    submission.status = new_status
-    submission.final_decision_by = request.user
-    submission.final_decision_date = timezone.now()
-    
-    if new_status == 'rejected':
-        submission.rejection_reason = request.POST.get('rejection_reason', '')
-    
-    submission.save()
-    
+
+    with transaction.atomic():
+        # Locks this event's row for the duration -- generate_next_eposter_number
+        # relies on this to serialize concurrent final approvals so two
+        # posters accepted moments apart can't compute the same "P-<n>".
+        Event.objects.select_for_update().get(id=event.id)
+
+        submission.status = new_status
+        submission.final_decision_by = request.user
+        submission.final_decision_date = timezone.now()
+
+        if new_status == 'rejected':
+            submission.rejection_reason = request.POST.get('rejection_reason', '')
+
+        if (
+            new_status == 'accepted' and submission.type_participation == 'e_poster'
+            and not submission.contribution_code
+        ):
+            submission.contribution_code = generate_next_eposter_number(event)
+
+        submission.save()
+
     # Send email
     if new_status in ['accepted', 'rejected']:
         send_decision_email(submission, request=request)
-    
+
     messages.success(request, f'Statut mis à jour: {submission.get_status_display()}')
 
     return redirect('dashboard:contributions_submission_detail', event_id=event_id, submission_id=submission_id)
@@ -472,18 +580,19 @@ def eposter_set_status(request, event_id, submission_id):
 @login_required
 def eposter_set_contribution_code(request, event_id, submission_id):
     """
-    Manually set (or clear) a submission's contribution code -- replaces
-    the old auto-generation. The committee/staff types the code in
-    themselves, and can do so at any time (not just at the moment of
-    approving): before, during, or well after the decision.
+    Manually set (or clear) a submission's contribution code --
+    supervisor/staff only. For e_poster this is an override of the
+    auto-generated "P-<n>" (see eposter_set_status); for
+    communication_orale it's still entirely manual. Can be done at any
+    time, not just at the moment of approving.
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
     event = get_object_or_404(Event, id=event_id)
 
-    if not check_event_access(request.user, event):
-        return JsonResponse({'error': "Vous n'avez pas accès à cet événement."}, status=403)
+    if not check_supervisor_access(request.user, event):
+        return JsonResponse({'error': "Seul le superviseur du comité peut modifier le code."}, status=403)
 
     submission = get_object_or_404(EPosterSubmission, id=submission_id, event=event)
 
@@ -495,10 +604,13 @@ def eposter_set_contribution_code(request, event_id, submission_id):
     code = request.POST.get('contribution_code', '').strip()
 
     if code:
-        duplicate = EPosterSubmission.objects.filter(contribution_code=code).exclude(id=submission.id).exists()
+        # Scoped to this event -- contribution_code is only unique
+        # per-event now (see migration 0050), not across the whole
+        # platform, so "P-1" legitimately exists once per event.
+        duplicate = EPosterSubmission.objects.filter(event=event, contribution_code=code).exclude(id=submission.id).exists()
         if duplicate:
             return JsonResponse(
-                {'error': f"Le code « {code} » est déjà utilisé par une autre soumission."}, status=400,
+                {'error': f"Le code « {code} » est déjà utilisé par une autre soumission de cet événement."}, status=400,
             )
         submission.contribution_code = code
     else:

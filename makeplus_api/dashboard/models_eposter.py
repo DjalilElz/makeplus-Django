@@ -124,20 +124,35 @@ class ScientificContributionSubmission(models.Model):
     acceptance_email_sent = models.BooleanField(default=False)
     rejection_email_sent = models.BooleanField(default=False)
     
-    # Code for final submission -- set manually by the committee (see
-    # eposter_set_contribution_code), not auto-generated. Only meaningful
-    # for e_poster and communication_orale types; settable any time after
-    # acceptance, not required at the moment of approval.
-    contribution_code = models.CharField(max_length=50, blank=True, null=True, unique=True, verbose_name="Code de Contribution", db_column='eposter_code')
-    
+    # Code for final submission. For communication_orale, still set
+    # manually by the committee (see eposter_set_contribution_code). For
+    # e_poster, auto-generated as "P-<n>" (sequential per event) the
+    # moment the SUPERVISOR makes the final decision to accept it (see
+    # generate_next_eposter_number in views_eposter_dashboard.py) --
+    # settable any time after, not required at the moment of approval.
+    #
+    # Uniqueness is scoped per-event (Meta.constraints below), not
+    # global -- "P-1" needs to exist once in every event that uses this
+    # format, not once ever across the whole platform.
+    contribution_code = models.CharField(max_length=50, blank=True, null=True, verbose_name="Code de Contribution", db_column='eposter_code')
+
+    # Supervisor-assigned reviewers: a plain 'member' only sees/reviews
+    # submissions they've been explicitly assigned here (see
+    # eposter_assign_submissions) -- empty means not yet assigned to
+    # anyone. Supervisors/staff always see everything regardless.
+    assigned_to = models.ManyToManyField(
+        User, blank=True, related_name='assigned_contribution_submissions',
+        help_text="Committee members this submission has been assigned to for review",
+    )
+
     # Metadata
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
-    
+
     # Timestamps
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'dashboard_epostersubmission'  # Keep existing table name for data preservation
         ordering = ['-submitted_at']
@@ -147,6 +162,9 @@ class ScientificContributionSubmission(models.Model):
             models.Index(fields=['event', 'status', '-submitted_at']),
             models.Index(fields=['email']),
             models.Index(fields=['status']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['event', 'contribution_code'], name='dashboard_e_event_contribution_code_uniq'),
         ]
     
     def __str__(self):

@@ -63,15 +63,19 @@
         {% if submission.requires_final_submission %}
         <div class="breakdown-panel mb-4">
             <div class="breakdown-title mb-2"><i class="bi bi-upc-scan me-1"></i> Code de contribution</div>
-            {% if user_membership or is_supervisor %}
+            {% if is_supervisor %}
             <p class="text-muted small mb-2">
+                {% if submission.type_participation == 'e_poster' %}
+                Généré automatiquement ("P-&lt;n&gt;") à l'acceptation finale -- modifiable ici si besoin.
+                {% else %}
                 À communiquer à l'auteur -- il en aura besoin pour sa soumission finale. Peut être renseigné à tout moment, pas nécessairement maintenant.
+                {% endif %}
             </p>
             <form id="contribution-code-form" class="d-flex gap-2 align-items-center">
                 {% csrf_token %}
                 <input type="text" class="form-control" name="contribution_code" id="contribution_code_input"
                        value="{{ submission.contribution_code|default:'' }}"
-                       placeholder="Ex : {% if submission.type_participation == 'e_poster' %}EPOSTER{% else %}COMORAL{% endif %}-XXXXXXXX-001">
+                       placeholder="{% if submission.type_participation == 'e_poster' %}Ex : P-1{% else %}Ex : COMORAL-XXXXXXXX-001{% endif %}">
                 <button type="submit" class="btn btn-outline-elegant text-nowrap">
                     <i class="bi bi-save me-1"></i> Enregistrer
                 </button>
@@ -90,6 +94,7 @@
 
         <div class="detail-label mb-2">AUTEURS</div>
         <div class="mb-4">
+            {% if is_supervisor %}
             <strong>Auteur principal :</strong> {{ submission.prenom }} {{ submission.nom }}
             <br>
             <small class="text-muted">
@@ -106,6 +111,9 @@
                     {% endfor %}
                 </ul>
             </div>
+            {% endif %}
+            {% else %}
+            <p class="text-muted fst-italic mb-0"><i class="bi bi-eye-slash me-1"></i> Masqué -- révision à l'aveugle.</p>
             {% endif %}
         </div>
 
@@ -147,10 +155,15 @@
         </div>
         {% endif %}
 
-        <!-- Validation Form -->
+        <!-- Recommendation form -- never final on its own, see the view's docstring.
+             Only the Actions dropdown above (supervisor/staff only) makes the real decision. -->
         {% if can_validate %}
         <div class="breakdown-panel">
-            <div class="breakdown-title mb-3"><i class="bi bi-check2-square me-1"></i> Votre décision</div>
+            <div class="breakdown-title mb-1"><i class="bi bi-check2-square me-1"></i> Votre avis</div>
+            <p class="text-muted small mb-3">
+                Ceci est une recommandation transmise au superviseur -- elle ne change pas le statut de la soumission
+                et n'envoie aucun e-mail. Seul le superviseur prend la décision finale.
+            </p>
             <form id="validation-form">
                 {% csrf_token %}
                 <div class="mb-3">
@@ -158,13 +171,13 @@
                         <input type="radio" class="btn-check" name="is_approved" id="approve" value="true"
                                {% if user_validation and user_validation.is_approved %}checked{% endif %}>
                         <label class="btn btn-outline-success" for="approve">
-                            <i class="bi bi-check-circle me-1"></i> Approuver
+                            <i class="bi bi-check-circle me-1"></i> Recommander l'acceptation
                         </label>
 
                         <input type="radio" class="btn-check" name="is_approved" id="reject" value="false"
                                {% if user_validation and not user_validation.is_approved %}checked{% endif %}>
                         <label class="btn btn-outline-danger" for="reject">
-                            <i class="bi bi-x-circle me-1"></i> Rejeter
+                            <i class="bi bi-x-circle me-1"></i> Recommander le rejet
                         </label>
                     </div>
                 </div>
@@ -176,16 +189,16 @@
 
                 <button type="submit" class="btn btn-elegant">
                     <i class="bi bi-send me-1"></i>
-                    {% if user_validation %}Modifier ma décision{% else %}Soumettre ma décision{% endif %}
+                    {% if user_validation %}Modifier mon avis{% else %}Envoyer mon avis{% endif %}
                 </button>
             </form>
         </div>
         {% elif user_validation %}
         <div class="breakdown-panel">
-            <div class="breakdown-title mb-2"><i class="bi bi-check2-square me-1"></i> Votre décision</div>
+            <div class="breakdown-title mb-2"><i class="bi bi-check2-square me-1"></i> Votre avis</div>
             <div class="alert {% if user_validation.is_approved %}alert-success{% else %}alert-danger{% endif %} mb-0">
-                <strong>Votre décision :</strong>
-                {% if user_validation.is_approved %}Approuvé{% else %}Rejeté{% endif %}
+                <strong>Votre recommandation :</strong>
+                {% if user_validation.is_approved %}Acceptation{% else %}Rejet{% endif %}
                 {% if user_validation.comments %}
                 <br><strong>Commentaires :</strong> {{ user_validation.comments }}
                 {% endif %}
@@ -196,6 +209,7 @@
 
     <!-- Sidebar -->
     <div class="col-lg-4">
+        {% if is_supervisor %}
         <div class="breakdown-panel">
             <div class="breakdown-title mb-2"><i class="bi bi-person me-1"></i> Informations auteur</div>
             <p class="mb-1"><strong>{{ submission.prenom }} {{ submission.nom }}</strong></p>
@@ -215,7 +229,28 @@
             <p class="mb-1">{{ submission.get_secteur_display }}</p>
             <p class="mb-1">{{ submission.etablissement }}</p>
             <p class="mb-0">{{ submission.wilaya }}</p>
+
+            {% if submission.assigned_to.all %}
+            <hr>
+            <div class="breakdown-title mb-2"><i class="bi bi-people me-1"></i> Assigné à</div>
+            {% for member in submission.assigned_to.all %}
+            <form method="post" action="{% url 'dashboard:contributions_unassign_submission' event.id submission.id %}" class="d-flex justify-content-between align-items-center mb-1">
+                {% csrf_token %}
+                <span>{{ member.get_full_name|default:member.username }}</span>
+                <input type="hidden" name="member_id" value="{{ member.id }}">
+                <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Retirer">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+            </form>
+            {% endfor %}
+            {% endif %}
         </div>
+        {% else %}
+        <div class="breakdown-panel">
+            <div class="breakdown-title mb-2"><i class="bi bi-eye-slash me-1"></i> Révision à l'aveugle</div>
+            <p class="text-muted small mb-0">Les informations personnelles de l'auteur ne sont pas affichées. Vous ne voyez que le contenu scientifique de la soumission.</p>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -273,7 +308,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Votre décision a été enregistrée avec succès!');
+                    alert('Votre avis a été transmis au superviseur.');
                     const timestamp = new Date().getTime();
                     window.location.href = '{% url "dashboard:contributions_submissions_list" event.id %}?_=' + timestamp;
                 } else {
