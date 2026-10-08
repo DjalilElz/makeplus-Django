@@ -16,7 +16,10 @@ urlpatterns = [
     
     # Unsubscribe
     path('email/unsubscribe/<str:token>/', views_tracking.unsubscribe_recipient, name='unsubscribe'),
-    
+
+    # Postmark delivery/open/click/bounce webhook
+    path('postmark/webhook/', views_tracking.postmark_webhook, name='postmark_webhook'),
+
     # Form view tracking
     path('form/view/<uuid:form_id>/', views_tracking.track_form_view, name='track_form_view'),
     

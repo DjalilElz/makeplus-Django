@@ -1,6 +1,6 @@
 """
 Views for displaying email campaign and form analytics statistics.
-Provides Brevo-like interface for viewing detailed stats.
+Provides Postmark-like interface for viewing detailed stats.
 """
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -16,7 +16,7 @@ from .views import is_staff_user
 
 @login_required
 def campaign_stats_detail(request, campaign_id):
-    """Detailed statistics for an email campaign (Brevo-style)"""
+    """Detailed statistics for an email campaign (Postmark-style)"""
     campaign = get_object_or_404(EmailCampaign, id=campaign_id)
     
     # Overall statistics
@@ -179,7 +179,7 @@ def campaign_recipient_detail(request, campaign_id, recipient_id):
 
 @login_required
 def form_stats_detail(request, form_id):
-    """Detailed statistics for a form (Brevo-style)"""
+    """Detailed statistics for a form (Postmark-style)"""
     form = get_object_or_404(FormConfiguration, id=form_id)
     
     # Get or create analytics

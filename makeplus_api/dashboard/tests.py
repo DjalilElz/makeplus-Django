@@ -1976,10 +1976,10 @@ class CampaignSendTotalFailureTests(TestCase):
             {'use_campaign_api': 'false'},
         )
 
-    @patch('dashboard.brevo_client.get_brevo_client')
+    @patch('dashboard.postmark_client.get_postmark_client')
     def test_total_failure_reverts_to_draft_instead_of_sent(self, mock_get_client):
         mock_client = mock_get_client.return_value
-        mock_client.send_transactional_email.side_effect = Exception('SMTP down')
+        mock_client.send_email.side_effect = Exception('SMTP down')
 
         self._send()
 
@@ -1992,11 +1992,11 @@ class CampaignSendTotalFailureTests(TestCase):
         )
         self.assertEqual(statuses, {'pending'})
 
-    @patch('dashboard.brevo_client.get_brevo_client')
+    @patch('dashboard.postmark_client.get_postmark_client')
     def test_partial_failure_still_marks_sent(self, mock_get_client):
         mock_client = mock_get_client.return_value
-        mock_client.send_transactional_email.side_effect = [
-            {'messageId': 'ok-1'}, Exception('SMTP down'),
+        mock_client.send_email.side_effect = [
+            {'MessageID': 'ok-1'}, Exception('SMTP down'),
         ]
 
         self._send()
@@ -2005,7 +2005,7 @@ class CampaignSendTotalFailureTests(TestCase):
         self.assertEqual(self.campaign.status, 'sent')
         self.assertEqual(self.campaign.total_sent, 1)
 
-    @patch('dashboard.brevo_client.get_brevo_client')
+    @patch('dashboard.postmark_client.get_postmark_client')
     def test_large_list_is_sent_in_batches_of_ten(self, mock_get_client):
         """This is the production incident: a single request trying to
         send to everyone at once (600+ recipients) took long enough to
@@ -2013,7 +2013,7 @@ class CampaignSendTotalFailureTests(TestCase):
         now only process one batch, reporting back so the confirm page's
         JS can call again -- driving it exactly like that loop would."""
         mock_client = mock_get_client.return_value
-        mock_client.send_transactional_email.return_value = {'messageId': 'ok'}
+        mock_client.send_email.return_value = {'MessageID': 'ok'}
 
         for i in range(23):
             self.EmailRecipient.objects.create(
@@ -2030,7 +2030,7 @@ class CampaignSendTotalFailureTests(TestCase):
         bodies = [r.json() for r in responses]
         self.assertEqual([b['done'] for b in bodies], [False, False, True])
         self.assertEqual([b['sent_this_batch'] for b in bodies], [10, 10, 5])
-        self.assertEqual(mock_client.send_transactional_email.call_count, 25)
+        self.assertEqual(mock_client.send_email.call_count, 25)
 
         self.campaign.refresh_from_db()
         self.assertEqual(self.campaign.status, 'sent')

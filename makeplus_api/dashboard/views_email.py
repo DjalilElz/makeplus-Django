@@ -1796,14 +1796,14 @@ def campaign_send_test(request, campaign_id):
             # Use custom from_email if provided, otherwise use default
             from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
             
-            # Send test email via Brevo API (with tracking)
+            # Send test email via Postmark API (with tracking)
             success, error, message_id = send_email(
                 to_email=test_email,
                 to_name='Test User',
                 subject=f"[TEST] {subject}",
                 html_content=body_html,
                 from_email=from_address,
-                use_api=True,  # Use Brevo API for better deliverability and tracking
+                use_api=True,  # Use Postmark API for better deliverability and tracking
                 tags=['test', f'campaign-{campaign.id}']
             )
             
@@ -1825,18 +1825,17 @@ def campaign_send_test(request, campaign_id):
 @login_required
 def campaign_send(request, campaign_id):
     """
-    Send campaign to all recipients via configured SMTP backend.
+    Send campaign to all recipients via Postmark, one recipient at a time.
 
-    The transactional path (the default, no Brevo branding) sends one
-    recipient at a time over the network -- for a large list, doing all
-    of them in a single request took long enough to hit gunicorn's worker
-    timeout and 500 mid-send. It's now processed BATCH_SIZE recipients
-    per POST; the confirm page's JS calls this repeatedly until the
-    campaign reports done, so it still ends up sending everyone from one
-    click. Each individual request stays fast regardless of list size.
+    For a large list, doing all of them in a single request took long
+    enough to hit gunicorn's worker timeout and 500 mid-send. It's
+    processed BATCH_SIZE recipients per POST; the confirm page's JS calls
+    this repeatedly until the campaign reports done, so it still ends up
+    sending everyone from one click. Each individual request stays fast
+    regardless of list size.
     """
     from .models_email import EmailCampaign, EmailRecipient
-    from .email_sender import send_email
+    from .postmark_client import get_postmark_client
     from .utils_campaign import build_recipient_context, replace_variables as utils_replace_vars
     from django.http import JsonResponse
 
@@ -1865,151 +1864,9 @@ def campaign_send(request, campaign_id):
         from_address = campaign.from_email if campaign.from_email else settings.DEFAULT_FROM_EMAIL
         from_name = campaign.from_name if campaign.from_name else 'MakePlus'
 
-        # Check if user wants to use Campaign API (bulk) or Transactional API (individual)
-        # Campaign API = faster but has Brevo branding on free plan
-        # Transactional API = slower but less branding on free plan
-        use_campaign_api = request.POST.get('use_campaign_api', 'false') == 'true'
-
-        if use_campaign_api:
-            # Use Brevo Campaign API (bulk sending with branding on free plan).
-            # A single bulk call regardless of list size, so no batching needed.
-            campaign.status = 'sending'
-            campaign.save()
-            recipients = list(pending_qs)
-            try:
-                from .brevo_client import get_brevo_client
-                client = get_brevo_client()
-                
-                # Check Brevo account limits
-                try:
-                    account_info = client.get_account_info()
-                    plan_info = account_info.get('plan', [{}])[0] if isinstance(account_info.get('plan'), list) else account_info.get('plan', {})
-                    daily_limit = plan_info.get('creditsRemaining', 0)
-                    
-                    print(f"Brevo daily limit remaining: {daily_limit}")
-                    
-                    recipient_count = len(recipients)
-                    
-                    if daily_limit > 0 and recipient_count > daily_limit:
-                        messages.warning(
-                            request, 
-                            f'Campaign has {recipient_count} recipients but only {daily_limit} credits remaining. '
-                            f'Campaign will be sent in batches over multiple days.'
-                        )
-                except Exception as e:
-                    print(f"Could not check account limits: {str(e)}")
-                
-                print(f"Creating Brevo campaign for: {campaign.name}")
-                
-                # Create contact list and campaign (existing code)
-                list_name = f"Campaign_{campaign.id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}"
-                contact_list = client.create_contact_list(name=list_name)
-                list_id = contact_list['id']
-                
-                print(f"Created contact list: {list_name} (ID: {list_id})")
-                
-                contacts_to_import = []
-                for recipient in recipients:
-                    try:
-                        context = build_recipient_context(recipient.email, campaign.event)
-                        contacts_to_import.append({
-                            'email': recipient.email,
-                            'attributes': {
-                                'FIRSTNAME': context.get('first_name', ''),
-                                'LASTNAME': context.get('last_name', ''),
-                                'NAME': context.get('first_name', '') + ' ' + context.get('last_name', ''),
-                            }
-                        })
-                    except Exception as e:
-                        print(f"Error preparing contact {recipient.email}: {str(e)}")
-                
-                print(f"Importing {len(contacts_to_import)} contacts to list...")
-                client.import_contacts_to_list(list_id, contacts_to_import)
-                
-                html_content = campaign.body_html or campaign.body_text
-                html_content = html_content.replace('{{first_name}}', '{{ contact.FIRSTNAME }}')
-                html_content = html_content.replace('{{last_name}}', '{{ contact.LASTNAME }}')
-                html_content = html_content.replace('{{email}}', '{{ contact.EMAIL }}')
-                
-                if campaign.event:
-                    html_content = html_content.replace('{{event_name}}', campaign.event.name)
-                    html_content = html_content.replace('{{event_location}}', campaign.event.location or '')
-                    html_content = html_content.replace('{{event_start_date}}', 
-                        campaign.event.start_date.strftime('%B %d, %Y') if campaign.event.start_date else '')
-                    html_content = html_content.replace('{{event_end_date}}', 
-                        campaign.event.end_date.strftime('%B %d, %Y') if campaign.event.end_date else '')
-                
-                print("Creating Brevo email campaign...")
-                
-                brevo_campaign = client.create_email_campaign(
-                    name=campaign.name,
-                    subject=campaign.subject,
-                    sender_name=from_name,
-                    sender_email=from_address,
-                    html_content=html_content,
-                    recipients_list_ids=[list_id]
-                )
-                
-                brevo_campaign_id = brevo_campaign['id']
-                campaign.external_campaign_id = str(brevo_campaign_id)
-                campaign.save()
-                
-                print(f"Created Brevo campaign ID: {brevo_campaign_id}")
-                print("Sending campaign...")
-                client.send_email_campaign(brevo_campaign_id)
-                
-                sent_count = len(recipients)
-                for recipient in recipients:
-                    recipient.status = 'sent'
-                    recipient.sent_at = timezone.now()
-                    recipient.save()
-                
-                campaign.status = 'sent'
-                campaign.sent_at = timezone.now()
-                campaign.total_sent = sent_count
-                campaign.total_delivered = sent_count
-                campaign.save()
-                
-                print(f"✓ Campaign sent successfully to {sent_count} recipients")
-                
-                messages.success(
-                    request, 
-                    f'Campaign successfully sent to {sent_count} recipients via Brevo Campaign API! '
-                    f'Note: Brevo branding appears on free plans. Upgrade to remove it.'
-                )
-                
-            except Exception as e:
-                import traceback
-                print(f"Campaign sending error: {str(e)}")
-                traceback.print_exc()
-                
-                error_str = str(e).lower()
-                if 'quota' in error_str or 'limit' in error_str or 'credit' in error_str:
-                    campaign.status = 'draft'
-                    campaign.save()
-                    messages.error(
-                        request, 
-                        f'Daily sending limit reached. Please try again tomorrow or upgrade your Brevo plan. Error: {str(e)}'
-                    )
-                else:
-                    campaign.status = 'failed'
-                    campaign.save()
-                    
-                    for recipient in recipients:
-                        recipient.status = 'failed'
-                        recipient.error_message = f"Campaign send error: {str(e)}"[:500]
-                        recipient.save()
-                    
-                    messages.error(request, f"Échec de l'envoi de la campagne : {str(e)}")
-
-            return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
-
-        # Use Transactional Email API (individual emails, less branding),
-        # one batch of BATCH_SIZE per request -- see the docstring above.
         batch = list(pending_qs[:BATCH_SIZE])
 
-        from .brevo_client import get_brevo_client
-        client = get_brevo_client()
+        client = get_postmark_client()
 
         sent_count = 0
         failed_count = 0
@@ -2022,7 +1879,7 @@ def campaign_send(request, campaign_id):
                 subject = utils_replace_vars(campaign.subject, context)
                 body_html = utils_replace_vars(campaign.body_html or campaign.body_text, context)
 
-                result = client.send_transactional_email(
+                result = client.send_email(
                     to_email=recipient.email,
                     to_name=recipient_name,
                     subject=subject,
@@ -2030,14 +1887,15 @@ def campaign_send(request, campaign_id):
                     from_email=from_address,
                     from_name=from_name,
                     track_opens=campaign.track_opens,
-                    track_clicks=campaign.track_clicks
+                    track_clicks=campaign.track_clicks,
+                    tag=f'campaign-{campaign.id}',
                 )
 
                 recipient.status = 'sent'
                 recipient.sent_at = timezone.now()
                 recipient.error_message = ''
-                if result.get('messageId'):
-                    recipient.external_id = result['messageId']
+                if result.get('MessageID'):
+                    recipient.external_id = result['MessageID']
                 recipient.save()
                 sent_count += 1
 
@@ -2105,78 +1963,32 @@ def campaign_send(request, campaign_id):
 
 
 @login_required
-def brevo_status(request):
+def postmark_status(request):
     """
-    Self-service Brevo connection check: is BREVO_API_KEY configured at
-    all, and if so, does it actually authenticate against Brevo's own
-    /account endpoint right now (proves the key really works, not just
-    that a value is present) -- including which plan/how many e-mail
-    credits are left, since a free-plan daily cap silently degrades
-    delivery long before anything looks like an "error".
+    Self-service Postmark connection check: is POSTMARK_SERVER_TOKEN
+    configured at all, and if so, does it actually authenticate against
+    Postmark's own /server endpoint right now (proves the token really
+    works, not just that a value is present).
     """
-    from .brevo_client import get_brevo_client
+    from .postmark_client import get_postmark_client
 
-    api_key_configured = bool(getattr(settings, 'BREVO_API_KEY', ''))
-    account_info = None
-    plan_info = None
+    api_key_configured = bool(getattr(settings, 'POSTMARK_SERVER_TOKEN', ''))
+    server_info = None
     error = None
 
     if api_key_configured:
         try:
-            client = get_brevo_client()
-            account_info = client.get_account_info()
-            plan = account_info.get('plan')
-            plan_info = plan[0] if isinstance(plan, list) and plan else (plan if isinstance(plan, dict) else None)
+            client = get_postmark_client()
+            server_info = client.get_server_info()
         except Exception as e:
             error = str(e)
 
     context = {
         'api_key_configured': api_key_configured,
-        'account_info': account_info,
-        'plan_info': plan_info,
+        'server_info': server_info,
         'error': error,
     }
-    return render(request, 'dashboard/brevo_status.html', context)
-
-
-@login_required
-def campaign_sync_stats(request, campaign_id):
-    """Sync campaign statistics from Brevo API"""
-    from .models_email import EmailCampaign
-    from .brevo_sync import sync_campaign_stats_from_brevo
-    from django.http import JsonResponse
-    import traceback
-    
-    campaign = get_object_or_404(EmailCampaign, id=campaign_id)
-    
-    if request.method == 'POST':
-        try:
-            # Sync stats from Brevo
-            result = sync_campaign_stats_from_brevo(campaign)
-            
-            if result['success']:
-                message = f"✅ Synced: {result.get('opens', 0)} opens, {result.get('clicks', 0)} clicks, {result.get('recipients_updated', 0)} recipients updated"
-                return JsonResponse({
-                    'success': True,
-                    'message': message,
-                    'stats': result
-                })
-            else:
-                error_msg = f"Failed to sync: {result.get('error', 'Unknown error')}"
-                return JsonResponse({
-                    'success': False,
-                    'error': error_msg
-                })
-        except Exception as e:
-            error_msg = f"Exception during sync: {str(e)}"
-            print(f"Campaign sync error: {error_msg}")
-            traceback.print_exc()
-            return JsonResponse({
-                'success': False,
-                'error': error_msg
-            })
-    
-    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+    return render(request, 'dashboard/postmark_status.html', context)
 
 
 @login_required

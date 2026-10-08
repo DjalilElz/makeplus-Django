@@ -622,7 +622,7 @@ def eposter_set_contribution_code(request, event_id, submission_id):
 
 
 def send_decision_email(submission, request=None):
-    """Helper to send acceptance/rejection email using Brevo API"""
+    """Helper to send acceptance/rejection email using Postmark API"""
     from .email_sender import send_email
 
     try:
@@ -698,24 +698,24 @@ def send_decision_email(submission, request=None):
         subject = Template(template.subject).render(Context(context))
         body = Template(template.body_html).render(Context(context))
         
-        print(f"Sending {template_type} email to {submission.email} via Brevo API")
+        print(f"Sending {template_type} email to {submission.email} via Postmark API")
         print(f"Subject: {subject}")
         if submission.status == 'accepted':
             print(f"Contribution Code: {submission.contribution_code}")
             print(f"Final Submission URL: {final_submission_url}")
         
-        # Use Brevo API for sending
+        # Use Postmark API for sending
         success, error, message_id = send_email(
             to_email=submission.email,
             subject=subject,
             html_content=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to_name=f"{submission.prenom} {submission.nom}",
-            use_api=True  # Force Brevo API usage
+            use_api=True  # Force Postmark API usage
         )
         
         if success:
-            print(f"Email sent successfully via Brevo API to {submission.email}, message_id: {message_id}")
+            print(f"Email sent successfully via Postmark API to {submission.email}, message_id: {message_id}")
             
             if submission.status == 'accepted':
                 submission.acceptance_email_sent = True
@@ -725,7 +725,7 @@ def send_decision_email(submission, request=None):
             
             return True
         else:
-            print(f"Failed to send email via Brevo API: {error}")
+            print(f"Failed to send email via Postmark API: {error}")
             return False
             
     except Exception as e:

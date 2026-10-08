@@ -1,24 +1,24 @@
 """
-Email Sender Module - Uses Brevo (Sendinblue) API for reliable cloud delivery
+Email Sender Module - Uses Postmark's API for reliable cloud delivery
 
 This module provides a unified interface for sending emails that works
 reliably on cloud platforms by using HTTP-based APIs instead of direct
 SMTP connections which are often blocked.
 
 Priority Order:
-1. Brevo API (recommended - handles tracking automatically)
+1. Postmark API (recommended - handles tracking automatically)
 2. SMTP (fallback for local development)
 """
 
 from django.conf import settings
 from django.core.mail import send_mail as django_send_mail
-from .brevo_client import get_brevo_client
+from .postmark_client import get_postmark_client, encode_attachment_content
 
 
-def send_email_via_brevo_api(to_email, subject, html_content, from_email=None, to_name=None,
-                              track_opens=True, track_clicks=True, attachments=None):
+def send_email_via_postmark_api(to_email, subject, html_content, from_email=None, to_name=None,
+                                 track_opens=True, track_clicks=True, attachments=None, tags=None):
     """
-    Send a single email using Brevo's API with tracking.
+    Send a single email using Postmark's API with tracking.
 
     Args:
         to_email: Recipient email address
@@ -28,18 +28,22 @@ def send_email_via_brevo_api(to_email, subject, html_content, from_email=None, t
         to_name: Recipient name (optional)
         track_opens: Enable open tracking (default: True)
         track_clicks: Enable click tracking (default: True)
-        attachments: optional list of {'name': str, 'content': base64 str}
+        attachments: optional list of {'name': str, 'content': base64 str, 'mimetype': str}
+        tags: optional list of strings; Postmark only supports one tag per
+            message, so the first one is used (useful for filtering sent
+            mail by type in the Postmark Activity view)
 
     Returns:
         tuple: (success: bool, error_message: str or None, message_id: str or None)
     """
     try:
-        client = get_brevo_client()
+        client = get_postmark_client()
 
         recipient_name = to_name or to_email.split('@')[0]
         from_address = from_email or settings.DEFAULT_FROM_EMAIL
+        tag = tags[0] if tags else None
 
-        response = client.send_transactional_email(
+        response = client.send_email(
             to_email=to_email,
             to_name=recipient_name,
             subject=subject,
@@ -48,10 +52,11 @@ def send_email_via_brevo_api(to_email, subject, html_content, from_email=None, t
             from_name='MakePlus',
             track_opens=track_opens,
             track_clicks=track_clicks,
-            attachments=attachments
+            attachments=attachments,
+            tag=tag,
         )
 
-        message_id = response.get('messageId', '')
+        message_id = response.get('MessageID', '')
         return True, None, message_id
 
     except Exception as e:
@@ -69,7 +74,7 @@ def send_email_via_smtp(to_email, subject, html_content, from_email=None, attach
         html_content: HTML body of the email
         from_email: Sender email (optional, uses DEFAULT_FROM_EMAIL)
         attachments: optional list of {'name': str, 'content': bytes, 'mimetype': str}
-            (raw bytes here, NOT base64 -- unlike the Brevo API path)
+            (raw bytes here, NOT base64 -- unlike the Postmark API path)
 
     Returns:
         tuple: (success: bool, error_message: str or None)
@@ -105,12 +110,13 @@ def send_email_via_smtp(to_email, subject, html_content, from_email=None, attach
         return False, str(e)
 
 
-def send_email(to_email, subject, html_content, from_email=None, to_name=None, use_api=True, attachments=None):
+def send_email(to_email, subject, html_content, from_email=None, to_name=None, use_api=True,
+                attachments=None, tags=None):
     """
     Send email using the best available method.
 
     Priority:
-    1. Brevo API (handles tracking automatically) - RECOMMENDED
+    1. Postmark API (handles tracking automatically) - RECOMMENDED
     2. SMTP fallback (for local development)
 
     Args:
@@ -119,36 +125,42 @@ def send_email(to_email, subject, html_content, from_email=None, to_name=None, u
         html_content: HTML body of the email
         from_email: Sender email (optional, uses DEFAULT_FROM_EMAIL)
         to_name: Recipient name (optional)
-        use_api: Use Brevo API (True) or SMTP (False) - default True
+        use_api: Use Postmark API (True) or SMTP (False) - default True
         attachments: optional list of {'name': str, 'content': bytes, 'mimetype': str}.
             content is raw bytes here -- this function base64-encodes it
-            itself for the Brevo API path, and passes raw bytes straight
+            itself for the Postmark API path, and passes raw bytes straight
             through for the SMTP path (Django's EmailMessage.attach()
             wants raw bytes, not base64).
+        tags: optional list of strings for filtering sent mail in Postmark's
+            Activity view (only the first is used, Postmark allows one tag
+            per message)
 
     Returns:
         tuple: (success: bool, error_message: str or None, message_id: str or None)
     """
-    # Try Brevo API first (recommended for production)
+    # Try Postmark API first (recommended for production)
     if use_api:
-        brevo_api_key = getattr(settings, 'BREVO_API_KEY', '')
+        postmark_token = getattr(settings, 'POSTMARK_SERVER_TOKEN', '')
 
-        if brevo_api_key:
-            brevo_attachments = None
+        if postmark_token:
+            postmark_attachments = None
             if attachments:
-                import base64
-                brevo_attachments = [
-                    {'name': att['name'], 'content': base64.b64encode(att['content']).decode('ascii')}
+                postmark_attachments = [
+                    {
+                        'name': att['name'],
+                        'content': encode_attachment_content(att['content']),
+                        'mimetype': att.get('mimetype', 'application/octet-stream'),
+                    }
                     for att in attachments
                 ]
-            success, error, message_id = send_email_via_brevo_api(
+            success, error, message_id = send_email_via_postmark_api(
                 to_email, subject, html_content, from_email, to_name,
-                track_opens=True, track_clicks=True, attachments=brevo_attachments
+                track_opens=True, track_clicks=True, attachments=postmark_attachments, tags=tags,
             )
             if success:
                 return True, None, message_id
             # Log error but try SMTP fallback
-            print(f"Brevo API failed: {error}, trying SMTP fallback...")
+            print(f"Postmark API failed: {error}, trying SMTP fallback...")
 
     # Try SMTP as fallback
     success, error = send_email_via_smtp(to_email, subject, html_content, from_email, attachments=attachments)
@@ -158,19 +170,19 @@ def send_email(to_email, subject, html_content, from_email=None, to_name=None, u
 def send_bulk_emails(recipients_data, from_email=None, use_api=True):
     """
     Send emails to multiple recipients efficiently.
-    
+
     Args:
         recipients_data: List of dicts with keys: 'email', 'subject', 'html_content', 'name' (optional)
         from_email: Sender email (optional)
-        use_api: Use Brevo API (True) or SMTP (False) - default True
-    
+        use_api: Use Postmark API (True) or SMTP (False) - default True
+
     Returns:
         tuple: (sent_count: int, failed_count: int, errors: list)
     """
     sent_count = 0
     failed_count = 0
     errors = []
-    
+
     for recipient in recipients_data:
         success, error, message_id = send_email(
             to_email=recipient['email'],
@@ -180,7 +192,7 @@ def send_bulk_emails(recipients_data, from_email=None, use_api=True):
             to_name=recipient.get('name'),
             use_api=use_api
         )
-        
+
         if success:
             sent_count += 1
         else:
@@ -189,5 +201,5 @@ def send_bulk_emails(recipients_data, from_email=None, use_api=True):
                 'email': recipient['email'],
                 'error': error
             })
-    
+
     return sent_count, failed_count, errors

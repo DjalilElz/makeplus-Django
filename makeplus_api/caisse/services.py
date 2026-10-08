@@ -163,7 +163,7 @@ def confirm_registration_order(order, confirmed_by=None):
 def _send_confirmation_email(order):
     """
     Best-effort confirmation email to the participant. Failures are logged,
-    never raised -- a Brevo/SMTP hiccup must not undo or block a real
+    never raised -- a Postmark/SMTP hiccup must not undo or block a real
     payment confirmation that already committed above.
 
     Uses the event admin's own 'order_confirmation' EventEmailTemplate if

@@ -153,5 +153,5 @@ def send_registration_confirmation_email(user, event, login_code):
         subject=subject,
         html_content=html_content,
         to_name=user.first_name,
-        use_api=True  # Use Brevo API for tracking
+        use_api=True  # Use Postmark API for tracking
     )

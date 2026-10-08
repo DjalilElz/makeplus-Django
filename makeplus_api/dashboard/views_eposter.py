@@ -191,7 +191,7 @@ class EPosterSubmissionViewSet(viewsets.ModelViewSet):
         })
     
     def send_decision_email(self, submission):
-        """Send acceptance or rejection email using Brevo API"""
+        """Send acceptance or rejection email using Postmark API"""
         from .email_sender import send_email
         
         try:
@@ -213,14 +213,14 @@ class EPosterSubmissionViewSet(viewsets.ModelViewSet):
                 subject = Template(template.subject).render(Context(context))
                 body = Template(template.body_html).render(Context(context))
                 
-                # Use Brevo API for sending
+                # Use Postmark API for sending
                 success, error, message_id = send_email(
                     to_email=submission.email,
                     subject=subject,
                     html_content=body,
                     from_email=settings.DEFAULT_FROM_EMAIL,
                     to_name=f"{submission.prenom} {submission.nom}",
-                    use_api=True  # Force Brevo API usage
+                    use_api=True  # Force Postmark API usage
                 )
                 
                 if success:
@@ -231,7 +231,7 @@ class EPosterSubmissionViewSet(viewsets.ModelViewSet):
                         submission.rejection_email_sent = True
                     submission.save(update_fields=['acceptance_email_sent', 'rejection_email_sent'])
                 else:
-                    print(f"Failed to send email via Brevo API: {error}")
+                    print(f"Failed to send email via Postmark API: {error}")
         except Exception as e:
             print(f"Error sending decision email: {e}")
     

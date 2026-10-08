@@ -113,11 +113,6 @@
             <div class="card">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Statistiques</h5>
-                    {% if campaign.status == 'sent' %}
-                    <button type="button" class="btn btn-sm btn-light" onclick="syncStats()" id="syncStatsBtn">
-                        <i class="bi bi-arrow-clockwise"></i> Synchroniser depuis Brevo
-                    </button>
-                    {% endif %}
                 </div>
                 <div class="card-body">
                     <div class="row text-center">
@@ -147,7 +142,7 @@
                         </div>
                     </div>
                     <div class="text-center mt-2">
-                        <small class="text-muted" id="lastSyncTime">Cliquez sur synchroniser pour mettre à jour depuis Brevo</small>
+                        <small class="text-muted" id="lastSyncTime">Mis à jour automatiquement par Postmark</small>
                     </div>
                 </div>
             </div>
@@ -347,51 +342,6 @@ function deleteRecipient(recipientId, button) {
             deleteRequest();
         }
     }
-}
-
-function syncStats() {
-    const btn = document.getElementById('syncStatsBtn');
-    const lastSyncTime = document.getElementById('lastSyncTime');
-    const uniqueOpens = document.getElementById('uniqueOpens');
-    const uniqueClicks = document.getElementById('uniqueClicks');
-    
-    // Disable button and show loading
-    btn.disabled = true;
-    btn.innerHTML = '<i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Synchronisation...';
-    lastSyncTime.textContent = 'Synchronisation depuis Brevo...';
-    
-    fetch('{% url "dashboard:campaign_sync_stats" campaign.id %}', {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': '{{ csrf_token }}',
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Show success message
-            lastSyncTime.textContent = 'Dernière synchronisation : à l\'instant';
-            lastSyncTime.className = 'text-success';
-
-            // Reload page to show updated stats
-            setTimeout(() => {
-                location.reload();
-            }, 1000);
-        } else {
-            lastSyncTime.textContent = 'Échec de la synchronisation : ' + data.error;
-            lastSyncTime.className = 'text-danger';
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Synchroniser depuis Brevo';
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        lastSyncTime.textContent = 'Échec de la synchronisation : ' + error.message;
-        lastSyncTime.className = 'text-danger';
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Synchroniser depuis Brevo';
-    });
 }
 
 // Open full screen preview

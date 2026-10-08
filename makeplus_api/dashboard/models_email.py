@@ -225,8 +225,9 @@ class EmailCampaign(models.Model):
     # Unlayer editor design (JSON)
     builder_config = models.JSONField(null=True, blank=True, help_text="Unlayer editor design JSON")
     
-    # External campaign ID from Brevo
-    external_campaign_id = models.CharField(max_length=100, blank=True, help_text="Brevo campaign ID")
+    # Unused with Postmark (no native campaign/contact-list concept --
+    # kept only so old rows written while this app used Brevo still read back fine)
+    external_campaign_id = models.CharField(max_length=100, blank=True, help_text="Legacy Brevo campaign ID, unused")
     
     # Tracking
     track_opens = models.BooleanField(default=True, help_text="Track email opens")
@@ -304,8 +305,9 @@ class EmailRecipient(models.Model):
     # Tracking tokens
     tracking_token = models.CharField(max_length=64, unique=True, db_index=True)
     
-    # External ID from Brevo (for syncing stats)
-    external_id = models.CharField(max_length=100, blank=True, help_text="Brevo contact ID")
+    # Postmark's MessageID for this send -- the webhook (dashboard.views_tracking.postmark_webhook)
+    # matches incoming Delivery/Open/Click/Bounce events back to this row by this field
+    external_id = models.CharField(max_length=100, blank=True, help_text="Postmark MessageID")
     
     # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')

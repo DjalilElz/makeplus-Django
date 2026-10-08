@@ -2,7 +2,8 @@
 Email Campaign and Form Tracking Views
 Handles open/click tracking and form analytics
 """
-from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.conf import settings
+from django.http import HttpResponse, HttpResponseRedirect, HttpResponseForbidden, JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
@@ -125,6 +126,95 @@ def unsubscribe_recipient(request, token):
         
     except EmailRecipient.DoesNotExist:
         return HttpResponse("Invalid unsubscribe link.", status=400)
+
+
+def _postmark_webhook_authorized(request):
+    """
+    Postmark doesn't sign webhook payloads, so the recommended way to
+    keep this endpoint from being spoofed is HTTP Basic Auth baked into
+    the webhook URL itself (https://user:pass@host/...), which Postmark
+    sends back as a normal Authorization header. If no credentials are
+    configured, the check is skipped (webhook still only acts on
+    messages whose MessageID matches a real EmailRecipient row).
+    """
+    expected_user = getattr(settings, 'POSTMARK_WEBHOOK_USERNAME', '')
+    expected_password = getattr(settings, 'POSTMARK_WEBHOOK_PASSWORD', '')
+    if not expected_user and not expected_password:
+        return True
+
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    if not auth_header.startswith('Basic '):
+        return False
+    try:
+        decoded = base64.b64decode(auth_header[6:]).decode('utf-8')
+        username, password = decoded.split(':', 1)
+    except Exception:
+        return False
+    return username == expected_user and password == expected_password
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def postmark_webhook(request):
+    """
+    Receives Postmark's Delivery/Bounce/SpamComplaint/Open/Click events
+    (configured in Postmark: Servers -> your server -> Webhooks) and
+    updates the matching EmailRecipient's tracking fields in real time --
+    replacing the old polling-based "sync stats" button.
+
+    Events for a MessageID that isn't a campaign recipient (e.g. a plain
+    transactional email like a password reset) are accepted and ignored;
+    only EmailCampaign sends are tracked per-recipient.
+    """
+    if not _postmark_webhook_authorized(request):
+        return HttpResponseForbidden('Invalid webhook credentials')
+
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    record_type = payload.get('RecordType', '')
+    message_id = payload.get('MessageID', '')
+    if not message_id:
+        return JsonResponse({'success': True, 'ignored': True})
+
+    recipient = EmailRecipient.objects.filter(external_id=message_id).select_related('campaign').first()
+    if not recipient:
+        return JsonResponse({'success': True, 'ignored': True})
+
+    if record_type == 'Delivery':
+        recipient.status = 'delivered'
+        recipient.delivered_at = timezone.now()
+        recipient.save(update_fields=['status', 'delivered_at'])
+        campaign = recipient.campaign
+        campaign.total_delivered = campaign.recipients.filter(status__in=['delivered', 'sent']).count()
+        campaign.save(update_fields=['total_delivered'])
+
+    elif record_type == 'Open':
+        user_agent = (payload.get('Client') or {}).get('Name', '')
+        recipient.record_open(user_agent=user_agent, ip_address=None)
+        EmailOpen.objects.create(recipient=recipient, user_agent=user_agent)
+
+    elif record_type == 'Click':
+        original_url = payload.get('OriginalLink', '')
+        if original_url:
+            link, _ = EmailLink.objects.get_or_create(
+                campaign=recipient.campaign, original_url=original_url,
+            )
+            user_agent = (payload.get('Client') or {}).get('Name', '')
+            EmailClick.objects.create(recipient=recipient, link=link, user_agent=user_agent)
+        else:
+            recipient.record_click(original_url)
+
+    elif record_type in ('Bounce', 'SpamComplaint'):
+        recipient.status = 'bounced'
+        recipient.error_message = (
+            payload.get('Description') or payload.get('Type') or record_type
+        )[:500]
+        recipient.save(update_fields=['status', 'error_message'])
+
+    return JsonResponse({'success': True})
 
 
 @csrf_exempt

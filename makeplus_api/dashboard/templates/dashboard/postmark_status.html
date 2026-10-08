@@ -1,0 +1,64 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Statut Postmark{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 700px;">
+    <div class="mb-4">
+        <a href="{% url 'dashboard:campaign_list_with_stats' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Retour aux campagnes
+        </a>
+        <h2 class="d-inline-block ms-2 mb-0"><i class="bi bi-envelope-check"></i> Statut de l'envoi d'e-mails (Postmark)</h2>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {% if not api_key_configured %}
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle"></i>
+                <strong>Postmark n'est pas configuré.</strong> La clé POSTMARK_SERVER_TOKEN n'est pas définie sur le serveur.
+                Les e-mails partent actuellement par un envoi de secours (SMTP) beaucoup moins fiable pour un
+                envoi en masse. Ajoutez POSTMARK_SERVER_TOKEN dans les variables d'environnement de Render pour activer Postmark.
+            </div>
+
+            {% elif error %}
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle"></i>
+                <strong>Postmark est configuré mais la connexion a échoué :</strong>
+                <div class="mt-2"><code>{{ error }}</code></div>
+                <div class="mt-2">Vérifiez que le jeton (Server API Token) est correct et toujours actif sur votre compte Postmark, et que l'envoi n'est pas suspendu (facturation).</div>
+            </div>
+
+            {% else %}
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i>
+                <strong>Postmark est connecté et fonctionne.</strong>
+            </div>
+
+            <table class="table table-bordered mb-0">
+                <tbody>
+                    <tr>
+                        <th style="width: 40%;">Serveur Postmark connecté</th>
+                        <td>{{ server_info.Name|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Suivi des ouvertures (par défaut)</th>
+                        <td>{{ server_info.TrackOpens|yesno:"Activé,Désactivé" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Suivi des clics (par défaut)</th>
+                        <td>{{ server_info.TrackLinks|default:"—" }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{% url 'dashboard:postmark_status' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-clockwise"></i> Revérifier maintenant
+        </a>
+    </div>
+</div>
+{% endblock %}

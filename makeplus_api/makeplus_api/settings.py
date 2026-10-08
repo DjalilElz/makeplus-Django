@@ -374,18 +374,27 @@ LOGIN_URL = '/dashboard/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/dashboard/login/'
 
-# Email Configuration (Brevo SMTP)
+# Postmark API Configuration (for transactional emails with tracking)
+POSTMARK_SERVER_TOKEN = config('POSTMARK_SERVER_TOKEN', default='')
+POSTMARK_MESSAGE_STREAM = config('POSTMARK_MESSAGE_STREAM', default='outbound')
+
+# Email Configuration (Postmark SMTP fallback -- used only if the
+# Postmark API call itself fails; Postmark's SMTP uses the same Server
+# API Token as both the username and password, so these default to it)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = config('EMAIL_HOST', default='smtp-relay.brevo.com')
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.postmarkapp.com')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default=POSTMARK_SERVER_TOKEN)
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default=POSTMARK_SERVER_TOKEN)
 EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@makeplus.com')
 
-# Brevo API Configuration (for transactional emails with tracking)
-BREVO_API_KEY = config('BREVO_API_KEY', default='')
+# Optional HTTP Basic Auth credentials for the Postmark webhook endpoint
+# (/track/postmark/webhook/) -- set the same values in Postmark's own
+# webhook URL as https://<user>:<password>@<host>/track/postmark/webhook/
+POSTMARK_WEBHOOK_USERNAME = config('POSTMARK_WEBHOOK_USERNAME', default='')
+POSTMARK_WEBHOOK_PASSWORD = config('POSTMARK_WEBHOOK_PASSWORD', default='')
 
 # Site URL for tracking links
 SITE_URL = config('SITE_URL', default='http://127.0.0.1:8000')

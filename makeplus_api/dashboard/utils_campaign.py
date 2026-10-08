@@ -156,14 +156,14 @@ def send_campaign_email(recipient, campaign):
     subject = replace_variables(campaign.subject, context)
     html_content = replace_variables(campaign.body_html, context)
     
-    # Send email via Brevo API
+    # Send email via Postmark API
     success, error, message_id = send_email(
         to_email=recipient.email,
         subject=subject,
         html_content=html_content,
         from_email=campaign.from_email,
         to_name=recipient.name or context.get('first_name', ''),
-        use_api=True  # Always use Brevo API for campaigns
+        use_api=True  # Always use Postmark API for campaigns
     )
     
     return success, error, message_id
