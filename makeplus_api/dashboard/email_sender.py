@@ -138,6 +138,15 @@ def send_email(to_email, subject, html_content, from_email=None, to_name=None, u
     Returns:
         tuple: (success: bool, error_message: str or None, message_id: str or None)
     """
+    # Postmark only allows sending from a verified Sender Signature/domain.
+    # Per-event and per-campaign "from_email" fields are admin-editable
+    # free text (e.g. an organizer's personal address), so honoring them
+    # here would 422 on every send whose address isn't separately
+    # verified in Postmark. By explicit instruction, every email the
+    # platform sends uses the one verified address regardless of what a
+    # caller or a stored template passed in.
+    from_email = settings.DEFAULT_FROM_EMAIL
+
     # Try Postmark API first (recommended for production)
     if use_api:
         postmark_token = getattr(settings, 'POSTMARK_SERVER_TOKEN', '')

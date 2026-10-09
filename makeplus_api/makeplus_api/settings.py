@@ -388,7 +388,9 @@ EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default=POSTMARK_SERVER_TOKEN)
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default=POSTMARK_SERVER_TOKEN)
 EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@makeplus.com')
+# Must stay a Postmark-verified Sender Signature/domain -- every email
+# the platform sends uses this address unconditionally (see email_sender.send_email)
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='support@wemakeplus.com')
 
 # Optional HTTP Basic Auth credentials for the Postmark webhook endpoint
 # (/track/postmark/webhook/) -- set the same values in Postmark's own
