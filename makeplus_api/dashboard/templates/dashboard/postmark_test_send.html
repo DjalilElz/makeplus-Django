@@ -1,0 +1,126 @@
+{% extends 'dashboard/base.html' %}
+
+{% block page_title %}Test d'envoi Postmark{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 800px;">
+    <div class="mb-4">
+        <a href="{% url 'dashboard:postmark_status' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Retour au statut Postmark
+        </a>
+        <h2 class="d-inline-block ms-2 mb-0"><i class="bi bi-envelope-paper"></i> Test d'envoi d'e-mail (Postmark)</h2>
+    </div>
+
+    <div class="alert alert-info">
+        Cette page envoie un e-mail réel directement via l'API Postmark (sans passer par le reste de
+        l'application) et affiche la réponse brute. Elle permet ensuite de vérifier, quelques secondes après,
+        si le message apparaît vraiment dans les journaux de Postmark (Activity / Outbound / Bounces) --
+        ce qui révèle si Postmark accepte l'appel sans jamais réellement envoyer le message.
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <label class="form-label">Adresse e-mail de destination</label>
+                <div class="input-group">
+                    <input type="email" name="to_email" class="form-control" required
+                           value="{{ sent_to|default:default_to_email }}" placeholder="vous@example.com">
+                    <button type="submit" class="btn btn-elegant">
+                        <i class="bi bi-send"></i> Envoyer un test
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        <strong>Échec de l'envoi :</strong>
+        <div class="mt-2"><code>{{ error }}</code></div>
+    </div>
+    {% endif %}
+
+    {% if result %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <i class="bi bi-check-circle"></i> Réponse brute de Postmark (envoi accepté)
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered mb-0">
+                <tbody>
+                    <tr><th style="width:30%;">MessageID</th><td><code>{{ result.MessageID }}</code></td></tr>
+                    <tr><th>ErrorCode</th><td>{{ result.ErrorCode }}</td></tr>
+                    <tr><th>Message</th><td>{{ result.Message }}</td></tr>
+                    <tr><th>SubmittedAt</th><td>{{ result.SubmittedAt }}</td></tr>
+                    <tr><th>To</th><td>{{ result.To }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card mb-4" id="checkCard">
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-search"></i> Vérification dans les journaux Postmark</span>
+            <button type="button" class="btn btn-sm btn-light" id="checkBtn">
+                <i class="bi bi-arrow-clockwise"></i> Vérifier maintenant
+            </button>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-2" id="checkStatus">
+                Vérification automatique toutes les 5 secondes (jusqu'à 6 tentatives)...
+            </p>
+            <pre id="checkOutput" class="bg-light p-3 rounded" style="max-height: 400px; overflow:auto; font-size: 0.85em;">En attente de la première vérification...</pre>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const checkUrl = '{% url "dashboard:postmark_test_check" %}'
+            + '?message_id=' + encodeURIComponent('{{ result.MessageID|escapejs }}')
+            + '&recipient=' + encodeURIComponent('{{ sent_to|escapejs }}');
+        const output = document.getElementById('checkOutput');
+        const status = document.getElementById('checkStatus');
+        const btn = document.getElementById('checkBtn');
+        let attempts = 0;
+        const maxAttempts = 6;
+
+        async function runCheck(manual) {
+            try {
+                const resp = await fetch(checkUrl);
+                const data = await resp.json();
+                output.textContent = JSON.stringify(data, null, 2);
+
+                const found = data.search && data.search.TotalCount > 0;
+                const detailsFound = data.details && !data.details_error;
+
+                if (found || detailsFound) {
+                    status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Trouvé dans les journaux Postmark !</span>';
+                    return true;
+                }
+            } catch (e) {
+                output.textContent = 'Erreur réseau : ' + e.message;
+            }
+            return false;
+        }
+
+        btn.addEventListener('click', () => runCheck(true));
+
+        function autoLoop() {
+            attempts++;
+            runCheck(false).then((found) => {
+                if (found || attempts >= maxAttempts) {
+                    if (!found) {
+                        status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> Toujours introuvable après ' + maxAttempts + ' tentatives -- Postmark accepte l\'appel API mais ne traite jamais le message.</span>';
+                    }
+                    return;
+                }
+                setTimeout(autoLoop, 5000);
+            });
+        }
+        setTimeout(autoLoop, 3000);
+    })();
+    </script>
+    {% endif %}
+</div>
+{% endblock %}

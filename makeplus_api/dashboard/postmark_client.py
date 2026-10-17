@@ -91,6 +91,17 @@ class PostmarkClient:
         """Fetch this server's info (name, color, tracking defaults, ...)."""
         return self._request('GET', '/server')
 
+    def get_message_details(self, message_id):
+        """Look up a previously-sent message by its MessageID."""
+        return self._request('GET', f'/messages/outbound/{message_id}/details')
+
+    def search_outbound_messages(self, recipient=None, count=10):
+        """List/search recent outbound messages on this server."""
+        params = {'count': count, 'offset': 0}
+        if recipient:
+            params['recipient'] = recipient
+        return self._request('GET', '/messages/outbound', params=params)
+
     def test_connection(self):
         """Return True if the configured token authenticates successfully."""
         try:

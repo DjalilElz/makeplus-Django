@@ -55,9 +55,12 @@
         </div>
     </div>
 
-    <div class="mt-3">
+    <div class="mt-3 d-flex gap-2">
         <a href="{% url 'dashboard:postmark_status' %}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-clockwise"></i> Revérifier maintenant
+        </a>
+        <a href="{% url 'dashboard:postmark_test_send' %}" class="btn btn-elegant">
+            <i class="bi bi-envelope-paper"></i> Envoyer un e-mail de test
         </a>
     </div>
 </div>

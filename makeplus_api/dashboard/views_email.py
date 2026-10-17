@@ -1992,6 +1992,95 @@ def postmark_status(request):
 
 
 @login_required
+def postmark_test_send(request):
+    """
+    In-app diagnostic page: sends one real email directly through the
+    Postmark API (bypassing the rest of the app's code paths entirely)
+    and shows the raw response. Built to debug the "API returns a
+    MessageID but nothing ever shows in Activity/Outbound/Bounces"
+    situation without needing Render logs or an external API client --
+    pairs with postmark_test_check below, which polls Postmark's own
+    logs for that MessageID a few seconds later.
+    """
+    from .postmark_client import get_postmark_client
+
+    result = None
+    error = None
+    sent_to = ''
+
+    if request.method == 'POST':
+        sent_to = request.POST.get('to_email', '').strip()
+        if sent_to:
+            try:
+                client = get_postmark_client()
+                result = client.send_email(
+                    to_email=sent_to,
+                    to_name='',
+                    subject=f"Test Postmark MakePlus - {timezone.now().strftime('%d/%m/%Y %H:%M:%S')}",
+                    html_content=(
+                        "<p>Ceci est un e-mail de test envoyé directement depuis la page "
+                        "de diagnostic Postmark de MakePlus.</p>"
+                    ),
+                    track_opens=True,
+                    track_clicks=True,
+                    tag='diagnostic-test',
+                )
+            except Exception as e:
+                error = str(e)
+        else:
+            error = "Veuillez saisir une adresse e-mail de destination."
+
+    context = {
+        'result': result,
+        'error': error,
+        'sent_to': sent_to,
+        'default_to_email': request.user.email or '',
+    }
+    return render(request, 'dashboard/postmark_test_send.html', context)
+
+
+@login_required
+def postmark_test_check(request):
+    """
+    AJAX companion to postmark_test_send: looks up whether a given
+    MessageID has actually shown up yet in Postmark's own outbound
+    message log/search, and whether it bounced -- this is what proves
+    (or disproves) that Postmark is only acknowledging the API call
+    without actually queuing/delivering the message.
+    """
+    from .postmark_client import get_postmark_client
+    from django.http import JsonResponse
+
+    message_id = request.GET.get('message_id', '').strip()
+    recipient = request.GET.get('recipient', '').strip()
+    if not message_id:
+        return JsonResponse({'error': 'message_id requis'}, status=400)
+
+    client = get_postmark_client()
+
+    details = None
+    details_error = None
+    try:
+        details = client.get_message_details(message_id)
+    except Exception as e:
+        details_error = str(e)
+
+    search = None
+    search_error = None
+    try:
+        search = client.search_outbound_messages(recipient=recipient or None, count=10)
+    except Exception as e:
+        search_error = str(e)
+
+    return JsonResponse({
+        'details': details,
+        'details_error': details_error,
+        'search': search,
+        'search_error': search_error,
+    })
+
+
+@login_required
 def get_event_registration_fields(request, event_id):
     """
     API endpoint to get registration form fields for a specific event
