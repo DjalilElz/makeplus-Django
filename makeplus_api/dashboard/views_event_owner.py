@@ -569,12 +569,27 @@ def event_owner_export_excel(request, event_id):
         wanted = set(workshop_item_ids)
         orders = [o for o in orders if _bloc_item_ids(o, 'workshops') & wanted]
 
+    # Identity fields (name/email/phone) already have their own dedicated
+    # columns below; a file field has nothing meaningful to put in a
+    # spreadsheet cell. Every other configured form field (Spécialité,
+    # Secteur, Grade, Établissement, ...) gets its own column so the
+    # export actually shows the real answers submitted on the live
+    # form, not just the generic bloc/pricing report it used to be.
+    SKIPPED_FIELD_TYPES = {'email', 'tel', 'file'}
+    SKIPPED_FIELD_NAMES = {'first_name', 'prenom', 'last_name', 'nom'}
+
     phone_field_name = None
+    extra_fields = []
     form_config = event.custom_forms.first()
     if form_config:
         phone_field_name = next(
             (f.get('name') for f in form_config.fields_config if f.get('type') == 'tel'), None,
         )
+        extra_fields = [
+            {'name': f.get('name'), 'label': f.get('label') or f.get('name')}
+            for f in form_config.fields_config
+            if f.get('type') not in SKIPPED_FIELD_TYPES and f.get('name') not in SKIPPED_FIELD_NAMES
+        ]
 
     wb = Workbook()
     ws = wb.active
@@ -587,11 +602,13 @@ def event_owner_export_excel(request, event_id):
         top=Side(style='thin'), bottom=Side(style='thin'),
     )
 
-    headers = [
-        'Participant', 'E-mail', 'Téléphone', 'Statut choisi', 'Restauration',
-        'Ateliers', 'Événement social', 'Prix (DZD)', "Statut de l'inscription",
-        'Notes', 'Soumis le',
-    ]
+    headers = (
+        ['Participant', 'E-mail', 'Téléphone'] + [f['label'] for f in extra_fields]
+        + [
+            'Statut choisi', 'Restauration', 'Ateliers', 'Événement social', 'Prix (DZD)',
+            "Statut de l'inscription", 'Notes', 'Soumis le',
+        ]
+    )
     ws.append(headers)
     for col in range(1, len(headers) + 1):
         cell = ws.cell(row=1, column=col)
@@ -602,12 +619,15 @@ def event_owner_export_excel(request, event_id):
 
     for order in orders:
         bloc_names = _bloc_names(order)
-        phone = (
-            order.form_submission.data.get(phone_field_name, '')
-            if order.form_submission and phone_field_name else ''
-        )
+        submission_data = order.form_submission.data if order.form_submission else {}
+        phone = submission_data.get(phone_field_name, '') if phone_field_name else ''
+        extra_values = []
+        for f in extra_fields:
+            value = submission_data.get(f['name'], '')
+            extra_values.append(', '.join(value) if isinstance(value, list) else (value or ''))
         ws.append([
             order.full_name or '', order.email or '', phone,
+            *extra_values,
             bloc_names['status'], bloc_names['restauration'], bloc_names['workshops'], bloc_names['social_event'],
             float(order.total_after_reduction), STATUS_LABELS.get(order.status, order.status),
             order.admin_notes or '', order.created_at.strftime('%Y-%m-%d %H:%M'),
