@@ -54,7 +54,10 @@ class PostmarkClient:
         Send a single email through Postmark.
 
         Args:
-            attachments: optional list of {'name': str, 'content': base64 str, 'mimetype': str}
+            attachments: optional list of {'name': str, 'content': base64 str, 'mimetype': str,
+                'content_id': optional str}. When content_id is set, the attachment is inlined
+                (not shown as a downloadable file) and can be referenced in html_content as
+                <img src="cid:{content_id}">.
             tag: optional short string used by Postmark to group/filter messages (max 1)
 
         Returns:
@@ -76,14 +79,17 @@ class PostmarkClient:
         if tag:
             data['Tag'] = tag[:1000]
         if attachments:
-            data['Attachments'] = [
-                {
+            postmark_attachments = []
+            for att in attachments:
+                entry = {
                     'Name': att['name'],
                     'Content': att['content'],
                     'ContentType': att.get('mimetype', 'application/octet-stream'),
                 }
-                for att in attachments
-            ]
+                if att.get('content_id'):
+                    entry['ContentID'] = f"cid:{att['content_id']}"
+                postmark_attachments.append(entry)
+            data['Attachments'] = postmark_attachments
 
         return self._request('POST', '/email', data=data)
 

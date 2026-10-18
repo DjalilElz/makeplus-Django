@@ -120,6 +120,84 @@ def create_participant_for_event(user, event):
     return participant
 
 
+def send_registration_confirmation_email(user, event):
+    """
+    Best-effort confirmation email sent right after a registration is
+    finalized (free flow immediately, paid flow once the order is
+    reserved -- both already grant the participant role, see
+    create_participant_for_event's docstring): a minimal "you're
+    confirmed" message with the participant's QR code embedded inline,
+    to present at check-in. Failures are logged, never raised -- a
+    delivery hiccup here must not undo or block a registration that
+    already succeeded.
+    """
+    import io
+    import logging
+    import qrcode
+
+    try:
+        qr_data = UserProfile.get_qr_for_user(user)
+        # Same plain user_id payload as every other badge QR in the app
+        # (see dashboard.views._qr_display_payload) -- scanners only need
+        # the id to look the participant up.
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(str(qr_data.get('user_id')))
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        qr_png_bytes = buffer.getvalue()
+
+        full_name = user.get_full_name() or user.email
+        event_name = event.name if event else ''
+        intro = f'votre inscription à <strong>{event_name}</strong> est confirmée.' if event_name else 'votre inscription est confirmée.'
+
+        subject = f"Inscription confirmée - {event_name}" if event_name else "Inscription confirmée"
+        html_content = f"""
+        <html>
+        <body style="margin:0; padding:0; background-color:#ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#1a1a1a;">
+            <div style="max-width: 480px; margin: 0 auto; padding: 48px 24px;">
+                <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 24px 0; color:#1a1a1a;">Inscription confirmée</h1>
+
+                <p style="font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
+                    Bonjour {full_name}, {intro}
+                </p>
+
+                <div style="text-align: center; padding: 24px 0; margin: 0 0 16px 0; border: 1px solid #e5e5e5; border-radius: 8px;">
+                    <img src="cid:qrcode" alt="QR code" width="200" height="200" style="display:block; margin:0 auto; width:200px; height:200px;">
+                </div>
+
+                <p style="font-size: 14px; line-height: 1.6; color:#4a4a4a; margin: 0 0 40px 0; text-align:center;">
+                    Présentez ce code QR à l'accueil pour le contrôle d'accès.
+                </p>
+
+                <p style="font-size: 14px; color:#767676; margin: 0; border-top: 1px solid #e5e5e5; padding-top: 24px;">
+                    Cordialement,<br>L'équipe MakePlus
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+
+        send_email(
+            to_email=user.email,
+            subject=subject,
+            html_content=html_content,
+            to_name=full_name,
+            use_api=True,
+            attachments=[{
+                'name': 'qr-code.png',
+                'content': qr_png_bytes,
+                'mimetype': 'image/png',
+                'content_id': 'qrcode',
+            }],
+        )
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Failed to send registration confirmation email to %s", user.email,
+        )
+
+
 def get_or_create_user_by_email(email, first_name='', last_name=''):
     """
     Get the account for this email, or create a placeholder one (unusable
@@ -266,6 +344,7 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
                 return False, None, result_message
             verification.mark_as_used(ip_address=ip_address, user_agent=user_agent)
             participant = Participant.objects.filter(user=user).first()
+            send_registration_confirmation_email(user, form.event)
             return True, participant, result_message
 
         # Free (no-blocs) flow: grant the participant role immediately,
@@ -287,6 +366,8 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
 
         # Mark code as used
         verification.mark_as_used(ip_address=ip_address, user_agent=user_agent)
+
+        send_registration_confirmation_email(user, form.event)
 
         return True, participant, "Inscription terminée avec succès"
 

@@ -159,6 +159,7 @@ def send_email(to_email, subject, html_content, from_email=None, to_name=None, u
                         'name': att['name'],
                         'content': encode_attachment_content(att['content']),
                         'mimetype': att.get('mimetype', 'application/octet-stream'),
+                        'content_id': att.get('content_id'),
                     }
                     for att in attachments
                 ]
