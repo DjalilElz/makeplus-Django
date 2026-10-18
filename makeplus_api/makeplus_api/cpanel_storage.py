@@ -3,6 +3,7 @@ cPanel HTTP Storage Backend
 Uploads files to cPanel via HTTP POST (no FTP, no memory issues)
 """
 import os
+import re
 import requests
 from io import BytesIO
 from django.core.files.storage import Storage
@@ -16,12 +17,27 @@ class CPanelHTTPStorage(Storage):
     Custom storage backend that uploads files to cPanel via HTTP POST
     This avoids FTP memory issues and is more reliable
     """
-    
+
     def __init__(self):
         self.upload_url = settings.CPANEL_UPLOAD_URL
         self.upload_key = settings.CPANEL_UPLOAD_KEY
         self.base_url = settings.CPANEL_BASE_URL
-    
+
+    def get_valid_name(self, name):
+        """
+        Django's own sanitization (the base Storage.get_valid_name) only
+        rejects a filename that is EXACTLY ".." -- it does not strip a
+        ".." that merely appears inside an otherwise normal filename
+        (e.g. a phone/camera export literally named "Photo..jpg"). The
+        remote cpanel_upload_script.php rejects any path containing the
+        substring ".." at all (its directory-traversal guard), so such a
+        filename reaches it untouched and gets a blanket 400 "Invalid
+        file path" -- collapsing any run of 2+ dots down to one here
+        guarantees that substring can never occur in what we send it.
+        """
+        from django.utils.text import get_valid_filename
+        return re.sub(r'\.{2,}', '.', get_valid_filename(name))
+
     def _save(self, name, content):
         """
         Save file by uploading via HTTP POST to cPanel
