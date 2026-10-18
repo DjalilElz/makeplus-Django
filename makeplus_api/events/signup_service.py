@@ -58,26 +58,27 @@ def send_signup_verification_code(email, first_name, password, last_name, ip_add
     subject = "Verify Your MakePlus Account"
     html_content = f"""
     <html>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #667eea;">Welcome to MakePlus!</h2>
-            <p>Hello {first_name},</p>
-            <p>Thank you for signing up. Please use the verification code below to complete your registration:</p>
-            
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; text-align: center; margin: 20px 0;">
-                <div style="font-size: 48px; font-weight: bold; letter-spacing: 10px; color: #667eea; margin: 20px 0;">
-                    {code}
-                </div>
-                <p style="color: #6c757d; font-size: 0.9em;">This code expires in 3 minutes</p>
+    <body style="margin:0; padding:0; background-color:#ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#1a1a1a;">
+        <div style="max-width: 480px; margin: 0 auto; padding: 48px 24px;">
+            <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 24px 0; color:#1a1a1a;">Welcome to MakePlus!</h1>
+
+            <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">Hello {first_name},</p>
+            <p style="font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
+                Thank you for signing up. Use the code below to complete your registration:
+            </p>
+
+            <div style="text-align: center; padding: 28px 0; margin: 0 0 16px 0; border: 1px solid #e5e5e5; border-radius: 8px;">
+                <div style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color:#1a1a1a;">{code}</div>
             </div>
-            
-            <div style="background: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0;">
-                <p style="margin: 0;"><strong>Important:</strong> If you didn't request this code, please ignore this email.</p>
-            </div>
-            
-            <p style="margin-top: 30px;">
-                Best regards,<br>
-                <strong>MakePlus Team</strong>
+
+            <p style="font-size: 13px; color: #767676; margin: 0 0 32px 0; text-align:center;">This code expires in 3 minutes</p>
+
+            <p style="font-size: 14px; line-height: 1.6; color:#4a4a4a; margin: 0 0 40px 0;">
+                If you didn't request this code, please ignore this email.
+            </p>
+
+            <p style="font-size: 14px; color:#767676; margin: 0; border-top: 1px solid #e5e5e5; padding-top: 24px;">
+                Best regards,<br>MakePlus Team
             </p>
         </div>
     </body>
