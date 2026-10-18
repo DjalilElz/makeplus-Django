@@ -54,30 +54,31 @@ def send_form_validation_code(email, form_slug, form_data, ip_address=None, user
     )
     
     # Send email
-    subject = f"Vérifiez votre inscription - {form.event.name if form.event else form.name}"
+    event_or_form_name = form.event.name if form.event else form.name
+    subject = f"Vérifiez votre inscription - {event_or_form_name}"
     html_content = f"""
     <html>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #667eea;">Vérifiez votre inscription</h2>
-            <p>Bonjour {greeting_name},</p>
-            <p>Merci de vous être inscrit(e) à <strong>{form.event.name if form.event else form.name}</strong>.</p>
-            <p>Veuillez utiliser le code de vérification ci-dessous pour terminer votre inscription :</p>
+    <body style="margin:0; padding:0; background-color:#ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#1a1a1a;">
+        <div style="max-width: 480px; margin: 0 auto; padding: 48px 24px;">
+            <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 24px 0; color:#1a1a1a;">Vérifiez votre inscription</h1>
 
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; text-align: center; margin: 20px 0;">
-                <div style="font-size: 48px; font-weight: bold; letter-spacing: 10px; color: #667eea; margin: 20px 0;">
-                    {code}
-                </div>
-                <p style="color: #6c757d; font-size: 0.9em;">Ce code expire dans 3 minutes</p>
+            <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">Bonjour {greeting_name},</p>
+            <p style="font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
+                Merci de vous être inscrit(e) à <strong>{event_or_form_name}</strong>. Utilisez le code ci-dessous pour terminer votre inscription :
+            </p>
+
+            <div style="text-align: center; padding: 28px 0; margin: 0 0 16px 0; border: 1px solid #e5e5e5; border-radius: 8px;">
+                <div style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color:#1a1a1a;">{code}</div>
             </div>
 
-            <div style="background: #e7f3ff; padding: 15px; border-left: 4px solid #2196F3; margin: 20px 0;">
-                <p style="margin: 0;"><strong>Étape suivante :</strong> Entrez ce code sur la page d'inscription pour terminer votre inscription.</p>
-            </div>
+            <p style="font-size: 13px; color: #767676; margin: 0 0 32px 0; text-align:center;">Ce code expire dans 3 minutes</p>
 
-            <p style="margin-top: 30px;">
-                Cordialement,<br>
-                <strong>L'équipe MakePlus</strong>
+            <p style="font-size: 14px; line-height: 1.6; color:#4a4a4a; margin: 0 0 40px 0;">
+                Entrez ce code sur la page d'inscription pour terminer votre inscription.
+            </p>
+
+            <p style="font-size: 14px; color:#767676; margin: 0; border-top: 1px solid #e5e5e5; padding-top: 24px;">
+                Cordialement,<br>L'équipe MakePlus
             </p>
         </div>
     </body>
