@@ -22,16 +22,31 @@ RESTAURATION_HEADER = 'Bloc: Restauration'
 SOCIAL_EVENT_HEADER = 'Bloc: Événement social'
 WORKSHOPS_HEADER = 'Ateliers (workshops)'
 
+# On the live public form these render as a fixed <select>/radio
+# group/checkbox group bound to the field's own 'options' list -- a
+# submission can never carry anything else. The import must enforce the
+# same thing (see _validate_row) instead of accepting arbitrary text.
+SELECT_LIKE_FIELD_TYPES = {'select', 'radio', 'checkbox'}
+
+# Can't be filled from a spreadsheet cell at all, so it's left out of
+# the template entirely rather than offered as a column that can never
+# actually be used.
+NOT_IMPORTABLE_FIELD_TYPES = {'file'}
+
 
 def build_import_columns(event):
     """
     The ordered list of columns this event's template/import actually
-    needs: one per configured form field, then one per bloc that's both
-    enabled AND has at least one real item to choose from (mirrors
-    get_public_bloc_context's own filtering exactly, so the import never
-    offers a bloc the public form itself wouldn't).
+    needs: one per configured form field (minus any NOT_IMPORTABLE_FIELD_TYPES),
+    then one per bloc that's both enabled AND has at least one real item
+    to choose from (mirrors get_public_bloc_context's own filtering
+    exactly, so the import never offers a bloc the public form itself
+    wouldn't).
 
     Returns {'form_fields': [...], 'bloc_columns': [...], 'bloc_context': dict or None}.
+    form_fields entries carry 'options' (the field's own choices, for
+    select/radio/checkbox) so they can be validated and listed in the
+    template's legend sheet exactly like bloc columns are.
     bloc_columns entries: {'header', 'bloc_key' ('status'/'restauration'/
     'social_event'/'workshops'), 'required', 'select_mode', 'valid_values': [names]}.
     """
@@ -39,11 +54,14 @@ def build_import_columns(event):
     form_fields = []
     if form_config:
         for field in form_config.fields_config:
+            if field.get('type') in NOT_IMPORTABLE_FIELD_TYPES:
+                continue
             form_fields.append({
                 'name': field.get('name'),
                 'label': field.get('label') or field.get('name'),
                 'type': field.get('type', 'text'),
                 'required': bool(field.get('required')),
+                'options': field.get('options') or [],
             })
 
     bloc_context = get_public_bloc_context(event, include_inactive=False)
@@ -108,6 +126,8 @@ def generate_import_template_workbook(event):
             example.append('Jean')
         elif f['name'] in ('last_name', 'nom'):
             example.append('Dupont')
+        elif f['type'] in SELECT_LIKE_FIELD_TYPES and f['options']:
+            example.append(', '.join(f['options'][:2]) if f['type'] == 'checkbox' else f['options'][0])
         else:
             example.append('')
     for c in columns['bloc_columns']:
@@ -119,11 +139,20 @@ def generate_import_template_workbook(event):
             example.append(c['valid_values'][0])
     ws.append(example)
 
-    if columns['bloc_columns']:
+    select_like_fields = [f for f in columns['form_fields'] if f['type'] in SELECT_LIKE_FIELD_TYPES and f['options']]
+    if columns['bloc_columns'] or select_like_fields:
         legend = wb.create_sheet('Valeurs valides')
         legend.append(['Colonne', 'Valeurs acceptées (orthographe exacte)'])
         legend['A1'].font = Font(bold=True)
         legend['B1'].font = Font(bold=True)
+        for f in select_like_fields:
+            note = (
+                'Une ou plusieurs valeurs, séparées par des virgules' if f['type'] == 'checkbox'
+                else 'Une seule valeur'
+            )
+            legend.append([f['label'], note])
+            for value in f['options']:
+                legend.append(['', value])
         for c in columns['bloc_columns']:
             note = (
                 'Une seule valeur' if c['select_mode'] == 'single'
@@ -203,11 +232,29 @@ def _validate_row(event, columns, row_dict):
     for field in columns['form_fields']:
         header = field['label'] + (' *' if field['required'] else '')
         raw_value = row_dict.get(header, '')
-        value = '' if raw_value is None else str(raw_value).strip()
-        if field['type'] == 'checkbox':
-            value = [v.strip() for v in value.split(',') if v.strip()] if value else []
-        if field['required'] and not value:
-            errors.append(f"« {field['label']} » est requis.")
+
+        if field['type'] in SELECT_LIKE_FIELD_TYPES and field['options']:
+            # Must match the live form exactly: a select/radio/checkbox
+            # field there can never submit anything outside its own
+            # options, so neither can an import (same strict matching
+            # already used for bloc columns below).
+            allow_multiple = field['type'] == 'checkbox'
+            matched, unmatched = _match_names(raw_value, field['options'], allow_multiple)
+            if unmatched:
+                errors.append(
+                    f"« {field['label']} » : valeur(s) non reconnue(s) : {', '.join(unmatched)}. "
+                    f"Valeurs acceptées : {', '.join(field['options'])}."
+                )
+            if not allow_multiple and len(matched) > 1:
+                errors.append(f"« {field['label']} » n'accepte qu'une seule valeur.")
+            if field['required'] and not matched:
+                errors.append(f"« {field['label']} » est requis.")
+            value = matched if allow_multiple else (matched[0] if matched else '')
+        else:
+            value = '' if raw_value is None else str(raw_value).strip()
+            if field['required'] and not value:
+                errors.append(f"« {field['label']} » est requis.")
+
         form_data[field['name']] = value
         if field['type'] == 'email' or field['name'] in ('email',):
             email = (value or '').lower()
