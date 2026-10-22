@@ -29,6 +29,16 @@ def _require_contribution_number(event):
     return config.require_contribution_number if config else True
 
 
+def _communicant_form_config(event):
+    """
+    The event's communicant EventFormConfiguration, or None -- governs
+    the "Thème" field's mode (free text vs admin-defined dropdown) on
+    BOTH the initial and final submission forms, so an organizer only
+    configures it once.
+    """
+    return EventFormConfiguration.objects.filter(event=event, form_type='communicant').first()
+
+
 @require_http_methods(["GET", "POST"])
 @csrf_exempt
 def eposter_final_submission_form(request, event_id):
@@ -40,14 +50,14 @@ def eposter_final_submission_form(request, event_id):
 
     if request.method == 'GET':
         # Display the form
+        form_config = _communicant_form_config(event)
         context = {
             'event': event,
             'submission_type': 'e_poster',
             'submission_label': 'E-Poster',
             'file_label': 'E-Poster Final (PDF)',
-            'specialite_choices': ScientificContributionFinalSubmission.SPECIALITE_CHOICES,
-            'domaine_choices': ScientificContributionFinalSubmission.DOMAINE_COMMUNICATION_CHOICES,
-            'require_contribution_number': _require_contribution_number(event),
+            'form_config': form_config,
+            'require_contribution_number': form_config.require_contribution_number if form_config else True,
         }
         return render(request, 'dashboard/eposter/final_submission_form.html', context)
 
@@ -66,14 +76,14 @@ def communication_orale_final_submission_form(request, event_id):
 
     if request.method == 'GET':
         # Display the form
+        form_config = _communicant_form_config(event)
         context = {
             'event': event,
             'submission_type': 'communication_orale',
             'submission_label': 'Communication Orale',
             'file_label': 'Présentation Finale (PDF)',
-            'specialite_choices': ScientificContributionFinalSubmission.SPECIALITE_CHOICES,
-            'domaine_choices': ScientificContributionFinalSubmission.DOMAINE_COMMUNICATION_CHOICES,
-            'require_contribution_number': _require_contribution_number(event),
+            'form_config': form_config,
+            'require_contribution_number': form_config.require_contribution_number if form_config else True,
         }
         return render(request, 'dashboard/eposter/final_submission_form.html', context)
 
@@ -121,7 +131,19 @@ def handle_final_submission(request, event, expected_type):
         titre = request.POST.get('titre', '').strip()
         auteurs_json = request.POST.get('auteurs', '[]')
         abstract_file = request.FILES.get('abstract_file')
-        
+
+        # Same per-event config (free text vs admin-defined dropdown) the
+        # initial submission form already enforces for its own "Thème"
+        # field -- rejects a value a crafted request sent that isn't one
+        # of the configured dropdown options, same as the serializer does
+        # for the initial submission (see serializers_eposter.py).
+        form_config = _communicant_form_config(event)
+        if form_config is not None and not form_config.is_theme_valid(theme):
+            return JsonResponse({
+                'success': False,
+                'error': "Ce thème n'est pas dans la liste proposée pour cet événement."
+            }, status=400)
+
         # Parse co-authors
         import json
         try:

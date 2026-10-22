@@ -930,8 +930,17 @@
                                 <div class="row g-4">
                                     <div class="col-md-6">
                                         <label class="form-label">Thème/Sujet</label>
+                                        {% if form_config.theme_field_mode == 'select' %}
+                                        <select name="theme" class="form-select">
+                                            <option value="">Sélectionner un thème...</option>
+                                            {% for option in form_config.theme_options %}
+                                            <option value="{{ option }}">{{ option }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        {% else %}
                                         <input type="text" name="theme" class="form-control"
                                                placeholder="ex. : Cardiologie, Oncologie, Dermatologie...">
+                                        {% endif %}
                                         <small class="text-muted">Optionnel</small>
                                     </div>
                                     <div class="col-12">
