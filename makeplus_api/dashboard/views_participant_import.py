@@ -16,19 +16,22 @@ from events.models import Event
 from .models_import import ParticipantImportBatch, ParticipantImportRow
 from .participant_import_service import (
     build_import_columns, generate_import_template_workbook, create_import_batch, process_import_row,
+    send_pending_confirmation_emails,
 )
 from .views_blocs import get_public_bloc_context
 from .views_event_owner import _can_access_event_orders, _redirect_to_submissions
 
-BATCH_SIZE = 3
-# Smaller than the other BATCH_SIZE=10 batch-processing views
-# (attestation_send/campaign_send) -- each row here now also sends a
-# live confirmation email over the network (see
-# participant_import_service.process_import_row), not just local DB
-# writes, so 10 rows' worth of external API latency in one request was
-# enough to exceed gunicorn's 30s worker timeout ("Erreur réseau
-# pendant l'import" on the frontend, since a killed worker never
-# returns valid JSON for the batch's fetch() to parse).
+# Row creation is pure DB work (no network calls), same as the other
+# BATCH_SIZE=10 batch-processing views (attestation_send/campaign_send).
+BATCH_SIZE = 10
+
+# The confirmation-email phase (action=send_emails below) runs
+# separately, after creation, and does make a live network call per
+# row -- kept smaller so a slow/stalled call can't by itself consume a
+# whole batch's share of gunicorn's 30s worker timeout. Unlike a
+# creation batch, a timed-out email batch loses nothing: rows stay
+# confirmation_email_sent=False and just get picked up by the next call.
+EMAIL_BATCH_SIZE = 5
 
 
 @never_cache
@@ -164,5 +167,12 @@ def participant_import_process(request, event_id, batch_id):
             'created_this_batch': created_count, 'failed_this_batch': failed_count,
             'remaining': remaining,
         })
+
+    if request.method == 'POST' and request.POST.get('action') == 'send_emails':
+        # Separate phase from creation above -- see
+        # send_pending_confirmation_emails' docstring for why.
+        sent_count = send_pending_confirmation_emails(batch, EMAIL_BATCH_SIZE)
+        remaining = batch.rows.filter(status='created', confirmation_email_sent=False).count()
+        return JsonResponse({'success': True, 'done': remaining == 0, 'sent_this_batch': sent_count, 'remaining': remaining})
 
     return redirect('dashboard:participant_import_preview', event_id=event.id, batch_id=batch.id)

@@ -37,6 +37,14 @@
             <div class="progress" style="height: 24px;">
                 <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%; background-color: #2D1B6B;">0%</div>
             </div>
+
+            <div id="email-phase" class="mt-4 d-none">
+                <p id="email-progress-text" class="small text-muted mb-1">Envoi des e-mails de confirmation...</p>
+                <div class="progress" style="height: 10px;">
+                    <div id="email-progress-bar" class="progress-bar" role="progressbar" style="width: 0%; background-color: #8a7bc8;"></div>
+                </div>
+            </div>
+
             <a href="{% url 'dashboard:event_owner_submissions' event.id %}" class="btn btn-outline-elegant mt-4 d-none" id="done-link">
                 <i class="bi bi-list-ul"></i> Voir les inscriptions
             </a>
@@ -89,10 +97,69 @@
         if (data.done) {
             progressText.textContent = `Terminé : ${newCreatedTotal} participant(s) créé(s)` + (newFailedTotal > 0 ? `, ${newFailedTotal} échec(s).` : '.');
             doneLink.classList.remove('d-none');
+            // Registrations already exist and are fully usable at this
+            // point -- email sending continues on its own below without
+            // making the admin wait any further for it.
+            if (newCreatedTotal > 0) {
+                startEmailPhase(newCreatedTotal);
+            }
             return;
         }
 
         setTimeout(() => sendNextBatch(newDoneSoFar, newCreatedTotal, newFailedTotal), 400);
+    }
+
+    const emailPhase = document.getElementById('email-phase');
+    const emailProgressBar = document.getElementById('email-progress-bar');
+    const emailProgressText = document.getElementById('email-progress-text');
+
+    function setEmailProgress(sentSoFar, total) {
+        const pct = total > 0 ? Math.min(100, Math.round((sentSoFar / total) * 100)) : 100;
+        emailProgressBar.style.width = pct + '%';
+        emailProgressText.textContent = `Envoi des e-mails de confirmation : ${sentSoFar} / ${total}...`;
+    }
+
+    async function sendNextEmailBatch(sentSoFar, total) {
+        let data;
+        try {
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=send_emails',
+            });
+            data = await response.json();
+        } catch (err) {
+            // Non-fatal: registrations are already created. Rows that
+            // haven't been emailed yet just stay that way -- reloading
+            // this page re-enters the "start" action, which re-renders
+            // this same template and resumes from where it left off.
+            emailProgressText.textContent = "Envoi des e-mails interrompu. Rechargez la page pour reprendre.";
+            return;
+        }
+
+        if (!data.success) {
+            emailProgressText.textContent = data.error || "Échec de l'envoi des e-mails.";
+            return;
+        }
+
+        const newSentSoFar = sentSoFar + data.sent_this_batch;
+        setEmailProgress(newSentSoFar, total);
+
+        if (data.done) {
+            emailProgressText.textContent = `E-mails de confirmation envoyés (${newSentSoFar}).`;
+            return;
+        }
+
+        setTimeout(() => sendNextEmailBatch(newSentSoFar, total), 300);
+    }
+
+    function startEmailPhase(total) {
+        emailPhase.classList.remove('d-none');
+        setEmailProgress(0, total);
+        sendNextEmailBatch(0, total);
     }
 
     setProgress(0);

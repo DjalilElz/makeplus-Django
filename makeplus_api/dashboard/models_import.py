@@ -74,6 +74,13 @@ class ParticipantImportRow(models.Model):
         'events.Participant', on_delete=models.SET_NULL, null=True, blank=True, related_name='import_rows'
     )
 
+    # Confirmation email (with QR code) is sent in its own separate,
+    # slower batch phase AFTER creation finishes -- never inline with
+    # row creation itself, since that combined DB writes with a live
+    # network call per row and was slow/timeout-prone for a large file.
+    # See participant_import_service.send_pending_confirmation_emails.
+    confirmation_email_sent = models.BooleanField(default=False)
+
     class Meta:
         db_table = 'dashboard_participantimportrow'
         verbose_name = 'Participant Import Row'

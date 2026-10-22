@@ -360,9 +360,16 @@ def process_import_row(row, event, config, bloc_context):
     submission, left at its default 'pending' (unpaid/"Registered")
     status -- never auto-marked paid just because it came from a file.
     Mutates row.status/error_message/participant; caller saves it.
+
+    Deliberately does NOT send the registration-confirmation email --
+    that happens afterward, in its own separate batch phase (see
+    send_pending_confirmation_emails below), so a slow/variable network
+    call per row can never block or time out row creation itself (it
+    did: this is pure DB work and was fast, batched at 10/request,
+    until an earlier version sent the email inline here too and most
+    batches started exceeding gunicorn's worker timeout).
     """
     from .models_form import FormSubmission
-    from events.form_validation_service import send_registration_confirmation_email
 
     try:
         with transaction.atomic():
@@ -405,10 +412,35 @@ def process_import_row(row, event, config, bloc_context):
     except Exception as e:
         row.status = 'error'
         row.error_message = f"Erreur lors de la création : {e}"
-        return
 
-    # Outside the transaction -- an email delivery hiccup must not roll
-    # back a registration that already committed. Same confirmation
-    # (with QR code) a self-registering participant gets; send_email's
-    # own best-effort error handling means this never raises.
-    send_registration_confirmation_email(user, event)
+
+def send_pending_confirmation_emails(batch, limit):
+    """
+    Sends the registration-confirmation email (with QR code -- same one
+    a self-registering participant gets) for up to `limit` rows in this
+    batch that were successfully created but not yet emailed, then marks
+    them sent. Deliberately a separate phase/endpoint from row creation
+    -- see process_import_row's docstring for why mixing the two caused
+    most creation batches to exceed gunicorn's worker timeout.
+
+    Idempotent and safe to call repeatedly: a row is only ever picked up
+    while confirmation_email_sent=False, so a request that itself times
+    out mid-batch just leaves the remaining rows to be picked up by the
+    next call -- never a duplicate email, never a lost one.
+
+    Returns the number of rows processed (attempted) in this call.
+    """
+    from events.form_validation_service import send_registration_confirmation_email
+
+    rows = list(
+        batch.rows.filter(status='created', confirmation_email_sent=False)
+        .select_related('participant__user')
+        .order_by('row_number')[:limit]
+    )
+    for row in rows:
+        if row.participant and row.participant.user:
+            send_registration_confirmation_email(row.participant.user, batch.event)
+        row.confirmation_email_sent = True
+    if rows:
+        ParticipantImportRow.objects.bulk_update(rows, ['confirmation_email_sent'])
+    return len(rows)
