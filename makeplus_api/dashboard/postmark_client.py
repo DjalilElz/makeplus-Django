@@ -33,7 +33,17 @@ class PostmarkClient:
         url = f"{self.BASE_URL}{endpoint}"
         response = requests.request(
             method, url, headers=self._headers(),
-            json=data, params=params, timeout=30,
+            json=data, params=params,
+            # Postmark normally responds in well under a second. Several
+            # call sites (participant_import_service.process_import_row,
+            # campaign sends) make this call once per row inside a
+            # request-bounded batch loop (gunicorn's default 30s worker
+            # timeout) -- a single stalled/slow call at 30s could by
+            # itself blow that whole batch's budget, killing the worker
+            # mid-request. A tighter timeout fails fast instead (caught
+            # by email_sender's SMTP fallback) and leaves real headroom
+            # for everything else in the batch.
+            timeout=10,
         )
         try:
             payload = response.json()

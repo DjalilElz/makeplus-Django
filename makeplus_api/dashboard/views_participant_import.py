@@ -20,7 +20,15 @@ from .participant_import_service import (
 from .views_blocs import get_public_bloc_context
 from .views_event_owner import _can_access_event_orders, _redirect_to_submissions
 
-BATCH_SIZE = 10
+BATCH_SIZE = 3
+# Smaller than the other BATCH_SIZE=10 batch-processing views
+# (attestation_send/campaign_send) -- each row here now also sends a
+# live confirmation email over the network (see
+# participant_import_service.process_import_row), not just local DB
+# writes, so 10 rows' worth of external API latency in one request was
+# enough to exceed gunicorn's 30s worker timeout ("Erreur réseau
+# pendant l'import" on the frontend, since a killed worker never
+# returns valid JSON for the batch's fetch() to parse).
 
 
 @never_cache
