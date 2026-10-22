@@ -217,13 +217,21 @@ def parse_uploaded_workbook(uploaded_file):
     return parsed
 
 
-def _validate_row(event, columns, row_dict):
+def _validate_row(event, columns, row_dict, registered_emails):
     """
     Returns a dict ready to become a ParticipantImportRow's fields
     (email, full_name, form_data, resolved_item_ids, resolved_session_ids,
     status, error_message). Never raises -- an unexpected problem with
     one row becomes status='error' with a message, not a crash that
     takes the rest of the file down with it.
+
+    registered_emails: lowercased set of every email already registered
+    for this event, computed ONCE by the caller -- doing that lookup as
+    a per-row query here instead was a real production incident: a large
+    file meant hundreds of synchronous round-trips to the database
+    inside one request, long enough to hit gunicorn's worker timeout and
+    get killed mid-request (visible in the logs as a SystemExit from
+    gunicorn's own abort handler, not a normal exception).
     """
     errors = []
     form_data = {}
@@ -291,11 +299,7 @@ def _validate_row(event, columns, row_dict):
             resolved_item_ids.extend(str(items_by_name[name].id) for name in matched if name in items_by_name)
 
     if email and not errors:
-        from events.models import ParticipantEventRegistration
-        already_registered = ParticipantEventRegistration.objects.filter(
-            event=event, participant__user__email__iexact=email
-        ).exists()
-        if already_registered:
+        if email in registered_emails:
             return {
                 'email': email, 'full_name': full_name, 'form_data': form_data,
                 'resolved_item_ids': resolved_item_ids, 'resolved_session_ids': resolved_session_ids,
@@ -314,8 +318,19 @@ def create_import_batch(event, user, uploaded_file):
     """Parses + validates the uploaded file and persists a
     ParticipantImportBatch with one ParticipantImportRow per data row,
     ready for the admin to review before anything is actually created."""
+    from events.models import ParticipantEventRegistration
+
     columns = build_import_columns(event)
     parsed_rows = parse_uploaded_workbook(uploaded_file)
+
+    # One query for the whole file instead of one per row -- see
+    # _validate_row's docstring for why that used to time out on a
+    # large file.
+    registered_emails = {
+        email.lower() for email in ParticipantEventRegistration.objects.filter(
+            event=event
+        ).values_list('participant__user__email', flat=True) if email
+    }
 
     batch = ParticipantImportBatch.objects.create(
         event=event, uploaded_by=user,
@@ -325,7 +340,7 @@ def create_import_batch(event, user, uploaded_file):
 
     rows = []
     for row_number, row_dict in enumerate(parsed_rows, start=2):  # row 1 is the header
-        validated = _validate_row(event, columns, row_dict)
+        validated = _validate_row(event, columns, row_dict, registered_emails)
         rows.append(ParticipantImportRow(
             batch=batch, row_number=row_number, raw_data={k: ('' if v is None else str(v)) for k, v in row_dict.items()},
             **validated,
