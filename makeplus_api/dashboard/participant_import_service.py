@@ -362,6 +362,7 @@ def process_import_row(row, event, config, bloc_context):
     Mutates row.status/error_message/participant; caller saves it.
     """
     from .models_form import FormSubmission
+    from events.form_validation_service import send_registration_confirmation_email
 
     try:
         with transaction.atomic():
@@ -404,3 +405,10 @@ def process_import_row(row, event, config, bloc_context):
     except Exception as e:
         row.status = 'error'
         row.error_message = f"Erreur lors de la création : {e}"
+        return
+
+    # Outside the transaction -- an email delivery hiccup must not roll
+    # back a registration that already committed. Same confirmation
+    # (with QR code) a self-registering participant gets; send_email's
+    # own best-effort error handling means this never raises.
+    send_registration_confirmation_email(user, event)

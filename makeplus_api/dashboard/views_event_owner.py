@@ -396,7 +396,10 @@ def event_owner_new_registration(request, event_id):
     """
     from django.core.files.storage import default_storage
     import uuid as uuid_lib
-    from events.form_validation_service import create_participant_for_event, get_or_create_user_for_manual_registration
+    from events.form_validation_service import (
+        create_participant_for_event, get_or_create_user_for_manual_registration,
+        send_registration_confirmation_email,
+    )
     from .models_form import FormSubmission
 
     event = get_object_or_404(Event, id=event_id)
@@ -510,6 +513,7 @@ def event_owner_new_registration(request, event_id):
             )
 
             form_config.increment_submission_count()
+            send_registration_confirmation_email(user, event)
             messages.success(request, f"Inscription créée pour {full_name or email}.")
             return _redirect_to_submissions(request, event.id)
 
