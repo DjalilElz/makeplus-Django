@@ -5,11 +5,15 @@ actually create the registrations in small batches (same two-phase
 pattern as attestation_send/campaign_send, so a large file can't time
 out a single request).
 """
+from datetime import timedelta
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.cache import never_cache
 
 from events.models import Event
@@ -33,6 +37,14 @@ from .views_event_owner import _can_access_event_orders, _redirect_to_submission
 # only ever move past 'valid' once actually created, inside their own
 # transaction.atomic() in process_import_row).
 BATCH_SIZE = 10
+
+# How long a row may sit 'claimed' before the next batch call treats it
+# as abandoned (the request that claimed it was killed by gunicorn's
+# worker timeout, or the server restarted) and makes it claimable again.
+# Comfortably above gunicorn's 30s worker timeout so a request that's
+# still genuinely working through its claimed rows is never reclaimed
+# out from under it.
+STALE_CLAIM_SECONDS = 120
 
 # The confirmation-email phase (action=send_emails below) runs
 # separately, after creation, and does make a live network call per
@@ -134,7 +146,10 @@ def _progress_snapshot(batch):
     would make the bar look like it jumped backwards on every resume).
     """
     total = batch.creation_total or 0
-    remaining_valid = batch.rows.filter(status='valid').count()
+    # 'claimed' rows are mid-flight (another request is actively
+    # creating them right now) -- not done, but also not up for grabs,
+    # so they count the same as 'valid' for "not done yet" purposes.
+    remaining_valid = batch.rows.filter(status__in=['valid', 'claimed']).count()
     done_so_far = max(0, total - remaining_valid)
     created_count = batch.rows.filter(status='created').count()
     failed_count = max(0, done_so_far - created_count)
@@ -194,16 +209,44 @@ def participant_import_process(request, event_id, batch_id):
                       {'event': event, 'batch': batch, **_progress_snapshot(batch)})
 
     if request.POST.get('action') == 'batch':
-        pending_qs = batch.rows.filter(status='valid').order_by('row_number')
-        rows = list(pending_qs[:BATCH_SIZE])
+        # Claiming happens under a row-level lock so two requests that
+        # overlap in time -- a reload whose old request is still
+        # finishing server-side, two tabs, a client retry after a
+        # dropped connection -- can never both grab the same row and
+        # race to create it twice. skip_locked means a request that
+        # arrives while another is mid-claim just moves on to whatever
+        # rows aren't currently locked, instead of blocking.
+        stale_cutoff = timezone.now() - timedelta(seconds=STALE_CLAIM_SECONDS)
+        with transaction.atomic():
+            batch.rows.filter(status='claimed', claimed_at__lt=stale_cutoff).update(status='valid', claimed_at=None)
 
-        if not rows:
-            batch.status = 'done'
-            batch.save(update_fields=['status'])
+            row_ids = list(
+                batch.rows.select_for_update(skip_locked=True)
+                .filter(status='valid').order_by('row_number')
+                .values_list('id', flat=True)[:BATCH_SIZE]
+            )
+            if row_ids:
+                ParticipantImportRow.objects.filter(id__in=row_ids).update(status='claimed', claimed_at=timezone.now())
+
+        if not row_ids:
+            # Nothing free to claim right now. Either genuinely done, or
+            # every remaining row is currently claimed by another
+            # in-flight request -- tell the client to check back shortly
+            # rather than treating this as an error or as completion.
+            still_pending = batch.rows.filter(status__in=['valid', 'claimed']).count()
+            if still_pending == 0:
+                batch.status = 'done'
+                batch.save(update_fields=['status'])
+                return JsonResponse({
+                    'success': True, 'done': True, 'created_this_batch': 0, 'failed_this_batch': 0,
+                    'remaining': 0, 'rows': [],
+                })
             return JsonResponse({
-                'success': True, 'done': True, 'created_this_batch': 0, 'failed_this_batch': 0,
-                'remaining': 0, 'rows': [],
+                'success': True, 'done': False, 'busy': True, 'created_this_batch': 0, 'failed_this_batch': 0,
+                'remaining': still_pending, 'rows': [],
             })
+
+        rows = list(ParticipantImportRow.objects.filter(id__in=row_ids).order_by('row_number'))
 
         bloc_context = get_public_bloc_context(event, include_inactive=False)
         config = bloc_context['config'] if bloc_context else None
@@ -228,7 +271,7 @@ def participant_import_process(request, event_id, batch_id):
                     'error': row.error_message,
                 })
 
-        remaining = batch.rows.filter(status='valid').count()
+        remaining = batch.rows.filter(status__in=['valid', 'claimed']).count()
         if remaining == 0:
             batch.status = 'done'
             batch.save(update_fields=['status'])

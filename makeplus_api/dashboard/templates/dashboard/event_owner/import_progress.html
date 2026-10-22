@@ -162,6 +162,14 @@
             return;
         }
 
+        if (data.busy) {
+            // Every remaining row is currently claimed by another
+            // in-flight request (e.g. one left running after a reload) --
+            // not an error, just wait a moment for it to free up.
+            setTimeout(sendNextBatch, 500);
+            return;
+        }
+
         (data.rows || []).forEach(logRow);
 
         doneSoFar += data.created_this_batch + data.failed_this_batch;

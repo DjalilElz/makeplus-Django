@@ -57,6 +57,7 @@ class ParticipantImportRow(models.Model):
         ('valid', 'Valide'),
         ('error', 'Erreur'),
         ('skipped_duplicate', 'Ignoré (déjà inscrit)'),
+        ('claimed', 'En cours de création'),
         ('created', 'Créé'),
     ]
 
@@ -89,6 +90,20 @@ class ParticipantImportRow(models.Model):
     # network call per row and was slow/timeout-prone for a large file.
     # See participant_import_service.send_pending_confirmation_emails.
     confirmation_email_sent = models.BooleanField(default=False)
+
+    # Set when a request claims this row (status flipped 'valid' ->
+    # 'claimed') right before actually creating it. Exists so a second
+    # request racing against the first one -- a page reload whose old
+    # request is still finishing server-side, two tabs, a retried call
+    # after a dropped connection -- can never grab the same row: claiming
+    # happens under a row-level lock (select_for_update(skip_locked=True)
+    # in participant_import_process), so only one request ever succeeds
+    # at claiming a given row. If the request that claimed a row dies
+    # before finishing it (worker killed), the timestamp is how the next
+    # batch call recognizes the claim as abandoned and reclaims it --
+    # without this, a crash mid-row would leave it stuck at 'claimed'
+    # forever, invisible to both the 'valid' and 'created' queries.
+    claimed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'dashboard_participantimportrow'
