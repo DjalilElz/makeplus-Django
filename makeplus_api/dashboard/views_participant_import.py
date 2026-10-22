@@ -21,9 +21,15 @@ from .participant_import_service import (
 from .views_blocs import get_public_bloc_context
 from .views_event_owner import _can_access_event_orders, _redirect_to_submissions
 
-# Row creation is pure DB work (no network calls), same as the other
-# BATCH_SIZE=10 batch-processing views (attestation_send/campaign_send).
-BATCH_SIZE = 10
+# Row creation is pure DB work (no network calls), but unlike a plain
+# campaign/attestation send it's several queries deep per row (user +
+# participant get_or_create, a FormSubmission, and compute_order's own
+# pricing/discount lookups when the event has blocs) -- occasionally
+# enough, at 10/request, to approach gunicorn's 30s worker timeout on a
+# large file. Kept smaller for headroom; a timed-out creation batch is
+# still safe to retry (rows only ever move past 'valid' once actually
+# created, inside their own transaction.atomic() in process_import_row).
+BATCH_SIZE = 5
 
 # The confirmation-email phase (action=send_emails below) runs
 # separately, after creation, and does make a live network call per

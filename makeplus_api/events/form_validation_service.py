@@ -107,11 +107,20 @@ def create_participant_for_event(user, event):
     """
     from .models import ParticipantEventRegistration
 
+    # get_or_create evaluates `defaults` eagerly regardless of whether a
+    # row already exists, so computing this twice (once per dict entry,
+    # as it was before) doubled an already non-trivial call -- each
+    # get_qr_for_user does a profile lookup plus several more queries
+    # inside get_or_create_qr_code (assignment/participant/registration/
+    # CaisseTransaction) -- for every row, even when nothing ends up
+    # created. Measurably slow enough across a bulk import's many rows
+    # to matter.
+    qr_data = UserProfile.get_qr_for_user(user)
     participant, _ = Participant.objects.get_or_create(
         user=user,
         defaults={
-            'badge_id': UserProfile.get_qr_for_user(user)['badge_id'],
-            'qr_code_data': UserProfile.get_qr_for_user(user),
+            'badge_id': qr_data['badge_id'],
+            'qr_code_data': qr_data,
             'role': 'participant'
         }
     )
