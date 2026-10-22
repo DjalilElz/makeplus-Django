@@ -111,16 +111,24 @@
         return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
-    // Retries forever on a network-level failure (fetch throwing, or a
-    // non-JSON/aborted response -- exactly what a lost connection looks
-    // like), with capped exponential backoff, instead of giving up and
-    // asking for a manual reload. A request that comes back with valid
-    // JSON but success:false is a real server-side error, not a network
-    // blip, so that's surfaced immediately rather than retried forever.
+    // Retries forever on a failed or stalled request -- a real dropped
+    // connection, or a request that's taking so long the browser itself
+    // gives up waiting -- with capped exponential backoff, instead of
+    // giving up and asking for a manual reload. A request that comes
+    // back with valid JSON but success:false is a real server-side
+    // error, not a stall, so that's surfaced immediately rather than
+    // retried forever. REQUEST_TIMEOUT_MS bounds how long any single
+    // attempt waits before being treated as stalled and retried -- well
+    // under the server's own request timeout, so a request this client
+    // gives up on is one the server was about to give up on too, not one
+    // that's silently still working.
     const RETRY_DELAYS = [2000, 5000, 10000, 20000, 30000];
+    const REQUEST_TIMEOUT_MS = 25000;
     async function postAction(action, onRetrying) {
         let attempt = 0;
         while (true) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
             try {
                 const response = await fetch(window.location.href, {
                     method: 'POST',
@@ -129,6 +137,7 @@
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
                     body: 'action=' + action,
+                    signal: controller.signal,
                 });
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 return await response.json();
@@ -137,6 +146,8 @@
                 onRetrying(delay);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 attempt++;
+            } finally {
+                clearTimeout(timeoutId);
             }
         }
     }
@@ -150,7 +161,7 @@
     async function sendNextBatch() {
         const data = await postAction('batch', (delay) => {
             progressText.textContent =
-                `Connexion interrompue — nouvelle tentative dans ${Math.round(delay / 1000)}s... (les ` +
+                `Le serveur met du temps à répondre — nouvelle tentative dans ${Math.round(delay / 1000)}s... (les ` +
                 `${createdTotal} participant(s) déjà créé(s) sont conservés)`;
             progressText.classList.add('text-danger');
         });
@@ -209,7 +220,7 @@
     async function sendNextEmailBatch(sentSoFar) {
         const data = await postAction('send_emails', (delay) => {
             emailProgressText.textContent =
-                `Connexion interrompue — nouvelle tentative dans ${Math.round(delay / 1000)}s... ` +
+                `Le serveur met du temps à répondre — nouvelle tentative dans ${Math.round(delay / 1000)}s... ` +
                 `(${sentSoFar} e-mail(s) déjà envoyé(s))`;
         });
 

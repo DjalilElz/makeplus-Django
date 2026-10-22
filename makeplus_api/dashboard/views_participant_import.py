@@ -25,18 +25,20 @@ from .participant_import_service import (
 from .views_blocs import get_public_bloc_context
 from .views_event_owner import _can_access_event_orders, _redirect_to_submissions
 
-# Row creation is pure DB work (no network calls). It used to run ~20+
-# queries deep per row (duplicate QR generation, a per-row form-config
-# lookup, get_or_create round-trips for rows that are usually brand
-# new) -- enough, at 10/request, to occasionally approach gunicorn's
-# 30s worker timeout on a large file. Those redundant queries were
-# removed (see create_participant_for_event / build_initial_qr_data /
-# the form_config caching below), so each row is now roughly half the
-# DB round-trips it used to be -- batch size is restored accordingly.
-# A timed-out creation batch is still safe to retry either way (rows
-# only ever move past 'valid' once actually created, inside their own
+# Row creation is pure DB work (no network calls), but each row is still
+# several queries deep (user/participant lookups, a FormSubmission,
+# compute_order's pricing lookups when the event has blocs) and every one
+# of those queries is a real network round-trip to Postgres -- at
+# 10/request, observed in production to reliably take long enough that
+# the browser's fetch() gives up (and the client-side retry logic kicks
+# in) well before the request actually finishes server-side, even though
+# the server keeps going and the rows DO eventually get created. Kept
+# small enough that one request's total round-trip time stays
+# comfortably short regardless of per-query latency. A timed-out
+# creation batch is still safe to retry either way (rows only ever move
+# past 'valid'/'claimed' once actually created, inside their own
 # transaction.atomic() in process_import_row).
-BATCH_SIZE = 10
+BATCH_SIZE = 3
 
 # How long a row may sit 'claimed' before the next batch call treats it
 # as abandoned (the request that claimed it was killed by gunicorn's
@@ -47,12 +49,17 @@ BATCH_SIZE = 10
 STALE_CLAIM_SECONDS = 120
 
 # The confirmation-email phase (action=send_emails below) runs
-# separately, after creation, and does make a live network call per
-# row -- kept smaller so a slow/stalled call can't by itself consume a
-# whole batch's share of gunicorn's 30s worker timeout. Unlike a
-# creation batch, a timed-out email batch loses nothing: rows stay
-# confirmation_email_sent=False and just get picked up by the next call.
-EMAIL_BATCH_SIZE = 5
+# separately, after creation, and each row here does MORE than a
+# creation row: a handful of DB queries to rebuild the QR code (an
+# EXISTING participant, so get_qr_for_user's full lookup chain actually
+# runs, unlike the cheap new-participant path) plus a live Postmark API
+# call on top -- at the per-query latency observed in production
+# (~300ms/query), kept smaller than BATCH_SIZE so a slow/stalled row
+# can't by itself consume a whole request's share of gunicorn's 30s
+# worker timeout. Unlike a creation batch, a timed-out email batch loses
+# nothing: rows stay confirmation_email_sent=False and just get picked
+# up by the next call.
+EMAIL_BATCH_SIZE = 2
 
 
 @never_cache
