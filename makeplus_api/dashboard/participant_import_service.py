@@ -350,7 +350,7 @@ def create_import_batch(event, user, uploaded_file):
     return batch
 
 
-def process_import_row(row, event, config, bloc_context):
+def process_import_row(row, event, config, bloc_context, form_config):
     """
     Creates the real registration for one 'valid' row -- same pipeline
     as event_owner_new_registration: passwordless user, Participant +
@@ -360,6 +360,11 @@ def process_import_row(row, event, config, bloc_context):
     submission, left at its default 'pending' (unpaid/"Registered")
     status -- never auto-marked paid just because it came from a file.
     Mutates row.status/error_message/participant; caller saves it.
+
+    form_config is passed in (looked up once per request by the caller)
+    rather than queried here -- it's the same row every time for a given
+    event, so re-querying it per row was a wasted query multiplied across
+    the whole batch.
 
     Deliberately does NOT send the registration-confirmation email --
     that happens afterward, in its own separate batch phase (see
@@ -379,7 +384,6 @@ def process_import_row(row, event, config, bloc_context):
             user = get_or_create_user_for_manual_registration(row.email, first_name, last_name)
             participant = create_participant_for_event(user, event)
 
-            form_config = event.custom_forms.first()
             submission = None
             if form_config:
                 submission = FormSubmission.objects.create(

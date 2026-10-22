@@ -33,6 +33,15 @@ class ParticipantImportBatch(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='validating')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Snapshot of how many rows were 'valid' (i.e. slated for creation)
+    # the moment processing first started, set once and never touched
+    # again. Lets the progress page recompute an accurate percentage and
+    # resume correctly after a reload or a lost connection -- re-counting
+    # 'valid' rows live would shrink as rows get processed, making the
+    # bar look like it reset instead of continuing. See
+    # views_participant_import.participant_import_process.
+    creation_total = models.IntegerField(null=True, blank=True)
+
     class Meta:
         db_table = 'dashboard_participantimportbatch'
         verbose_name = 'Participant Import Batch'

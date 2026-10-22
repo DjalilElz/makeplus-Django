@@ -209,6 +209,38 @@ class UserProfile(models.Model):
         profile, created = UserProfile.objects.get_or_create(user=user)
         return profile.get_or_create_qr_code()
 
+    @staticmethod
+    def build_initial_qr_data(user):
+        """
+        Minimal QR payload for a user who does not have a Participant yet
+        (their very first registration anywhere). get_or_create_qr_code's
+        assignment/participant/CaisseTransaction lookups only ever have
+        something to find for an EXISTING participant with history --
+        none of that can exist yet here, so running that full query chain
+        for a brand-new registration is pure waste (measurable across
+        every row of a bulk import). Callers must only use this when
+        they've already confirmed (e.g. via Participant.DoesNotExist)
+        that this user has no Participant row.
+        """
+        profile, created = UserProfile.objects.get_or_create(user=user)
+        if not created and profile.qr_code_data and profile.qr_code_data.get('badge_id'):
+            # A profile with no Participant can still pre-exist (e.g. an
+            # earlier placeholder account) -- reuse its badge_id rather
+            # than mint a second one for the same user.
+            return profile.qr_code_data
+
+        qr_data = {
+            "user_id": user.id,
+            "badge_id": f"USER-{user.id}-{uuid.uuid4().hex[:8].upper()}",
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "full_name": user.get_full_name() or user.email,
+        }
+        profile.qr_code_data = qr_data
+        profile.save(update_fields=['qr_code_data'])
+        return qr_data
+
 
 class Event(models.Model):
     """Main Event Model"""

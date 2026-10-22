@@ -107,23 +107,22 @@ def create_participant_for_event(user, event):
     """
     from .models import ParticipantEventRegistration
 
-    # get_or_create evaluates `defaults` eagerly regardless of whether a
-    # row already exists, so computing this twice (once per dict entry,
-    # as it was before) doubled an already non-trivial call -- each
-    # get_qr_for_user does a profile lookup plus several more queries
-    # inside get_or_create_qr_code (assignment/participant/registration/
-    # CaisseTransaction) -- for every row, even when nothing ends up
-    # created. Measurably slow enough across a bulk import's many rows
-    # to matter.
-    qr_data = UserProfile.get_qr_for_user(user)
-    participant, _ = Participant.objects.get_or_create(
-        user=user,
-        defaults={
-            'badge_id': qr_data['badge_id'],
-            'qr_code_data': qr_data,
-            'role': 'participant'
-        }
-    )
+    # Checking existence up front (instead of routing everything through
+    # get_or_create_qr_code's full lookup chain, as this used to) means an
+    # already-registered user -- the common case for repeat/admin-added
+    # registrations and every row of a bulk import after their first
+    # event -- costs one query here instead of the five-plus hidden
+    # inside get_qr_for_user (assignment/participant/registration/
+    # CaisseTransaction, none of which can change anything for a
+    # Participant that already exists). Only a genuinely new participant
+    # pays for QR generation at all, via the cheaper build_initial_qr_data.
+    try:
+        participant = Participant.objects.get(user=user)
+    except Participant.DoesNotExist:
+        qr_data = UserProfile.build_initial_qr_data(user)
+        participant = Participant.objects.create(
+            user=user, badge_id=qr_data['badge_id'], qr_code_data=qr_data, role='participant',
+        )
     ParticipantEventRegistration.objects.get_or_create(participant=participant, event=event)
     UserEventAssignment.objects.get_or_create(user=user, event=event, defaults={'role': 'participant'})
     return participant
