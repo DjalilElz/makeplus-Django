@@ -14,12 +14,16 @@ safe here because this codebase's migrations of this kind are written
 defensively (check-before-ALTER), so replaying one that already matches
 the live schema is a no-op.
 
-We deliberately avoid executor.migrate()/migration_plan(): those compute
-"migrate this app to exactly migration X", and since some apps here
-already have *later* migrations applied than the missing ones, that plan
-mixes forwards and backwards migrations and Django refuses to run it
-(InvalidMigrationPlan). Calling apply_migration() directly sidesteps that
-entirely -- we're not resequencing anything, just filling in gaps.
+We deliberately avoid executor.migrate(): it computes "migrate this app
+to exactly migration X", and since some apps here already have *later*
+migrations applied than the missing ones, that plan mixes forwards and
+backwards migrations and Django refuses to run it (InvalidMigrationPlan).
+Calling apply_migration() directly for just the missing migrations
+sidesteps that entirely -- we're not resequencing anything, just filling
+in gaps. migration_plan(..., clean_start=True) is still used below, but
+only to get the full graph in dependency order for building state
+ourselves -- it never computes a from-current-state plan, so it doesn't
+hit the same InvalidMigrationPlan issue.
 
 Postgres-only. Safe to call repeatedly: no-ops once history is consistent.
 """
@@ -84,11 +88,35 @@ def fix_migration_history(dry_run=False, log=lambda msg: None):
         log('[DRY RUN] No changes made.')
         return True
 
-    state = executor._create_project_state(with_applied_migrations=True)
-    for key in ordered_keys:
-        migration = executor.loader.graph.nodes[key]
-        state = executor.apply_migration(state, migration, fake=False, fake_initial=False)
-        log(f'Applied {key[0]}.{key[1]}')
+    # executor._create_project_state(with_applied_migrations=True) can't be
+    # used here: it walks the full graph from a clean start and replays
+    # mutate_state() only for migrations Django considers applied --
+    # skipping the ones we're about to backfill entirely. That's exactly
+    # the inconsistency we're fixing (an applied migration whose own
+    # dependency is one of these "missing" ones), so replaying only the
+    # "applied" set builds a state where the missing migration's effect
+    # (e.g. the model it created) was never added -- the next applied
+    # migration that depends on it then crashes with a KeyError
+    # (confirmed in production: AddField on a model whose CreateModel
+    # migration was skipped this way). Walking the full plan ourselves and
+    # handling "applied" (state only) and "missing" (real apply) in the
+    # same pass keeps every migration's state mutation in correct
+    # dependency order exactly once, however the two sets interleave.
+    from django.db.migrations.state import ProjectState
+
+    full_plan = executor.migration_plan(executor.loader.graph.leaf_nodes(), clean_start=True)
+    applied_migrations = {
+        executor.loader.graph.nodes[key] for key in applied if key in executor.loader.graph.nodes
+    }
+    missing_migrations = {executor.loader.graph.nodes[key] for key in missing}
+
+    state = ProjectState(real_apps=executor.loader.unmigrated_apps)
+    for migration, _ in full_plan:
+        if migration in applied_migrations:
+            migration.mutate_state(state, preserve=False)
+        elif migration in missing_migrations:
+            state = executor.apply_migration(state, migration, fake=False, fake_initial=False)
+            log(f'Applied {migration.app_label}.{migration.name}')
 
     log('Migration history is now consistent.')
     return True
