@@ -37,6 +37,27 @@ def convert_qr_code_data_to_json(apps, schema_editor):
     db_alias = schema_editor.connection.alias
 
     with schema_editor.connection.cursor() as cursor:
+        # 0030 (which depends on this migration) converts the column to a
+        # real jsonb type -- guarded by checking it isn't jsonb already.
+        # If that already succeeded, every row's value is GUARANTEED
+        # valid JSON by Postgres's own jsonb type enforcement (0030's
+        # own ALTER COLUMN ... USING qr_code_data::jsonb would have
+        # failed outright on any row that wasn't). This migration's
+        # entire job is then provably already done, so there's nothing
+        # left to scan or fix -- skip immediately rather than walking
+        # every row with an individual UPDATE (which is what made
+        # replaying this migration, when production's django_migrations
+        # bookkeeping lost its applied-record for it, repeatedly time out
+        # and get blocked by lock contention once the table had grown to
+        # thousands of rows under live traffic).
+        cursor.execute(
+            "SELECT data_type FROM information_schema.columns "
+            "WHERE table_name = 'events_participant' AND column_name = 'qr_code_data'"
+        )
+        row = cursor.fetchone()
+        if row and row[0] == 'jsonb':
+            return
+
         # Get all participants with their qr_code_data
         # Cast to text explicitly to avoid JSON parsing in WHERE clause
         cursor.execute(

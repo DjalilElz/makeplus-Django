@@ -103,6 +103,7 @@ def fix_migration_history(dry_run=False, log=lambda msg: None):
     # same pass keeps every migration's state mutation in correct
     # dependency order exactly once, however the two sets interleave.
     from django.db.migrations.state import ProjectState
+    from django.db.utils import OperationalError
 
     full_plan = executor.migration_plan(executor.loader.graph.leaf_nodes(), clean_start=True)
     applied_migrations = {
@@ -110,12 +111,39 @@ def fix_migration_history(dry_run=False, log=lambda msg: None):
     }
     missing_migrations = {executor.loader.graph.nodes[key] for key in missing}
 
+    # Session-level (not SET LOCAL -- apply_migration() opens its own
+    # transaction per migration, which a transaction-scoped SET LOCAL
+    # wouldn't reach) so a migration that needs a lock a live table's
+    # ongoing traffic is holding fails fast instead of hanging for
+    # minutes or outlasting Postgres's own statement_timeout and
+    # crashing this whole command (confirmed in production: this app's
+    # bulk participant import writes to events_participant constantly,
+    # which migration 0029 also needs a lock on).
+    with connection.cursor() as cur:
+        cur.execute("SET lock_timeout = '5s'")
+
     state = ProjectState(real_apps=executor.loader.unmigrated_apps)
     for migration, _ in full_plan:
         if migration in applied_migrations:
             migration.mutate_state(state, preserve=False)
         elif migration in missing_migrations:
-            state = executor.apply_migration(state, migration, fake=False, fake_initial=False)
+            try:
+                state = executor.apply_migration(state, migration, fake=False, fake_initial=False)
+            except OperationalError as e:
+                # Stop here rather than skipping ahead: anything later in
+                # missing_migrations may depend on this one's state, and
+                # applying it anyway would risk the exact
+                # KeyError-on-skipped-dependency bug this function exists
+                # to avoid. Whatever didn't get applied just stays
+                # missing and is retried on the next deploy/invocation --
+                # safe, since nothing here is recorded as applied unless
+                # it actually ran and committed.
+                log(
+                    f'Could not apply {migration.app_label}.{migration.name} right now ({e}) -- '
+                    f'likely blocked by a concurrent transaction on a live table. Leaving it '
+                    f'(and anything after it) for the next attempt instead of blocking this deploy.'
+                )
+                return False
             log(f'Applied {migration.app_label}.{migration.name}')
 
     log('Migration history is now consistent.')
