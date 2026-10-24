@@ -138,10 +138,35 @@ def send_registration_confirmation_email(user, event):
     to present at check-in. Failures are logged, never raised -- a
     delivery hiccup here must not undo or block a registration that
     already succeeded.
+
+    Fire-and-forget: the actual work (a QR lookup, rendering a PNG, a
+    live Postmark API call) used to run inline in the caller's request --
+    the self-registration flow, the event owner's manual "Nouvelle
+    inscription" page, and each row of the bulk import's email phase all
+    had the person who just finished registering sit through it. None of
+    those callers use this function's return value or need it to have
+    finished before they respond, so it's safe to hand off to a
+    background thread instead. This app has no task queue (Celery/etc.),
+    so a plain daemon thread is the pragmatic option at this scale.
     """
+    import threading
+    threading.Thread(
+        target=_send_registration_confirmation_email_now, args=(user, event), daemon=True,
+    ).start()
+
+
+def _send_registration_confirmation_email_now(user, event):
+    """The actual send for send_registration_confirmation_email -- runs
+    off the request thread, so it manages its own DB connection: Django
+    only auto-closes connections at the end of a *request*, which this
+    thread is not, so an explicit close() is needed once done with it
+    (not finishing one isn't catastrophic for a short-lived daemon thread
+    that exits right after, but leaves the connection open longer than
+    necessary otherwise)."""
     import io
     import logging
     import qrcode
+    from django.db import connection
 
     try:
         qr_data = UserProfile.get_qr_for_user(user)
@@ -204,6 +229,8 @@ def send_registration_confirmation_email(user, event):
         logging.getLogger(__name__).exception(
             "Failed to send registration confirmation email to %s", user.email,
         )
+    finally:
+        connection.close()
 
 
 def get_or_create_user_by_email(email, first_name='', last_name=''):

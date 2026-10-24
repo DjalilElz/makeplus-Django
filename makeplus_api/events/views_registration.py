@@ -207,20 +207,40 @@ def event_registration_submit(request, event_id):
                 spam_score=spam_score,
                 is_spam=is_spam
             )
-            
-            # Send confirmation email
-            send_registration_confirmation_email(registration)
-            
-            messages.success(request, "Inscription réussie! Un email de confirmation vous a été envoyé.")
-            return redirect('events:registration_success', registration_id=registration.id)
-            
+
+        # Outside the transaction, and fire-and-forget (see
+        # send_registration_confirmation_email's docstring): this used to
+        # run the actual SMTP send (EMAIL_TIMEOUT=30s) inline, inside the
+        # transaction, making every registering participant wait on it.
+        send_registration_confirmation_email(registration)
+
+        messages.success(request, "Inscription réussie! Un email de confirmation vous a été envoyé.")
+        return redirect('events:registration_success', registration_id=registration.id)
+
     except Exception as e:
         messages.error(request, f"Erreur lors de l'inscription: {str(e)}")
         return redirect('events:event_registration', event_id=event_id)
 
 
 def send_registration_confirmation_email(registration):
-    """Send confirmation email to registered user"""
+    """
+    Fire-and-forget: hands off to a background thread so the caller
+    (registration already committed -- see both call sites) doesn't wait
+    on the actual send, which can block for up to EMAIL_TIMEOUT (30s) on
+    a slow/unreachable SMTP server. This app has no task queue, so a
+    plain daemon thread is the pragmatic option at this scale.
+    """
+    import threading
+    threading.Thread(target=_send_registration_confirmation_email_now, args=(registration,), daemon=True).start()
+
+
+def _send_registration_confirmation_email_now(registration):
+    """The actual send for send_registration_confirmation_email -- runs
+    off the request thread, so it closes its own DB connection when done
+    (Django only auto-closes connections at the end of a *request*,
+    which this thread is not)."""
+    from django.db import connection
+
     event = registration.event
     
     # Try to find registration confirmation template -- shared canonical
@@ -280,9 +300,11 @@ def send_registration_confirmation_email(registration):
         registration.confirmation_sent_at = timezone.now()
         registration.is_confirmed = True
         registration.save()
-        
+
     except Exception as e:
         print(f"Failed to send confirmation email: {e}")
+    finally:
+        connection.close()
 
 
 @require_http_methods(["GET"])
@@ -351,15 +373,16 @@ def event_registration_api(request, event_id):
                 user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
                 spam_score=spam_score
             )
-            
-            # Send confirmation email
-            send_registration_confirmation_email(registration)
-            
-            return JsonResponse({
-                'success': True,
-                'registration_id': str(registration.id),
-                'message': 'Registration successful'
-            })
-            
+
+        # Outside the transaction, and fire-and-forget -- see the other
+        # call site's comment above.
+        send_registration_confirmation_email(registration)
+
+        return JsonResponse({
+            'success': True,
+            'registration_id': str(registration.id),
+            'message': 'Registration successful'
+        })
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
