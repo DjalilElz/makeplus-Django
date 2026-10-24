@@ -229,21 +229,6 @@
             <p class="mb-1">{{ submission.get_secteur_display }}</p>
             <p class="mb-1">{{ submission.etablissement }}</p>
             <p class="mb-0">{{ submission.wilaya }}</p>
-
-            {% if submission.assigned_to.all %}
-            <hr>
-            <div class="breakdown-title mb-2"><i class="bi bi-people me-1"></i> Assigné à</div>
-            {% for member in submission.assigned_to.all %}
-            <form method="post" action="{% url 'dashboard:contributions_unassign_submission' event.id submission.id %}" class="d-flex justify-content-between align-items-center mb-1">
-                {% csrf_token %}
-                <span>{{ member.get_full_name|default:member.username }}</span>
-                <input type="hidden" name="member_id" value="{{ member.id }}">
-                <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Retirer">
-                    <i class="bi bi-x-circle"></i>
-                </button>
-            </form>
-            {% endfor %}
-            {% endif %}
         </div>
         {% else %}
         <div class="breakdown-panel">
@@ -251,6 +236,31 @@
             <p class="text-muted small mb-0">Les informations personnelles de l'auteur ne sont pas affichées. Vous ne voyez que le contenu scientifique de la soumission.</p>
         </div>
         {% endif %}
+
+        {% with assigned=submission.assigned_to.all %}
+        {% if assigned %}
+        <div class="breakdown-panel mt-3">
+            <div class="breakdown-title mb-2"><i class="bi bi-people me-1"></i> Assigné à</div>
+            {% for member in assigned %}
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span>
+                    {{ member.get_full_name|default:member.username }}
+                    {% if member.id == request.user.id %}<small class="text-muted">(vous)</small>{% endif %}
+                </span>
+                {% if is_supervisor %}
+                <form method="post" action="{% url 'dashboard:contributions_unassign_submission' event.id submission.id %}" class="m-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="member_id" value="{{ member.id }}">
+                    <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Retirer">
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
     </div>
 </div>
 

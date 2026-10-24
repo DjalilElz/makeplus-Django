@@ -59,6 +59,14 @@
             {% endfor %}
         </select>
     </div>
+    <div class="col-md-3">
+        <label class="form-label small">Assignation</label>
+        <select name="assignment" class="form-select">
+            <option value="">Toutes</option>
+            <option value="unassigned" {% if assignment_filter == 'unassigned' %}selected{% endif %}>Non assignées</option>
+            <option value="assigned" {% if assignment_filter == 'assigned' %}selected{% endif %}>Assignées</option>
+        </select>
+    </div>
     {% endif %}
     <div class="col-md-2 d-flex gap-2">
         <button type="submit" class="btn btn-elegant flex-grow-1"><i class="bi bi-funnel"></i> Filtrer</button>
@@ -93,6 +101,7 @@
                 {% if is_supervisor %}<th>Auteur</th>{% endif %}
                 <th>Type</th>
                 {% if is_supervisor %}<th>Établissement</th>{% endif %}
+                <th>Assigné</th>
                 <th>Statut</th>
                 <th>Date</th>
                 <th></th>
@@ -121,6 +130,23 @@
                 <td><span class="badge" style="background: var(--steel-blue); color: #fff;">{{ submission.get_type_participation_display }}</span></td>
                 {% if is_supervisor %}<td>{{ submission.etablissement|truncatechars:20 }}</td>{% endif %}
                 <td>
+                    {% with assigned=submission.assigned_to.all %}
+                    {% if assigned %}
+                        {% if is_supervisor %}
+                        <span class="badge" style="background: #d1e7dd; color: #0f5132;" title="{% for m in assigned %}{{ m.get_full_name|default:m.username }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                            <i class="bi bi-check-circle me-1"></i>{{ assigned|length }} membre{{ assigned|length|pluralize }}
+                        </span>
+                        {% else %}
+                        <span class="badge" style="background: #d1e7dd; color: #0f5132;">
+                            <i class="bi bi-check-circle me-1"></i>Assigné à vous
+                        </span>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted small">Non assigné</span>
+                    {% endif %}
+                    {% endwith %}
+                </td>
+                <td>
                     <span class="status-select status-{{ submission.status }}">
                         {% if submission.status == 'pending' %}En attente
                         {% elif submission.status == 'accepted' %}Accepté
@@ -142,10 +168,10 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="{% if is_supervisor %}8{% else %}5{% endif %}" class="text-center py-5 text-muted">
+                <td colspan="{% if is_supervisor %}9{% else %}6{% endif %}" class="text-center py-5 text-muted">
                     <i class="bi bi-inbox fs-1 d-block mb-3"></i>
                     Aucune soumission trouvée
-                    {% if search or status_filter or type_filter or member_filter %}
+                    {% if search or status_filter or type_filter or member_filter or assignment_filter %}
                     <br>
                     <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="btn btn-link">Effacer les filtres</a>
                     {% endif %}
@@ -187,7 +213,7 @@
     <ul class="pagination mb-0 justify-content-center">
         {% if submissions.has_previous %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ submissions.previous_page_number }}&search={{ search }}&status={{ status_filter }}&type={{ type_filter }}&member={{ member_filter }}">Précédent</a>
+            <a class="page-link" href="?page={{ submissions.previous_page_number }}&search={{ search }}&status={{ status_filter }}&type={{ type_filter }}&member={{ member_filter }}&assignment={{ assignment_filter }}">Précédent</a>
         </li>
         {% endif %}
         <li class="page-item disabled">
@@ -195,7 +221,7 @@
         </li>
         {% if submissions.has_next %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ submissions.next_page_number }}&search={{ search }}&status={{ status_filter }}&type={{ type_filter }}&member={{ member_filter }}">Suivant</a>
+            <a class="page-link" href="?page={{ submissions.next_page_number }}&search={{ search }}&status={{ status_filter }}&type={{ type_filter }}&member={{ member_filter }}&assignment={{ assignment_filter }}">Suivant</a>
         </li>
         {% endif %}
     </ul>

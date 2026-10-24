@@ -247,6 +247,7 @@ def eposter_submissions_list(request, event_id):
     status_filter = request.GET.get('status', '')
     type_filter = request.GET.get('type', '')
     member_filter = request.GET.get('member', '')
+    assignment_filter = request.GET.get('assignment', '')
     search = request.GET.get('search', '')
 
     if status_filter:
@@ -257,6 +258,15 @@ def eposter_submissions_list(request, event_id):
 
     if member_filter and is_supervisor:
         submissions = submissions.filter(final_decision_by_id=member_filter)
+
+    # Lets the supervisor doing the assigning see, at a glance, what
+    # still needs a reviewer vs what's already covered -- separate from
+    # member_filter above, which is about who made the final
+    # accept/reject decision, not who's assigned to review.
+    if assignment_filter == 'unassigned' and is_supervisor:
+        submissions = submissions.filter(assigned_to__isnull=True)
+    elif assignment_filter == 'assigned' and is_supervisor:
+        submissions = submissions.filter(assigned_to__isnull=False).distinct()
 
     if search:
         if is_supervisor:
@@ -275,11 +285,14 @@ def eposter_submissions_list(request, event_id):
                 Q(titre_travail__icontains=search) | Q(theme__icontains=search)
             )
 
-    # Annotate with validation counts
+    # Annotate with validation counts. prefetch_related('assigned_to') --
+    # the list now shows each submission's assigned reviewer(s) per row
+    # (see submissions_list.html), which would otherwise be one extra
+    # query per row (20/page) to read .assigned_to.all().
     submissions = submissions.annotate(
         validations_count=Count('validations', filter=Q(validations__is_approved=True)),
         rejections_count=Count('validations', filter=Q(validations__is_approved=False))
-    ).order_by('-submitted_at')
+    ).prefetch_related('assigned_to').order_by('-submitted_at')
 
     # Pagination
     paginator = Paginator(submissions, 20)
@@ -299,6 +312,7 @@ def eposter_submissions_list(request, event_id):
         'status_filter': status_filter,
         'type_filter': type_filter,
         'member_filter': member_filter,
+        'assignment_filter': assignment_filter,
         'search': search,
         'status_choices': EPosterSubmission.STATUS_CHOICES,
         'type_choices': EPosterSubmission.TYPE_PARTICIPATION_CHOICES,
