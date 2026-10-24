@@ -133,6 +133,49 @@ def resolve_catalog_prices(event, config, on_date, context_status_item_id=None):
     return result
 
 
+def resolve_catalog_prices_for_statuses(event, config, on_date, status_item_ids):
+    """
+    resolve_catalog_prices() for several statuses at once.
+
+    A caller needing the catalog resolved separately for N different
+    Statuses (e.g. caisse_dashboard, showing each participant's own
+    Status pricing) used to call resolve_catalog_prices() N times -- each
+    call re-running the SAME two queries (the active period, the full
+    BlocItem/Session lists) that don't depend on status at all; only the
+    BlocItemStatusRule lookup actually varies per status. At this app's
+    measured per-query DB latency (~250-300ms, Supabase pooler), that was
+    up to 4 round-trips PER status. This runs the status-independent
+    queries exactly once and only repeats the one query that must vary.
+
+    Returns {status_item_id: {('item', bloc_item_id): {...}, ...}} --
+    same per-status shape as resolve_catalog_prices().
+    """
+    active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
+    items = list(BlocItem.objects.filter(event=event, is_active=True))
+    sessions = list(Session.objects.filter(event=event, is_paid=True, is_active=True))
+
+    result_by_status = {}
+    for status_id in status_item_ids:
+        status_item_ids_arg = [int(status_id)] if status_id else []
+        rules_by_target = _rules_by_target(status_item_ids_arg, active_period)
+
+        result = {}
+        for item in items:
+            rule = _resolve_rule(rules_by_target, ('item', item.id))
+            price = rule.override_price if (rule and rule.override_price is not None) else item.price
+            visible = not (rule and not rule.is_visible)
+            result[('item', item.id)] = {'price': price, 'visible': visible}
+
+        for session in sessions:
+            rule = _resolve_rule(rules_by_target, ('session', str(session.id)))
+            price = rule.override_price if (rule and rule.override_price is not None) else session.price
+            visible = not (rule and not rule.is_visible)
+            result[('session', str(session.id))] = {'price': price, 'visible': visible}
+
+        result_by_status[status_id] = result
+    return result_by_status
+
+
 def compute_order(
     event, config, selected_item_ids, selected_session_ids, on_date,
     context_status_item_id=None, context_blocs_covered=None, include_inactive=False,

@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Count, Sum
 from django.contrib.auth.hashers import make_password, check_password
 from events.models import Event, Participant, Session
 from django.utils import timezone
@@ -46,6 +47,26 @@ class Caisse(models.Model):
     def get_transaction_count(self):
         """Get total number of completed transactions"""
         return self.transactions.filter(status='completed').count()
+
+    def get_stats(self):
+        """
+        get_total_amount/get_total_participants/get_transaction_count's
+        three numbers in a single aggregate query instead of three
+        separate round-trips -- every call site that needs these numbers
+        has always called all three together back to back. At this app's
+        measured per-query DB latency (~250-300ms, Supabase pooler), that
+        was 2 extra round-trips on every caisse dashboard load/reload for
+        numbers a single query already gives.
+
+        Returns {'total_amount': Decimal, 'total_participants': int, 'transaction_count': int}.
+        """
+        stats = self.transactions.filter(status='completed').aggregate(
+            total_amount=Sum('total_amount'),
+            total_participants=Count('participant', distinct=True),
+            transaction_count=Count('id'),
+        )
+        stats['total_amount'] = stats['total_amount'] or 0
+        return stats
 
 
 class PayableItem(models.Model):

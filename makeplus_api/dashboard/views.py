@@ -1459,14 +1459,16 @@ def caisse_list(request):
     if event_id:
         caisses = caisses.filter(event_id=event_id)
     
-    # Get statistics for each caisse
+    # Get statistics for each caisse -- one aggregate query per caisse
+    # (get_stats()) instead of three.
     caisse_stats = []
     for caisse in caisses:
+        stats = caisse.get_stats()
         caisse_stats.append({
             'caisse': caisse,
-            'total_amount': caisse.get_total_amount(),
-            'total_participants': caisse.get_total_participants(),
-            'transaction_count': caisse.get_transaction_count()
+            'total_amount': stats['total_amount'],
+            'total_participants': stats['total_participants'],
+            'transaction_count': stats['transaction_count'],
         })
     
     events = Event.objects.all().order_by('-start_date')
@@ -1593,18 +1595,21 @@ def caisse_detail(request, caisse_id):
     if date_to:
         transactions = transactions.filter(created_at__date__lte=date_to)
     
-    transactions = transactions.order_by('-created_at')[:100]
-    
-    # Debug: Print transaction count
+    # list(...) once: .count()/.exists()/[0] on this queryset each issue
+    # their own query on top of the one needed to actually render the
+    # page -- three avoidable round-trips just to print debug output.
+    transactions = list(transactions.order_by('-created_at')[:100])
+
     print(f"DEBUG: Fetching transactions for caisse {caisse.id}")
-    print(f"DEBUG: Total transactions found: {transactions.count()}")
-    if transactions.exists():
+    print(f"DEBUG: Total transactions found: {len(transactions)}")
+    if transactions:
         print(f"DEBUG: First transaction: {transactions[0].id} - {transactions[0].created_at}")
-    
-    # Statistics
-    total_amount = caisse.get_total_amount()
-    total_participants = caisse.get_total_participants()
-    transaction_count = caisse.get_transaction_count()
+
+    # Statistics -- one aggregate query instead of three, see get_stats().
+    _stats = caisse.get_stats()
+    total_amount = _stats['total_amount']
+    total_participants = _stats['total_participants']
+    transaction_count = _stats['transaction_count']
     
     # Cancelled transactions stats
     cancelled_transactions = caisse.transactions.filter(status='cancelled')

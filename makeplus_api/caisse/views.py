@@ -17,7 +17,7 @@ import base64
 
 from caisse.models import Caisse, PayableItem, CaisseTransaction
 from events.models import Participant, Event
-from dashboard.blocs_service import resolve_catalog_prices, _bloc_visible
+from dashboard.blocs_service import resolve_catalog_prices, resolve_catalog_prices_for_statuses, _bloc_visible
 
 
 def _reservation_data(event, payable_items):
@@ -145,7 +145,42 @@ def _pending_orders_with_payable_ids(participant, event, key_to_payable_ids=None
     return result
 
 
-def _pending_orders_with_payable_ids_bulk(participants, event, key_to_payable_ids, participant_paid_items):
+def _latest_orders_by_participant(participants, event):
+    """
+    This event's latest (non-rejected) RegistrationOrder for each of these
+    participants, in exactly one query -- shared by
+    _pending_orders_with_payable_ids_bulk() and
+    _participant_snapshot_prices_bulk(), which both need the same "latest
+    order per participant" data (just different fields/derived values from
+    it). caisse_dashboard used to call each of those separately, plus run
+    a THIRD, near-identical query of its own for order.status alone --
+    three round-trips fetching overlapping RegistrationOrder rows. At this
+    app's measured per-query DB latency (~250-300ms, Supabase pooler),
+    that was 2 whole extra round-trips on every caisse dashboard
+    load/reload for data a single query already covers.
+
+    Only the latest order per participant is considered -- a participant
+    can have several RegistrationOrders if they submitted more than once,
+    and the newest submission is treated as authoritative.
+
+    Returns {participant_id: RegistrationOrder}.
+    """
+    from dashboard.models_blocs import RegistrationOrder
+
+    participant_ids = [p.id for p in participants]
+    latest_order_by_participant = {}
+    for order in RegistrationOrder.objects.exclude(status='rejected').filter(
+        event=event, participant_id__in=participant_ids
+    ).order_by('-created_at'):
+        # First order seen per participant, in -created_at order, is the
+        # latest -- setdefault skips any older ones that follow.
+        latest_order_by_participant.setdefault(order.participant_id, order)
+    return latest_order_by_participant
+
+
+def _pending_orders_with_payable_ids_bulk(
+    participants, event, key_to_payable_ids, participant_paid_items, latest_order_by_participant=None,
+):
     """
     Bulk version of _pending_orders_with_payable_ids() for caisse_dashboard's
     reserved-items summary panel, which needs this for every participant
@@ -155,7 +190,8 @@ def _pending_orders_with_payable_ids_bulk(participants, event, key_to_payable_id
     RegistrationOrder query), which was still enough to time out the whole
     dashboard/login request on events with many participants even after
     fixing the bigger _reservation_data() re-scan. This does the whole
-    thing in exactly one query.
+    thing in exactly one query (or zero, if the caller already has
+    latest_order_by_participant -- see that function's own docstring).
 
     Only the latest order per participant is considered -- same reasoning
     as _pending_orders_with_payable_ids(): a participant can have several
@@ -171,20 +207,21 @@ def _pending_orders_with_payable_ids_bulk(participants, event, key_to_payable_id
     harmless here since payable_ids is already scoped to this event via
     key_to_payable_ids).
 
+    latest_order_by_participant: optional precomputed
+    _latest_orders_by_participant() result (for AT LEAST these
+    participants) -- reuses it instead of querying again.
+
     Returns: {participant_id: [(RegistrationOrder, {payable_item_id, ...})]}
     -- at most one entry (the latest order) per participant, participants
     with nothing pending are omitted.
     """
-    from dashboard.models_blocs import RegistrationOrder
-
-    participant_ids = [p.id for p in participants]
-    latest_order_by_participant = {}
-    for order in RegistrationOrder.objects.exclude(status='rejected').filter(
-        event=event, participant_id__in=participant_ids
-    ).order_by('-created_at'):
-        # First order seen per participant, in -created_at order, is the
-        # latest -- setdefault skips any older ones that follow.
-        latest_order_by_participant.setdefault(order.participant_id, order)
+    if latest_order_by_participant is None:
+        latest_order_by_participant = _latest_orders_by_participant(participants, event)
+    else:
+        participant_ids = {p.id for p in participants}
+        latest_order_by_participant = {
+            pid: order for pid, order in latest_order_by_participant.items() if pid in participant_ids
+        }
 
     result = {}
     for participant in participants:
@@ -207,7 +244,7 @@ def _pending_orders_with_payable_ids_bulk(participants, event, key_to_payable_id
     return result
 
 
-def _participant_snapshot_prices_bulk(participants, event, key_to_payable_ids):
+def _participant_snapshot_prices_bulk(participants, event, key_to_payable_ids, latest_order_by_participant=None):
     """
     Each participant's PayableItem prices exactly as locked in on their own
     (latest, non-rejected) RegistrationOrder -- the frozen, status-correct
@@ -235,15 +272,13 @@ def _participant_snapshot_prices_bulk(participants, event, key_to_payable_ids):
 
     Returns ({str(participant_id): {payable_item_id: price_str}},
              {str(participant_id): status_bloc_item_id}).
-    """
-    from dashboard.models_blocs import RegistrationOrder
 
-    participant_ids = [p.id for p in participants]
-    latest_order_by_participant = {}
-    for order in RegistrationOrder.objects.exclude(status='rejected').filter(
-        event=event, participant_id__in=participant_ids
-    ).order_by('-created_at').only('participant_id', 'items_snapshot'):
-        latest_order_by_participant.setdefault(order.participant_id, order)
+    latest_order_by_participant: optional precomputed
+    _latest_orders_by_participant() result (for AT LEAST these
+    participants) -- reuses it instead of querying again.
+    """
+    if latest_order_by_participant is None:
+        latest_order_by_participant = _latest_orders_by_participant(participants, event)
 
     prices_result = {}
     status_result = {}
@@ -550,10 +585,11 @@ def caisse_dashboard(request):
         4: str(bloc_config.reduction_4_blocs) if bloc_config else '0',
     }
 
-    # Statistics
-    total_amount = caisse.get_total_amount()
-    total_participants = caisse.get_total_participants()
-    transaction_count = caisse.get_transaction_count()
+    # Statistics -- one aggregate query instead of three, see get_stats().
+    _stats = caisse.get_stats()
+    total_amount = _stats['total_amount']
+    total_participants = _stats['total_participants']
+    transaction_count = _stats['transaction_count']
     
     # Get only participants (users with role 'participant') for this event
     from events.models import UserEventAssignment, ParticipantEventRegistration
@@ -605,11 +641,20 @@ def caisse_dashboard(request):
     # Discount summary for participants with a pending bloc reservation, so
     # the operator sees the real (already paid) amount, not the raw catalog
     # sum -- e.g. "15000 DZD -25% -> already paid 11250 DZD".
+    # Fetched once here and reused for everything below that needs each
+    # participant's latest RegistrationOrder (pending items, snapshot
+    # prices, editable-order status) -- those used to run three separate,
+    # largely-overlapping queries for this same data; at this app's
+    # measured per-query DB latency (~250-300ms, Supabase pooler), that
+    # was 2 extra round-trips on every caisse dashboard load/reload.
+    latest_order_by_participant = _latest_orders_by_participant(all_participants, event)
+
     participants_with_pending = [
         p for p in all_participants if str(p.id) in participant_reserved_items
     ]
     pending_orders_by_participant = _pending_orders_with_payable_ids_bulk(
-        participants_with_pending, event, key_to_payable_ids, participant_paid_items
+        participants_with_pending, event, key_to_payable_ids, participant_paid_items,
+        latest_order_by_participant=latest_order_by_participant,
     )
     participant_reserved_summary = {}
     for participant in participants_with_pending:
@@ -635,7 +680,8 @@ def caisse_dashboard(request):
             ]
 
     participant_item_prices, participant_status_ids = _participant_snapshot_prices_bulk(
-        all_participants, event, key_to_payable_ids
+        all_participants, event, key_to_payable_ids,
+        latest_order_by_participant=latest_order_by_participant,
     )
 
     # Participants whose latest (non-rejected) registration order isn't
@@ -645,13 +691,11 @@ def caisse_dashboard(request):
     # A registration can be 'pending'/'reserved'/'to_contact'/
     # 'to_recontact' and still have nothing left to confirm right now
     # (all handled elsewhere) yet still be exactly the kind of not-yet-
-    # confirmed registration this button is for.
-    from dashboard.models_blocs import RegistrationOrder as _RegistrationOrder
-    latest_order_status_by_participant = {}
-    for order in _RegistrationOrder.objects.filter(
-        event=event, participant_id__in=[p.id for p in all_participants]
-    ).exclude(status='rejected').order_by('-created_at').only('participant_id', 'status'):
-        latest_order_status_by_participant.setdefault(order.participant_id, order.status)
+    # confirmed registration this button is for. Derived from the same
+    # latest_order_by_participant fetched above -- no query of its own.
+    latest_order_status_by_participant = {
+        pid: order.status for pid, order in latest_order_by_participant.items()
+    }
     participant_editable_order_ids = [
         str(pid) for pid, status in latest_order_status_by_participant.items() if status != 'approved'
     ]
@@ -665,10 +709,10 @@ def caisse_dashboard(request):
     # override (see resolve_catalog_prices's docstring).
     status_catalog = {}
     if bloc_config:
-        for status_id in set(participant_status_ids.values()):
-            live = resolve_catalog_prices(
-                event, bloc_config, timezone.now().date(), context_status_item_id=status_id
-            )
+        live_by_status = resolve_catalog_prices_for_statuses(
+            event, bloc_config, timezone.now().date(), set(participant_status_ids.values())
+        )
+        for status_id, live in live_by_status.items():
             prices_by_payable_id = {}
             for (kind, ext_id), data in live.items():
                 for payable_id in key_to_payable_ids.get((kind, str(ext_id)), []):
@@ -750,23 +794,31 @@ def search_participant(request):
         Q(participant__qr_code_data__icontains=query)
     ).select_related('participant__user').prefetch_related('participant__caisse_transactions')[:10]
     
-    if not event_registrations.exists():
+    # Materialize once instead of an .exists() check followed by a
+    # separate iteration (the queryset is already sliced to [:10], so
+    # this is one query either way, not two).
+    event_registrations = list(event_registrations)
+    if not event_registrations:
         return JsonResponse({'success': False, 'message': 'No participants found'})
-    
+
     results = []
     for registration in event_registrations:
         participant = registration.participant
-        # Check if already checked in
-        has_transaction = participant.caisse_transactions.filter(
-            caisse=caisse,
-            status='completed'
-        ).exists()
-        
-        # Get previous transactions
-        transaction_count = participant.caisse_transactions.filter(
-            status='completed'
-        ).count()
-        
+        # .filter() on participant.caisse_transactions always hits the DB
+        # fresh, even though prefetch_related('participant__caisse_transactions')
+        # above already fetched every one of these rows -- that bypassed
+        # the prefetch entirely and ran 2 extra queries PER result (up to
+        # ~20 for a 10-result search). Filtering the already-prefetched
+        # .all() in Python instead reuses that cache, so this loop adds
+        # zero further queries. At this app's measured per-query DB
+        # latency (~250-300ms, Supabase pooler), that was seconds added
+        # to every caisse search.
+        completed_transactions = [
+            t for t in participant.caisse_transactions.all() if t.status == 'completed'
+        ]
+        has_transaction = any(t.caisse_id == caisse.id for t in completed_transactions)
+        transaction_count = len(completed_transactions)
+
         results.append({
             'id': participant.id,
             'name': participant.user.get_full_name() or participant.user.username,

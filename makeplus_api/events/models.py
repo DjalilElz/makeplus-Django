@@ -147,19 +147,30 @@ class UserProfile(models.Model):
                 import logging
                 logger = logging.getLogger(__name__)
                 
-                completed_transactions = CaisseTransaction.objects.filter(
+                # list(...) once: .count() on a .filter()/.prefetch_related()
+                # queryset (and on a prefetched related manager, below)
+                # always issues its own fresh COUNT query rather than
+                # reading the prefetch cache -- this used to run one extra
+                # round-trip up front plus one more PER transaction, purely
+                # to print a number already available from len() on data
+                # already fetched. At this app's measured per-query DB
+                # latency (~250-300ms, Supabase pooler), that was seconds
+                # of pure overhead added to every login (get_qr_for_user is
+                # called on every auth) and every caisse confirmation.
+                completed_transactions = list(CaisseTransaction.objects.filter(
                     participant=participant,
                     status='completed'
-                ).prefetch_related('items', 'items__session')
-                
+                ).prefetch_related('items', 'items__session'))
+
                 logger.info(f"[QR GEN] Generating QR code for {user.email}")
-                logger.info(f"[QR GEN] Found {completed_transactions.count()} completed transactions")
-                
+                logger.info(f"[QR GEN] Found {len(completed_transactions)} completed transactions")
+
                 # Fetch all paid items from transactions
                 for transaction in completed_transactions:
-                    logger.info(f"[QR GEN]   Transaction {transaction.id}: status={transaction.status}, items={transaction.items.count()}")
-                    
-                    for item in transaction.items.all():
+                    transaction_items = list(transaction.items.all())
+                    logger.info(f"[QR GEN]   Transaction {transaction.id}: status={transaction.status}, items={len(transaction_items)}")
+
+                    for item in transaction_items:
                         # Create unique key for this item
                         if item.session:
                             unique_key = f"session-{item.session.id}"

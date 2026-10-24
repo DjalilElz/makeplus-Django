@@ -336,6 +336,11 @@ class RegistrationOrder(models.Model):
         indexes = [
             models.Index(fields=['event', 'status', '-created_at']),
             models.Index(fields=['email']),
+            # Plain created_at (not prefixed by event/status) -- see
+            # migration 0054's docstring: several hot queries order by
+            # created_at DESC with no status filter, which the composite
+            # index above can't serve as a sort.
+            models.Index(fields=['created_at'], name='dash_regorder_created_idx'),
         ]
 
     def __str__(self):
