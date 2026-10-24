@@ -316,12 +316,19 @@ class SessionForm(forms.ModelForm):
     
     def clean(self):
         cleaned_data = super().clean()
-        is_paid = cleaned_data.get('is_paid')
-        price = cleaned_data.get('price')
-        
-        if is_paid and (not price or price <= 0):
-            raise ValidationError('Paid sessions must have a price greater than 0')
-        
+
+        # is_paid=True does NOT mean "must cost money" -- despite its
+        # label, it's what puts an atelier into the Workshops bloc on the
+        # public registration form at all (see
+        # dashboard.blocs_service.resolve_catalog_prices and
+        # views_blocs.get_public_bloc_context, both of which filter
+        # Session.objects.filter(is_paid=True) unconditionally). A FREE
+        # atelier that should still be reservable there is exactly
+        # is_paid=True with price=0 -- this validation used to reject
+        # precisely that combination, so the only way to satisfy it was
+        # to leave is_paid unchecked, which then made the atelier never
+        # show up on the form at all. No price check needed here.
+
         start_time = cleaned_data.get('start_time')
         end_time = cleaned_data.get('end_time')
         

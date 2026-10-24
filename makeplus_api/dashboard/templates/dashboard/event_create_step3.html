@@ -172,15 +172,15 @@
                             <div class="form-check" style="margin-top: 32px;">
                                 {{ form.is_paid }}
                                 <label class="form-check-label" for="{{ form.is_paid.id_for_label }}">
-                                    Session/atelier payant
+                                    Réservable sur le formulaire d'inscription
                                 </label>
                             </div>
                         </div>
 
                         <div class="col-md-6 mb-3" id="price-field" style="display: none;">
-                            <label for="{{ form.price.id_for_label }}" class="form-label">Prix (DZD) *</label>
+                            <label for="{{ form.price.id_for_label }}" class="form-label">Prix (DZD)</label>
                             {{ form.price }}
-                            <div class="form-text">Saisissez le prix de cette session payante</div>
+                            <div class="form-text">Laissez 0 pour un atelier gratuit -- il s'affichera quand même, avec « Gratuit ».</div>
                         </div>
                     </div>
 
