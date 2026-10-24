@@ -140,43 +140,34 @@ class SignUpResendView(APIView):
     """
     Resend sign up verification code
     POST /api/auth/signup/resend/
-    Body: email, first_name, last_name, password
+    Body: email
+
+    Only email is required -- the original first_name/last_name/
+    password are reused from the first request (see
+    resend_signup_code's docstring for why). Any first_name/last_name/
+    password the caller still sends are accepted but ignored, so an
+    older client sending the full set keeps working unchanged.
     """
     authentication_classes = []
     permission_classes = []
     renderer_classes = [JSONRenderer]
-    
+
     def post(self, request):
         email = request.data.get('email', '').strip().lower()
-        first_name = request.data.get('first_name', '').strip()
-        last_name = request.data.get('last_name', '').strip()
-        password = request.data.get('password', '').strip()
-        
-        if not all([email, first_name, last_name, password]):
+
+        if not email:
             return Response({
                 'success': False,
-                'message': 'Email, first name, last name, and password are required'
+                'message': 'Email is required'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate password
-        try:
-            validate_password(password)
-        except ValidationError as e:
-            return Response({
-                'success': False,
-                'message': ', '.join(e.messages)
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         # Get client info
         ip_address = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0] if request.META.get('HTTP_X_FORWARDED_FOR') else request.META.get('REMOTE_ADDR')
         user_agent = request.META.get('HTTP_USER_AGENT', '')
-        
+
         # Resend verification code
         success, message, wait_seconds = resend_signup_code(
             email=email,
-            first_name=first_name,
-            password=password,
-            last_name=last_name,
             ip_address=ip_address,
             user_agent=user_agent
         )

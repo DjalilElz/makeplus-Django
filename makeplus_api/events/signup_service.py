@@ -8,53 +8,24 @@ from .models import SignUpVerification
 from dashboard.email_sender import send_email
 
 
-def send_signup_verification_code(email, first_name, password, last_name, ip_address=None, user_agent=''):
+def _create_and_send_verification_code(email, first_name, signup_data, ip_address, user_agent):
     """
-    Send verification code for sign up
-    
-    Args:
-        email: User's email
-        first_name: User's first name (for email personalization)
-        password: User's password (will be hashed and stored temporarily)
-        last_name: User's last name
-        ip_address: IP address of request
-        user_agent: User agent string
-    
-    Returns:
-        tuple: (success: bool, message: str, wait_seconds: int or None)
+    Shared by send_signup_verification_code (fresh signup_data) and
+    resend_signup_code (signup_data reused from the original request) --
+    everything past "we know what to store" is identical: the resend
+    cooldown check, creating the code row, and sending the email.
     """
-    from django.contrib.auth.hashers import make_password
-
-    # An account with this email may already exist as a placeholder --
-    # created when someone registered for an event before signing up in
-    # the app (see get_or_create_user_by_email). Those have no usable
-    # password yet, so signing up "claims" them instead of being blocked.
-    # Only a real, already-claimed account blocks a new signup.
-    existing = User.objects.filter(email=email).first()
-    if existing and existing.has_usable_password():
-        return False, "Cet email est déjà utilisé par un compte existant", None
-
-    # Check if can resend
     can_resend, wait_seconds = SignUpVerification.can_resend(email)
     if not can_resend:
         return False, f"Veuillez patienter {wait_seconds} secondes avant de demander un nouveau code", wait_seconds
-    
-    # Hash the password for temporary storage
-    password_hash = make_password(password)
-    
-    # Create verification code with signup data
+
     code, verification = SignUpVerification.create_verification(
         email=email,
-        signup_data={
-            'first_name': first_name,
-            'last_name': last_name,
-            'password_hash': password_hash
-        },
+        signup_data=signup_data,
         ip_address=ip_address,
         user_agent=user_agent
     )
-    
-    # Send email
+
     subject = "Verify Your MakePlus Account"
     html_content = f"""
     <html>
@@ -97,6 +68,40 @@ def send_signup_verification_code(email, first_name, password, last_name, ip_add
         return True, "Code de vérification envoyé à votre email", None
     else:
         return False, f"Échec de l'envoi de l'email : {error}", None
+
+
+def send_signup_verification_code(email, first_name, password, last_name, ip_address=None, user_agent=''):
+    """
+    Send verification code for a brand-new sign up.
+
+    Args:
+        email: User's email
+        first_name: User's first name (for email personalization)
+        password: User's password (will be hashed and stored temporarily)
+        last_name: User's last name
+        ip_address: IP address of request
+        user_agent: User agent string
+
+    Returns:
+        tuple: (success: bool, message: str, wait_seconds: int or None)
+    """
+    from django.contrib.auth.hashers import make_password
+
+    # An account with this email may already exist as a placeholder --
+    # created when someone registered for an event before signing up in
+    # the app (see get_or_create_user_by_email). Those have no usable
+    # password yet, so signing up "claims" them instead of being blocked.
+    # Only a real, already-claimed account blocks a new signup.
+    existing = User.objects.filter(email=email).first()
+    if existing and existing.has_usable_password():
+        return False, "Cet email est déjà utilisé par un compte existant", None
+
+    signup_data = {
+        'first_name': first_name,
+        'last_name': last_name,
+        'password_hash': make_password(password),
+    }
+    return _create_and_send_verification_code(email, first_name, signup_data, ip_address, user_agent)
 
 
 def verify_signup_code(email, code, ip_address=None, user_agent=''):
@@ -202,19 +207,33 @@ def verify_signup_code(email, code, ip_address=None, user_agent=''):
         return False, None, f"Erreur lors de la création du compte : {str(e)}"
 
 
-def resend_signup_code(email, first_name, password, last_name, ip_address=None, user_agent=''):
+def resend_signup_code(email, ip_address=None, user_agent=''):
     """
-    Resend verification code for sign up
-    
+    Resend a verification code for a sign up already in progress.
+
+    Only needs the email: reuses the first_name/last_name/password_hash
+    already stored on the most recent verification request for this
+    email (SignUpVerification.signup_data), instead of requiring the
+    caller to resend the password -- this used to require
+    first_name/last_name/password on every resend call, which the web
+    app's "Renvoyer le code" button never sent (only email), so resend
+    there always failed with "required fields missing".
+
     Args:
         email: User's email
-        first_name: User's first name
-        password: User's password
-        last_name: User's last name
         ip_address: IP address of request
         user_agent: User agent string
-    
+
     Returns:
         tuple: (success: bool, message: str, wait_seconds: int or None)
     """
-    return send_signup_verification_code(email, first_name, password, last_name, ip_address, user_agent)
+    existing = User.objects.filter(email=email).first()
+    if existing and existing.has_usable_password():
+        return False, "Cet email est déjà utilisé par un compte existant", None
+
+    last_request = SignUpVerification.objects.filter(email=email).order_by('-created_at').first()
+    if not last_request or not last_request.signup_data.get('password_hash'):
+        return False, "Aucune demande d'inscription en cours pour cet email. Veuillez recommencer l'inscription.", None
+
+    first_name = last_request.signup_data.get('first_name', '')
+    return _create_and_send_verification_code(email, first_name, last_request.signup_data, ip_address, user_agent)
