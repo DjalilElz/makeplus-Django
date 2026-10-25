@@ -9,12 +9,15 @@
 <div id="loading" class="empty-state"><div class="spinner" style="border-top-color:var(--navy); margin:0 auto;"></div></div>
 <div id="event-content" style="display:none;">
     <div class="event-hero" style="margin-top:16px;">
-        <div class="greeting-row">
-            <img id="event-logo" class="event-logo" style="display:none;" alt="">
-            <div class="greeting-text">Bonjour, <strong id="greeting-name"></strong></div>
+        <img id="event-banner" class="event-hero-banner" style="display:none;" alt="">
+        <div class="event-hero-body">
+            <div class="greeting-row">
+                <img id="event-logo" class="event-logo" style="display:none;" alt="">
+                <div class="greeting-text">Bonjour, <strong id="greeting-name"></strong></div>
+            </div>
+            <div class="eyebrow">Votre événement</div>
+            <div class="event-name" id="event-name"></div>
         </div>
-        <div class="eyebrow">Votre événement</div>
-        <div class="event-name" id="event-name"></div>
     </div>
 
     <div class="section">
@@ -62,11 +65,7 @@
         document.getElementById('event-name').textContent = event.name || '';
         document.getElementById('event-description').textContent = event.description || 'Aucune description disponible.';
 
-        if (event.logo) {
-            var logo = document.getElementById('event-logo');
-            logo.src = event.logo;
-            logo.style.display = 'block';
-        }
+        renderEventHero(event);
 
         document.getElementById('detail-location').textContent = event.location || 'Non précisé';
 

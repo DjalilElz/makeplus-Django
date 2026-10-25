@@ -267,6 +267,31 @@ function applyEventTheme() {
     root.setProperty('--navy-light', light);
 }
 
+// Banner + logo on the home pages (participant/contrôleur/exposant all
+// share the same hero markup: #event-banner and #event-logo).
+function renderEventHero(event) {
+    setEventImage('event-banner', event && event.banner);
+    setEventImage('event-logo', event && event.logo);
+}
+
+// Only shown once it has actually loaded, so a missing/slow/broken file
+// never flashes a broken-image icon. Skips re-setting an unchanged src --
+// loadWithCache calls the page's render twice (cached copy, then fresh),
+// and reassigning would restart the download/fade each time.
+function setEventImage(id, url) {
+    var img = document.getElementById(id);
+    if (!img) return;
+    if (!url) {
+        img.style.display = 'none';
+        img.removeAttribute('src');
+        return;
+    }
+    if (img.getAttribute('src') === url) return;
+    img.onload = function () { img.style.display = 'block'; };
+    img.onerror = function () { img.style.display = 'none'; };
+    img.src = url;
+}
+
 // A session's start_time/end_time is the event's own schedule time
 // (Africa/Algiers wall clock) baked in by the backend, not an instant
 // that should shift depending on where the viewer's device happens to
