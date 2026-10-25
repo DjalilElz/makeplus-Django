@@ -187,6 +187,34 @@ var Api = {
     },
 
     get: function (path) { return this.request(path, { method: 'GET' }); },
+
+    // Every item of a list endpoint, across all pages. The API paginates
+    // list responses (REST_FRAMEWORK PAGE_SIZE = 20) and returns
+    // {count, next, results}; reading just .results silently dropped
+    // everything after the first 20 -- an event with 100+ sessions showed
+    // only its first ~2 days of program. Pages are requested by number
+    // rather than by following `next`: behind Render's proxy that link
+    // can come back as http://, which an https page isn't allowed to
+    // fetch. Also accepts a plain (unpaginated) array response.
+    getAll: function (path) {
+        var self = this;
+        var items = [];
+        var sep = path.indexOf('?') === -1 ? '?' : '&';
+        var MAX_PAGES = 100;
+
+        function fetchPage(page) {
+            return self.get(path + sep + 'page=' + page).then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }).then(function (data) {
+                if (Array.isArray(data)) return data;
+                items = items.concat(data.results || []);
+                if (data.next && page < MAX_PAGES) return fetchPage(page + 1);
+                return items;
+            });
+        }
+        return fetchPage(1);
+    },
     post: function (path, body) { return this.request(path, { method: 'POST', body: body }); },
     patch: function (path, body) { return this.request(path, { method: 'PATCH', body: body }); },
 };

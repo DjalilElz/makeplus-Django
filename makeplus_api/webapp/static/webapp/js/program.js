@@ -159,10 +159,13 @@
     }
 
     loadWithCache('program_' + (event.id || ''), function () {
-        return Api.get('/sessions/?event_id=' + encodeURIComponent(event.id || '')).then(function (r) { return r.json(); });
+        // getAll, not get: the endpoint returns 20 sessions per page, and
+        // reading only the first page cut the program off after its first
+        // ~2 days (and every room/atelier scheduled after that).
+        return Api.getAll('/sessions/?event_id=' + encodeURIComponent(event.id || ''));
     }, function (data) {
         document.getElementById('loading').style.display = 'none';
-        allSessions = Array.isArray(data) ? data : (data.results || []);
+        allSessions = Array.isArray(data) ? data.slice() : (data.results || []);
         allSessions.sort(function (a, b) { return new Date(a.start_time) - new Date(b.start_time); });
         buildFilters();
         renderList();

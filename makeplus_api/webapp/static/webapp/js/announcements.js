@@ -23,7 +23,9 @@
     var event = Auth.getEvent() || {};
 
     loadWithCache('announcements_' + (event.id || ''), function () {
-        return Api.get('/annonces/').then(function (r) { return r.json(); });
+        // getAll: the endpoint is paginated (20 per page) -- reading just
+        // the first page silently hid every older announcement.
+        return Api.getAll('/annonces/');
     }, function (data) {
         document.getElementById('loading').style.display = 'none';
         var items = Array.isArray(data) ? data : (data.results || []);
