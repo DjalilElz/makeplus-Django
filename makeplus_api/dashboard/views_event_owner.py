@@ -244,6 +244,7 @@ def event_owner_submissions(request, event_id):
         'social_event': request.GET.get('item_social_event', '').strip(),
     }
     workshop_item_ids = [v for v in request.GET.getlist('item_workshops') if v]
+    duplicates_only = request.GET.get('duplicates', '').strip() in ('1', 'true', 'on')
 
     # reviewed_by / reviewed_by_caisse are dereferenced per row in the
     # template; without eager-loading them here every order fires two extra
@@ -302,6 +303,9 @@ def event_owner_submissions(request, event_id):
     # Counted against the event's full, unfiltered order set so a status/
     # item filter doesn't hide a duplicate's sibling from the count.
     email_counts = Counter((o.email or '').strip().lower() for o in all_orders if o.email)
+
+    if duplicates_only:
+        orders = [o for o in orders if email_counts.get((o.email or '').strip().lower(), 0) > 1]
 
     total_revenue = Decimal('0')
     status_counts = {code: 0 for code in STATUS_LABELS}
@@ -374,6 +378,14 @@ def event_owner_submissions(request, event_id):
         'bloc_item_options': bloc_item_options,
         'item_filters': item_filters,
         'workshop_item_ids': workshop_item_ids,
+        'duplicates_only': duplicates_only,
+        # Always counted against the full, unfiltered set -- so the
+        # badge stays accurate (e.g. "12 doublons") no matter what
+        # status/item filter is currently active, same reasoning as
+        # email_counts itself.
+        'duplicates_total_count': sum(
+            1 for o in all_orders if email_counts.get((o.email or '').strip().lower(), 0) > 1
+        ),
         'registrations_by_day': registrations_by_day,
         'show_events_link': show_events_link,
     }
@@ -888,8 +900,20 @@ def registration_delete(request, order_id):
     requires the extra confirm_paid=1 flag: a plain delete on a paid
     registration would silently leave real collected money with nothing
     on record explaining it.
+
+    order_id isn't always a RegistrationOrder: an info-only event (no
+    blocs) has no RegistrationOrders at all -- its submissions list is
+    built from plain FormSubmission rows instead (see
+    _free_form_submission_rows), and the delete button on those rows
+    posts the exact same URL with the FormSubmission's id. That used to
+    404 unconditionally here (get_object_or_404 against the wrong
+    model), so a duplicate on an info-only event could never actually be
+    deleted. Falls back to _free_form_submission_delete for that case.
     """
-    order = get_object_or_404(RegistrationOrder, id=order_id)
+    order = RegistrationOrder.objects.filter(id=order_id).first()
+    if order is None:
+        return _free_form_submission_delete(request, order_id)
+
     if not _can_access_event_orders(request.user, order.event):
         raise PermissionDenied("You do not have access to this event's submissions.")
 
@@ -927,3 +951,50 @@ def registration_delete(request, order_id):
     order.delete()
     messages.success(request, 'Inscription supprimée.')
     return _redirect_to_submissions(request, event_id)
+
+
+def _free_form_submission_delete(request, submission_id):
+    """
+    registration_delete's fallback for an info-only event (no blocs):
+    deletes the FormSubmission row itself and, same duplicate-safe rule
+    as the RegistrationOrder path, revokes the submitter's participant
+    access to this event only if this was their last submission for it
+    -- the free (no-blocs) flow grants participant access immediately on
+    submission (see events.form_validation_service.verify_form_registration),
+    so a duplicate submission really does mean a second active
+    registration to clean up, not just a second form row.
+
+    FormSubmission has no participant FK (it's created before any
+    account necessarily exists for info-only forms used without
+    verification) -- the submitter is resolved via email instead.
+    """
+    from django.contrib.auth.models import User
+    from .models_form import FormSubmission
+    from events.models import Participant
+
+    submission = get_object_or_404(FormSubmission, id=submission_id)
+    event = submission.form.event
+    if not event or not _can_access_event_orders(request.user, event):
+        raise PermissionDenied("You do not have access to this event's submissions.")
+
+    email = submission.email
+    participant = None
+    if email:
+        user = User.objects.filter(email=email).first()
+        if user:
+            participant = Participant.objects.filter(user=user).first()
+
+    submission.delete()
+
+    if participant:
+        other_submissions_remain = FormSubmission.objects.filter(
+            form__event=event, email=email,
+        ).exists()
+        if not other_submissions_remain:
+            UserEventAssignment.objects.filter(
+                user=participant.user, event_id=event.id, role='participant',
+            ).update(is_active=False)
+            ParticipantEventRegistration.objects.filter(participant=participant, event_id=event.id).delete()
+
+    messages.success(request, 'Inscription supprimée.')
+    return _redirect_to_submissions(request, event.id)
