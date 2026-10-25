@@ -35,6 +35,17 @@ var Auth = {
         try { return JSON.parse(localStorage.getItem(this.KEYS.user)); } catch (e) { return null; }
     },
     setAccess: function (token) { localStorage.setItem(this.KEYS.access, token); },
+    setRefresh: function (token) { localStorage.setItem(this.KEYS.refresh, token); },
+
+    // Seconds-since-epoch expiry from a JWT's payload, or null if it can't
+    // be read. Only used to refresh *before* sending a request with a token
+    // we already know is dead -- the server remains the real authority.
+    tokenExpiry: function (token) {
+        try {
+            var payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+            return JSON.parse(atob(payload)).exp || null;
+        } catch (e) { return null; }
+    },
 
     isLoggedIn: function () { return !!this.getAccess(); },
 
@@ -63,6 +74,56 @@ var Auth = {
 
 var Api = {
     BASE: '/api',
+
+    // One refresh at a time, shared by every caller. The backend rotates
+    // refresh tokens AND blacklists the old one on every refresh
+    // (SIMPLE_JWT ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION), so a
+    // refresh token is single-use: pages fire several requests in parallel
+    // on load, and if each one 401'd and refreshed on its own, the first
+    // would succeed and the rest would present an already-blacklisted
+    // token, fail, and log the user out.
+    _refreshPromise: null,
+
+    // Resolves to true (new tokens stored), false (the session is really
+    // over: no/invalid/expired/blacklisted refresh token -- already logged
+    // out), or null (couldn't reach a verdict: offline, server cold start
+    // or 5xx). null must never log anyone out -- an installed app resumed
+    // on a flaky connection would otherwise lose its session for nothing.
+    refreshSession: function () {
+        var self = this;
+        if (this._refreshPromise) return this._refreshPromise;
+
+        var refresh = Auth.getRefresh();
+        if (!refresh) return Promise.resolve(false);
+
+        this._refreshPromise = fetch(this.BASE + '/auth/token/refresh/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+            body: JSON.stringify({ refresh: refresh }),
+        }).then(function (resp) {
+            if (resp.status === 400 || resp.status === 401) {
+                Auth.logout();
+                return false;
+            }
+            if (!resp.ok) return null;
+            return resp.json().then(function (data) {
+                if (!data.access) return null;
+                Auth.setAccess(data.access);
+                // The rotated refresh token. Dropping it (keeping the old,
+                // now-blacklisted one) is what used to log everyone out on
+                // the SECOND refresh, ~1-2h after login.
+                if (data.refresh) Auth.setRefresh(data.refresh);
+                return true;
+            });
+        }).catch(function () {
+            return null;
+        }).then(function (result) {
+            self._refreshPromise = null;
+            return result;
+        });
+        return this._refreshPromise;
+    },
 
     request: function (path, options) {
         options = options || {};
@@ -96,27 +157,31 @@ var Api = {
             || path.indexOf('/auth/signup/') === 0
             || path.indexOf('/auth/select-event/') === 0;
 
-        return doFetch(Auth.getAccess()).then(function (response) {
+        // An installed app reopened after a few hours always holds an
+        // expired access token -- refresh first instead of spending a
+        // round-trip on a request we already know will 401 (and, on a page
+        // firing several at once, triggering several 401s).
+        var ready = Promise.resolve();
+        var access = Auth.getAccess();
+        if (!isAuthEndpoint && access && Auth.getRefresh()) {
+            var exp = Auth.tokenExpiry(access);
+            if (exp && exp - 30 <= Date.now() / 1000) ready = self.refreshSession();
+        }
+
+        return ready.then(function () {
+            return doFetch(Auth.getAccess());
+        }).then(function (response) {
             if (response.status !== 401 || options._retried || isAuthEndpoint) return response;
-            // Access token expired on an already-authenticated page --
+            // Access token rejected on an already-authenticated page --
             // refresh once and retry, same as the app's own interceptor.
             // If there's no refresh token to try, the session is simply
             // not logged in -- let the caller's own requireAuth() guard
             // handle that instead of forcing a redirect from in here.
-            var refresh = Auth.getRefresh();
-            if (!refresh) return response;
+            if (!Auth.getRefresh()) return response;
 
-            return fetch(self.BASE + '/auth/token/refresh/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh: refresh }),
-            }).then(function (refreshResp) {
-                if (!refreshResp.ok) { Auth.logout(); return response; }
-                return refreshResp.json().then(function (data) {
-                    Auth.setAccess(data.access);
-                    var retryOptions = Object.assign({}, options, { _retried: true });
-                    return self.request(path, retryOptions);
-                });
+            return self.refreshSession().then(function (ok) {
+                if (!ok) return response;
+                return self.request(path, Object.assign({}, options, { _retried: true }));
             });
         });
     },
@@ -133,6 +198,13 @@ function requireAuth() {
         window.location.href = '/app/login/';
         return false;
     }
+    // iOS (and the installed home-screen app especially) restores pages
+    // from its back/forward cache without re-running any script, so this
+    // check alone wouldn't fire again on a page shown after a logout -- it
+    // would keep displaying the previous account's badge/data.
+    window.addEventListener('pageshow', function (e) {
+        if (e.persisted && !Auth.isLoggedIn()) window.location.replace('/app/login/');
+    });
     applyEventTheme();
     return true;
 }

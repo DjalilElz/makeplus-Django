@@ -122,17 +122,42 @@
             if (!result.ok || result.data.success === false) {
                 throw new Error(result.data.message || 'Code invalide.');
             }
-            // The signup response has no role/event yet -- resolve them via
-            // /auth/me/ (same endpoint the Profile/Home pages already use)
-            // before storing the session.
-            localStorage.setItem(Auth.KEYS.access, result.data.access);
-            localStorage.setItem(Auth.KEYS.refresh, result.data.refresh);
-            return Api.get('/auth/me/').then(function (meResp) { return meResp.json(); }).then(function (me) {
-                Auth.setSession({
-                    access: result.data.access, refresh: result.data.refresh,
-                    role: me.role, event: me.event, user: result.data.user,
+            var signupData = result.data;
+            // The account now exists -- sign in through the normal login
+            // endpoint rather than keeping the signup response's tokens.
+            // Those carry no event_id claim, and every endpoint that needs
+            // "the current event" (asking a session question, scanning...)
+            // rejects a token without one ("No event context found").
+            // Logging in also routes someone attached to several events
+            // through the same event picker login.html uses.
+            return Api.post('/auth/token/', {
+                email: pendingEmail,
+                password: document.getElementById('password').value,
+            }).then(function (loginResp) {
+                return loginResp.json().then(function (data) { return { ok: loginResp.ok, data: data }; });
+            }).then(function (login) {
+                if (login.ok && login.data.requires_event_selection) {
+                    sessionStorage.setItem('dq_temp_token', login.data.temp_token);
+                    sessionStorage.setItem('dq_available_events', JSON.stringify(login.data.available_events || []));
+                    window.location.href = '/app/select-event/';
+                    return;
+                }
+                if (login.ok && login.data.access) {
+                    Auth.setSession(login.data);
+                    window.location.href = Auth.homeUrl();
+                    return;
+                }
+                // Login unexpectedly refused right after a successful
+                // signup -- fall back to the signup tokens so the person
+                // still gets in rather than being stuck on this screen.
+                Auth.setSession({ access: signupData.access, refresh: signupData.refresh, user: signupData.user });
+                return Api.get('/auth/me/').then(function (meResp) { return meResp.json(); }).then(function (me) {
+                    Auth.setSession({
+                        access: Auth.getAccess(), refresh: Auth.getRefresh(),
+                        role: me.role, event: me.event, user: signupData.user,
+                    });
+                    window.location.href = Auth.homeUrl();
                 });
-                window.location.href = Auth.homeUrl();
             });
         }).catch(function (err) {
             showError(err.message);

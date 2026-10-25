@@ -95,6 +95,10 @@
             .then(function () {
                 document.getElementById('camera-loading').style.display = 'none';
                 document.getElementById('scan-frame').style.display = 'block';
+                // Coming back to the app with the confirm dialog still open:
+                // keep the camera live but don't decode behind it --
+                // closing the dialog resumes scanning.
+                if (confirmModal.style.display === 'flex') return;
                 scanning = true;
                 rafId = requestAnimationFrame(tick);
             })
@@ -225,6 +229,12 @@
     document.getElementById('retry-camera-btn').addEventListener('click', startCamera);
 
     window.addEventListener('pagehide', stopCamera);
+    // pagehide stops the camera, but iOS restoring this page from its
+    // back/forward cache doesn't re-run the script below -- without this
+    // the scanner came back as a black, dead video.
+    window.addEventListener('pageshow', function (e) {
+        if (e.persisted && !stream) startCamera();
+    });
     document.addEventListener('visibilitychange', function () {
         if (document.hidden) stopCamera(); else if (!stream) startCamera();
     });
