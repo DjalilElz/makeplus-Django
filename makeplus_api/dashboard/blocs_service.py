@@ -9,7 +9,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.db.models import Q
 
-from events.models import Session
+from events.models import Session, WORKSHOP_BLOC_Q
 from .models_blocs import BlocItem, BlocItemStatusRule
 
 
@@ -124,7 +124,7 @@ def resolve_catalog_prices(event, config, on_date, context_status_item_id=None):
         visible = not (rule and not rule.is_visible)
         result[('item', item.id)] = {'price': price, 'visible': visible}
 
-    for session in Session.objects.filter(event=event, is_paid=True, is_active=True):
+    for session in Session.objects.filter(WORKSHOP_BLOC_Q, event=event, is_active=True):
         rule = _resolve_rule(rules_by_target, ('session', str(session.id)))
         price = rule.override_price if (rule and rule.override_price is not None) else session.price
         visible = not (rule and not rule.is_visible)
@@ -152,7 +152,7 @@ def resolve_catalog_prices_for_statuses(event, config, on_date, status_item_ids)
     """
     active_period = get_active_period(event, on_date) if config.reduction_by_period_enabled else None
     items = list(BlocItem.objects.filter(event=event, is_active=True))
-    sessions = list(Session.objects.filter(event=event, is_paid=True, is_active=True))
+    sessions = list(Session.objects.filter(WORKSHOP_BLOC_Q, event=event, is_active=True))
 
     result_by_status = {}
     for status_id in status_item_ids:
@@ -278,10 +278,10 @@ def compute_order(
 
     # --- Workshops (paid sessions) ---
     if selected_session_ids and _bloc_visible(config, 'workshops'):
-        session_filters = {'id__in': selected_session_ids, 'event': event, 'is_paid': True}
+        session_filters = {'id__in': selected_session_ids, 'event': event}
         if not include_inactive:
             session_filters['is_active'] = True
-        sessions = Session.objects.filter(**session_filters)
+        sessions = Session.objects.filter(WORKSHOP_BLOC_Q, **session_filters)
         for session in sessions:
             rule = _resolve_rule(rules_by_target, ('session', str(session.id)))
             if rule and not rule.is_visible and not ignore_visibility_rules:

@@ -15,7 +15,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from events.models import Event, Session
+from events.models import Event, Session, WORKSHOP_BLOC_Q
 from .models_blocs import (
     EventBlocConfig, BlocItem, BlocItemStatusRule, ReductionPeriod, RegistrationOrder,
     CUSTOM_BLOC_CHOICES,
@@ -52,7 +52,7 @@ def blocs_config(request, event_id):
             'items': list(BlocItem.objects.filter(event=event, bloc=bloc_key).order_by('order', 'name')),
         })
 
-    paid_sessions = Session.objects.filter(event=event, is_paid=True).order_by('order', 'start_time')
+    paid_sessions = Session.objects.filter(WORKSHOP_BLOC_Q, event=event).order_by('order', 'start_time')
     periods = ReductionPeriod.objects.filter(event=event).order_by('start_date')
     pending_orders = RegistrationOrder.objects.filter(event=event, status__in=['pending', 'reserved']).count()
 
@@ -311,14 +311,14 @@ def bloc_status_rules_save(request, event_id):
         event=event, is_active=True
     ).exclude(bloc='status').values_list('id', flat=True)]
     other_target_keys += [f'session_{s}' for s in Session.objects.filter(
-        event=event, is_paid=True
+        WORKSHOP_BLOC_Q, event=event
     ).values_list('id', flat=True)]
 
     all_target_keys = [f'item_{i}' for i in BlocItem.objects.filter(
         event=event, is_active=True
     ).values_list('id', flat=True)]
     all_target_keys += [f'session_{s}' for s in Session.objects.filter(
-        event=event, is_paid=True
+        WORKSHOP_BLOC_Q, event=event
     ).values_list('id', flat=True)]
 
     # 1. Status-dependent matrix (no period).
@@ -401,7 +401,7 @@ def workshop_order_save(request, event_id):
     """
     event = get_object_or_404(Event, id=event_id)
 
-    for session in Session.objects.filter(event=event, is_paid=True):
+    for session in Session.objects.filter(WORKSHOP_BLOC_Q, event=event):
         raw_order = request.POST.get(f'order_{session.id}')
         if raw_order is None:
             continue
@@ -502,11 +502,11 @@ def get_public_bloc_context(event, include_inactive=False):
 
     paid_sessions = []
     if config.show_workshops:
-        session_filters = {'event': event, 'is_paid': True}
+        session_filters = {'event': event}
         if not include_inactive:
             session_filters['is_active'] = True
         paid_sessions = list(
-            Session.objects.filter(**session_filters).order_by('order', 'start_time')
+            Session.objects.filter(WORKSHOP_BLOC_Q, **session_filters).order_by('order', 'start_time')
         )
 
     # Public page section order: Status, Restauration, Ateliers/Workshops,

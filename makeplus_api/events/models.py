@@ -504,6 +504,22 @@ class Session(models.Model):
         return int((self.end_time - self.start_time).total_seconds() / 60)
 
 
+# The single condition for "this session belongs in the Workshops bloc
+# on the public registration form" -- shared by every place that reads
+# it (dashboard.views_blocs.get_public_bloc_context/blocs_config/
+# bloc_status_rules_save/workshop_order_save, dashboard.blocs_service.
+# resolve_catalog_prices/resolve_catalog_prices_for_statuses/
+# compute_order). A session qualifies when EITHER is_paid=True (a
+# non-atelier session an owner deliberately marked paid-and-reservable)
+# OR session_type='atelier' (every workshop belongs here regardless of
+# price/is_paid). Filtering on is_paid alone -- the original, sole
+# condition everywhere above -- meant a free atelier the owner couldn't
+# mark is_paid=True (SessionForm rejected is_paid=True with price<=0
+# until that validation bug was fixed) or simply never checked never
+# showed up at all, confirmed in production on two separate events.
+WORKSHOP_BLOC_Q = models.Q(is_paid=True) | models.Q(session_type='atelier')
+
+
 class Participant(models.Model):
     """Event Participant - One participant per user, can register for multiple events"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='participant_profile')
