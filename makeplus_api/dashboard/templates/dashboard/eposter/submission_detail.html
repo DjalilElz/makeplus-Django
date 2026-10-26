@@ -165,6 +165,14 @@
                 Ceci est une recommandation transmise au superviseur -- elle ne change pas le statut de la soumission
                 et n'envoie aucun e-mail. Seul le superviseur prend la décision finale.
             </p>
+            {% if user_validation %}
+            {# Make it obvious the recommendation WAS recorded -- the status staying "En attente" made members think it hadn't. #}
+            <div class="alert {% if user_validation.is_approved %}alert-success{% else %}alert-danger{% endif %} py-2 small">
+                <i class="bi bi-check2-all me-1"></i>
+                Votre avis est enregistré : <strong>{% if user_validation.is_approved %}acceptation recommandée{% else %}rejet recommandé{% endif %}</strong>
+                (le {{ user_validation.updated_at|date:"d/m/Y à H:i" }}) -- transmis au superviseur.
+            </div>
+            {% endif %}
             <form id="validation-form">
                 {% csrf_token %}
                 <div class="mb-3">
@@ -262,6 +270,36 @@
         </div>
         {% endif %}
         {% endwith %}
+
+        {% if is_supervisor %}
+        <div class="breakdown-panel mt-3">
+            <div class="breakdown-title mb-2"><i class="bi bi-chat-square-text me-1"></i> Avis des membres</div>
+            {% for rec in member_recommendations %}
+            <div class="mb-2 pb-2 {% if not forloop.last %}border-bottom{% endif %}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>{{ rec.user.get_full_name|default:rec.user.username }}</span>
+                    {% if rec.validation %}
+                        {% if rec.validation.is_approved %}
+                        <span class="badge" style="background:#d1e7dd; color:#0f5132;"><i class="bi bi-check-circle me-1"></i>Acceptation</span>
+                        {% else %}
+                        <span class="badge" style="background:#f8d7da; color:#842029;"><i class="bi bi-x-circle me-1"></i>Rejet</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-light text-muted border">En attente</span>
+                    {% endif %}
+                </div>
+                {% if rec.validation %}
+                <div class="small text-muted">{{ rec.validation.updated_at|date:"d/m/Y H:i" }}</div>
+                {% if rec.validation.comments %}
+                <div class="small mt-1" style="white-space: pre-line;">{{ rec.validation.comments }}</div>
+                {% endif %}
+                {% endif %}
+            </div>
+            {% empty %}
+            <p class="text-muted small mb-0">Aucun membre assigné et aucun avis pour le moment.</p>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 </div>
 

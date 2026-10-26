@@ -299,12 +299,22 @@ def eposter_submissions_list(request, event_id):
     submissions = submissions.annotate(
         validations_count=Count('validations', filter=Q(validations__is_approved=True)),
         rejections_count=Count('validations', filter=Q(validations__is_approved=False))
-    ).prefetch_related('assigned_to').order_by('-submitted_at')
+    ).prefetch_related('assigned_to', 'validations').order_by('-submitted_at')
 
     # Pagination
     paginator = Paginator(submissions, 20)
     page = request.GET.get('page', 1)
     submissions_page = paginator.get_page(page)
+
+    # Members' recommendations, per row of this page (from the prefetch
+    # above, no extra queries): the supervisor sees each assigned member's
+    # vote next to their name; a member sees their own -- otherwise a
+    # recommendation left no visible trace in the list (the status stays
+    # "En attente" until the supervisor decides).
+    for sub in submissions_page:
+        votes = {v.committee_member_id: v.is_approved for v in sub.validations.all()}
+        sub.assignment_rows = [{'user': u, 'vote': votes.get(u.id)} for u in sub.assigned_to.all()]
+        sub.my_vote = votes.get(request.user.id)
 
     # The "filter by committee member" dropdown (who decided it) and the
     # assignment picker are supervisor/staff only.
@@ -438,28 +448,29 @@ def eposter_submission_detail(request, event_id, submission_id):
             committee_member=request.user
         ).first()
 
-    # Get all committee members and their validation status
-    committee = EPosterCommitteeMember.objects.filter(
-        event=event,
-        is_active=True
-    ).select_related('user')
-
-    committee_status = []
-    for member in committee:
-        validation = submission.validations.filter(
-            committee_member=member.user
-        ).first()
-        committee_status.append({
-            'member': member,
-            'validation': validation
-        })
+    # The members' recommendations, for the supervisor making the final
+    # call. This used to be built (with one query per committee member)
+    # into a committee_status list the template never rendered -- so a
+    # member's "Recommander le rejet"/"l'acceptation" was saved but the
+    # supervisor had nowhere to see it. Every assigned member is listed
+    # (voted or still pending), plus anyone else who recommended.
+    member_recommendations = []
+    if is_supervisor:
+        votes = {v.committee_member_id: v for v in submission.validations.all()}
+        listed = set()
+        for assigned_user in submission.assigned_to.all():
+            member_recommendations.append({'user': assigned_user, 'validation': votes.get(assigned_user.id)})
+            listed.add(assigned_user.id)
+        for user_id, validation in votes.items():
+            if user_id not in listed:
+                member_recommendations.append({'user': validation.committee_member, 'validation': validation})
 
     context = {
         'event': event,
         'submission': submission,
         'user_membership': user_membership,
         'user_validation': user_validation,
-        'committee_status': committee_status,
+        'member_recommendations': member_recommendations,
         'can_validate': user_membership is not None and submission.status == 'pending',
         # Only supervisors/staff see who made the final decision, the
         # author's identity (blind review), and can make the final call

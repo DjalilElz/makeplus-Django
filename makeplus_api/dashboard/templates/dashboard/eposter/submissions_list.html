@@ -111,7 +111,7 @@
                 {% if is_supervisor %}<th>Auteur</th>{% endif %}
                 <th>Type</th>
                 {% if is_supervisor %}<th>Établissement</th>{% endif %}
-                <th>Assigné à</th>
+                <th>{% if is_supervisor %}Assigné à{% else %}Votre avis{% endif %}</th>
                 <th>Statut</th>
                 <th>Date</th>
                 <th></th>
@@ -144,16 +144,22 @@
                     {% if assigned %}
                         {% if is_supervisor %}
                         <div class="d-flex flex-column gap-1">
-                            {% for m in assigned %}
-                            <a href="?member={{ m.id }}" class="badge text-decoration-none text-start" style="background: #d1e7dd; color: #0f5132; white-space: normal;" title="Voir les communications assignées à ce membre">
-                                <i class="bi bi-person me-1"></i>{{ m.get_full_name|default:m.username }}
+                            {% for row in submission.assignment_rows %}
+                            <a href="?member={{ row.user.id }}" class="badge text-decoration-none text-start"
+                               style="white-space: normal; {% if row.vote is None %}background:#e9ecef; color:#495057;{% elif row.vote %}background:#d1e7dd; color:#0f5132;{% else %}background:#f8d7da; color:#842029;{% endif %}"
+                               title="{% if row.vote is None %}Pas encore d'avis{% elif row.vote %}Recommande l'acceptation{% else %}Recommande le rejet{% endif %} -- voir ses communications">
+                                <i class="bi {% if row.vote is None %}bi-hourglass-split{% elif row.vote %}bi-check-circle{% else %}bi-x-circle{% endif %} me-1"></i>{{ row.user.get_full_name|default:row.user.username }}
                             </a>
                             {% endfor %}
                         </div>
                         {% else %}
-                        <span class="badge" style="background: #d1e7dd; color: #0f5132;">
-                            <i class="bi bi-check-circle me-1"></i>Assigné à vous
-                        </span>
+                        {% if submission.my_vote is None %}
+                        <span class="badge" style="background:#e9ecef; color:#495057;"><i class="bi bi-hourglass-split me-1"></i>À évaluer</span>
+                        {% elif submission.my_vote %}
+                        <span class="badge" style="background:#d1e7dd; color:#0f5132;"><i class="bi bi-check-circle me-1"></i>Acceptation recommandée</span>
+                        {% else %}
+                        <span class="badge" style="background:#f8d7da; color:#842029;"><i class="bi bi-x-circle me-1"></i>Rejet recommandé</span>
+                        {% endif %}
                         {% endif %}
                     {% else %}
                         <span class="text-muted small">Non assigné</span>
