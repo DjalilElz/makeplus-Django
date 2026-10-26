@@ -139,7 +139,8 @@
             <p>{{ submission.conclusion|linebreaks }}</p>
         </div>
 
-        {% if submission.fichier_resume or submission.fichier_poster %}
+        {# Attachments are supervisor/admin only -- committee members review the text above. #}
+        {% if is_supervisor and submission.fichier_resume or is_supervisor and submission.fichier_poster %}
         <div class="detail-label mb-2">FICHIERS JOINTS</div>
         <div class="d-flex gap-2 mb-4">
             {% if submission.fichier_resume %}

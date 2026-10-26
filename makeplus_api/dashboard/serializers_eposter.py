@@ -19,7 +19,49 @@ class EPosterAuthorSerializer(serializers.Serializer):
     affiliation = serializers.CharField(max_length=200, required=False, allow_blank=True)
 
 
-class EPosterSubmissionSerializer(serializers.ModelSerializer):
+class HidePrivateFieldsForMembersMixin:
+    """
+    Author identity and attached files are visible only to admins and the
+    event's committee supervisor -- the same rule the dashboard applies
+    (blind review: members judge the scientific content, not who wrote
+    it; attachments are supervisor-only). Anyone else, including a plain
+    committee member and an anonymous public submitter, gets them removed.
+    Decided per submission's event, memoized per request.
+    """
+    PRIVATE_FIELDS = (
+        'nom', 'prenom', 'full_name', 'email', 'telephone', 'genre', 'genre_display',
+        'grade', 'grade_display', 'grade_autre', 'secteur', 'secteur_display',
+        'etablissement', 'wilaya', 'auteurs', 'fichier_resume', 'fichier_poster',
+    )
+
+    def _supervised_event_ids(self):
+        cache = self.context.setdefault('_supervised_event_ids', {})
+        if 'ids' not in cache:
+            request = self.context.get('request')
+            user = getattr(request, 'user', None)
+            if user is None or not user.is_authenticated:
+                cache['ids'] = set()
+                cache['all'] = False
+            elif user.is_staff or user.is_superuser:
+                cache['ids'] = set()
+                cache['all'] = True
+            else:
+                cache['all'] = False
+                cache['ids'] = set(EPosterCommitteeMember.objects.filter(
+                    user=user, is_active=True, role__in=('supervisor', 'president'),
+                ).values_list('event_id', flat=True))
+        return cache
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        allowed = self._supervised_event_ids()
+        if not (allowed['all'] or instance.event_id in allowed['ids']):
+            for field in self.PRIVATE_FIELDS:
+                data.pop(field, None)
+        return data
+
+
+class EPosterSubmissionSerializer(HidePrivateFieldsForMembersMixin, serializers.ModelSerializer):
     """Serializer for ePoster submissions"""
     full_name = serializers.SerializerMethodField()
     validations_count = serializers.SerializerMethodField()
@@ -169,7 +211,7 @@ class EPosterSubmissionCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class EPosterSubmissionListSerializer(serializers.ModelSerializer):
+class EPosterSubmissionListSerializer(HidePrivateFieldsForMembersMixin, serializers.ModelSerializer):
     """Lightweight serializer for submission lists"""
     full_name = serializers.SerializerMethodField()
     validations_count = serializers.SerializerMethodField()

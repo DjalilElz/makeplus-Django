@@ -73,8 +73,38 @@ class EPosterSubmissionViewSet(viewsets.ModelViewSet):
             return EPosterSubmissionListSerializer
         return EPosterSubmissionSerializer
     
+    SUPERVISOR_ROLES = ('supervisor', 'president')
+
+    def _is_admin(self):
+        user = self.request.user
+        return user.is_staff or user.is_superuser
+
+    def _supervised_event_ids(self):
+        return EPosterCommitteeMember.objects.filter(
+            user=self.request.user, is_active=True, role__in=self.SUPERVISOR_ROLES,
+        ).values('event_id')
+
     def get_queryset(self):
         queryset = EPosterSubmission.objects.all()
+        user = self.request.user
+
+        # Used to be every submission of every event for ANY logged-in
+        # account -- a participant signed into the mobile app/webapp could
+        # read every author's personal data and files, and (via the
+        # ModelViewSet's update/destroy) edit or delete submissions. Same
+        # rule as the dashboard now: admins see everything, a supervisor
+        # their own event's submissions, a plain committee member only
+        # what's been assigned to them, anyone else nothing.
+        is_admin = self._is_admin()
+        if not is_admin:
+            member_event_ids = EPosterCommitteeMember.objects.filter(
+                user=user, is_active=True,
+            ).values('event_id')
+            queryset = queryset.filter(
+                Q(event_id__in=self._supervised_event_ids())
+                | Q(event_id__in=member_event_ids, assigned_to=user)
+            ).distinct()
+
         event_id = self.request.query_params.get('event_id')
         
         if event_id:
@@ -90,17 +120,36 @@ class EPosterSubmissionViewSet(viewsets.ModelViewSet):
         if type_filter:
             queryset = queryset.filter(type_participation=type_filter)
         
-        # Search
+        # Search -- identity fields only for admins/supervisors, so a member
+        # can't fish an author's name out of a blind review by searching.
         search = self.request.query_params.get('search')
         if search:
-            queryset = queryset.filter(
-                Q(nom__icontains=search) |
-                Q(prenom__icontains=search) |
-                Q(titre_travail__icontains=search) |
-                Q(email__icontains=search)
-            )
+            text = Q(titre_travail__icontains=search)
+            if is_admin or EPosterCommitteeMember.objects.filter(
+                user=user, is_active=True, role__in=self.SUPERVISOR_ROLES,
+            ).exists():
+                text |= Q(nom__icontains=search) | Q(prenom__icontains=search) | Q(email__icontains=search)
+            queryset = queryset.filter(text)
         
         return queryset.select_related('event').prefetch_related('validations')
+
+    def _require_supervisor_of(self, submission):
+        if self._is_admin():
+            return
+        if not EPosterCommitteeMember.objects.filter(
+            user=self.request.user, event_id=submission.event_id,
+            is_active=True, role__in=self.SUPERVISOR_ROLES,
+        ).exists():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Seul le superviseur du comité ou un admin peut modifier ou supprimer une soumission.")
+
+    def perform_update(self, serializer):
+        self._require_supervisor_of(serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_supervisor_of(instance)
+        instance.delete()
     
     def create(self, request, *args, **kwargs):
         """Public submission endpoint"""
