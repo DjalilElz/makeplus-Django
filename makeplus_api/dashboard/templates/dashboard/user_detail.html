@@ -333,6 +333,32 @@
                 </div>
             </div>
             
+            {% if is_admin_viewer %}
+            <!-- Password (admins only; never for participant accounts -- see _admin_can_set_password) -->
+            <div class="stat-card mb-4">
+                <h5 class="mb-3"><i class="bi bi-key"></i> Mot de passe</h5>
+                {% if can_set_password %}
+                <form method="post" action="{% url 'dashboard:user_set_password' user.id %}" autocomplete="off">
+                    {% csrf_token %}
+                    <div class="mb-2">
+                        <label class="form-label small" for="new_password">Nouveau mot de passe</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" required minlength="8" autocomplete="new-password">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small" for="confirm_password">Confirmer le mot de passe</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required minlength="8" autocomplete="new-password">
+                    </div>
+                    <p class="text-muted small mb-3">Au moins 8 caractères, dont un chiffre. L'utilisateur sera déconnecté de l'application mobile.</p>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-outline-primary"><i class="bi bi-check2"></i> Modifier le mot de passe</button>
+                    </div>
+                </form>
+                {% else %}
+                <p class="text-muted small mb-0"><i class="bi bi-lock"></i> {{ set_password_blocked_reason }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
             <!-- Quick Stats Card -->
             <div class="stat-card">
                 <h5 class="mb-3"><i class="bi bi-graph-up"></i> Statistiques rapides</h5>

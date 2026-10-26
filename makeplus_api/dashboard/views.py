@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.views.decorators.cache import cache_page, never_cache
+from django.views.decorators.http import require_POST
 from datetime import timedelta
 import json
 import qrcode
@@ -1157,6 +1158,8 @@ def user_detail(request, user_id):
         from events.models import ParticipantEventRegistration
         event_registrations_count = ParticipantEventRegistration.objects.filter(participant=participant).count()
     
+    can_set_password, set_password_blocked_reason = _admin_can_set_password(request.user, user)
+
     context = {
         'user': user,
         'qr_data': qr_data,
@@ -1168,9 +1171,90 @@ def user_detail(request, user_id):
         'event_registrations_count': event_registrations_count,
         'is_participant': is_participant,
         'is_committee': is_committee,
+        'is_admin_viewer': request.user.is_staff or request.user.is_superuser,
+        'can_set_password': can_set_password,
+        'set_password_blocked_reason': set_password_blocked_reason,
     }
-    
+
     return render(request, 'dashboard/user_detail.html', context)
+
+
+def _admin_can_set_password(admin, target):
+    """
+    Whether `admin` may set `target`'s password from the dashboard, and if
+    not, why (shown on the profile page instead of the form).
+
+    Only real admins (staff/superuser) -- the user pages themselves are
+    also open to committee members (is_staff_user), who must not get this.
+    Participants are excluded: their password is theirs alone, set via the
+    app's own signup / reset flow. "Participant" here means an account
+    with no other role -- not merely one with a Participant profile, which
+    nearly every account has (one is created for anyone added to an event,
+    staff and exhibitors included). A non-superuser admin can't change a
+    superuser's password.
+    """
+    from .models_eposter import EPosterCommitteeMember
+
+    if not (admin.is_staff or admin.is_superuser):
+        return False, "Seuls les administrateurs peuvent modifier un mot de passe."
+    if target.is_superuser and not admin.is_superuser:
+        return False, "Seul un super-administrateur peut modifier le mot de passe d'un super-administrateur."
+    if target.is_staff or target.is_superuser:
+        return True, ''
+    has_other_role = (
+        UserEventAssignment.objects.filter(user=target).exclude(role='participant').exists()
+        or EPosterCommitteeMember.objects.filter(user=target).exists()
+    )
+    if has_other_role:
+        return True, ''
+    return False, "Le mot de passe d'un participant ne peut pas être modifié depuis le tableau de bord."
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_POST
+def user_set_password(request, user_id):
+    """Admin sets a new password for a non-participant account."""
+    from django.contrib.auth import update_session_auth_hash
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
+    target = get_object_or_404(User, id=user_id)
+    allowed, reason = _admin_can_set_password(request.user, target)
+    if not allowed:
+        messages.error(request, reason)
+        return redirect('dashboard:user_detail', user_id=target.id)
+
+    password = request.POST.get('new_password', '')
+    confirm = request.POST.get('confirm_password', '')
+    if password != confirm:
+        messages.error(request, 'Les deux mots de passe ne correspondent pas.')
+        return redirect('dashboard:user_detail', user_id=target.id)
+    try:
+        validate_password(password, user=target)
+    except ValidationError as e:
+        messages.error(request, ' '.join(e.messages))
+        return redirect('dashboard:user_detail', user_id=target.id)
+
+    target.set_password(password)
+    target.save(update_fields=['password'])
+
+    # Sign the account out of the mobile app/webapp everywhere: a password
+    # reset by an admin is usually because the old one leaked or was lost,
+    # so tokens issued under it shouldn't keep working.
+    try:
+        from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+        for token in OutstandingToken.objects.filter(user=target):
+            BlacklistedToken.objects.get_or_create(token=token)
+    except Exception:
+        pass
+
+    # Changing your own password logs you out of the dashboard otherwise.
+    if target.id == request.user.id:
+        update_session_auth_hash(request, target)
+
+    messages.success(request, f'Mot de passe de « {target.get_full_name() or target.username} » mis à jour.')
+    return redirect('dashboard:user_detail', user_id=target.id)
 
 
 @login_required
