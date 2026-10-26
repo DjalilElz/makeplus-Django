@@ -221,7 +221,6 @@ def eposter_submissions_list(request, event_id):
     List all ePoster submissions for an event
     With filtering and search
     """
-    from django.core.cache import cache
     from django.views.decorators.cache import never_cache
     
     event = get_object_or_404(Event, id=event_id)
@@ -231,8 +230,10 @@ def eposter_submissions_list(request, event_id):
         messages.error(request, "Vous n'avez pas accès à cet événement.")
         return _permission_denied_redirect(request.user)
     
-    # Clear cache to ensure fresh data
-    cache.clear()
+    # No cache.clear() here: this list reads straight from the database
+    # (it never used the cache), and clearing on every page view wiped the
+    # ENTIRE site cache -- e.g. the dashboard home's cached page -- for
+    # every user, each time anyone opened this list.
 
     is_supervisor = check_supervisor_access(request.user, event)
     submissions = EPosterSubmission.objects.filter(event=event)
@@ -1014,10 +1015,8 @@ def eposter_email_templates(request, event_id):
     
     event = get_object_or_404(Event, id=event_id)
     
-    # Clear cache to ensure fresh data
-    from django.core.cache import cache
-    cache.clear()
-    
+    # No cache.clear() here -- this page reads straight from the database,
+    # and clearing on every view wiped the whole site cache for everyone.
     templates = EPosterEmailTemplate.objects.filter(event=event).order_by('template_type')
     
     # Debug logging

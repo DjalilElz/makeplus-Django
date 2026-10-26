@@ -113,13 +113,13 @@
                                     <small>{{ event.location }}</small>
                                 </td>
                                 <td>
-                                    <span class="badge bg-info">{{ event.participants.count }}</span>
+                                    <span class="badge bg-info">{{ event.participant_count }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-warning text-dark">{{ event.rooms.count }}</span>
+                                    <span class="badge bg-warning text-dark">{{ event.room_count }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-secondary">{{ event.sessions.count }}</span>
+                                    <span class="badge bg-secondary">{{ event.session_count }}</span>
                                 </td>
                                 <td>
                                     <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-sm btn-outline-primary" title="Voir l'événement">

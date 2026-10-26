@@ -909,12 +909,12 @@ def email_template_archive(request, template_id):
 def registration_form_builder(request):
     """List all custom registration forms"""
     from .models_form import FormConfiguration
-    from django.db import connection
     from django.db.models import Count
-    
-    # Close connection to ensure fresh data
-    connection.close()
-    
+
+    # No connection.close() here: it threw away the open database connection
+    # and forced a brand-new one (TLS + pooler auth) on every request, which
+    # made the page slow without making data any fresher -- every query
+    # already reads the latest committed data.
     # Get forms with actual submission count from database
     forms = FormConfiguration.objects.select_related('event', 'created_by').annotate(
         actual_submission_count=Count('submissions')
@@ -1141,12 +1141,8 @@ def registration_form_delete(request, form_id):
 def registration_form_toggle(request, form_id):
     """Toggle form active/inactive status"""
     from .models_form import FormConfiguration
-    from django.db import connection
-    
+
     if request.method == 'POST':
-        # Close any database connections to ensure fresh data
-        connection.close()
-        
         form = get_object_or_404(FormConfiguration, id=form_id)
         
         # Debug logging
@@ -1157,7 +1153,6 @@ def registration_form_toggle(request, form_id):
         form.save()
         
         # Verify the save worked
-        connection.close()
         form.refresh_from_db()
         print(f"DEBUG TOGGLE: Form '{form.name}' new status: is_active={form.is_active}")
         

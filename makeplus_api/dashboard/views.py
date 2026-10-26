@@ -279,10 +279,31 @@ def dashboard_home(request):
     if cached_data:
         context = cached_data
     else:
-        # Get recent events only (limit to 20 for performance)
-        # Use prefetch to get counts efficiently
-        events = list(Event.objects.select_related('created_by').prefetch_related(
-            'registered_participants', 'rooms', 'sessions'
+        # Get recent events only (limit to 20 for performance).
+        # The list only shows a count of participants/rooms/sessions per
+        # event, so those are computed by the database as correlated
+        # subqueries in this one query. This used to prefetch the related
+        # rows themselves -- every participant (5,500+ full rows, each with
+        # its QR-code JSON), room and session of all 20 events -- just to
+        # count them in the template (and the participant badge read a
+        # relation that doesn't exist, so it always rendered blank anyway).
+        # Subqueries rather than Count() over joins: three joins in one
+        # GROUP BY multiply into participants x rooms x sessions rows.
+        from django.db.models import OuterRef, Subquery, IntegerField
+        from django.db.models.functions import Coalesce
+        from events.models import ParticipantEventRegistration
+
+        def _count_per_event(model):
+            return Coalesce(Subquery(
+                model.objects.filter(event=OuterRef('pk')).order_by().values('event')
+                .annotate(n=Count('pk')).values('n'),
+                output_field=IntegerField(),
+            ), 0)
+
+        events = list(Event.objects.select_related('created_by').annotate(
+            participant_count=_count_per_event(ParticipantEventRegistration),
+            room_count=_count_per_event(Room),
+            session_count=_count_per_event(Session),
         ).order_by('-start_date')[:20])
         
         # Calculate overall statistics using aggregate (single query)
@@ -419,7 +440,7 @@ def event_detail(request, event_id):
     participants = [reg.participant for reg in participant_registrations]
     
     # Room access statistics (optimized)
-    room_accesses = RoomAccess.objects.filter(room__event=event).count() if RoomAccess.objects.filter(room__event=event).exists() else 0
+    room_accesses = RoomAccess.objects.filter(room__event=event).count()
     
     # Exposant scans (optimized) - count scans for this event
     exposant_scans = ExposantScan.objects.filter(event=event).count()
@@ -831,11 +852,12 @@ def user_list(request):
     event_filter = request.GET.get('event', 'all')
     search_query = request.GET.get('search', '').strip()
     
-    # Base query with optimizations
-    users = User.objects.prefetch_related(
+    # profile/participant_profile are one-to-one -- joined in the same
+    # query rather than prefetched. participant_profile__events used to be
+    # prefetched too, but the template only checks whether a participant
+    # profile exists, never its events.
+    users = User.objects.select_related('profile', 'participant_profile').prefetch_related(
         'event_assignments__event',
-        'profile',
-        'participant_profile__events'  # Updated for new structure
     ).order_by('-date_joined')
     
     # Filter by role if specified
@@ -858,22 +880,30 @@ def user_list(request):
             Q(email__icontains=search_query)
         )
     
-    # Get counts for each role
+    # Paginated: this used to render every account on one page -- several
+    # thousand rows, a 12+ MB page that took 7+ seconds to build, most of
+    # it Django rendering template rows nobody scrolls to.
+    from django.core.paginator import Paginator
+    users_page = Paginator(users, 50).get_page(request.GET.get('page'))
+
+    # Get counts for each role -- the four assignment-based counts in one
+    # query instead of four.
     # Participant count includes ALL users with Participant profile (even without event assignments)
+    assignment_counts = UserEventAssignment.objects.aggregate(**{
+        role: Count('user', distinct=True, filter=Q(role=role))
+        for role in ('organisateur', 'gestionnaire_des_salles', 'controlleur_des_badges', 'exposant')
+    })
     role_counts = {
         'all': User.objects.count(),
-        'organisateur': UserEventAssignment.objects.filter(role='organisateur').values('user').distinct().count(),
-        'gestionnaire_des_salles': UserEventAssignment.objects.filter(role='gestionnaire_des_salles').values('user').distinct().count(),
-        'controlleur_des_badges': UserEventAssignment.objects.filter(role='controlleur_des_badges').values('user').distinct().count(),
-        'exposant': UserEventAssignment.objects.filter(role='exposant').values('user').distinct().count(),
+        **assignment_counts,
         'participant': Participant.objects.count(),  # Count all participants, not just those with event assignments
     }
-    
+
     # Get all events for filter dropdown
-    events = Event.objects.all().order_by('-start_date')
-    
+    events = Event.objects.only('id', 'name', 'start_date').order_by('-start_date')
+
     context = {
-        'users': users,
+        'users': users_page,
         'role_filter': role_filter,
         'event_filter': event_filter,
         'search_query': search_query,
@@ -1359,12 +1389,12 @@ def event_user_delete(request, event_id, user_id):
 @user_passes_test(is_staff_user)
 def event_edit(request, event_id):
     """Edit event details - COMPLETELY REWRITTEN"""
-    from django.db import connection
     import time
-    
-    # Step 1: Close any existing connections and fetch fresh data
-    connection.close()
-    
+
+    # No connection.close() here: it threw away the open database connection
+    # and forced a brand-new one (TLS + pooler auth) on every request, which
+    # made the page slow without making data any fresher -- every query
+    # already reads the latest committed data.
     try:
         event = Event.objects.get(id=event_id)
     except Event.DoesNotExist:
@@ -1381,10 +1411,7 @@ def event_edit(request, event_id):
             
             # Step 4: CLEAR ALL CACHES (nuclear option)
             clear_all_caches()
-            
-            # Step 5: Close connection to force fresh queries
-            connection.close()
-            
+
             messages.success(request, f'Événement « {updated_event.name} » mis à jour avec succès !')
             
             # Step 6: Redirect with timestamp to prevent browser cache
@@ -1395,11 +1422,7 @@ def event_edit(request, event_id):
                 for error in errors:
                     messages.error(request, f'{field}: {error}')
     else:
-        # GET request - load the form
-        # Close connection and fetch fresh data
-        connection.close()
-        event = Event.objects.get(id=event_id)
-        
+        # GET request - load the form (event was already fetched above)
         form = EventEditForm(instance=event)
         
         # Format datetime fields
@@ -2009,12 +2032,12 @@ def session_create(request, event_id):
 @user_passes_test(is_staff_user)
 def session_edit(request, session_id):
     """Edit an existing session - COMPLETELY REWRITTEN"""
-    from django.db import connection
     import time
-    
-    # Step 1: Close any existing connections and fetch fresh data
-    connection.close()
-    
+
+    # No connection.close() here: it threw away the open database connection
+    # and forced a brand-new one (TLS + pooler auth) on every request, which
+    # made the page slow without making data any fresher -- every query
+    # already reads the latest committed data.
     try:
         session = Session.objects.get(id=session_id)
     except Session.DoesNotExist:
@@ -2033,10 +2056,7 @@ def session_edit(request, session_id):
             
             # Step 4: CLEAR ALL CACHES (nuclear option)
             clear_all_caches()
-            
-            # Step 5: Close connection to force fresh queries
-            connection.close()
-            
+
             messages.success(request, f'Session « {updated_session.title} » mise à jour avec succès !')
             
             # Step 6: Redirect with timestamp to prevent browser cache
@@ -2047,11 +2067,7 @@ def session_edit(request, session_id):
                 for error in errors:
                     messages.error(request, f'{field}: {error}')
     else:
-        # GET request - load the form
-        # Close connection and fetch fresh data
-        connection.close()
-        session = Session.objects.get(id=session_id)
-        
+        # GET request - load the form (session was already fetched above)
         form = SessionForm(instance=session, event=event)
     
     context = {
