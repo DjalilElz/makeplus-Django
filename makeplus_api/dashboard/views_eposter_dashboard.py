@@ -257,8 +257,14 @@ def eposter_submissions_list(request, event_id):
     if type_filter:
         submissions = submissions.filter(type_participation=type_filter)
 
+    # Filter by who a submission is ASSIGNED to (used to be who made the
+    # final decision -- since only the supervisor decides now, that was
+    # always the same person). Also what the committee page's per-member
+    # link opens, so a supervisor can see one member's workload.
+    member_filter_user = None
     if member_filter and is_supervisor:
-        submissions = submissions.filter(final_decision_by_id=member_filter)
+        member_filter_user = User.objects.filter(id=member_filter).first() if member_filter.isdigit() else None
+        submissions = submissions.filter(assigned_to=member_filter_user) if member_filter_user else submissions.none()
 
     # Lets the supervisor doing the assigning see, at a glance, what
     # still needs a reviewer vs what's already covered -- separate from
@@ -313,6 +319,7 @@ def eposter_submissions_list(request, event_id):
         'status_filter': status_filter,
         'type_filter': type_filter,
         'member_filter': member_filter,
+        'member_filter_user': member_filter_user,
         'assignment_filter': assignment_filter,
         'search': search,
         'status_choices': EPosterSubmission.STATUS_CHOICES,
@@ -766,10 +773,23 @@ def eposter_committee_list(request, event_id):
         messages.error(request, "Seul un administrateur ou le superviseur du comité peut gérer les membres du comité.")
         return _permission_denied_redirect(request.user)
 
+    # assigned_count: how many of this event's submissions each member is
+    # assigned to review -- a subquery rather than another join, so it
+    # can't multiply with validations_count's own join.
+    from django.db.models import OuterRef, Subquery, IntegerField
+    from django.db.models.functions import Coalesce
+    Assignment = EPosterSubmission.assigned_to.through
+    assigned_count = Coalesce(Subquery(
+        Assignment.objects.filter(
+            user_id=OuterRef('user_id'), scientificcontributionsubmission__event=event,
+        ).order_by().values('user_id').annotate(n=Count('pk')).values('n'),
+        output_field=IntegerField(),
+    ), 0)
     committee = EPosterCommitteeMember.objects.filter(
         event=event
     ).select_related('user', 'assigned_by').annotate(
-        validations_count=Count('user__contribution_validations', filter=Q(user__contribution_validations__submission__event=event))
+        validations_count=Count('user__contribution_validations', filter=Q(user__contribution_validations__submission__event=event)),
+        assigned_count=assigned_count,
     ).order_by('-assigned_at')
 
     # Get available users - only users with 'committee' role assigned to this event

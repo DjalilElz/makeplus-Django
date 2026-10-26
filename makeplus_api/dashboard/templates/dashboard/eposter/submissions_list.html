@@ -4,6 +4,16 @@
 {% block eyebrow %}Contributions scientifiques — Soumissions{% endblock %}
 
 {% block content %}
+{% if member_filter_user %}
+<div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+    <span>
+        <i class="bi bi-person-check me-1"></i>
+        Communications assignées à <strong>{{ member_filter_user.get_full_name|default:member_filter_user.username }}</strong>
+        ({{ submissions.paginator.count }})
+    </span>
+    <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="btn btn-sm btn-outline-secondary">Voir toutes</a>
+</div>
+{% endif %}
 <div class="d-flex justify-content-between align-items-start mb-4">
     <div class="stats-row flex-grow-1 mb-0">
         <div class="stat-tile">
@@ -49,7 +59,7 @@
     </div>
     {% if is_supervisor %}
     <div class="col-md-3">
-        <label class="form-label small">Membre du comité</label>
+        <label class="form-label small">Assigné à</label>
         <select name="member" class="form-select">
             <option value="">Tous</option>
             {% for member in committee %}
@@ -101,7 +111,7 @@
                 {% if is_supervisor %}<th>Auteur</th>{% endif %}
                 <th>Type</th>
                 {% if is_supervisor %}<th>Établissement</th>{% endif %}
-                <th>Assigné</th>
+                <th>Assigné à</th>
                 <th>Statut</th>
                 <th>Date</th>
                 <th></th>
@@ -133,9 +143,13 @@
                     {% with assigned=submission.assigned_to.all %}
                     {% if assigned %}
                         {% if is_supervisor %}
-                        <span class="badge" style="background: #d1e7dd; color: #0f5132;" title="{% for m in assigned %}{{ m.get_full_name|default:m.username }}{% if not forloop.last %}, {% endif %}{% endfor %}">
-                            <i class="bi bi-check-circle me-1"></i>{{ assigned|length }} membre{{ assigned|length|pluralize }}
-                        </span>
+                        <div class="d-flex flex-column gap-1">
+                            {% for m in assigned %}
+                            <a href="?member={{ m.id }}" class="badge text-decoration-none text-start" style="background: #d1e7dd; color: #0f5132; white-space: normal;" title="Voir les communications assignées à ce membre">
+                                <i class="bi bi-person me-1"></i>{{ m.get_full_name|default:m.username }}
+                            </a>
+                            {% endfor %}
+                        </div>
                         {% else %}
                         <span class="badge" style="background: #d1e7dd; color: #0f5132;">
                             <i class="bi bi-check-circle me-1"></i>Assigné à vous

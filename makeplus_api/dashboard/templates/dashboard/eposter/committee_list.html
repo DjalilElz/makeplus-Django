@@ -59,6 +59,7 @@
                         <th>E-mail</th>
                         <th>Rôle</th>
                         <th>Spécialité</th>
+                        <th>Assignées</th>
                         <th>Décisions</th>
                         <th>Statut</th>
                         <th></th>
@@ -67,7 +68,11 @@
                 <tbody>
                     {% for member in committee %}
                     <tr>
-                        <td><strong>{{ member.user.get_full_name|default:member.user.username }}</strong></td>
+                        <td>
+                            <a href="{% url 'dashboard:contributions_submissions_list' event.id %}?member={{ member.user_id }}" class="text-decoration-none" style="color: var(--ink);" title="Voir les communications assignées">
+                                <strong>{{ member.user.get_full_name|default:member.user.username }}</strong>
+                            </a>
+                        </td>
                         <td>{{ member.user.email }}</td>
                         <td>
                             {% if is_admin %}
@@ -88,7 +93,12 @@
                             {% endif %}
                         </td>
                         <td>{{ member.specialty|default:"—" }}</td>
-                        <td><span class="badge bg-light text-dark border">{{ member.get_validations_count }}</span></td>
+                        <td>
+                            <a href="{% url 'dashboard:contributions_submissions_list' event.id %}?member={{ member.user_id }}" class="text-decoration-none" title="Voir les communications assignées">
+                                <span class="badge" style="background: var(--steel-blue); color: #fff;">{{ member.assigned_count }}</span>
+                            </a>
+                        </td>
+                        <td><span class="badge bg-light text-dark border">{{ member.validations_count }}</span></td>
                         <td>
                             {% if member.is_active %}
                                 <span class="badge" style="background:#d1e7dd; color:#0f5132;">Actif</span>
@@ -108,7 +118,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">
+                        <td colspan="8" class="text-center py-4 text-muted">
                             <i class="bi bi-people fs-1 d-block mb-2"></i>
                             Aucun membre dans le comité
                         </td>
