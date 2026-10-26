@@ -548,7 +548,7 @@
         </div>
         
         <!-- Statistics at Bottom -->
-        <div class="row mt-4 mb-4">
+        <div class="row mt-4 mb-4" id="caisseStats">
             <div class="col-md-4">
                 <div class="stat-card">
                     <h6 class="text-muted mb-1">Montant total</h6>
@@ -651,7 +651,7 @@
                                     <th>Heure</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="presenceTableBody">
                                 {% for reg in presence_list %}
                                 <tr>
                                     <td>
@@ -715,6 +715,93 @@
         // BlocItemStatusRule overrides), so this preview doesn't either.
         const BLOCS_ENABLED = {{ blocs_enabled_json|safe }};
         const BLOC_PCT = {{ bloc_pct_json|safe }};
+
+        // ---- Refresh after an action, without reloading the page ----
+        // Every action (confirm, reject, modify, cancel) used to end with
+        // location.reload(): the cashier waited for the whole page --
+        // every participant, item and the data above -- to be rebuilt,
+        // re-downloaded and re-rendered before taking the next person.
+        // Instead the fresh page is fetched in the background and only
+        // the parts that change are swapped in place, plus the data
+        // objects above (mutated, not reassigned, since they're const).
+        // All handlers in the swapped sections are inline (onclick=/
+        // onchange=), so they keep working after the swap.
+        const REFRESH_SECTIONS = ['caisseStats', 'payableItems', 'participantsList',
+                                  'transactionsTableBody', 'presenceTableBody'];
+        const REFRESH_OBJECTS = {
+            participantPaidItemsData: participantPaidItemsData,
+            participantReservedItemsData: participantReservedItemsData,
+            participantReservedSummaryData: participantReservedSummaryData,
+            participantItemPricesData: participantItemPricesData,
+            participantStatusIdData: participantStatusIdData,
+            statusCatalogData: statusCatalogData,
+        };
+        let refreshInFlight = null;
+
+        function refreshDashboard() {
+            if (refreshInFlight) return refreshInFlight;
+            refreshInFlight = fetch(window.location.pathname, { cache: 'no-store', credentials: 'same-origin' })
+                .then(function (r) {
+                    if (!r.ok || r.redirected) throw new Error('HTTP ' + r.status);
+                    return r.text();
+                })
+                .then(function (html) {
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+                    // Read every data object out of the fresh page first --
+                    // if any is missing, bail out before changing anything.
+                    const fresh = {};
+                    Object.keys(REFRESH_OBJECTS).forEach(function (name) {
+                        const m = new RegExp('const ' + name + ' = (.*);').exec(html);
+                        if (!m) throw new Error('missing ' + name);
+                        fresh[name] = JSON.parse(m[1]);
+                    });
+                    const editable = /const participantEditableOrderIds = new Set\((.*)\);/.exec(html);
+                    if (!editable) throw new Error('missing participantEditableOrderIds');
+
+                    REFRESH_SECTIONS.forEach(function (id) {
+                        const target = document.getElementById(id);
+                        const source = doc.getElementById(id);
+                        if (target && source) target.innerHTML = source.innerHTML;
+                    });
+                    Object.keys(REFRESH_OBJECTS).forEach(function (name) {
+                        const obj = REFRESH_OBJECTS[name];
+                        Object.keys(obj).forEach(function (k) { delete obj[k]; });
+                        Object.assign(obj, fresh[name]);
+                    });
+                    participantEditableOrderIds.clear();
+                    JSON.parse(editable[1]).forEach(function (id) { participantEditableOrderIds.add(id); });
+
+                    // Re-apply the current filters to the freshly swapped lists.
+                    document.getElementById('searchInput').dispatchEvent(new Event('input'));
+                    document.getElementById('transactionSearchInput').dispatchEvent(new Event('input'));
+
+                    // If someone is selected right now, re-render the
+                    // right-hand panel from the fresh data.
+                    if (selectedParticipantId) {
+                        const el = document.querySelector('.participant-item[data-id="' + selectedParticipantId + '"]');
+                        if (el) selectParticipant(el); else clearForm();
+                    }
+                })
+                .catch(function (err) {
+                    // Anything unexpected: fall back to the old full reload
+                    // rather than leave stale data on screen.
+                    console.error('In-place refresh failed, reloading:', err);
+                    window.location.reload();
+                })
+                .finally(function () { refreshInFlight = null; });
+            return refreshInFlight;
+        }
+
+        // After a completed transaction/cancellation: ready for the next
+        // person straight away -- no selection, empty search box, focused.
+        function resetForNextParticipant() {
+            clearForm();
+            const search = document.getElementById('searchInput');
+            search.value = '';
+            search.dispatchEvent(new Event('input'));
+            search.focus();
+        }
 
 
         // Custom Modal Functions
@@ -1034,8 +1121,8 @@
                 });
                 const data = await response.json();
                 if (data.success) {
+                    refreshDashboard();
                     await customAlert(data.message, 'Réservation rejetée');
-                    window.location.reload();
                 } else {
                     await customAlert(data.message, 'Erreur');
                 }
@@ -1084,8 +1171,8 @@
                 });
                 const data = await response.json();
                 if (data.success) {
+                    refreshDashboard();
                     await customAlert('Inscription mise à jour.', 'Succès');
-                    window.location.reload();
                 } else {
                     await customAlert(data.message, 'Erreur');
                 }
@@ -1390,9 +1477,13 @@
                             buttonElement.innerHTML = buttonElement.originalHTML;
                         }
                     } else {
-                        customAlert(message, 'Succès').then(() => {
-                            location.reload();
-                        });
+                        if (buttonElement) {
+                            buttonElement.disabled = false;
+                            buttonElement.innerHTML = buttonElement.originalHTML;
+                        }
+                        resetForNextParticipant();
+                        refreshDashboard();
+                        customAlert(message, 'Succès');
                     }
                 } else {
                     if (printWindow) printWindow.close();
@@ -1481,9 +1572,8 @@
             })
             .then(data => {
                 if (data.success) {
-                    customAlert(data.message || 'Transaction annulée avec succès et accès révoqué !', 'Succès').then(() => {
-                        location.reload(true);
-                    });
+                    refreshDashboard();
+                    customAlert(data.message || 'Transaction annulée avec succès et accès révoqué !', 'Succès');
                 } else {
                     customAlert('Erreur : ' + data.message, 'Erreur');
                 }

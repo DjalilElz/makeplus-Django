@@ -169,9 +169,16 @@ def _latest_orders_by_participant(participants, event):
 
     participant_ids = [p.id for p in participants]
     latest_order_by_participant = {}
+    # Only the columns the caisse actually reads -- full rows also carried
+    # each order's user_agent string and subtotals JSON (~300 KB per
+    # dashboard load on a ~1,000-order event), never used here.
     for order in RegistrationOrder.objects.exclude(status='rejected').filter(
         event=event, participant_id__in=participant_ids
-    ).order_by('-created_at'):
+    ).order_by('-created_at').only(
+        'id', 'participant_id', 'status', 'created_at', 'items_snapshot', 'receipt_file',
+        'total_before_reduction', 'period_discount_percent', 'blocs_discount_percent',
+        'total_discount_percent', 'total_after_reduction',
+    ):
         # First order seen per participant, in -created_at order, is the
         # latest -- setdefault skips any older ones that follow.
         latest_order_by_participant.setdefault(order.participant_id, order)
@@ -599,10 +606,15 @@ def caisse_dashboard(request):
     ).values_list('user_id', flat=True)
     
     # Get participants registered for this event via ParticipantEventRegistration
+    # defer(): every participant's QR-code JSON (~0.5 MB on a ~1,100-person
+    # event) came along with each row and was never used on this page --
+    # the list only shows name/email/badge id.
     event_registrations = ParticipantEventRegistration.objects.filter(
         event=event,
         participant__user_id__in=participant_user_ids
-    ).select_related('participant__user').prefetch_related(
+    ).select_related('participant__user').defer(
+        'metadata', 'participant__qr_code_data', 'participant__metadata',
+    ).prefetch_related(
         'participant__caisse_transactions__items',
         'participant__caisse_transactions__caisse'
     ).order_by('participant__user__first_name', 'participant__user__last_name')
