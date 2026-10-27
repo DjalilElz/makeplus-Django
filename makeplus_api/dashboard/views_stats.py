@@ -477,7 +477,7 @@ def _gather_event_stats(request, event):
         'caisse', 'participant__user',
     ).prefetch_related('items').order_by('-created_at')
 
-    # ---- Presence (event-wide check-in, from any caisse or badge scan),
+    # ---- Presence (event-wide check-in, set by the caisse only),
     # optionally narrowed to a participant by name/e-mail/badge ----
     presence_qs = _in_date_range(
         ParticipantEventRegistration.objects.filter(event=event, is_checked_in=True),

@@ -314,11 +314,11 @@ def _mark_participant_present(participant, event):
     Set the same event-wide check-in flag/timestamp the event owner's own
     participant list already shows (events.models.ParticipantEventRegistration
     .is_checked_in/checked_in_at) -- this is deliberately the one shared
-    signal for "has this person physically shown up", not a caisse-only
-    concept, so a caisse action and a controller's badge scan both feed
-    the same place. Only writes if not already checked in, so an earlier
-    genuine arrival timestamp (e.g. from a badge scan at the door) is
-    never overwritten by a later caisse visit.
+    signal for "has this person physically shown up". Only the caisse
+    sets it (a payment, a 0 DZD transaction, or "Marquer comme présent")
+    -- a controller's badge scan deliberately does NOT: presence is
+    counted from the caisse only. Only writes if not already checked in,
+    so the first arrival timestamp is never overwritten.
     """
     from events.models import ParticipantEventRegistration
     ParticipantEventRegistration.objects.filter(

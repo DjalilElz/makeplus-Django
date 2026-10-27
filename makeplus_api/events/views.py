@@ -1042,13 +1042,6 @@ class ParticipantViewSet(viewsets.ModelViewSet):
                 logger.error(f"[SCAN] ❌ Failed to save scan log: {str(e)}")
                 # Don't fail the request if logging fails
 
-            # A badge scanned at the door means the participant is here --
-            # the same presence flag the caisse sets, which the stats page
-            # and the participant list count. Only ever sets it once, so the
-            # first arrival time is kept.
-            from caisse.views import _mark_participant_present
-            _mark_participant_present(participant, event)
-
             return Response({
                 'status': 'success',
                 'participant': {
