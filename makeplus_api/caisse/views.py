@@ -1555,42 +1555,6 @@ def modify_pending_order(request):
     })
 
 
-# ==================== Transaction History ====================
-
-@caisse_required
-def transaction_history(request):
-    """View transaction history for this caisse"""
-    caisse = request.caisse
-    
-    status_filter = request.GET.get('status', '')
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    
-    transactions = caisse.transactions.select_related(
-        'participant__user'
-    ).prefetch_related('items').order_by('-created_at')
-    
-    # Apply filters
-    if status_filter:
-        transactions = transactions.filter(status=status_filter)
-    
-    if date_from:
-        transactions = transactions.filter(created_at__date__gte=date_from)
-    
-    if date_to:
-        transactions = transactions.filter(created_at__date__lte=date_to)
-    
-    context = {
-        'caisse': caisse,
-        'transactions': transactions[:100],  # Limit to 100
-        'status_filter': status_filter,
-        'date_from': date_from,
-        'date_to': date_to
-    }
-    
-    return render(request, 'caisse/transaction_history.html', context)
-
-
 @caisse_required
 @require_http_methods(["POST"])
 def cancel_transaction(request, transaction_id):

@@ -23,7 +23,6 @@ urlpatterns = [
     path('process-transaction/', views.process_transaction, name='process_transaction'),
     path('reject-reservation/', views.reject_reservation, name='reject_reservation'),
     path('modify-pending-order/', views.modify_pending_order, name='modify_pending_order'),
-    path('transactions/', views.transaction_history, name='transaction_history'),
     path('transactions/<int:transaction_id>/cancel/', views.cancel_transaction, name='cancel_transaction'),
     
     # Badge Printing
