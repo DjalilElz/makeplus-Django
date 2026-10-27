@@ -1702,13 +1702,22 @@ def print_badge(request, participant_id):
     img.save(buffer, format='PNG')
     qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
     
+    # Imported lists often put the whole name in "Nom" with no "Prénom"
+    # (SARM 2026) -- falling back to the username for the first line then
+    # printed the name twice ("latifakarek21" / "Latifa Karek"). Print the
+    # full name alone instead; the username only when there's no name at all.
+    first_name = participant.user.first_name.strip()
+    last_name = participant.user.last_name.strip()
+    if not first_name:
+        first_name, last_name = (last_name or participant.user.username), ''
+
     context = {
         'caisse': caisse,
         'participant': participant,
         'event': caisse.event,
         'name': participant.user.get_full_name() or participant.user.username,
-        'first_name': participant.user.first_name or participant.user.username,
-        'last_name': participant.user.last_name,
+        'first_name': first_name,
+        'last_name': last_name,
         'email': participant.user.email,
         'badge_id': participant.badge_id,
         'qr_code_base64': qr_code_base64
