@@ -8,6 +8,10 @@ manual-entry feature (dashboard.views_event_owner.event_owner_new_registration)
 -- an imported participant ends up identical to a manually-entered one:
 same badge/access, same pricing/discount math, same searchability.
 """
+import re
+import unicodedata
+from functools import lru_cache
+
 from django.db import transaction
 from django.utils import timezone
 
@@ -147,7 +151,7 @@ def generate_import_template_workbook(event):
         legend['B1'].font = Font(bold=True)
         for f in select_like_fields:
             note = (
-                'Une ou plusieurs valeurs, séparées par des virgules' if f['type'] == 'checkbox'
+                'Une ou plusieurs valeurs, séparées par des virgules (ou ;)' if f['type'] == 'checkbox'
                 else 'Une seule valeur'
             )
             legend.append([f['label'], note])
@@ -156,7 +160,7 @@ def generate_import_template_workbook(event):
         for c in columns['bloc_columns']:
             note = (
                 'Une seule valeur' if c['select_mode'] == 'single'
-                else 'Une ou plusieurs valeurs, séparées par des virgules'
+                else 'Une ou plusieurs valeurs, séparées par des virgules (ou ;)'
             )
             legend.append([c['header'], note])
             for value in c['valid_values']:
@@ -167,26 +171,99 @@ def generate_import_template_workbook(event):
     return wb
 
 
+# Characters that look alike but differ byte-for-byte between what a
+# form-builder option was typed with and what Excel produces -- each was
+# a real cause of rejected rows (SARM 2026: "Medecine d'urgence" vs the
+# option's "d’urgence", "13 - Tlemcen" vs the option's "13 – Tlemcen").
+_LOOKALIKES = str.maketrans({
+    # apostrophes: right/left single quote, modifier letter, grave, acute
+    **dict.fromkeys(('\u2019', '\u2018', '\u02bc', '\u0060', '\u00b4'), "'"),
+    # dashes: en, em, non-breaking hyphen, minus sign, hyphen
+    **dict.fromkeys(('\u2013', '\u2014', '\u2011', '\u2212', '\u2010'), '-'),
+    # non-breaking spaces
+    **dict.fromkeys(('\u00a0', '\u202f'), ' '),
+})
+# Several values in one cell may be separated by any of these.
+_SEPARATORS_RE = re.compile(r'([,;\n])')
+
+
+@lru_cache(maxsize=8192)
+def _normalize(text):
+    """Comparison key: case, accents, look-alike apostrophes/dashes and
+    spacing don't count -- "Médecine d’urgence" == "medecine d'urgence"."""
+    text = unicodedata.normalize('NFKD', str(text).translate(_LOOKALIKES))
+    text = ''.join(c for c in text if not unicodedata.combining(c))
+    return ' '.join(text.lower().split())
+
+
+def _find_option(piece, valid_values):
+    """The option `piece` designates, in the option's own spelling, or
+    None. Tolerant (see _normalize), plus a final "s" is optional
+    ("Autres" -> "Autre") -- but only when that leaves exactly ONE
+    candidate, so two genuinely different options are never merged."""
+    key = _normalize(piece)
+    if not key:
+        return None
+    for value in valid_values:
+        if _normalize(value) == key:
+            return value
+    singular = _without_final_s(key)
+    candidates = [v for v in valid_values if _without_final_s(_normalize(v)) == singular]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _without_final_s(key):
+    return key[:-1] if key.endswith('s') else key
+
+
 def _match_names(raw_value, valid_values, allow_multiple):
     """
-    Splits a cell's raw text (comma-separated if allow_multiple) and
-    case/whitespace-insensitively matches each piece against
-    valid_values. Returns (matched_values: list, unmatched: list) --
-    matched_values preserves each valid_values' own canonical spelling,
+    Matches a cell's raw text against valid_values (see _find_option for
+    how tolerant that is). Returns (matched_values: list, unmatched: list)
+    -- matched_values are always valid_values' own canonical spelling,
     never the user's raw typed text.
+
+    allow_multiple: the cell may hold several values separated by
+    commas (or ; / line breaks). Option names can themselves contain
+    commas (a workshop titled "Le Kiné, pilote de l'extubation : ...,
+    gestes et suites..."), so the cell isn't blindly split: at each
+    position the LONGEST run of pieces that forms a known option wins,
+    and a piece only stands alone when nothing longer matches.
     """
-    if not raw_value or not str(raw_value).strip():
+    if raw_value is None or not str(raw_value).strip():
         return [], []
-    pieces = [p.strip() for p in str(raw_value).split(',')] if allow_multiple else [str(raw_value).strip()]
-    pieces = [p for p in pieces if p]
-    lookup = {v.lower(): v for v in valid_values}
-    matched, unmatched = [], []
-    for piece in pieces:
-        canonical = lookup.get(piece.lower())
-        if canonical:
-            matched.append(canonical)
+    text = str(raw_value).strip()
+    if not allow_multiple:
+        option = _find_option(text, valid_values)
+        return ([option], []) if option else ([], [text])
+
+    # ['A', ',', ' B, part 2'...]: pieces at even indexes, separators at odd.
+    parts = _SEPARATORS_RE.split(text)
+    pieces, seps = parts[0::2], parts[1::2]
+    matched, unmatched, pending = [], [], []
+    i = 0
+    while i < len(pieces):
+        found = None
+        for j in range(len(pieces), i, -1):
+            candidate = ''.join(pieces[k] + (seps[k] if k < j - 1 else '') for k in range(i, j))
+            found = _find_option(candidate, valid_values)
+            if found:
+                break
+        if found:
+            if pending:
+                unmatched.append(', '.join(pending))
+                pending = []
+            if found not in matched:
+                matched.append(found)
+            i = j
         else:
-            unmatched.append(piece)
+            # Unrecognised pieces next to each other are reported as one
+            # value, so the message shows what was typed, not fragments.
+            if pieces[i].strip():
+                pending.append(pieces[i].strip())
+            i += 1
+    if pending:
+        unmatched.append(', '.join(pending))
     return matched, unmatched
 
 
