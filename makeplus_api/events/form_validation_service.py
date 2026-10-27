@@ -269,6 +269,29 @@ def get_or_create_user_by_email(email, first_name='', last_name=''):
         return User.objects.filter(email=email).first()
 
 
+# Filler written in a name column when the real name wasn't known
+# ("N.A." / "Dr." on imported lists) -- never a real name worth keeping.
+PLACEHOLDER_NAMES = {'', 'n.a.', 'n.a', 'na', 'n/a', 'nc', 'n.c.', '-', '.', 'x', 'dr', 'dr.', 'pr', 'pr.'}
+
+
+def _is_placeholder_name(value):
+    return (value or '').strip().lower() in PLACEHOLDER_NAMES
+
+
+def _fill_placeholder_names(user, first_name, last_name):
+    """Replaces only the placeholder parts of an existing account's name
+    with real values -- a real name already on the account is never
+    overwritten (not even by a placeholder-free but different one)."""
+    changed = []
+    for field, value in (('first_name', first_name), ('last_name', last_name)):
+        if _is_placeholder_name(getattr(user, field)) and not _is_placeholder_name(value):
+            setattr(user, field, value.strip()[:150])
+            changed.append(field)
+    if changed:
+        user.save(update_fields=changed)
+    return user
+
+
 def get_or_create_user_for_manual_registration(email, first_name='', last_name=''):
     """
     Like get_or_create_user_by_email, but for the event owner's own manual
@@ -285,13 +308,27 @@ def get_or_create_user_for_manual_registration(email, first_name='', last_name='
 
     Only treated as the same returning person (reusing their account and
     badge) when BOTH the email and the name already match; a different
-    name under the same email always gets its own account.
+    name under the same email gets its own account -- but only while
+    that email has no account yet: once it does, the database's
+    one-account-per-email rule wins and the existing account is reused
+    (see below).
     """
     existing = User.objects.filter(
         email__iexact=email, first_name__iexact=first_name, last_name__iexact=last_name,
     ).first()
     if existing:
         return existing
+
+    # The database allows only ONE account per non-empty email
+    # (auth_user_email_uniq_idx, events migration 0033), so the separate
+    # account described above can't be created once the email is taken --
+    # trying used to raise, fall through to a lookup that found nothing
+    # and crash the registration on a null user ("null value in column
+    # user_id of relation events_userprofile"). Reuse that account.
+    if email:
+        by_email = User.objects.filter(email__iexact=email).first()
+        if by_email:
+            return _fill_placeholder_names(by_email, first_name, last_name)
 
     username = email.split('@')[0]
     original_username = username
@@ -312,13 +349,9 @@ def get_or_create_user_for_manual_registration(email, first_name='', last_name='
             user.save(update_fields=['password'])
         return user
     except IntegrityError:
-        # Lost a race against a concurrent submission for the same
-        # email+name -- the username loop above already avoided a plain
-        # username collision, so this means someone else just created
-        # the exact same person.
-        return User.objects.filter(
-            email__iexact=email, first_name__iexact=first_name, last_name__iexact=last_name,
-        ).first()
+        # Lost a race against a concurrent submission for the same email
+        # -- the account exists now, whatever name it was created with.
+        return User.objects.filter(email__iexact=email).first()
 
 
 def verify_form_registration(email, form_slug, code, ip_address=None, user_agent=''):
