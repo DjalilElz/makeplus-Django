@@ -907,12 +907,50 @@
             }
         });
         
+        // A scanned badge/e-mail QR code arrives in the search box like
+        // typed text (handheld scanners type it, followed by Enter). Same
+        // formats the controller/exposant scanners accept (events.utils.
+        // resolve_scanned_user): the plain user id, a badge id, or the old
+        // JSON payload. Returns the ONE participant it designates, or null --
+        // a plain substring filter on "4869" would also list user 14869,
+        // badges containing those digits, etc., and select nobody.
+        function participantForScannedCode(raw) {
+            let value = raw.trim();
+            if (!value) return null;
+            if (value.charAt(0) === '{') {
+                try {
+                    const payload = JSON.parse(value);
+                    value = String(payload.user_id || payload.badge_id || '');
+                } catch (e) { return null; }
+            }
+            const items = document.querySelectorAll('.participant-item');
+            const lower = value.toLowerCase();
+            const matches = Array.from(items).filter(function(item) {
+                return /^\d+$/.test(value)
+                    ? item.getAttribute('data-userid') === value
+                    : (item.getAttribute('data-qr') || '').toLowerCase() === lower;
+            });
+            return matches.length === 1 ? matches[0] : null;
+        }
+
         // Real-time search filtering
         document.getElementById('searchInput').addEventListener('input', function() {
+            const scanned = participantForScannedCode(this.value);
+            if (scanned) {
+                document.querySelectorAll('.participant-item').forEach(function(item) {
+                    item.style.display = item === scanned ? '' : 'none';
+                });
+                document.getElementById('participantCount').textContent = 1;
+                if (selectedParticipantId !== scanned.getAttribute('data-id')) {
+                    selectParticipant(scanned);
+                }
+                return;
+            }
+
             const searchText = this.value.toLowerCase().trim();
             const participants = document.querySelectorAll('.participant-item');
             let visibleCount = 0;
-            
+
             participants.forEach(function(participant) {
                 const participantText = participant.getAttribute('data-searchtext');
                 if (searchText === '' || participantText.includes(searchText)) {
