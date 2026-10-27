@@ -294,6 +294,9 @@ def participant_import_process(request, event_id, batch_id):
         # send_pending_confirmation_emails' docstring for why.
         sent_count = send_pending_confirmation_emails(batch, EMAIL_BATCH_SIZE)
         remaining = batch.rows.filter(status='created', confirmation_email_sent=False).count()
-        return JsonResponse({'success': True, 'done': remaining == 0, 'sent_this_batch': sent_count, 'remaining': remaining})
+        # sent_count == 0 with rows remaining: they all failed to send --
+        # stop instead of retrying them in a loop.
+        return JsonResponse({'success': True, 'done': remaining == 0 or sent_count == 0,
+                             'sent_this_batch': sent_count, 'remaining': remaining})
 
     return redirect('dashboard:participant_import_preview', event_id=event.id, batch_id=batch.id)

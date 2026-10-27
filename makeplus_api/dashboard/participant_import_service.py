@@ -509,19 +509,31 @@ def send_pending_confirmation_emails(batch, limit):
     out mid-batch just leaves the remaining rows to be picked up by the
     next call -- never a duplicate email, never a lost one.
 
-    Returns the number of rows processed (attempted) in this call.
+    Returns the number of emails actually sent in this call -- 0 means
+    every row it tried failed, so the caller should stop rather than
+    retry the same rows forever (they stay unsent, for the
+    send_import_confirmation_emails command to pick up later).
     """
-    from events.form_validation_service import send_registration_confirmation_email
+    import logging
+    from events.form_validation_service import send_registration_confirmation_email_sync
 
     rows = list(
         batch.rows.filter(status='created', confirmation_email_sent=False)
         .select_related('participant__user')
         .order_by('row_number')[:limit]
     )
+    sent = 0
     for row in rows:
         if row.participant and row.participant.user:
-            send_registration_confirmation_email(row.participant.user, batch.event)
+            # Sent in this request (it's already its own small batch), so a
+            # row is only marked sent once the email actually went out -- it
+            # used to be handed to a background thread and marked sent
+            # immediately, whatever happened to the email afterwards.
+            success, error = send_registration_confirmation_email_sync(row.participant.user, batch.event)
+            if not success:
+                logging.getLogger(__name__).error("Import confirmation email to %s not sent: %s", row.email, error)
+                continue
         row.confirmation_email_sent = True
-    if rows:
-        ParticipantImportRow.objects.bulk_update(rows, ['confirmation_email_sent'])
-    return len(rows)
+        row.save(update_fields=['confirmation_email_sent'])
+        sent += 1
+    return sent
