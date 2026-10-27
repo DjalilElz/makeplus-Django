@@ -893,11 +893,21 @@ class ParticipantViewSet(viewsets.ModelViewSet):
                     }
                 }, status=status.HTTP_404_NOT_FOUND)
             
-            # Get controller's event assignment
-            controller_assignment = UserEventAssignment.objects.filter(
+            # Get controller's event assignment -- the one for an event this
+            # participant is registered to, if the controller works on
+            # several; a bare .first() picked an arbitrary one, which would
+            # file the scan (and the stats) under the wrong event.
+            controller_assignments = list(UserEventAssignment.objects.filter(
                 user=request.user,
                 is_active=True
-            ).first()
+            ).select_related('event'))
+            participant_event_ids = set(
+                participant.registrations.values_list('event_id', flat=True)
+            )
+            controller_assignment = next(
+                (a for a in controller_assignments if a.event_id in participant_event_ids),
+                controller_assignments[0] if controller_assignments else None,
+            )
             
             if not controller_assignment:
                 return Response({
@@ -1031,6 +1041,13 @@ class ParticipantViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.error(f"[SCAN] ❌ Failed to save scan log: {str(e)}")
                 # Don't fail the request if logging fails
+
+            # A badge scanned at the door means the participant is here --
+            # the same presence flag the caisse sets, which the stats page
+            # and the participant list count. Only ever sets it once, so the
+            # first arrival time is kept.
+            from caisse.views import _mark_participant_present
+            _mark_participant_present(participant, event)
 
             return Response({
                 'status': 'success',
