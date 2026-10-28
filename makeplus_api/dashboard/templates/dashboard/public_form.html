@@ -1238,23 +1238,45 @@
                 // today's real one, every item is disabled -- looking only.
                 function applyPricingRules() {
                     var statusEl = document.querySelector('.bloc-choice[data-is-status="true"]:checked');
+                    // Only the statuses actually offered on this page -- ones
+                    // the organizer hid from the public form aren't rendered.
+                    var shownStatusIds = Array.prototype.map.call(
+                        document.querySelectorAll('.bloc-choice[data-is-status="true"]'),
+                        function (el) { return el.value; }
+                    );
                     isCurrentPeriodActive = (activePeriodId === CURRENT_PERIOD_ID);
 
-                    var baselineRules, statusRules;
+                    var baselineRules, statusRules, rulesByStatus;
                     var previewData = activePeriodId && ALL_PERIODS_RULES[activePeriodId];
                     if (previewData) {
                         baselineRules = previewData.baseline || {};
-                        statusRules = (statusEl && previewData.status[statusEl.value]) || {};
+                        rulesByStatus = previewData.status || {};
                     } else {
                         baselineRules = PERIOD_RULES;
-                        statusRules = (statusEl && STATUS_RULES[statusEl.value]) || {};
+                        rulesByStatus = STATUS_RULES;
+                    }
+                    statusRules = (statusEl && rulesByStatus[statusEl.value]) || {};
+
+                    function visibleFor(rules, targetKey) {
+                        var r = rules[targetKey] || baselineRules[targetKey];
+                        return !r || r.visible;
                     }
 
                     document.querySelectorAll('.bloc-choice[data-target-key]').forEach(function (el) {
                         var targetKey = el.getAttribute('data-target-key');
                         var rule = statusRules[targetKey] || baselineRules[targetKey];
                         var card = document.getElementById('product_' + targetKey);
-                        var visible = !rule || rule.visible;
+                        var visible;
+                        if (statusEl || !shownStatusIds.length || el.getAttribute('data-is-status') === 'true') {
+                            visible = !rule || rule.visible;
+                        } else {
+                            // No status picked yet: hide an item that NONE of
+                            // the offered statuses can choose -- it used to show
+                            // (dimmed) until a status was picked, then vanish.
+                            visible = shownStatusIds.some(function (statusId) {
+                                return visibleFor(rulesByStatus[statusId] || {}, targetKey);
+                            });
+                        }
                         var price = (rule && rule.price !== null && rule.price !== undefined)
                             ? rule.price
                             : el.getAttribute('data-original-price');
@@ -1281,7 +1303,9 @@
                     var note = document.getElementById('period-preview-note');
                     if (note) note.style.display = isCurrentPeriodActive ? 'none' : 'block';
 
-                    lockNonStatusBlocs(!!statusEl);
+                    // Every status hidden from the form: there's no status to
+                    // wait for, so the other blocs must not stay locked.
+                    lockNonStatusBlocs(!!statusEl || !shownStatusIds.length);
                 }
 
                 // Blocs 2+ (Restauration/Workshops/Social Event) stay dimmed
