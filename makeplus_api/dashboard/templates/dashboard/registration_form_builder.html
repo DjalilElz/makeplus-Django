@@ -67,6 +67,25 @@
                                       rows="2" placeholder="Merci pour votre soumission !">{% if form and form.success_message %}{{ form.success_message }}{% else %}Merci pour votre soumission !{% endif %}</textarea>
                         </div>
 
+                        <!-- Email verification -->
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-shield-check me-2"></i>Vérification de l'e-mail</h6>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="requireEmailVerification" name="require_email_verification"
+                                           {% if not form or form.require_email_verification %}checked{% endif %}>
+                                    <label class="form-check-label" for="requireEmailVerification">
+                                        Vérification de l'e-mail par code
+                                    </label>
+                                </div>
+                                <p class="text-muted small mb-0 mt-1">
+                                    Activée : un code à 6 chiffres est envoyé par e-mail et doit être saisi pour terminer l'inscription.
+                                    Désactivée : l'inscription est enregistrée dès l'envoi du formulaire -- l'adresse e-mail n'est
+                                    alors pas vérifiée (une faute de frappe empêche de recevoir la confirmation et le QR code).
+                                </p>
+                            </div>
+                        </div>
+
                         <!-- Countdown Settings -->
                         <div class="card bg-light mb-3">
                             <div class="card-body">

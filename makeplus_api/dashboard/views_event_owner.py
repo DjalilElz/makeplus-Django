@@ -170,61 +170,80 @@ def _period_rules_by_period_json(event, orders):
     return json.dumps(payload)
 
 
+def _phone_field_name(form_config):
+    if not form_config:
+        return None
+    return next((f.get('name') for f in form_config.fields_config if f.get('type') == 'tel'), None)
+
+
+def _free_form_row(submission, event, phone_field_name):
+    """One plain form submission (info-only event, no blocs) shaped like a
+    RegistrationOrder, so the list and its detail popup render both alike."""
+    data = submission.data or {}
+    full_name = (
+        data.get('full_name')
+        or ' '.join(filter(None, [data.get('first_name', ''), data.get('last_name', '')]))
+        or submission.email
+        or ''
+    )
+    return SimpleNamespace(
+        id=submission.id,
+        event=event,
+        period=None,
+        period_id=None,
+        full_name=full_name,
+        email=submission.email or data.get('email') or '',
+        phone=(data.get(phone_field_name, '') if phone_field_name else ''),
+        items_snapshot=[],
+        total_before_reduction=Decimal('0'),
+        total_after_reduction=Decimal('0'),
+        total_discount_percent=Decimal('0'),
+        status='pending',
+        status_label='Enregistré',
+        admin_notes=submission.admin_notes,
+        reviewed_by=None,
+        reviewed_by_caisse=None,
+        reviewed_at=None,
+        payment_link_sent_at=None,
+        receipt_file=None,
+        form_submission=submission,
+        created_at=submission.submitted_at,
+        duplicate_count=0,
+        is_duplicate_email=False,
+        bloc_names={'status': '—', 'restauration': '—', 'workshops': '—', 'social_event': '—'},
+        participant_status='—',
+        blocs_editor_selection_json='{"items": [], "sessions": []}',
+        blocs_editor_period_key='',
+        blocs_discount_percent=Decimal('0'),
+        period_discount_percent=Decimal('0'),
+    )
+
+
 def _free_form_submission_rows(event):
     """Expose free-form event submissions as lightweight rows for info-only events."""
     from .models_form import FormSubmission
 
-    rows = []
     form_config = event.custom_forms.first()
     if not form_config:
-        return rows
+        return []
+    phone_field_name = _phone_field_name(form_config)
+    return [
+        _free_form_row(submission, event, phone_field_name)
+        for submission in FormSubmission.objects.filter(form__event=event).order_by('-submitted_at')
+    ]
 
-    phone_field_name = next(
-        (f.get('name') for f in form_config.fields_config if f.get('type') == 'tel'),
-        None,
+
+def _decorate_order_row(order, phone_field_name, duplicate_count):
+    """Display attributes the list row and the detail popup both read."""
+    order.bloc_names = _bloc_names(order)
+    order.participant_status = order.bloc_names['status']
+    order.status_label = STATUS_LABELS.get(order.status, order.status)
+    order.phone = (
+        order.form_submission.data.get(phone_field_name, '')
+        if order.form_submission and phone_field_name else ''
     )
-
-    for submission in FormSubmission.objects.filter(form__event=event).order_by('-submitted_at'):
-        data = submission.data or {}
-        full_name = (
-            data.get('full_name')
-            or ' '.join(filter(None, [data.get('first_name', ''), data.get('last_name', '')]))
-            or submission.email
-            or ''
-        )
-        row = SimpleNamespace(
-            id=submission.id,
-            event=event,
-            period=None,
-            period_id=None,
-            full_name=full_name,
-            email=submission.email or data.get('email') or '',
-            phone=(data.get(phone_field_name, '') if phone_field_name else ''),
-            items_snapshot=[],
-            total_before_reduction=Decimal('0'),
-            total_after_reduction=Decimal('0'),
-            total_discount_percent=Decimal('0'),
-            status='pending',
-            status_label='Enregistré',
-            admin_notes=submission.admin_notes,
-            reviewed_by=None,
-            reviewed_by_caisse=None,
-            reviewed_at=None,
-            payment_link_sent_at=None,
-            receipt_file=None,
-            form_submission=submission,
-            created_at=submission.submitted_at,
-            duplicate_count=0,
-            is_duplicate_email=False,
-            bloc_names={'status': '—', 'restauration': '—', 'workshops': '—', 'social_event': '—'},
-            participant_status='—',
-            blocs_editor_selection_json='{"items": [], "sessions": []}',
-            blocs_editor_period_key='',
-            blocs_discount_percent=Decimal('0'),
-            period_discount_percent=Decimal('0'),
-        )
-        rows.append(row)
-    return rows
+    order.duplicate_count = duplicate_count
+    order.is_duplicate_email = duplicate_count > 1
 
 
 @never_cache
@@ -250,9 +269,14 @@ def event_owner_submissions(request, event_id):
     # template; without eager-loading them here every order fires two extra
     # queries, and on a large event that N+1 blows past the gunicorn worker
     # timeout (seen in prod as WORKER TIMEOUT -> 500 on this page).
+    # form_submission is joined for its answers (the phone column); its
+    # form is NOT -- joining it copied the whole form definition into every
+    # row (1.3 MB on SARM's 779 orders, several seconds per page load over
+    # the remote database, paid right after every manual registration's
+    # redirect here).
     all_orders = list(
         RegistrationOrder.objects.filter(event=event).select_related(
-            'period', 'form_submission__form',
+            'period', 'form_submission',
             'reviewed_by', 'reviewed_by_caisse',
         ).order_by('-created_at')
     )
@@ -311,15 +335,7 @@ def event_owner_submissions(request, event_id):
     status_counts = {code: 0 for code in STATUS_LABELS}
     item_counts = {b: {} for b in BLOC_KEYS}
     for order in orders:
-        order.bloc_names = _bloc_names(order)
-        order.participant_status = order.bloc_names['status']
-        order.status_label = STATUS_LABELS.get(order.status, order.status)
-        order.phone = (
-            order.form_submission.data.get(phone_field_name, '')
-            if order.form_submission and phone_field_name else ''
-        )
-        order.duplicate_count = email_counts.get((order.email or '').strip().lower(), 0)
-        order.is_duplicate_email = order.duplicate_count > 1
+        _decorate_order_row(order, phone_field_name, email_counts.get((order.email or '').strip().lower(), 0))
         order.blocs_editor_selection_json = _blocs_editor_selection_json(order)
         order.blocs_editor_period_key = str(order.period_id) if order.period_id else ''
         total_revenue += order.total_after_reduction
@@ -390,6 +406,46 @@ def event_owner_submissions(request, event_id):
         'show_events_link': show_events_link,
     }
     return render(request, 'dashboard/event_owner/submissions.html', context)
+
+
+@never_cache
+@login_required
+def registration_order_detail(request, order_id):
+    """
+    The detail popup of ONE row of the submissions list, fetched when its
+    eye button is clicked. The list used to render every row's popup up
+    front -- 7 MB of HTML on an event with ~800 registrations, the main
+    reason that page (and the redirect to it after each manual
+    registration) took several seconds. Also serves the plain form
+    submission rows of an info-only event (see _free_form_row).
+    """
+    from .models_form import FormSubmission
+
+    order = (
+        RegistrationOrder.objects.select_related('event', 'period', 'form_submission', 'reviewed_by', 'reviewed_by_caisse')
+        .filter(id=order_id).first()
+    )
+    if order is not None:
+        event = order.event
+        if not _can_access_event_orders(request.user, event):
+            raise PermissionDenied("You do not have access to this event's submissions.")
+        duplicate_count = (
+            RegistrationOrder.objects.filter(event=event, email__iexact=(order.email or '').strip()).count()
+            if order.email else 0
+        )
+        _decorate_order_row(order, _phone_field_name(event.custom_forms.first()), duplicate_count)
+    else:
+        submission = get_object_or_404(FormSubmission.objects.select_related('form__event'), id=order_id)
+        event = submission.form.event
+        if event is None or not _can_access_event_orders(request.user, event):
+            raise PermissionDenied("You do not have access to this event's submissions.")
+        order = _free_form_row(submission, event, _phone_field_name(submission.form))
+        if order.email:
+            order.duplicate_count = FormSubmission.objects.filter(
+                form__event=event, email__iexact=order.email.strip()).count()
+            order.is_duplicate_email = order.duplicate_count > 1
+
+    return render(request, 'dashboard/event_owner/_order_detail_modal.html', {'order': order})
 
 
 @never_cache
@@ -527,7 +583,11 @@ def event_owner_new_registration(request, event_id):
             form_config.increment_submission_count()
             send_registration_confirmation_email(user, event)
             messages.success(request, f"Inscription créée pour {full_name or email}.")
-            return _redirect_to_submissions(request, event.id)
+            # Back to this (light) form, ready for the next person -- the
+            # submissions list renders every registration of the event
+            # (7 MB of HTML on SARM), which made each manual registration
+            # feel like it took many seconds to save.
+            return redirect('dashboard:event_owner_new_registration', event_id=event.id)
 
     context = {
         'event': event,
@@ -570,7 +630,7 @@ def event_owner_export_excel(request, event_id):
 
     orders = list(
         RegistrationOrder.objects.filter(event=event).select_related(
-            'period', 'form_submission__form',
+            'period', 'form_submission',  # not its form -- see event_owner_submissions
         ).order_by('-created_at')
     )
 

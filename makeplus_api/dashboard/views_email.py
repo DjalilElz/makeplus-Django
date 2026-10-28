@@ -986,6 +986,7 @@ def registration_form_create(request):
             fields_config=fields_config,
             success_message=success_message,
             send_confirmation_email=request.POST.get('send_confirmation_email') == 'on',
+            require_email_verification=request.POST.get('require_email_verification') == 'on',
             countdown_enabled=countdown_enabled,
             countdown_date=countdown_date,
             countdown_title=countdown_title,
@@ -1076,6 +1077,7 @@ def registration_form_edit(request, form_id):
         
         form.success_message = request.POST.get('success_message', 'Thank you for your registration!')
         form.is_active = request.POST.get('is_active') == 'on'
+        form.require_email_verification = request.POST.get('require_email_verification') == 'on'
         form.countdown_enabled = request.POST.get('countdown_enabled') == 'on'
         form.countdown_date = request.POST.get('countdown_date') or None
         form.countdown_title = request.POST.get('countdown_title', 'Event Starts In')

@@ -182,6 +182,12 @@
 
     <div class="page-wrapper">
         <div class="content-card">
+            {% for message in messages %}
+            <div class="alert {% if message.tags == 'error' %}alert-danger{% elif message.tags == 'success' %}alert-success{% else %}alert-info{% endif %} d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span>{% if message.tags == 'success' %}<i class="bi bi-check-circle"></i> {% endif %}{{ message }}</span>
+                <a href="{% url 'dashboard:event_owner_submissions' event.id %}" class="btn btn-sm btn-outline-success">Voir les inscriptions</a>
+            </div>
+            {% endfor %}
             {% if errors %}
             <div class="alert alert-danger">
                 <ul class="mb-0">
@@ -255,7 +261,7 @@
                                        data-bloc="{{ bloc.key }}" data-name="{{ item.name }}" data-target-key="item_{{ item.id }}"
                                        {% if bloc.key == 'status' %}data-is-status="true"{% endif %}>
                                 <span class="product-main">
-                                    <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}</span>
+                                    <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}{% if not item.show_on_public_form %}<span class="product-inactive-badge">Masqué du formulaire public</span>{% endif %}</span>
                                     {% if item.description %}<span class="product-description d-block">{{ item.description }}</span>{% endif %}
                                 </span>
                                 <span class="product-price">
@@ -314,7 +320,7 @@
                                        data-price="{{ item.price }}" data-original-price="{{ item.price }}"
                                        data-bloc="{{ bloc.key }}" data-name="{{ item.name }}" data-target-key="item_{{ item.id }}">
                                 <span class="product-main">
-                                    <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}</span>
+                                    <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}{% if not item.show_on_public_form %}<span class="product-inactive-badge">Masqué du formulaire public</span>{% endif %}</span>
                                     {% if item.description %}<span class="product-description d-block">{{ item.description }}</span>{% endif %}
                                 </span>
                                 <span class="product-price">

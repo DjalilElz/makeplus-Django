@@ -612,7 +612,13 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
     finalize_paid_registration() can build the actual FormSubmission +
     RegistrationOrder once the code is confirmed.
 
-    Returns (ok: bool, errors: list, wait_seconds: int or None).
+    When the form has require_email_verification turned off, nothing is
+    staged: the registration is completed right away instead (see
+    register_without_verification) and its success message returned.
+
+    Returns (ok: bool, errors: list, wait_seconds: int or None,
+             completed_message: str or None -- set only when the
+             registration was completed without a code).
     """
     config = bloc_context['config']
     errors = []
@@ -639,7 +645,7 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
         errors.append("L'e-mail est requis.")
 
     if errors:
-        return False, errors, None
+        return False, errors, None, None
 
     # A fully free selection (e.g. a 0-priced Status) doesn't need a bank
     # receipt or the accept-conditions checkbox -- there's no payment to
@@ -661,7 +667,7 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
             errors.append("Veuillez téléverser votre quittance de banque.")
 
     if errors:
-        return False, errors, None
+        return False, errors, None, None
 
     receipt_path = ''
     if receipt:
@@ -677,6 +683,17 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
         'full_name': full_name,
     }
 
+    if not form_config.require_email_verification:
+        from events.form_validation_service import register_without_verification
+        success, _participant, message = register_without_verification(
+            email, form_config, staged_data,
+            ip_address=_client_ip(request),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
+        )
+        if not success:
+            return False, [message], None, None
+        return True, [], None, message
+
     from events.form_validation_service import send_form_validation_code
 
     success, message, wait_seconds = send_form_validation_code(
@@ -687,8 +704,8 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
         user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
     )
     if not success:
-        return False, [message], wait_seconds
-    return True, [], None
+        return False, [message], wait_seconds, None
+    return True, [], None, None
 
 
 def finalize_paid_registration(verification, form_config, user):
@@ -709,8 +726,15 @@ def finalize_paid_registration(verification, form_config, user):
     from events.form_validation_service import create_participant_for_event
 
     event = form_config.event
-    bloc_context = get_public_bloc_context(event)
-    if not bloc_context:
+    # Only the event's bloc settings are needed here -- not the whole public
+    # catalog (every bloc, workshop and serialized price rule) that
+    # get_public_bloc_context builds, which cost several extra ~100 ms
+    # round trips on every confirmed registration.
+    try:
+        config = event.bloc_config
+    except EventBlocConfig.DoesNotExist:
+        config = None
+    if config is None or not config.any_bloc_visible():
         return False, "Les options d'inscription de cet événement ne sont plus disponibles."
 
     meta = verification.form_data.get('__paid_meta__') or {}
@@ -718,7 +742,7 @@ def finalize_paid_registration(verification, form_config, user):
 
     result = compute_order(
         event=event,
-        config=bloc_context['config'],
+        config=config,
         selected_item_ids=meta.get('selected_item_ids', []),
         selected_session_ids=meta.get('selected_session_ids', []),
         on_date=timezone.now().date(),
@@ -727,7 +751,7 @@ def finalize_paid_registration(verification, form_config, user):
     # A fully free selection doesn't carry a receipt, and neither does an
     # event with payment proof turned off entirely -- only require one when
     # there was actually something to pay for AND the event asks for proof.
-    proof_required = bloc_context['config'].require_payment_proof and result['total_after_reduction'] > 0
+    proof_required = config.require_payment_proof and result['total_after_reduction'] > 0
     if proof_required and not receipt_path:
         return False, "Fichier de quittance manquant. Veuillez soumettre à nouveau votre inscription."
 

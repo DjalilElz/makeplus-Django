@@ -613,7 +613,7 @@
                             </td>
                             <td><small>{{ order.created_at|date:"d M Y H:i" }}</small></td>
                             <td class="text-nowrap">
-                                <button type="button" class="btn-view-row" title="Voir les détails" data-bs-toggle="modal" data-bs-target="#order-{{ order.id }}">
+                                <button type="button" class="btn-view-row" title="Voir les détails" data-detail-url="{% url 'dashboard:registration_order_detail' order.id %}" onclick="openOrderDetail(this)">
                                     <i class="bi bi-eye"></i>
                                 </button>
                                 {% if bloc_context.has_blocs %}
@@ -666,104 +666,7 @@
     instead of behind it: exactly the "dimmed, can't click anything"
     symptom.
     {% endcomment %}
-    {% for order in orders %}
-    <div class="modal fade" id="order-{{ order.id }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content" style="border-radius: 16px; border: none;">
-                <div class="modal-header" style="border-bottom: 1px solid var(--border-light);">
-                    <h5 class="modal-title" style="font-family: var(--font-serif);">{{ order.full_name|default:order.email }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6 detail-row">
-                            <div class="detail-label">E-mail</div>
-                            <div>
-                                {{ order.email|default:"—" }}
-                                {% if order.is_duplicate_email %}
-                                <span class="badge bg-warning text-dark" title="Cette adresse e-mail a soumis {{ order.duplicate_count }} inscriptions pour cet événement">
-                                    <i class="bi bi-exclamation-triangle"></i> Doublon ({{ order.duplicate_count }})
-                                </span>
-                                {% endif %}
-                            </div>
-                        </div>
-                        <div class="col-md-6 detail-row">
-                            <div class="detail-label">Téléphone</div>
-                            <div>{{ order.phone|default:"—" }}</div>
-                        </div>
-                        <div class="col-md-6 detail-row">
-                            <div class="detail-label">Statut choisi</div>
-                            <div>{{ order.bloc_names.status }}</div>
-                        </div>
-                        <div class="col-md-6 detail-row">
-                            <div class="detail-label">Période</div>
-                            <div>{{ order.period.name|default:"—" }}</div>
-                        </div>
-                        <div class="col-md-6 detail-row">
-                            <div class="detail-label">Restauration</div>
-                            <div>{{ order.bloc_names.restauration }}</div>
-                        </div>
-                        <div class="col-md-6 detail-row">
-                            <div class="detail-label">Ateliers</div>
-                            <div>{{ order.bloc_names.workshops }}</div>
-                        </div>
-                        <div class="col-md-6 detail-row">
-                            <div class="detail-label">Événement social</div>
-                            <div>{{ order.bloc_names.social_event }}</div>
-                        </div>
-                    </div>
-
-                    <div class="detail-row">
-                        <div class="detail-label">Articles</div>
-                        <ul class="items-list mt-1">
-                            {% for it in order.items_snapshot %}
-                            <li>{{ it.name }} — {{ it.price }} DZD</li>
-                            {% empty %}
-                            <li class="text-muted">Aucun article</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-
-                    <hr>
-                    <p class="mb-1">Total avant réduction : <strong>{{ order.total_before_reduction }} DZD</strong></p>
-                    {% if order.total_discount_percent > 0 %}
-                    <p class="mb-1">Réduction : blocs {{ order.blocs_discount_percent }}% = <strong>{{ order.total_discount_percent }}%</strong></p>
-                    {% endif %}
-                    <p class="mb-3">Total à payer : <strong>{{ order.total_after_reduction }} DZD</strong></p>
-
-                    {% if order.receipt_file %}
-                    <p><a href="{{ order.receipt_file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark"></i> Ouvrir le reçu bancaire</a></p>
-                    {% endif %}
-
-                    <hr>
-                    <p class="mb-1">
-                        <strong>Statut de l'inscription :</strong>
-                        <span class="status-select status-{{ order.status }}">{{ order.status_label }}</span>
-                    </p>
-                    {% if order.reviewed_by_caisse %}
-                    <p class="mb-1 text-muted"><small>Par {{ order.reviewed_by_caisse.name }} le {{ order.reviewed_at|date:"d M Y H:i" }}</small></p>
-                    {% elif order.reviewed_by %}
-                    <p class="mb-1 text-muted"><small>Par {{ order.reviewed_by.get_full_name|default:order.reviewed_by.email }} le {{ order.reviewed_at|date:"d M Y H:i" }}</small></p>
-                    {% endif %}
-                    {% if order.admin_notes %}
-                    <p class="mb-1"><strong>Notes :</strong> {{ order.admin_notes }}</p>
-                    {% endif %}
-                    <p class="mb-0 text-muted small">Soumis le {{ order.created_at|date:"d M Y H:i" }}</p>
-                </div>
-                <div class="modal-footer flex-wrap" style="border-top: 1px solid var(--border-light);">
-                    <small class="payment-link-indicator text-success me-auto"
-                           style="display:{% if order.payment_link_sent_at %}inline{% else %}none{% endif %};">{% if order.payment_link_sent_at %}Mail de préinscription envoyé le {{ order.payment_link_sent_at|date:"d M Y H:i" }}.{% endif %}</small>
-                    <button type="button" class="btn btn-outline-elegant btn-sm" data-bs-dismiss="modal">Fermer</button>
-                    <button type="button" class="btn btn-elegant btn-sm" onclick="downloadOrderPdf('order-{{ order.id }}', '{{ order.full_name|default:order.email|escapejs }}')"><i class="bi bi-file-earmark-pdf"></i> Télécharger en PDF</button>
-                    <button type="button" class="btn btn-elegant btn-sm"
-                            onclick="sendPaymentLink(this, '{% url 'dashboard:send_payment_link_email' order.id %}')">
-                        <i class="bi bi-credit-card"></i> Envoyer le mail de préinscription
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
+    {# Each row's detail popup is fetched when opened -- see openOrderDetail below. #}
 
     {% if bloc_context.has_blocs %}
     {% comment %}
@@ -813,7 +716,7 @@
                                            data-target-key="item_{{ item.id }}"
                                            {% if bloc.key == 'status' %}data-is-status="true"{% endif %}>
                                     <span class="product-main">
-                                        <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}</span>
+                                        <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}{% if not item.show_on_public_form %}<span class="product-inactive-badge">Masqué du formulaire public</span>{% endif %}</span>
                                         {% if item.description %}<span class="product-description d-block">{{ item.description }}</span>{% endif %}
                                     </span>
                                     <span class="product-price">
@@ -880,7 +783,7 @@
                                            data-name="{{ item.name }}"
                                            data-target-key="item_{{ item.id }}">
                                     <span class="product-main">
-                                        <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}</span>
+                                        <span class="product-name d-block">{{ item.name }}{% if not item.is_active %}<span class="product-inactive-badge">Désactivé</span>{% endif %}{% if not item.show_on_public_form %}<span class="product-inactive-badge">Masqué du formulaire public</span>{% endif %}</span>
                                         {% if item.description %}<span class="product-description d-block">{{ item.description }}</span>{% endif %}
                                     </span>
                                     <span class="product-price">
@@ -1167,6 +1070,40 @@
             }).finally(function () {
                 button.disabled = false;
             });
+        }
+
+        // Fetches one row's detail popup when its eye button is clicked (the
+        // list no longer renders all of them up front -- that made the page
+        // 7 MB on a large event). Always fetched fresh, so it reflects any
+        // status/notes change made since the page loaded.
+        function openOrderDetail(button) {
+            var icon = button.querySelector('i');
+            button.disabled = true;
+            if (icon) icon.className = 'spinner-border spinner-border-sm';
+            fetch(button.getAttribute('data-detail-url'), { credentials: 'same-origin' })
+                .then(function (resp) {
+                    if (!resp.ok) throw new Error(resp.status);
+                    return resp.text();
+                })
+                .then(function (html) {
+                    var holder = document.createElement('div');
+                    holder.innerHTML = html.trim();
+                    var modal = holder.querySelector('.modal');
+                    var stale = document.getElementById(modal.id);
+                    if (stale) stale.remove();
+                    // Appended to <body>, same reason as the other modals here
+                    // (see the comment above them).
+                    document.body.appendChild(modal);
+                    modal.addEventListener('hidden.bs.modal', function () { modal.remove(); });
+                    bootstrap.Modal.getOrCreateInstance(modal).show();
+                })
+                .catch(function () {
+                    alert("Impossible d'afficher le détail de cette inscription. Veuillez réessayer.");
+                })
+                .finally(function () {
+                    button.disabled = false;
+                    if (icon) icon.className = 'bi bi-eye';
+                });
         }
     </script>
 

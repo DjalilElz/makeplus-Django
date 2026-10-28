@@ -123,7 +123,12 @@ def create_participant_for_event(user, event):
         participant = Participant.objects.create(
             user=user, badge_id=qr_data['badge_id'], qr_code_data=qr_data, role='participant',
         )
-    ParticipantEventRegistration.objects.get_or_create(participant=participant, event=event)
+        # Brand-new participant: they can't have a registration yet, so a
+        # plain insert (1 round trip) instead of get_or_create's
+        # select + savepoint + insert + release (4).
+        ParticipantEventRegistration.objects.create(participant=participant, event=event)
+    else:
+        ParticipantEventRegistration.objects.get_or_create(participant=participant, event=event)
     UserEventAssignment.objects.get_or_create(user=user, event=event, defaults={'role': 'participant'})
     return participant
 
@@ -323,6 +328,16 @@ def send_registration_confirmation_email_sync(user, event):
     return success, error
 
 
+def _create_passwordless_user(username, email, first_name, last_name):
+    """A placeholder account (no usable password until they sign up in the
+    app), saved in ONE insert -- creating it and then setting the unusable
+    password was two round trips."""
+    user = User(username=username, email=email, first_name=first_name or '', last_name=last_name or '')
+    user.set_unusable_password()
+    user.save()
+    return user
+
+
 def get_or_create_user_by_email(email, first_name='', last_name=''):
     """
     Get the account for this email, or create a placeholder one (unusable
@@ -345,14 +360,7 @@ def get_or_create_user_by_email(email, first_name='', last_name=''):
 
     try:
         with transaction.atomic():
-            user = User.objects.create(
-                username=username,
-                email=email,
-                first_name=first_name or '',
-                last_name=last_name or '',
-            )
-            user.set_unusable_password()
-            user.save(update_fields=['password'])
+            user = _create_passwordless_user(username, email, first_name, last_name)
         return user
     except IntegrityError:
         # Lost a race against a concurrent submission/signup for the same email.
@@ -403,11 +411,13 @@ def get_or_create_user_for_manual_registration(email, first_name='', last_name='
     one-account-per-email rule wins and the existing account is reused
     (see below).
     """
-    existing = User.objects.filter(
-        email__iexact=email, first_name__iexact=first_name, last_name__iexact=last_name,
-    ).first()
-    if existing:
-        return existing
+    # One query for every account under this email (name compared here
+    # rather than in a second query -- each is a ~100 ms round trip).
+    same_email = list(User.objects.filter(email__iexact=email)) if email else []
+    for candidate in same_email:
+        if (candidate.first_name.lower() == (first_name or '').lower()
+                and candidate.last_name.lower() == (last_name or '').lower()):
+            return candidate
 
     # The database allows only ONE account per non-empty email
     # (auth_user_email_uniq_idx, events migration 0033), so the separate
@@ -415,10 +425,8 @@ def get_or_create_user_for_manual_registration(email, first_name='', last_name='
     # trying used to raise, fall through to a lookup that found nothing
     # and crash the registration on a null user ("null value in column
     # user_id of relation events_userprofile"). Reuse that account.
-    if email:
-        by_email = User.objects.filter(email__iexact=email).first()
-        if by_email:
-            return _fill_placeholder_names(by_email, first_name, last_name)
+    if same_email:
+        return _fill_placeholder_names(same_email[0], first_name, last_name)
 
     username = email.split('@')[0]
     original_username = username
@@ -429,14 +437,7 @@ def get_or_create_user_for_manual_registration(email, first_name='', last_name='
 
     try:
         with transaction.atomic():
-            user = User.objects.create(
-                username=username,
-                email=email,
-                first_name=first_name or '',
-                last_name=last_name or '',
-            )
-            user.set_unusable_password()
-            user.save(update_fields=['password'])
+            user = _create_passwordless_user(username, email, first_name, last_name)
         return user
     except IntegrityError:
         # Lost a race against a concurrent submission for the same email
@@ -444,7 +445,7 @@ def get_or_create_user_for_manual_registration(email, first_name='', last_name='
         return User.objects.filter(email__iexact=email).first()
 
 
-def verify_form_registration(email, form_slug, code, ip_address=None, user_agent=''):
+def verify_form_registration(email, form_slug, code, ip_address=None, user_agent='', form=None):
     """
     Verify form registration code and create participant record
 
@@ -454,15 +455,19 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
         code: 6-digit verification code
         ip_address: IP address of request
         user_agent: User agent string
+        form: the FormConfiguration, when the caller already has it loaded
+            (saves looking it up again by slug)
 
     Returns:
         tuple: (success: bool, participant: Participant or None, message: str)
     """
-    # Get form
-    try:
-        form = FormConfiguration.objects.get(slug=form_slug)
-    except FormConfiguration.DoesNotExist:
-        return False, None, "Formulaire introuvable"
+    # Every query here is a round trip to a remote database (~100 ms in
+    # production), so the form and its event are loaded together, once.
+    if form is None:
+        try:
+            form = FormConfiguration.objects.select_related('event').get(slug=form_slug)
+        except FormConfiguration.DoesNotExist:
+            return False, None, "Formulaire introuvable"
 
     # Find valid verification code
     code_hash = FormRegistrationVerification.hash_code(code)
@@ -531,6 +536,26 @@ def verify_form_registration(email, form_slug, code, ip_address=None, user_agent
 
     except Exception as e:
         return False, None, f"Erreur lors de la finalisation de l'inscription : {str(e)}"
+
+
+def register_without_verification(email, form, form_data, ip_address=None, user_agent=''):
+    """
+    For a form with require_email_verification turned off: completes the
+    registration right away, with no code emailed. Creates the same
+    verification row the code flow would and confirms it on the spot, so
+    the registration goes through verify_form_registration exactly like a
+    verified one (free and paid/blocs alike) -- no second copy of that
+    logic to drift from it.
+
+    Returns (success: bool, participant: Participant or None, message: str).
+    """
+    if not form.is_active:
+        return False, None, "Ce formulaire n'accepte plus de soumissions"
+    code, _verification = FormRegistrationVerification.create_verification(
+        email=email, form=form, form_data=form_data,
+        ip_address=ip_address, user_agent=user_agent,
+    )
+    return verify_form_registration(email, form.slug, code, ip_address=ip_address, user_agent=user_agent, form=form)
 
 
 def resend_form_validation_code(email, form_slug, form_data=None, ip_address=None, user_agent=''):

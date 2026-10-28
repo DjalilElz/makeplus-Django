@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 
 from django.contrib.auth.models import User
@@ -2274,3 +2275,74 @@ class BlocItemPublicVisibilityTests(TestCase):
         response = self.client.get(reverse('dashboard:blocs_config', args=[self.event.id]))
         self.assertContains(response, "Masqué de la page d'inscription")
         self.assertContains(response, 'Tout masquer')
+
+
+class FormEmailVerificationToggleTests(TestCase):
+    """FormConfiguration.require_email_verification: off registers on
+    submit, without the emailed 6-digit code."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin', password='x', is_staff=True, is_superuser=True)
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        self.form = FormConfiguration.objects.create(
+            name="Reg", slug="reg", event=self.event, created_by=self.admin,
+            fields_config=[
+                {'name': 'first_name', 'label': 'First', 'type': 'text', 'required': True},
+                {'name': 'last_name', 'label': 'Last', 'type': 'text', 'required': True},
+                {'name': 'email', 'label': 'Email', 'type': 'email', 'required': True},
+            ],
+        )
+        self.url = reverse('public_form', args=[self.form.slug])
+        patcher = patch('events.form_validation_service.send_registration_confirmation_email')
+        self.confirmation_email = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _submit(self, **extra):
+        data = {'first_name': 'Karim', 'last_name': 'B', 'email': 'k@example.com'}
+        data.update(extra)
+        return self.client.post(self.url, data)
+
+    def test_default_still_asks_for_the_code(self):
+        response = self._submit()
+        self.assertContains(response, 'code de vérification')
+        self.assertFalse(FormSubmission.objects.filter(form=self.form).exists())
+
+    def test_free_registration_without_code(self):
+        self.form.require_email_verification = False
+        self.form.save()
+        response = self._submit()
+        self.assertNotContains(response, 'Entrez le code de vérification')
+        self.assertTrue(FormSubmission.objects.filter(form=self.form, email='k@example.com').exists())
+        user = User.objects.get(email='k@example.com')
+        self.assertTrue(Participant.objects.filter(user=user).exists())
+        self.assertFalse(FormRegistrationVerification.objects.filter(email='k@example.com', is_used=False).exists())
+        self.confirmation_email.assert_called_once()
+
+    def test_paid_registration_without_code(self):
+        self.form.require_email_verification = False
+        self.form.save()
+        EventBlocConfig.objects.create(event=self.event, show_status=True)
+        status = BlocItem.objects.create(event=self.event, bloc='status', name='Adherent', price=Decimal('1000'))
+        response = self._submit(items_status=str(status.id), accept_conditions='1',
+                                receipt_file=_Upload('r.pdf', b'%PDF-1.4', content_type='application/pdf'))
+        self.assertNotContains(response, 'Entrez le code de vérification')
+        order = RegistrationOrder.objects.get(event=self.event, email='k@example.com')
+        self.assertEqual(order.status, 'pending')
+        self.assertEqual(order.total_after_reduction, Decimal('1000.00'))
+        self.confirmation_email.assert_called_once()
+
+    def test_form_builder_saves_the_switch(self):
+        self.client.force_login(self.admin)
+        url = reverse('dashboard:registration_form_edit', args=[self.form.id])
+        self.assertContains(self.client.get(url), 'name="require_email_verification"')
+        post = {'name': 'Reg', 'event_id': str(self.event.id), 'slug': 'reg',
+                'fields_config': json.dumps(self.form.fields_config), 'is_active': 'on'}
+        self.client.post(url, post)
+        self.form.refresh_from_db()
+        self.assertFalse(self.form.require_email_verification)
+        self.client.post(url, {**post, 'require_email_verification': 'on'})
+        self.form.refresh_from_db()
+        self.assertTrue(self.form.require_email_verification)

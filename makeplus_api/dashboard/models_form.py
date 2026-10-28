@@ -32,6 +32,9 @@ class FormConfiguration(models.Model):
     is_active = models.BooleanField(default=True)
     allow_multiple_submissions = models.BooleanField(default=False)
     show_on_event_page = models.BooleanField(default=True)
+    # When off, the public registration is created as soon as the form is
+    # submitted, without the 6-digit code emailed to confirm the address.
+    require_email_verification = models.BooleanField(default=True)
     
     # Success message after submission
     success_message = models.TextField(default="Thank you for your registration! We will contact you soon.")

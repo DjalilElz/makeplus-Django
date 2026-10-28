@@ -233,13 +233,6 @@ class UserProfile(models.Model):
         they've already confirmed (e.g. via Participant.DoesNotExist)
         that this user has no Participant row.
         """
-        profile, created = UserProfile.objects.get_or_create(user=user)
-        if not created and profile.qr_code_data and profile.qr_code_data.get('badge_id'):
-            # A profile with no Participant can still pre-exist (e.g. an
-            # earlier placeholder account) -- reuse its badge_id rather
-            # than mint a second one for the same user.
-            return profile.qr_code_data
-
         qr_data = {
             "user_id": user.id,
             "badge_id": f"USER-{user.id}-{uuid.uuid4().hex[:8].upper()}",
@@ -248,6 +241,16 @@ class UserProfile(models.Model):
             "last_name": user.last_name,
             "full_name": user.get_full_name() or user.email,
         }
+        # A new profile is created WITH its QR data (one insert), instead of
+        # created empty and then updated (two round trips).
+        profile, created = UserProfile.objects.get_or_create(user=user, defaults={'qr_code_data': qr_data})
+        if created:
+            return qr_data
+        if profile.qr_code_data and profile.qr_code_data.get('badge_id'):
+            # A profile with no Participant can still pre-exist (e.g. an
+            # earlier placeholder account) -- reuse its badge_id rather
+            # than mint a second one for the same user.
+            return profile.qr_code_data
         profile.qr_code_data = qr_data
         profile.save(update_fields=['qr_code_data'])
         return qr_data

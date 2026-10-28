@@ -2415,7 +2415,7 @@ def public_form_view(request, slug):
     import secrets
     
     # Get form regardless of active status
-    form_config = get_object_or_404(FormConfiguration, slug=slug)
+    form_config = get_object_or_404(FormConfiguration.objects.select_related('event'), slug=slug)
     
     # Debug logging
     print(f"DEBUG: Form '{form_config.name}' is_active = {form_config.is_active}")
@@ -2495,7 +2495,8 @@ def public_form_view(request, slug):
                     form_slug=form_config.slug,
                     code=verification_code,
                     ip_address=ip_address,
-                    user_agent=user_agent
+                    user_agent=user_agent,
+                    form=form_config,
                 )
                 
                 if success:
@@ -2601,9 +2602,18 @@ def public_form_view(request, slug):
                     return render(request, 'dashboard/public_form.html', context)
 
                 full_name = f"{first_name or ''} {last_name or ''}".strip()
-                ok, paid_errors, wait_seconds = stage_paid_registration(
+                ok, paid_errors, wait_seconds, completed_message = stage_paid_registration(
                     request, form_config, form_data, email, full_name, bloc_context
                 )
+                if ok and completed_message:
+                    # Email verification turned off for this form --
+                    # already registered, no code step.
+                    return render(request, 'dashboard/public_form.html', {
+                        'form_config': form_config,
+                        'success': True,
+                        'submitted_email': email,
+                        'message': completed_message,
+                    })
                 if ok:
                     context = {
                         'form_config': form_config,
@@ -2640,6 +2650,27 @@ def public_form_view(request, slug):
             ip_address = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0] if request.META.get('HTTP_X_FORWARDED_FOR') else request.META.get('REMOTE_ADDR')
             user_agent = request.META.get('HTTP_USER_AGENT', '')
             
+            if not form_config.require_email_verification:
+                # Email verification turned off for this form: register
+                # right away, no code step.
+                from events.form_validation_service import register_without_verification
+                success, _participant, message = register_without_verification(
+                    email, form_config, form_data, ip_address=ip_address, user_agent=user_agent,
+                )
+                if success:
+                    return render(request, 'dashboard/public_form.html', {
+                        'form_config': form_config,
+                        'success': True,
+                        'submitted_email': email,
+                        'message': message,
+                    })
+                return render(request, 'dashboard/public_form.html', {
+                    'form_config': form_config,
+                    'fields': form_config.fields_config,
+                    'errors': [message],
+                    'form_data': form_data,
+                })
+
             # Send validation code
             from events.form_validation_service import send_form_validation_code
             
