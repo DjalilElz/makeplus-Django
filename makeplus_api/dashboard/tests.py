@@ -2197,3 +2197,80 @@ class LoginViewNoRedirectLoopTests(TestCase):
         # just move the loop, it actually resolves for this account type.
         home_response = self.client.get(response.url)
         self.assertEqual(home_response.status_code, 200)
+
+
+class BlocItemPublicVisibilityTests(TestCase):
+    """BlocItem.show_on_public_form: hidden from the public registration
+    page only, still offered everywhere else."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin', password='x', is_staff=True)
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        self.form = FormConfiguration.objects.create(
+            name="Reg", slug="reg", event=self.event, created_by=self.admin,
+            fields_config=[
+                {'name': 'first_name', 'label': 'First', 'type': 'text', 'required': True},
+                {'name': 'last_name', 'label': 'Last', 'type': 'text', 'required': True},
+                {'name': 'email', 'label': 'Email', 'type': 'email', 'required': True},
+            ],
+        )
+        EventBlocConfig.objects.create(event=self.event, show_status=True, show_restauration=True)
+        self.public = BlocItem.objects.create(event=self.event, bloc='status', name='Adherent', price=Decimal('1000'))
+        self.hidden = BlocItem.objects.create(event=self.event, bloc='status', name='Speaker', price=Decimal('0'),
+                                              show_on_public_form=False)
+        self.lunch = BlocItem.objects.create(event=self.event, bloc='restauration', name='Dejeuner', price=Decimal('500'))
+
+    def _post(self, **extra):
+        data = {'first_name': 'Karim', 'last_name': 'B', 'email': 'k@example.com'}
+        data.update(extra)
+        return self.client.post(reverse('public_form', args=[self.form.slug]), data)
+
+    def test_hidden_item_not_on_public_form(self):
+        response = self.client.get(reverse('public_form', args=[self.form.slug]))
+        self.assertContains(response, 'Adherent')
+        self.assertNotContains(response, 'Speaker')
+
+    def test_hidden_item_still_offered_outside_the_public_form(self):
+        from dashboard.views_blocs import get_public_bloc_context
+        status_bloc = next(b for b in get_public_bloc_context(self.event)['custom_blocs'] if b['key'] == 'status')
+        self.assertIn(self.hidden, status_bloc['items'])
+        public = next(b for b in get_public_bloc_context(self.event, public_form=True)['custom_blocs'] if b['key'] == 'status')
+        self.assertNotIn(self.hidden, public['items'])
+
+    def test_posting_a_hidden_status_is_refused(self):
+        response = self._post(items_status=str(self.hidden.id))
+        self.assertContains(response, 'Veuillez sélectionner une option dans Statut')
+
+    @patch.object(FormRegistrationVerification, 'generate_code', return_value='123123')
+    def test_all_statuses_hidden_removes_section_and_requirement(self, _mock_code):
+        BlocItem.objects.filter(bloc='status').update(show_on_public_form=False)
+        response = self.client.get(reverse('public_form', args=[self.form.slug]))
+        self.assertNotContains(response, 'Adherent')
+        self.assertNotContains(response, 'Speaker')
+        self.assertContains(response, 'Dejeuner')
+
+        response = self._post(items_restauration=str(self.lunch.id), accept_conditions='1',
+                              receipt_file=_Upload('r.pdf', b'%PDF-1.4', content_type='application/pdf'))
+        self.assertNotContains(response, 'Veuillez sélectionner une option dans Statut')
+        self.assertContains(response, 'Vérifiez votre e-mail')
+
+    def test_toggle_one_item_and_whole_bloc(self):
+        self.client.force_login(self.admin)
+        url = reverse('dashboard:bloc_item_public_visibility', args=[self.event.id])
+        self.client.post(url, {'item_id': self.hidden.id, 'visible': '1'})
+        self.hidden.refresh_from_db()
+        self.assertTrue(self.hidden.show_on_public_form)
+
+        self.client.post(url, {'bloc': 'status', 'visible': '0'})
+        self.assertFalse(BlocItem.objects.filter(bloc='status', show_on_public_form=True).exists())
+        self.lunch.refresh_from_db()
+        self.assertTrue(self.lunch.show_on_public_form)  # other blocs untouched
+
+    def test_blocs_page_shows_switches(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('dashboard:blocs_config', args=[self.event.id]))
+        self.assertContains(response, "Masqué de la page d'inscription")
+        self.assertContains(response, 'Tout masquer')

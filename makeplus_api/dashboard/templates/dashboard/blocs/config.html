@@ -117,10 +117,48 @@
     <!-- Custom bloc items -->
     {% for bloc in blocs %}
     <div class="stat-card mb-4">
-        <h5><i class="bi bi-list-ul"></i> Articles de {{ bloc.label }}</h5>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Articles de {{ bloc.label }}</h5>
+            {% if bloc.items %}
+            <div class="d-flex gap-2">
+                <form method="post" action="{% url 'dashboard:bloc_item_public_visibility' event.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="bloc" value="{{ bloc.key }}">
+                    <input type="hidden" name="visible" value="1">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i> Tout afficher</button>
+                </form>
+                <form method="post" action="{% url 'dashboard:bloc_item_public_visibility' event.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="bloc" value="{{ bloc.key }}">
+                    <input type="hidden" name="visible" value="0">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye-slash"></i> Tout masquer</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        <small class="text-muted d-block mt-1">
+            Un article masqué n'apparaît plus sur la page d'inscription publique, mais reste utilisable à la caisse,
+            dans « Modifier les blocs », l'inscription manuelle et l'import.
+            {% if bloc.key == 'status' %}Si tous les statuts sont masqués, la section Statut disparaît du formulaire et n'y est plus obligatoire.{% endif %}
+        </small>
         <hr>
         {% for item in bloc.items %}
-        <div class="border rounded p-2 mb-2">
+        <div class="border rounded p-2 mb-2" {% if not item.show_on_public_form %}style="background:#f8f9fa;"{% endif %}>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                {% if item.show_on_public_form %}
+                <span class="badge bg-success-subtle text-success-emphasis"><i class="bi bi-eye"></i> Visible sur la page d'inscription</span>
+                {% else %}
+                <span class="badge bg-secondary"><i class="bi bi-eye-slash"></i> Masqué de la page d'inscription</span>
+                {% endif %}
+                <form method="post" action="{% url 'dashboard:bloc_item_public_visibility' event.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="item_id" value="{{ item.id }}">
+                    <input type="hidden" name="visible" value="{% if item.show_on_public_form %}0{% else %}1{% endif %}">
+                    <button type="submit" class="btn btn-sm btn-link text-decoration-none p-0">
+                        {% if item.show_on_public_form %}<i class="bi bi-eye-slash"></i> Masquer{% else %}<i class="bi bi-eye"></i> Afficher{% endif %}
+                    </button>
+                </form>
+            </div>
             <form method="post" action="{% url 'dashboard:bloc_item_save' event.id %}" class="d-flex align-items-center gap-2 flex-wrap">
                 {% csrf_token %}
                 <input type="hidden" name="item_id" value="{{ item.id }}">

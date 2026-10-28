@@ -122,6 +122,12 @@ class BlocItem(models.Model):
     description = models.TextField(blank=True, default='')
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     is_active = models.BooleanField(default=True)
+    # Hidden from the PUBLIC registration page only -- unlike is_active,
+    # the item stays fully usable everywhere else (caisse, "Modifier les
+    # blocs", manual registration, import, existing orders), so the
+    # organizer can keep e.g. "Speaker" off the public form and still
+    # assign it themselves.
+    show_on_public_form = models.BooleanField(default=True)
     order = models.IntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)

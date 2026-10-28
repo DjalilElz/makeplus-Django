@@ -2588,7 +2588,7 @@ def public_form_view(request, slug):
             # code is confirmed (see finalize_paid_registration), and stays
             # pending until an admin approves/rejects it.
             from dashboard.views_blocs import get_public_bloc_context, stage_paid_registration
-            bloc_context = get_public_bloc_context(form_config.event)
+            bloc_context = get_public_bloc_context(form_config.event, public_form=True)
             if bloc_context:
                 if errors:
                     context = {
@@ -2698,7 +2698,7 @@ def public_form_view(request, slug):
         'form_config': form_config,
         'fields': form_config.fields_config,
         'success': False,
-        'bloc_context': get_public_bloc_context(form_config.event),
+        'bloc_context': get_public_bloc_context(form_config.event, public_form=True),
     }
 
     response = render(request, 'dashboard/public_form.html', context)

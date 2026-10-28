@@ -210,6 +210,32 @@ def bloc_item_save(request, event_id):
 @login_required
 @user_passes_test(is_staff_user)
 @require_POST
+def bloc_item_public_visibility(request, event_id):
+    """Show/hide bloc items on the PUBLIC registration page only (see
+    BlocItem.show_on_public_form) -- one item (item_id), or every item of
+    one bloc at once (bloc). visible='1' shows, anything else hides."""
+    event = get_object_or_404(Event, id=event_id)
+    visible = request.POST.get('visible') == '1'
+    items = BlocItem.objects.filter(event=event)
+    if request.POST.get('item_id'):
+        items = items.filter(id=request.POST['item_id'])
+    elif request.POST.get('bloc') in {b for b, _ in CUSTOM_BLOC_CHOICES}:
+        items = items.filter(bloc=request.POST['bloc'])
+    else:
+        messages.error(request, 'Aucun article indiqué.')
+        return redirect('dashboard:blocs_config', event_id=event.id)
+
+    # .update(): only this flag changes, and it has no effect on the
+    # caisse's mirrored PayableItem (caisse.signals), so no save() needed.
+    count = items.update(show_on_public_form=visible)
+    state = 'affiché(s)' if visible else 'masqué(s)'
+    messages.success(request, f"{count} article(s) {state} sur la page d'inscription.")
+    return redirect('dashboard:blocs_config', event_id=event.id)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_POST
 def bloc_item_delete(request, item_id):
     """Delete a custom bloc item."""
     item = get_object_or_404(BlocItem, id=item_id)
@@ -451,7 +477,7 @@ def registration_orders(request, event_id):
 # Public form integration (called from dashboard.views.public_form_view)
 # ---------------------------------------------------------------------------
 
-def get_public_bloc_context(event, include_inactive=False):
+def get_public_bloc_context(event, include_inactive=False, public_form=False):
     """
     Build the blocs data for the public registration form.
     Returns None when the form has no event, no config, or no visible bloc
@@ -461,6 +487,13 @@ def get_public_bloc_context(event, include_inactive=False):
     deactivated. Only the event owner's "Modifier les blocs" edit popup
     sets this -- the public form itself must keep hiding them, so it must
     never pass True here.
+
+    public_form: also leave out items the organizer hid from the public
+    registration page (BlocItem.show_on_public_form). Only the public form
+    sets this -- the caisse, "Modifier les blocs", manual registration and
+    the import keep offering every item. A bloc whose items are ALL hidden
+    disappears from the public form, so it's no longer required there
+    (people then register without a status, assigned later if needed).
     """
     if not event:
         return None
@@ -490,6 +523,8 @@ def get_public_bloc_context(event, include_inactive=False):
         item_filters = {'event': event, 'bloc': bloc_key}
         if not include_inactive:
             item_filters['is_active'] = True
+        if public_form:
+            item_filters['show_on_public_form'] = True
         items = list(BlocItem.objects.filter(**item_filters).order_by('order', 'name'))
         if not items:
             continue
@@ -588,7 +623,10 @@ def stage_paid_registration(request, form_config, form_data, email, full_name, b
     # doesn't make sense.
     selected_item_ids = []
     for bloc in bloc_context['custom_blocs']:
-        picked = [v for v in request.POST.getlist(f"items_{bloc['key']}") if v]
+        # Only what this form actually offered -- an item hidden from the
+        # public form (or deactivated) can't be picked by editing the page.
+        offered_ids = {str(item.id) for item in bloc['items']}
+        picked = [v for v in request.POST.getlist(f"items_{bloc['key']}") if v in offered_ids]
         if bloc['select_mode'] == 'single' and len(picked) > 1:
             errors.append(f"Veuillez sélectionner une seule option dans {bloc['label']}.")
         if bloc['key'] == 'status' and len(picked) == 0:
