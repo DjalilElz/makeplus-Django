@@ -32,8 +32,13 @@
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">Montant total collecté</p>
+                        <p class="text-muted mb-1">Montant total</p>
                         <h3 class="mb-0 text-success">{{ total_amount|floatformat:2 }} DZD</h3>
+                        <div class="small text-muted mt-1" style="line-height:1.6;">
+                            Espèces {{ payment_totals.cash.amount|floatformat:2 }} ·
+                            Virement {{ payment_totals.bank_transfer.amount|floatformat:2 }} ·
+                            Prise en charge {{ payment_totals.sponsoring.amount|floatformat:2 }}
+                        </div>
                     </div>
                     <div class="stat-icon success">
                         <i class="bi bi-currency-dollar"></i>
@@ -160,6 +165,7 @@
                             <th>Participant</th>
                             <th>Articles</th>
                             <th>Montant</th>
+                            <th>Mode</th>
                             <th>Statut</th>
                             <th>Notes</th>
                         </tr>
@@ -186,6 +192,7 @@
                                     {{ transaction.total_amount|floatformat:2 }} DZD
                                 </strong>
                             </td>
+                            <td><small>{{ transaction.payment_display }}</small></td>
                             <td>
                                 {% if transaction.status == 'completed' %}
                                     <span class="badge bg-success">Effectuée</span>

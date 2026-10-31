@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from decimal import Decimal
 
@@ -135,9 +136,12 @@ class CaisseBlocReservationTests(TestCase):
     def test_confirming_reserved_item_records_bank_transfer_and_flips_status(self):
         order = self._make_order(status='pending')
         self._login_caisse()
+        # The mode is chosen by the cashier (Espèces by default), not guessed
+        # from the receipt.
         response = self.client.post(
             reverse('caisse:process_transaction'),
-            data={'participant_id': str(self.participant.id), 'items': [str(self.payable.id)], 'notes': ''},
+            data={'participant_id': str(self.participant.id), 'items': [str(self.payable.id)], 'notes': '',
+                  'payment_method': 'bank_transfer'},
             content_type='application/json',
         )
         self.assertEqual(response.status_code, 200)
@@ -173,7 +177,7 @@ class CaisseBlocReservationTests(TestCase):
         self.assertTrue(payload['success'], payload)
         self.assertEqual(payload['payment_method'], 'cash')
 
-    def test_mixed_payment_when_reserved_and_walkup_combined(self):
+    def test_reserved_and_walkup_combined_use_the_chosen_mode(self):
         self._make_order(status='pending')
         other_item = PayableItem.objects.create(
             event=self.event, name='Extra Snack', price=Decimal('300'), item_type='other'
@@ -190,7 +194,9 @@ class CaisseBlocReservationTests(TestCase):
         )
         payload = response.json()
         self.assertTrue(payload['success'], payload)
-        self.assertEqual(payload['payment_method'], 'mixed')
+        # No longer 'mixed': one payment, under the mode the cashier chose
+        # (Espèces by default).
+        self.assertEqual(payload['payment_method'], 'cash')
 
     def test_reject_reservation_rejects_pending_order_without_revoking_role(self):
         self._make_order(status='pending')
@@ -341,23 +347,20 @@ class CaisseDiscountedReservationTests(TestCase):
                 'participant_id': str(self.participant.id),
                 'items': [str(self.status_payable.id), str(self.resto_payable.id)],
                 'notes': '',
+                'payment_method': 'bank_transfer',
             },
             content_type='application/json',
         )
         payload = response.json()
         self.assertTrue(payload['success'], payload)
         self.assertEqual(payload['payment_method'], 'bank_transfer')
-        # Confirming an already-paid (bank transfer) reservation with
-        # nothing new added doesn't put any new money in the cashier's
-        # hand -- the recorded/shown amount is what was actually collected
-        # THIS visit (nothing), not the reservation's own value. The full
-        # 1200 is still recorded on the order itself (asserted below) and
-        # in the transaction's notes, just not double-counted as new caisse
-        # revenue.
-        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('0'))
+        # The reservation's discounted total is recorded in full, under
+        # "Virement bancaire" -- so the stats' "Total virement" includes it
+        # (it used to be recorded as 0, i.e. invisible in every total).
+        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('1200.00'))
 
         txn = CaisseTransaction.objects.get(id=payload['transaction_id'])
-        self.assertEqual(txn.total_amount, Decimal('0'))
+        self.assertEqual(txn.total_amount, Decimal('1200.00'))
         self.assertIn('1200.00 DZD', txn.notes)
 
         self.order.refresh_from_db()
@@ -380,7 +383,7 @@ class CaisseDiscountedReservationTests(TestCase):
         self.assertIn('Dinner', payload['message'])
         self.assertFalse(CaisseTransaction.objects.filter(participant=self.participant).exists())
 
-    def test_confirming_full_order_plus_walkup_item_is_mixed(self):
+    def test_confirming_full_order_plus_walkup_item_recorded_in_full(self):
         walkup_item = PayableItem.objects.create(
             event=self.event, name='Extra Snack', price=Decimal('200'), item_type='other'
         )
@@ -396,13 +399,11 @@ class CaisseDiscountedReservationTests(TestCase):
         )
         payload = response.json()
         self.assertTrue(payload['success'], payload)
-        self.assertEqual(payload['payment_method'], 'mixed')
-        # 1200 (discounted reservation, already paid by bank transfer) is
-        # only being confirmed here, not newly collected -- the recorded/
-        # shown amount is just the 200 walk-up item actually paid at the
-        # counter THIS visit, not the combined 1400. The 1200 is still
-        # fully recorded in the transaction's notes.
-        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('200.00'))
+        # One payment under the chosen mode (Espèces by default), for the
+        # whole amount: the 1200 discounted reservation plus the 200 walk-up
+        # item.
+        self.assertEqual(payload['payment_method'], 'cash')
+        self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('1400.00'))
 
         txn = CaisseTransaction.objects.get(id=payload['transaction_id'])
         self.assertIn('1200.00 DZD', txn.notes)
@@ -628,6 +629,7 @@ class CaisseSessionReservationTests(TestCase):
                 'participant_id': str(self.participant.id),
                 'items': [str(self.session_payable.id)],
                 'notes': '',
+                'payment_method': 'bank_transfer',
             },
             content_type='application/json',
         )
@@ -676,3 +678,159 @@ class BackfillRegistrationOrderParticipantTests(TestCase):
         self.assertIsNotNone(order.participant)
         self.assertEqual(order.participant.user.email, 'ghost@example.com')
         self.assertFalse(order.participant.user.has_usable_password())
+
+
+class PaymentModeTests(TestCase):
+    """Payment status / mode / paying organisation: chosen at the caisse
+    (Espèces by default) or on the dashboard, and split the same way on
+    the caisse screen and the stats page."""
+
+    def setUp(self):
+        from dashboard.models_blocs import EventSponsor
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        EventBlocConfig.objects.create(event=self.event, show_status=True)
+        self.status_item = BlocItem.objects.create(event=self.event, bloc='status', name='Adherent', price=Decimal('1000'))
+        self.payable = PayableItem.objects.get(bloc_item=self.status_item)  # mirrored automatically
+        self.hikma = EventSponsor.objects.create(event=self.event, name='Laboratoire Hikma')
+        self.inactive = EventSponsor.objects.create(event=self.event, name='Ancien labo', is_active=False)
+        self.caisse = Caisse.objects.create(name='Caisse 1', email='caisse@example.com', event=self.event)
+        self.caisse.set_password('x')
+        self.caisse.save()
+        self.admin = User.objects.create_user(username='admin', password='x', is_staff=True, is_superuser=True)
+
+    def _participant(self, name, receipt=False):
+        user = User.objects.create_user(username=name, email=f'{name}@example.com', password='x')
+        participant = create_participant_for_event(user, self.event)
+        order = RegistrationOrder.objects.create(
+            event=self.event, email=user.email, full_name=name, participant=participant, status='pending',
+            items_snapshot=[{'bloc': 'status', 'type': 'item', 'id': self.status_item.id, 'name': 'Adherent', 'price': '1000.00'}],
+            total_before_reduction=Decimal('1000'), total_after_reduction=Decimal('1000'),
+            receipt_file=SimpleUploadedFile('r.pdf', b'x', content_type='application/pdf') if receipt else '',
+        )
+        return participant, order
+
+    def _pay(self, participant, **payment):
+        session = self.client.session
+        session['caisse_id'] = str(self.caisse.id)
+        session['caisse_name'] = self.caisse.name
+        session.save()
+        body = {'participant_id': participant.id, 'items': [str(self.payable.id)], 'action': 'process'}
+        body.update(payment)
+        return self.client.post(
+            reverse('caisse:process_transaction'), json.dumps(body), content_type='application/json',
+        ).json()
+
+    def test_cash_by_default(self):
+        participant, order = self._participant('a')
+        result = self._pay(participant)
+        self.assertTrue(result['success'])
+        txn = CaisseTransaction.objects.get(participant=participant)
+        self.assertEqual(txn.payment_method, 'cash')
+        order.refresh_from_db()
+        self.assertEqual((order.status, order.payment_mode), ('approved', 'cash'))
+        self.assertIsNotNone(order.paid_at)
+
+    def test_bank_transfer_recorded_with_its_full_amount(self):
+        # A reservation with a bank receipt used to be left out of the
+        # recorded amount; it now counts, under "Virement bancaire".
+        participant, order = self._participant('b', receipt=True)
+        result = self._pay(participant, payment_method='bank_transfer')
+        self.assertTrue(result['success'])
+        self.assertEqual(result['total_amount'], 1000.0)
+        txn = CaisseTransaction.objects.get(participant=participant)
+        self.assertEqual((txn.payment_method, txn.total_amount), ('bank_transfer', Decimal('1000.00')))
+        self.assertEqual(txn.payment_display, 'Virement bancaire')
+
+    def test_sponsoring_needs_an_active_organisation(self):
+        participant, order = self._participant('c')
+        self.assertFalse(self._pay(participant, payment_method='sponsoring')['success'])
+        self.assertFalse(self._pay(participant, payment_method='sponsoring', sponsor_id=self.inactive.id)['success'])
+        self.assertFalse(CaisseTransaction.objects.filter(participant=participant).exists())
+        result = self._pay(participant, payment_method='sponsoring', sponsor_id=self.hikma.id)
+        self.assertTrue(result['success'])
+        self.assertEqual(result['payment_label'], 'Prise en charge · Laboratoire Hikma')
+        order.refresh_from_db()
+        self.assertEqual((order.payment_mode, order.sponsor_id), ('sponsoring', self.hikma.id))
+
+    def test_unknown_mode_refused(self):
+        participant, _ = self._participant('d')
+        self.assertFalse(self._pay(participant, payment_method='cheque')['success'])
+
+    def test_caisse_and_stats_show_the_same_breakdown(self):
+        from caisse.services import payment_breakdown
+        payments = (
+            ('e', {}),
+            ('f', {'payment_method': 'bank_transfer'}),
+            ('g', {'payment_method': 'sponsoring', 'sponsor_id': self.hikma.id}),
+        )
+        for name, payment in payments:
+            participant, _ = self._participant(name)
+            self.assertTrue(self._pay(participant, **payment)['success'])
+        totals = payment_breakdown(CaisseTransaction.objects.filter(caisse__event=self.event))
+        self.assertEqual(totals['total']['amount'], Decimal('3000'))
+        self.assertEqual(
+            [totals[mode]['amount'] for mode in ('cash', 'bank_transfer', 'sponsoring')], [Decimal('1000')] * 3,
+        )
+        self.assertEqual(
+            totals['sponsors'],
+            [{'name': 'Laboratoire Hikma', 'amount': Decimal('1000.00'), 'count': 1, 'participants': 1}],
+        )
+
+        caisse_page = self.client.get(reverse('caisse:dashboard'))
+        self.assertEqual(caisse_page.context['payment_totals']['total']['amount'], Decimal('3000'))
+        self.assertContains(caisse_page, 'Prise en charge · Laboratoire Hikma')
+
+        self.client.force_login(self.admin)
+        stats = self.client.get(reverse('dashboard:event_stats', args=[self.event.id]))
+        self.assertEqual(stats.context['payment_totals']['total']['amount'], Decimal('3000'))
+        self.assertEqual(stats.context['payment_totals']['sponsoring']['amount'], Decimal('1000'))
+        self.assertEqual(stats.context['money_stats']['total_amount'], Decimal('3000'))
+        per_caisse = stats.context['per_caisse_stats'][0]
+        self.assertEqual(
+            (per_caisse['cash_amount'], per_caisse['bank_transfer_amount'], per_caisse['sponsoring_amount']),
+            (Decimal('1000'), Decimal('1000'), Decimal('1000')),
+        )
+
+    def test_dashboard_mark_paid_with_a_mode(self):
+        participant, order = self._participant('h')
+        self.client.force_login(self.admin)
+        url = reverse('dashboard:registration_status_save', args=[order.id])
+        # Prise en charge without an organisation is refused.
+        self.client.post(url, {'status': 'approved', 'payment_method': 'sponsoring'})
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'pending')
+        self.client.post(url, {'status': 'approved', 'payment_method': 'sponsoring', 'sponsor_id': self.hikma.id})
+        order.refresh_from_db()
+        self.assertEqual((order.status, order.payment_mode, order.sponsor_id), ('approved', 'sponsoring', self.hikma.id))
+        txn = order.caisse_transaction
+        self.assertEqual((txn.payment_method, txn.sponsor_id), ('sponsoring', self.hikma.id))
+        # Back to pending: the payment and its mode are undone.
+        self.client.post(url, {'status': 'pending'})
+        order.refresh_from_db()
+        self.assertEqual((order.status, order.payment_mode, order.sponsor_id), ('pending', '', None))
+
+    def test_list_filter_and_label(self):
+        p1, o1 = self._participant('i')
+        p2, o2 = self._participant('j')
+        self._pay(p1, payment_method='bank_transfer')
+        self.client.force_login(self.admin)
+        url = reverse('dashboard:event_owner_submissions', args=[self.event.id])
+        self.assertEqual([o.id for o in self.client.get(url + '?payment=bank_transfer').context['orders']], [o1.id])
+        self.assertEqual([o.id for o in self.client.get(url + '?payment=pending').context['orders']], [o2.id])
+        self.assertContains(self.client.get(url), 'Payé · Virement bancaire')
+
+    def test_organisations_are_managed_on_the_blocs_page(self):
+        from dashboard.models_blocs import EventSponsor
+        self.client.force_login(self.admin)
+        url = reverse('dashboard:sponsor_save', args=[self.event.id])
+        self.client.post(url, {'name': 'Laboratoire Biopharm', 'order': 2})
+        biopharm = EventSponsor.objects.get(event=self.event, name='Laboratoire Biopharm')
+        # "Actif" left unchecked: deactivated.
+        self.client.post(url, {'sponsor_id': biopharm.id, 'name': 'Biopharm', 'order': 2})
+        biopharm.refresh_from_db()
+        self.assertEqual((biopharm.name, biopharm.is_active), ('Biopharm', False))
+        page = self.client.get(reverse('dashboard:blocs_config', args=[self.event.id]))
+        self.assertContains(page, 'Organismes payeurs')

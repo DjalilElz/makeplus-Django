@@ -73,6 +73,9 @@ of rendering every row's popup into the list up front.
 
                     <hr>
                     <p class="mb-1">
+                        <strong>Règlement :</strong> {{ order.payment_display }}
+                    </p>
+                    <p class="mb-1">
                         <strong>Statut de l'inscription :</strong>
                         <span class="status-select status-{{ order.status }}">{{ order.status_label }}</span>
                     </p>

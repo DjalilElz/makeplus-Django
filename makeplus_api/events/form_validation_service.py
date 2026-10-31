@@ -207,7 +207,7 @@ def _registration_summary_html(user, event):
         return ''
     order = (
         RegistrationOrder.objects.filter(event=event, participant__user=user)
-        .exclude(status='rejected').order_by('-created_at').first()
+        .exclude(status='rejected').select_related('sponsor').order_by('-created_at').first()
     )
     if order is None or not order.items_snapshot:
         return ''
@@ -235,7 +235,12 @@ def _registration_summary_html(user, event):
     if total > 0:
         amount = f"{total:,.2f}".replace(',', ' ') + ' DZD'
         if order.status == 'approved':
-            payment = f'{amount} &mdash; <span style="color:#0f5132;">réglé</span>'
+            how = {
+                'cash': ' en espèces',
+                'bank_transfer': ' par virement bancaire',
+                'sponsoring': f' &mdash; pris en charge par {escape(order.sponsor.name)}' if order.sponsor_id else ' &mdash; pris en charge',
+            }.get(order.payment_mode, '')
+            payment = f'{amount} &mdash; <span style="color:#0f5132;">réglé{how}</span>'
         else:
             payment = f'{amount} &mdash; <span style="color:#842029;">à régler à la caisse</span>'
         if order.total_discount_percent:

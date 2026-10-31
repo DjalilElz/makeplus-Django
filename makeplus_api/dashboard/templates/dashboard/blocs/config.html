@@ -192,6 +192,38 @@
     </div>
     {% endfor %}
 
+    <!-- Paying organisations ("Prise en charge") -->
+    <div class="stat-card mb-4">
+        <h5 class="mb-0"><i class="bi bi-building"></i> Organismes payeurs (prise en charge)</h5>
+        <small class="text-muted d-block mt-1">
+            Les organismes qui prennent en charge l'inscription de participants (ex. un laboratoire). Ils sont proposés
+            à la caisse, dans « Marquer payé » et dans l'import quand le mode de règlement est « Prise en charge ».
+            Sans organisme actif, la prise en charge n'est pas proposée. Un organisme déjà utilisé se désactive au lieu de se supprimer.
+        </small>
+        <hr>
+        {% for sponsor in sponsors %}
+        <form method="post" action="{% url 'dashboard:sponsor_save' event.id %}" class="d-flex align-items-center gap-2 flex-wrap border rounded p-2 mb-2" {% if not sponsor.is_active %}style="background:#f8f9fa;"{% endif %}>
+            {% csrf_token %}
+            <input type="hidden" name="sponsor_id" value="{{ sponsor.id }}">
+            <input type="text" name="name" value="{{ sponsor.name }}" class="form-control form-control-sm" style="max-width:320px" required aria-label="Nom de l'organisme">
+            <input type="number" name="order" value="{{ sponsor.order }}" class="form-control form-control-sm" style="max-width:70px" title="Ordre" aria-label="Ordre">
+            <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" name="is_active" id="sponsor-active-{{ sponsor.id }}" {% if sponsor.is_active %}checked{% endif %}>
+                <label class="form-check-label small" for="sponsor-active-{{ sponsor.id }}">Actif</label>
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-primary" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
+        </form>
+        {% empty %}
+        <p class="text-muted">Aucun organisme pour le moment.</p>
+        {% endfor %}
+        <form method="post" action="{% url 'dashboard:sponsor_save' event.id %}" class="d-flex align-items-center gap-2 flex-wrap border rounded p-2 mt-3">
+            {% csrf_token %}
+            <input type="text" name="name" placeholder="Nom de l'organisme (ex. Laboratoire Hikma)" class="form-control form-control-sm" style="max-width:320px" required aria-label="Nom du nouvel organisme">
+            <input type="number" name="order" value="0" class="form-control form-control-sm" style="max-width:70px" title="Ordre" aria-label="Ordre">
+            <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Ajouter</button>
+        </form>
+    </div>
+
     <!-- Reduction periods -->
     <div class="stat-card mb-4">
         <h5><i class="bi bi-calendar-range"></i> Périodes de réduction</h5>

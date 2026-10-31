@@ -1692,7 +1692,7 @@ def caisse_detail(request, caisse_id):
     # Get transactions with filters
     transactions = CaisseTransaction.objects.filter(
         caisse=caisse
-    ).select_related('participant__user').prefetch_related('items')
+    ).select_related('participant__user', 'sponsor').prefetch_related('items')
     
     # Apply filters
     if status_filter:
@@ -1712,11 +1712,13 @@ def caisse_detail(request, caisse_id):
     if transactions:
         print(f"DEBUG: First transaction: {transactions[0].id} - {transactions[0].created_at}")
 
-    # Statistics -- one aggregate query instead of three, see get_stats().
-    _stats = caisse.get_stats()
-    total_amount = _stats['total_amount']
-    total_participants = _stats['total_participants']
-    transaction_count = _stats['transaction_count']
+    # Statistics -- the same payment_breakdown() as the caisse screen and the
+    # stats page, so this page's totals and their split by mode match both.
+    from caisse.services import payment_breakdown
+    payment_totals = payment_breakdown(caisse.transactions.all())
+    total_amount = payment_totals['total']['amount']
+    total_participants = payment_totals['total']['participants']
+    transaction_count = payment_totals['total']['count']
     
     # Cancelled transactions stats
     cancelled_transactions = caisse.transactions.filter(status='cancelled')
@@ -1743,6 +1745,7 @@ def caisse_detail(request, caisse_id):
         'caisse': caisse,
         'transactions': transactions,
         'total_amount': total_amount,
+        'payment_totals': payment_totals,
         'total_participants': total_participants,
         'transaction_count': transaction_count,
         'cancelled_count': cancelled_count,

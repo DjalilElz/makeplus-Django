@@ -16,6 +16,8 @@ from io import BytesIO
 import base64
 
 from caisse.models import Caisse, PayableItem, CaisseTransaction
+from caisse.services import payment_breakdown, resolve_payment_choice
+from dashboard.models_blocs import EventSponsor, payment_label
 from events.models import Participant, Event
 from dashboard.blocs_service import resolve_catalog_prices, resolve_catalog_prices_for_statuses, _bloc_visible
 
@@ -174,10 +176,10 @@ def _latest_orders_by_participant(participants, event):
     # dashboard load on a ~1,000-order event), never used here.
     for order in RegistrationOrder.objects.exclude(status='rejected').filter(
         event=event, participant_id__in=participant_ids
-    ).order_by('-created_at').only(
+    ).select_related('sponsor').order_by('-created_at').only(
         'id', 'participant_id', 'status', 'created_at', 'items_snapshot', 'receipt_file',
         'total_before_reduction', 'period_discount_percent', 'blocs_discount_percent',
-        'total_discount_percent', 'total_after_reduction',
+        'total_discount_percent', 'total_after_reduction', 'payment_mode', 'sponsor__name',
     ):
         # First order seen per participant, in -created_at order, is the
         # latest -- setdefault skips any older ones that follow.
@@ -592,11 +594,12 @@ def caisse_dashboard(request):
         4: str(bloc_config.reduction_4_blocs) if bloc_config else '0',
     }
 
-    # Statistics -- one aggregate query instead of three, see get_stats().
-    _stats = caisse.get_stats()
-    total_amount = _stats['total_amount']
-    total_participants = _stats['total_participants']
-    transaction_count = _stats['transaction_count']
+    # Statistics -- the same payment_breakdown() the stats page uses, so this
+    # caisse's totals (and their split by mode) always match it.
+    payment_totals = payment_breakdown(caisse.transactions.all())
+    total_amount = payment_totals['total']['amount']
+    total_participants = payment_totals['total']['participants']
+    transaction_count = payment_totals['total']['count']
     
     # Get only participants (users with role 'participant') for this event
     from events.models import UserEventAssignment, ParticipantEventRegistration
@@ -712,6 +715,17 @@ def caisse_dashboard(request):
         str(pid) for pid, status in latest_order_status_by_participant.items() if status != 'approved'
     ]
 
+    # Payment status shown on the selected participant's card ("Payé ·
+    # Virement bancaire" / "En attente de paiement") -- from the same
+    # latest orders, no extra query.
+    participant_payment_status = {}
+    for pid, order in latest_order_by_participant.items():
+        if order.status == 'approved':
+            label = payment_label(order.payment_mode, order.sponsor.name if order.sponsor_id else None)
+            participant_payment_status[str(pid)] = {'paid': True, 'label': 'Payé' + (' · ' + label if label else '')}
+        else:
+            participant_payment_status[str(pid)] = {'paid': False, 'label': 'En attente de paiement'}
+
     # For every distinct Status actually present among these participants,
     # the live catalog price/visibility resolved AS that Status -- lets the
     # caisse show the correct price for an item outside a participant's own
@@ -734,7 +748,7 @@ def caisse_dashboard(request):
     # Recent transactions
     recent_transactions = caisse.transactions.filter(
         status='completed'
-    ).select_related('participant__user').prefetch_related('items').order_by('-created_at')[:10]
+    ).select_related('participant__user', 'sponsor').prefetch_related('items').order_by('-created_at')[:10]
 
     # Everyone checked in for this event -- from a completed transaction
     # here (any amount, including 0 DZD) or an explicit "Marquer comme
@@ -765,6 +779,9 @@ def caisse_dashboard(request):
         'participant_status_ids_json': json.dumps(participant_status_ids),
         'status_catalog_json': json.dumps(status_catalog),
         'participant_editable_order_ids_json': json.dumps(participant_editable_order_ids),
+        'participant_payment_status_json': json.dumps(participant_payment_status),
+        'payment_totals': payment_totals,
+        'sponsors': list(EventSponsor.objects.filter(event=event, is_active=True).order_by('order', 'name')),
         'blocs_enabled_json': json.dumps(blocs_enabled),
         'bloc_pct_json': json.dumps(bloc_pct),
         'recent_transactions': recent_transactions,
@@ -902,12 +919,16 @@ def process_transaction(request):
         item_ids = data.get('items', [])
         notes = data.get('notes', '')
         action = data.get('action', 'process_and_print')  # Default to process_and_print
+        chosen_method = data.get('payment_method') or 'cash'
+        chosen_sponsor_id = data.get('sponsor_id')
     except json.JSONDecodeError:
         # Fallback to POST data
         participant_id = request.POST.get('participant_id')
         item_ids = request.POST.getlist('items[]')
         notes = request.POST.get('notes', '')
         action = request.POST.get('action', 'process_and_print')
+        chosen_method = request.POST.get('payment_method') or 'cash'
+        chosen_sponsor_id = request.POST.get('sponsor_id')
     
     if not participant_id:
         return JsonResponse({'success': False, 'message': 'Participant ID required'})
@@ -1221,23 +1242,20 @@ def process_transaction(request):
     # already received before this visit.
     cash_amount = recomputed_bloc_amount + plain_cash_amount + unpaid_order_amount
 
-    # What the caisse operator actually collects right now. Confirming an
-    # existing bank-transfer reservation doesn't put any new money in the
-    # cashier's hand -- that amount was already received before this visit
-    # -- so it must not inflate this transaction's recorded amount, which
-    # is exactly what get_total_amount()/"Transactions récentes" show as
-    # revenue collected AT this caisse (e.g. a reservation confirmed for
-    # 4000 plus 3000 of new items added at the counter must record 3000,
-    # not 7000). The full picture (including the bank-transfer portion)
-    # stays fully auditable in the transaction's own notes below.
-    recorded_amount = cash_amount
+    # The full amount of this payment, whatever the mode -- the stats split
+    # it by payment_method (espèces / virement / prise en charge), so a
+    # reservation paid by bank transfer must count, under 'bank_transfer',
+    # instead of being left out (it used to be excluded from the recorded
+    # amount, which made "Total virement" impossible to report).
+    recorded_amount = cash_amount + bank_transfer_amount
 
-    if bank_transfer_items and (cash_items or unpaid_order_items):
-        payment_method = 'mixed'
-    elif bank_transfer_items:
-        payment_method = 'bank_transfer'
-    else:
-        payment_method = 'cash'
+    # Chosen by the cashier (Espèces by default) -- no longer guessed from
+    # whether a bank receipt was uploaded.
+    payment_method, payment_sponsor, payment_error = resolve_payment_choice(
+        caisse.event, chosen_method, chosen_sponsor_id,
+    )
+    if payment_error:
+        return JsonResponse({'success': False, 'message': payment_error})
 
     method_note_parts = []
     if bank_transfer_items:
@@ -1301,6 +1319,7 @@ def process_transaction(request):
                 participant=participant,
                 total_amount=recorded_amount,
                 payment_method=payment_method,
+                sponsor=payment_sponsor,
                 status='completed',
                 notes=final_notes,
                 marked_present=True
@@ -1321,7 +1340,12 @@ def process_transaction(request):
                 order.status = 'approved'
                 order.reviewed_by_caisse = caisse
                 order.reviewed_at = timezone.now()
-                order.save(update_fields=['status', 'reviewed_by_caisse', 'reviewed_at'])
+                order.payment_mode = payment_method
+                order.sponsor = payment_sponsor
+                order.paid_at = order.reviewed_at
+                order.save(update_fields=[
+                    'status', 'reviewed_by_caisse', 'reviewed_at', 'payment_mode', 'sponsor', 'paid_at',
+                ])
 
             # A completed transaction -- paid or 0 DZD, doesn't matter --
             # means this participant is physically at the counter right
@@ -1391,9 +1415,8 @@ def process_transaction(request):
     participant.save(update_fields=['qr_code_data'])
     
     # Mirrors recorded_amount above -- the confirmation the cashier sees
-    # must show the same number that just got saved, not the combined
-    # figure including whatever was already paid by bank transfer.
-    total_before_reduction = recomputed_bloc_before + plain_cash_amount + unpaid_order_before
+    # shows the same number that just got saved.
+    total_before_reduction = recomputed_bloc_before + plain_cash_amount + unpaid_order_before + bank_transfer_before
     return JsonResponse({
         'success': True,
         'message': 'Transaction processed successfully',
@@ -1404,6 +1427,7 @@ def process_transaction(request):
             (1 - (recorded_amount / total_before_reduction)) * 100
         ) if total_before_reduction > 0 else 0.0,
         'payment_method': payment_method,
+        'payment_label': payment_label(payment_method, payment_sponsor.name if payment_sponsor else None),
         'action': action
     })
 

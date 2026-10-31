@@ -38,6 +38,43 @@ SELECT_MODE_CHOICES = [
     ('multiple', 'Multiple choice (checkbox)'),
 ]
 
+# How a confirmed ("Payé") registration was paid -- one list shared by the
+# caisse, the dashboard, the import/export, the e-mails and the stats, so
+# every screen uses the same values and labels.
+PAYMENT_MODE_CHOICES = [
+    ('cash', 'Espèces'),
+    ('bank_transfer', 'Virement bancaire'),
+    ('sponsoring', 'Prise en charge (Sponsoring)'),
+]
+PAYMENT_MODE_LABELS = dict(PAYMENT_MODE_CHOICES)
+
+
+class EventSponsor(models.Model):
+    """An organisation that pays registrations for participants at one event
+    ("Prise en charge" -- e.g. a pharmaceutical laboratory). Each event keeps
+    its own list, managed on the "Inscription et blocs" page; with none
+    active, "Prise en charge" isn't offered for that event."""
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='sponsors')
+    name = models.CharField(max_length=200)
+    is_active = models.BooleanField(default=True)
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Event Sponsor'
+        verbose_name_plural = 'Event Sponsors'
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+def payment_label(mode, sponsor_name=None):
+    """'Espèces' / 'Virement bancaire' / 'Prise en charge · Laboratoire X'."""
+    if mode == 'sponsoring':
+        return f"Prise en charge · {sponsor_name}" if sponsor_name else 'Prise en charge'
+    return PAYMENT_MODE_LABELS.get(mode, '')
+
 
 class EventBlocConfig(models.Model):
     """Per-event configuration of blocs, visibility, and reductions."""
@@ -330,6 +367,15 @@ class RegistrationOrder(models.Model):
     # visits), not just as an in-memory confirmation that vanishes the
     # moment the modal closes.
     payment_link_sent_at = models.DateTimeField(null=True, blank=True)
+
+    # How it was paid, set when the registration is confirmed ("Payé"), from
+    # the caisse, the dashboard or the import. Empty while "En attente de
+    # paiement" (and on registrations confirmed before this existed).
+    payment_mode = models.CharField(max_length=20, choices=PAYMENT_MODE_CHOICES, blank=True, default='')
+    sponsor = models.ForeignKey(
+        EventSponsor, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders',
+    )
+    paid_at = models.DateTimeField(null=True, blank=True)
 
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)

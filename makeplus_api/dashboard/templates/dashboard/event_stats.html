@@ -96,9 +96,14 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <div class="stat-card text-center">
-                        <h6 class="text-muted mb-1">Montant total collecté</h6>
+                        <h6 class="text-muted mb-1">Montant total</h6>
                         <h3 class="mb-0" style="color: #10b981;">{{ money_stats.total_amount|default:0|floatformat:2 }} DZD</h3>
                         <small class="text-muted">{% if selected_caisse %}{{ selected_caisse.name }}{% else %}toutes caisses confondues{% endif %}</small>
+                        <div class="small text-start mt-2" style="line-height:1.7;">
+                            <div class="d-flex justify-content-between"><span>Espèces</span><strong>{{ payment_totals.cash.amount|floatformat:2 }}</strong></div>
+                            <div class="d-flex justify-content-between"><span>Virement</span><strong>{{ payment_totals.bank_transfer.amount|floatformat:2 }}</strong></div>
+                            <div class="d-flex justify-content-between"><span>Prise en charge</span><strong>{{ payment_totals.sponsoring.amount|floatformat:2 }}</strong></div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -124,6 +129,31 @@
                 </div>
             </div>
 
+            <div class="stat-card mb-4">
+                <h5 class="mb-3"><i class="bi bi-wallet2"></i> Par mode de règlement</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr><th>Mode de règlement</th><th>Organisme</th><th class="text-end">Transactions</th><th class="text-end">Montant</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Espèces</td><td class="text-muted">—</td><td class="text-end">{{ payment_totals.cash.count }}</td><td class="text-end">{{ payment_totals.cash.amount|floatformat:2 }} DZD</td></tr>
+                            <tr><td>Virement bancaire</td><td class="text-muted">—</td><td class="text-end">{{ payment_totals.bank_transfer.count }}</td><td class="text-end">{{ payment_totals.bank_transfer.amount|floatformat:2 }} DZD</td></tr>
+                            <tr><td>Prise en charge</td><td class="text-muted">tous les organismes</td><td class="text-end">{{ payment_totals.sponsoring.count }}</td><td class="text-end">{{ payment_totals.sponsoring.amount|floatformat:2 }} DZD</td></tr>
+                            {% for row in payment_totals.sponsors %}
+                            <tr><td class="ps-4 text-muted">↳ Prise en charge</td><td>{{ row.name }}</td><td class="text-end">{{ row.count }}</td><td class="text-end">{{ row.amount|floatformat:2 }} DZD</td></tr>
+                            {% endfor %}
+                            {% if payment_totals.other.count %}
+                            <tr><td>Mixte (ancien)</td><td class="text-muted">—</td><td class="text-end">{{ payment_totals.other.count }}</td><td class="text-end">{{ payment_totals.other.amount|floatformat:2 }} DZD</td></tr>
+                            {% endif %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold"><td>TOTAL</td><td></td><td class="text-end">{{ payment_totals.total.count }}</td><td class="text-end">{{ payment_totals.total.amount|floatformat:2 }} DZD</td></tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
             <div class="stat-card">
                 <h5 class="mb-3"><i class="bi bi-cash-register"></i> Détail par caisse</h5>
                 <p class="text-muted small mb-2">
@@ -135,6 +165,9 @@
                             <tr>
                                 <th>Caisse</th>
                                 <th>Montant</th>
+                                <th>Espèces</th>
+                                <th>Virement</th>
+                                <th>Prise en charge</th>
                                 <th>Transactions</th>
                                 <th>Participants</th>
                             </tr>
@@ -147,11 +180,14 @@
                                        class="stats-caisse-link">{{ row.caisse__name }}</a>
                                 </td>
                                 <td>{{ row.total_amount|floatformat:2 }} DZD</td>
+                                <td>{{ row.cash_amount|default:0|floatformat:2 }}</td>
+                                <td>{{ row.bank_transfer_amount|default:0|floatformat:2 }}</td>
+                                <td>{{ row.sponsoring_amount|default:0|floatformat:2 }}</td>
                                 <td>{{ row.transaction_count }}</td>
                                 <td>{{ row.total_participants }}</td>
                             </tr>
                             {% empty %}
-                            <tr><td colspan="4" class="text-center text-muted py-4">Aucune transaction pour cette période</td></tr>
+                            <tr><td colspan="7" class="text-center text-muted py-4">Aucune transaction pour cette période</td></tr>
                             {% endfor %}
                         </tbody>
                         {% if per_caisse_stats %}
@@ -159,6 +195,9 @@
                             <tr class="fw-bold">
                                 <td>TOTAL</td>
                                 <td>{{ money_stats.total_amount|default:0|floatformat:2 }} DZD</td>
+                                <td>{{ payment_totals.cash.amount|floatformat:2 }}</td>
+                                <td>{{ payment_totals.bank_transfer.amount|floatformat:2 }}</td>
+                                <td>{{ payment_totals.sponsoring.amount|floatformat:2 }}</td>
                                 <td>{{ money_stats.transaction_count|default:0 }}</td>
                                 <td>{{ money_stats.total_participants|default:0 }}</td>
                             </tr>
@@ -186,7 +225,7 @@
                                 <th>Caisse</th>
                                 <th>Articles</th>
                                 <th>Montant</th>
-                                <th>Méthode</th>
+                                <th>Mode de règlement</th>
                                 <th>Heure</th>
                             </tr>
                         </thead>
@@ -204,7 +243,7 @@
                                     </small>
                                 </td>
                                 <td><span class="badge bg-success">{{ txn.total_amount }} DZD</span></td>
-                                <td>{{ txn.get_payment_method_display }}</td>
+                                <td>{{ txn.payment_display }}</td>
                                 <td><small class="text-muted">{{ txn.created_at|date:"d/m/Y H:i" }}</small></td>
                             </tr>
                             {% empty %}

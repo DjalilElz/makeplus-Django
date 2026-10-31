@@ -2346,3 +2346,115 @@ class FormEmailVerificationToggleTests(TestCase):
         self.client.post(url, {**post, 'require_email_verification': 'on'})
         self.form.refresh_from_db()
         self.assertTrue(self.form.require_email_verification)
+
+
+class ImportExportPaymentTests(TestCase):
+    """Import: « Statut du paiement » / « Mode de règlement » / « Organisme
+    payeur » columns; a "Payé" row is confirmed on import with its mode.
+    Export: the same columns, filled in."""
+
+    def setUp(self):
+        from dashboard.models_blocs import EventSponsor
+        self.admin = User.objects.create_user(username='admin', password='x', is_staff=True, is_superuser=True)
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        self.form = FormConfiguration.objects.create(
+            name="Reg", slug="reg", event=self.event, created_by=self.admin,
+            fields_config=[
+                {'name': 'first_name', 'label': 'Prénom', 'type': 'text', 'required': True},
+                {'name': 'last_name', 'label': 'Nom', 'type': 'text', 'required': True},
+                {'name': 'email', 'label': 'Email', 'type': 'email', 'required': True},
+            ],
+        )
+        EventBlocConfig.objects.create(event=self.event, show_status=True)
+        self.status_item = BlocItem.objects.create(event=self.event, bloc='status', name='Adherent', price=Decimal('1000'))
+        self.hikma = EventSponsor.objects.create(event=self.event, name='Laboratoire Hikma')
+
+    def _workbook(self, rows):
+        from io import BytesIO
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.append(['Prénom *', 'Nom *', 'Email *', 'Bloc: Statut *', 'Statut du paiement', 'Mode de règlement', 'Organisme payeur'])
+        for row in rows:
+            ws.append(row)
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        buffer.name = 'import.xlsx'
+        return buffer
+
+    def test_template_has_the_payment_columns(self):
+        from dashboard.participant_import_service import generate_import_template_workbook
+        wb = generate_import_template_workbook(self.event)
+        headers = [cell.value for cell in wb['Import'][1]]
+        self.assertEqual(headers[-3:], ['Statut du paiement', 'Mode de règlement', 'Organisme payeur'])
+        legend = [row[1] for row in wb['Valeurs valides'].iter_rows(values_only=True)]
+        for value in ('Payé', 'En attente de paiement', 'Virement bancaire', 'Prise en charge (Sponsoring)', 'Laboratoire Hikma'):
+            self.assertIn(value, legend)
+
+    def test_validation_and_automatic_confirmation(self):
+        from dashboard.participant_import_service import create_import_batch, process_import_row
+        from dashboard.views_blocs import get_public_bloc_context
+        batch = create_import_batch(self.event, self.admin, self._workbook([
+            ['A', 'Virement', 'a@example.com', 'Adherent', 'Payé', 'Virement bancaire', ''],
+            ['B', 'Sponsor', 'b@example.com', 'Adherent', 'Payé', 'Prise en charge (Sponsoring)', 'laboratoire hikma'],
+            ['C', 'NoOrg', 'c@example.com', 'Adherent', 'Payé', 'Prise en charge (Sponsoring)', ''],
+            ['D', 'Contradiction', 'd@example.com', 'Adherent', 'En attente de paiement', 'Virement bancaire', ''],
+            ['E', 'Pending', 'e@example.com', 'Adherent', '', '', ''],
+            ['F', 'Cash', 'f@example.com', 'Adherent', 'paye', 'especes', ''],
+            ['G', 'NoMode', 'g@example.com', 'Adherent', 'Payé', '', ''],
+        ]))
+        status_by_email = {row.email: row.status for row in batch.rows.all()}
+        self.assertEqual(status_by_email, {
+            'a@example.com': 'valid', 'b@example.com': 'valid', 'c@example.com': 'error',
+            'd@example.com': 'error', 'e@example.com': 'valid', 'f@example.com': 'valid', 'g@example.com': 'error',
+        })
+
+        bloc_context = get_public_bloc_context(self.event)
+        for row in batch.rows.filter(status='valid'):
+            process_import_row(row, self.event, bloc_context['config'], bloc_context, self.form)
+            row.save()
+        orders = {o.email: o for o in RegistrationOrder.objects.filter(event=self.event)}
+        self.assertEqual((orders['a@example.com'].status, orders['a@example.com'].payment_mode), ('approved', 'bank_transfer'))
+        self.assertEqual(
+            (orders['b@example.com'].payment_mode, orders['b@example.com'].sponsor_id), ('sponsoring', self.hikma.id),
+        )
+        self.assertEqual((orders['f@example.com'].status, orders['f@example.com'].payment_mode), ('approved', 'cash'))
+        self.assertEqual((orders['e@example.com'].status, orders['e@example.com'].payment_mode), ('pending', ''))
+        # Confirmed once, with a payment recorded under its mode.
+        from caisse.models import CaisseTransaction
+        self.assertEqual(
+            CaisseTransaction.objects.get(participant=orders['b@example.com'].participant).payment_method, 'sponsoring',
+        )
+        # The payment choice is not stored among the form answers.
+        self.assertFalse(any('__payment__' in s.data for s in FormSubmission.objects.filter(form=self.form)))
+
+    def test_export_has_the_payment_columns(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+        from dashboard.participant_import_service import create_import_batch, process_import_row
+        from dashboard.views_blocs import get_public_bloc_context
+        batch = create_import_batch(self.event, self.admin, self._workbook([
+            ['B', 'Sponsor', 'b@example.com', 'Adherent', 'Payé', 'Prise en charge (Sponsoring)', 'Laboratoire Hikma'],
+            ['E', 'Pending', 'e@example.com', 'Adherent', '', '', ''],
+        ]))
+        bloc_context = get_public_bloc_context(self.event)
+        for row in batch.rows.filter(status='valid'):
+            process_import_row(row, self.event, bloc_context['config'], bloc_context, self.form)
+            row.save()
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('dashboard:event_owner_export_excel', args=[self.event.id]))
+        ws = load_workbook(BytesIO(response.content)).active
+        rows = list(ws.iter_rows(values_only=True))
+        header = list(rows[0])
+        self.assertEqual(header[-4:], ['Statut du paiement', 'Mode de règlement', 'Organisme payeur', 'Date de paiement'])
+        by_email = {r[header.index('Email *')]: r for r in rows[1:]}
+        self.assertEqual(list(by_email['b@example.com'][-4:-1]), ['Payé', 'Prise en charge (Sponsoring)', 'Laboratoire Hikma'])
+        self.assertEqual(by_email['e@example.com'][-4], 'En attente de paiement')
+        # Same filter as the list.
+        response = self.client.get(reverse('dashboard:event_owner_export_excel', args=[self.event.id]) + '?payment=pending')
+        exported = [r[header.index('Email *')] for r in list(load_workbook(BytesIO(response.content)).active.iter_rows(values_only=True))[1:]]
+        self.assertEqual(exported, ['e@example.com'])

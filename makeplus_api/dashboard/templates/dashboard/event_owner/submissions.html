@@ -521,10 +521,22 @@
 
             <hr class="filter-divider">
             <div class="row g-2 mb-2">
-                <div class="col-md-5">
+                <div class="col-md-4">
                     <input type="text" name="q" id="live-search-input" class="form-control" placeholder="Rechercher par nom ou e-mail..." value="{{ query }}" autocomplete="off">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <select name="payment" class="form-select" aria-label="Règlement">
+                        <option value="">Tous les règlements</option>
+                        <option value="pending" {% if payment_filter == 'pending' %}selected{% endif %}>En attente de paiement</option>
+                        <option value="cash" {% if payment_filter == 'cash' %}selected{% endif %}>Payé · Espèces</option>
+                        <option value="bank_transfer" {% if payment_filter == 'bank_transfer' %}selected{% endif %}>Payé · Virement bancaire</option>
+                        <option value="sponsoring" {% if payment_filter == 'sponsoring' %}selected{% endif %}>Payé · Prise en charge</option>
+                        {% for sponsor in sponsors %}
+                        <option value="sponsor-{{ sponsor.id }}" {% if payment_filter == sponsor.filter_value %}selected{% endif %}>&nbsp;&nbsp;↳ {{ sponsor.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <select name="status" class="form-select">
                         <option value="">Tous les statuts d'inscription</option>
                         {% for code, label in status_choices %}
@@ -564,6 +576,7 @@
                             <th>Événement social</th>
                             <th>Prix</th>
                             <th>Statut de l'inscription</th>
+                            <th>Règlement</th>
                             <th>Notes</th>
                             <th>Soumis le</th>
                             <th></th>
@@ -597,6 +610,8 @@
                                       data-order-id="{{ order.id }}"
                                       onsubmit="return confirmStatusChange(this, '{{ order.status }}');">
                                     {% csrf_token %}
+                                    <input type="hidden" name="payment_method" value="">
+                                    <input type="hidden" name="sponsor_id" value="">
                                     <select name="status" class="form-select form-select-sm status-select status-{{ order.status }}"
                                             onchange="this.closest('form').requestSubmit()">
                                         {% for code, label in status_choices %}
@@ -604,6 +619,9 @@
                                         {% endfor %}
                                     </select>
                                 </form>
+                            </td>
+                            <td>
+                                <span class="badge {% if order.status == 'approved' %}bg-success{% else %}bg-warning text-dark{% endif %}" style="white-space:normal;">{{ order.payment_display }}</span>
                             </td>
                             <td>
                                 <textarea class="form-control form-control-sm notes-input" rows="1"
@@ -644,7 +662,7 @@
                         </tr>
                         {% endfor %}
                         <tr id="no-live-results-row" style="display:none;">
-                            <td colspan="12" class="text-muted text-center py-4">Aucun résultat pour cette recherche.</td>
+                            <td colspan="13" class="text-muted text-center py-4">Aucun résultat pour cette recherche.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -667,6 +685,46 @@
     symptom.
     {% endcomment %}
     {# Each row's detail popup is fetched when opened -- see openOrderDetail below. #}
+
+    {% comment %}
+    "Marquer payé": choosing "Confirmé" for a registration asks how it was
+    paid -- the same three choices as at the caisse (Espèces by default).
+    {% endcomment %}
+    <div class="modal fade" id="mark-paid-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header" style="border-bottom: 1px solid var(--border-light);">
+                    <h5 class="modal-title" style="font-family: var(--font-serif);">Marquer payé</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">Le participant obtient un accès payé réel, exactement comme si la caisse l'avait confirmé sur place.</p>
+                    <label class="form-label fw-semibold">Mode de règlement</label>
+                    <div class="d-flex flex-column gap-2 mb-3">
+                        <label class="form-check"><input class="form-check-input" type="radio" name="mark_paid_mode" value="cash" checked> Espèces</label>
+                        <label class="form-check"><input class="form-check-input" type="radio" name="mark_paid_mode" value="bank_transfer"> Virement bancaire</label>
+                        {% if active_sponsors %}
+                        <label class="form-check"><input class="form-check-input" type="radio" name="mark_paid_mode" value="sponsoring"> Prise en charge (Sponsoring)</label>
+                        {% endif %}
+                    </div>
+                    {% if active_sponsors %}
+                    <div id="mark-paid-sponsor-wrap" style="display:none;">
+                        <label class="form-label fw-semibold" for="mark-paid-sponsor">Organisme payeur</label>
+                        <select class="form-select" id="mark-paid-sponsor">
+                            <option value="">Choisir l'organisme…</option>
+                            {% for sponsor in active_sponsors %}<option value="{{ sponsor.id }}">{{ sponsor.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="text-danger small mt-2" id="mark-paid-error" style="display:none;"></div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid var(--border-light);">
+                    <button type="button" class="btn btn-outline-elegant btn-sm" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-elegant btn-sm" id="mark-paid-confirm">Marquer payé</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {% if bloc_context.has_blocs %}
     {% comment %}
@@ -981,17 +1039,65 @@
             setTimeout(restoreListFocus, 400);
         });
 
+        // "Confirmé" = paid: ask how first (see the mark-paid modal), then
+        // submit the same form with the chosen mode.
+        var markPaidForm = null;
+        var markPaidSubmitted = false;
+        function openMarkPaid(form, currentStatus) {
+            markPaidForm = form;
+            markPaidSubmitted = false;
+            var modalEl = document.getElementById('mark-paid-modal');
+            modalEl.querySelector('input[name="mark_paid_mode"][value="cash"]').checked = true;
+            var sponsorWrap = document.getElementById('mark-paid-sponsor-wrap');
+            if (sponsorWrap) { sponsorWrap.style.display = 'none'; document.getElementById('mark-paid-sponsor').value = ''; }
+            document.getElementById('mark-paid-error').style.display = 'none';
+            modalEl.addEventListener('hidden.bs.modal', function onHide() {
+                modalEl.removeEventListener('hidden.bs.modal', onHide);
+                // Closed without confirming: put the select back.
+                if (!markPaidSubmitted) form.status.value = currentStatus;
+            });
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+        document.querySelectorAll('input[name="mark_paid_mode"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                var sponsorWrap = document.getElementById('mark-paid-sponsor-wrap');
+                if (sponsorWrap) sponsorWrap.style.display = radio.value === 'sponsoring' && radio.checked ? 'block' : 'none';
+            });
+        });
+        document.getElementById('mark-paid-confirm').addEventListener('click', function () {
+            var mode = document.querySelector('input[name="mark_paid_mode"]:checked').value;
+            var sponsorSelect = document.getElementById('mark-paid-sponsor');
+            var sponsorId = mode === 'sponsoring' && sponsorSelect ? sponsorSelect.value : '';
+            if (mode === 'sponsoring' && !sponsorId) {
+                var err = document.getElementById('mark-paid-error');
+                err.textContent = "Choisissez l'organisme payeur.";
+                err.style.display = 'block';
+                return;
+            }
+            markPaidForm.payment_method.value = mode;
+            markPaidForm.sponsor_id.value = sponsorId;
+            markPaidForm.dataset.paymentReady = '1';
+            markPaidSubmitted = true;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('mark-paid-modal')).hide();
+            markPaidForm.requestSubmit();
+        });
+
         function confirmStatusChange(form, currentStatus) {
             var newStatus = form.status.value;
             if (newStatus === currentStatus) {
                 saveListUiState(form.dataset.orderId);
                 return true;
             }
-            var msg = 'Changer le statut vers "' + STATUS_LABELS[newStatus] + '" ?';
             if (newStatus === 'approved') {
-                msg = 'Confirmer cette inscription ? Cela donnera un accès réel payé au participant, '
-                    + 'exactement comme si la caisse l\'avait confirmé sur place.';
-            } else if (newStatus === 'rejected') {
+                if (form.dataset.paymentReady !== '1') {
+                    openMarkPaid(form, currentStatus);
+                    return false;
+                }
+                saveListUiState(form.dataset.orderId);
+                return true;
+            }
+            var msg = 'Changer le statut vers "' + STATUS_LABELS[newStatus] + '" ?';
+            if (newStatus === 'rejected') {
                 msg = 'Annuler cette inscription ? Si elle était déjà confirmée, le paiement enregistré sera annulé.';
             }
             if (!confirm(msg)) return false;

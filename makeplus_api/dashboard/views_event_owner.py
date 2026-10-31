@@ -38,7 +38,7 @@ from .blocs_service import (
     compute_order, serialize_status_rules_for_period, serialize_period_baseline_rules,
     apply_compute_result_to_pending_order,
 )
-from .models_blocs import RegistrationOrder
+from .models_blocs import EventSponsor, PAYMENT_MODE_LABELS, RegistrationOrder, payment_label
 from .views_blocs import get_public_bloc_context
 
 BLOC_KEYS = ('status', 'restauration', 'workshops', 'social_event')
@@ -216,6 +216,9 @@ def _free_form_row(submission, event, phone_field_name):
         blocs_editor_period_key='',
         blocs_discount_percent=Decimal('0'),
         period_discount_percent=Decimal('0'),
+        payment_mode='',
+        sponsor_id=None,
+        payment_display='—',
     )
 
 
@@ -233,8 +236,31 @@ def _free_form_submission_rows(event):
     ]
 
 
+def _payment_display(order):
+    """'Payé · Virement bancaire' / 'Payé · Prise en charge · X' /
+    'En attente de paiement' -- same wording as the caisse."""
+    if order.status != 'approved':
+        return 'En attente de paiement'
+    label = payment_label(order.payment_mode, order.sponsor.name if order.sponsor_id else None)
+    return 'Payé · ' + label if label else 'Payé · mode non renseigné'
+
+
+def _apply_payment_filter(orders, payment_filter):
+    """The Règlement filter: 'pending', a mode ('cash' / 'bank_transfer' /
+    'sponsoring'), or one organisation ('sponsor-<id>')."""
+    if payment_filter == 'pending':
+        return [o for o in orders if o.status != 'approved']
+    if payment_filter in ('cash', 'bank_transfer', 'sponsoring'):
+        return [o for o in orders if o.status == 'approved' and o.payment_mode == payment_filter]
+    if payment_filter.startswith('sponsor-'):
+        wanted = payment_filter[len('sponsor-'):]
+        return [o for o in orders if o.status == 'approved' and str(o.sponsor_id) == wanted]
+    return orders
+
+
 def _decorate_order_row(order, phone_field_name, duplicate_count):
     """Display attributes the list row and the detail popup both read."""
+    order.payment_display = _payment_display(order)
     order.bloc_names = _bloc_names(order)
     order.participant_status = order.bloc_names['status']
     order.status_label = STATUS_LABELS.get(order.status, order.status)
@@ -264,6 +290,9 @@ def event_owner_submissions(request, event_id):
     }
     workshop_item_ids = [v for v in request.GET.getlist('item_workshops') if v]
     duplicates_only = request.GET.get('duplicates', '').strip() in ('1', 'true', 'on')
+    # Règlement filter: 'pending', a mode ('cash' / 'bank_transfer' /
+    # 'sponsoring'), or one organisation ('sponsor-<id>').
+    payment_filter = request.GET.get('payment', '').strip()
 
     # reviewed_by / reviewed_by_caisse are dereferenced per row in the
     # template; without eager-loading them here every order fires two extra
@@ -277,7 +306,7 @@ def event_owner_submissions(request, event_id):
     all_orders = list(
         RegistrationOrder.objects.filter(event=event).select_related(
             'period', 'form_submission',
-            'reviewed_by', 'reviewed_by_caisse',
+            'reviewed_by', 'reviewed_by_caisse', 'sponsor',
         ).order_by('-created_at')
     )
     if not event.bloc_config or not event.bloc_config.any_bloc_visible():
@@ -331,6 +360,8 @@ def event_owner_submissions(request, event_id):
     if duplicates_only:
         orders = [o for o in orders if email_counts.get((o.email or '').strip().lower(), 0) > 1]
 
+    orders = _apply_payment_filter(orders, payment_filter)
+
     total_revenue = Decimal('0')
     status_counts = {code: 0 for code in STATUS_LABELS}
     item_counts = {b: {} for b in BLOC_KEYS}
@@ -378,6 +409,10 @@ def event_owner_submissions(request, event_id):
     # its OWN period -- see registration_order_blocs_save's matching fix.
     period_rules_by_period_json = _period_rules_by_period_json(event, orders)
 
+    sponsors = list(EventSponsor.objects.filter(event=event).order_by('order', 'name'))
+    for sponsor in sponsors:
+        sponsor.filter_value = f'sponsor-{sponsor.id}'  # the Règlement filter's option value
+
     context = {
         'event': event,
         'bloc_context': bloc_context,
@@ -395,6 +430,9 @@ def event_owner_submissions(request, event_id):
         'item_filters': item_filters,
         'workshop_item_ids': workshop_item_ids,
         'duplicates_only': duplicates_only,
+        'payment_filter': payment_filter,
+        'sponsors': sponsors,
+        'active_sponsors': [sponsor for sponsor in sponsors if sponsor.is_active],
         # Always counted against the full, unfiltered set -- so the
         # badge stays accurate (e.g. "12 doublons") no matter what
         # status/item filter is currently active, same reasoning as
@@ -422,7 +460,7 @@ def registration_order_detail(request, order_id):
     from .models_form import FormSubmission
 
     order = (
-        RegistrationOrder.objects.select_related('event', 'period', 'form_submission', 'reviewed_by', 'reviewed_by_caisse')
+        RegistrationOrder.objects.select_related('event', 'period', 'form_submission', 'reviewed_by', 'reviewed_by_caisse', 'sponsor')
         .filter(id=order_id).first()
     )
     if order is not None:
@@ -612,7 +650,10 @@ def event_owner_export_excel(request, event_id):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-    from .participant_import_service import build_import_columns
+    from .participant_import_service import (
+        PAYMENT_MODE_HEADER, PAYMENT_SPONSOR_HEADER, PAYMENT_STATUS_HEADER, PAYMENT_STATUS_PAID,
+        PAYMENT_STATUS_PENDING, build_import_columns,
+    )
 
     event = get_object_or_404(Event, id=event_id)
 
@@ -630,9 +671,10 @@ def event_owner_export_excel(request, event_id):
 
     orders = list(
         RegistrationOrder.objects.filter(event=event).select_related(
-            'period', 'form_submission',  # not its form -- see event_owner_submissions
+            'period', 'form_submission', 'sponsor',  # not its form -- see event_owner_submissions
         ).order_by('-created_at')
     )
+    orders = _apply_payment_filter(orders, request.GET.get('payment', '').strip())
 
     if status in STATUS_LABELS:
         orders = [o for o in orders if o.status == status]
@@ -652,7 +694,8 @@ def event_owner_export_excel(request, event_id):
     # separate report. Bloc selections, price, admin status/notes and
     # submission date are deliberately left out: they aren't form
     # fields, and the registrations list page already shows them.
-    form_fields = build_import_columns(event)['form_fields']
+    import_columns = build_import_columns(event)
+    form_fields = import_columns['form_fields']
 
     wb = Workbook()
     ws = wb.active
@@ -666,6 +709,10 @@ def event_owner_export_excel(request, event_id):
     )
 
     headers = [f['label'] + (' *' if f['required'] else '') for f in form_fields]
+    # Payment: same three columns as the import template, plus the date.
+    with_payment = bool(import_columns['payment_columns'])
+    if with_payment:
+        headers += [PAYMENT_STATUS_HEADER, PAYMENT_MODE_HEADER, PAYMENT_SPONSOR_HEADER, 'Date de paiement']
     ws.append(headers)
     for col in range(1, len(headers) + 1):
         cell = ws.cell(row=1, column=col)
@@ -680,6 +727,14 @@ def event_owner_export_excel(request, event_id):
         for f in form_fields:
             value = submission_data.get(f['name'], '')
             row.append(', '.join(value) if isinstance(value, list) else (value or ''))
+        if with_payment:
+            paid = order.status == 'approved'
+            row += [
+                PAYMENT_STATUS_PAID if paid else PAYMENT_STATUS_PENDING,
+                PAYMENT_MODE_LABELS.get(order.payment_mode, '') if paid else '',
+                order.sponsor.name if paid and order.payment_mode == 'sponsoring' and order.sponsor_id else '',
+                timezone.localtime(order.paid_at).strftime('%d/%m/%Y %H:%M') if paid and order.paid_at else '',
+            ]
         ws.append(row)
 
     for col in range(1, len(headers) + 1):
@@ -718,9 +773,16 @@ def registration_status_save(request, order_id):
 
     if new_status != order.status:
         if new_status == 'approved':
+            from caisse.services import resolve_payment_choice
+            payment_mode, sponsor, payment_error = resolve_payment_choice(
+                order.event, request.POST.get('payment_method'), request.POST.get('sponsor_id'),
+            )
+            if payment_error:
+                messages.error(request, payment_error)
+                return _redirect_to_submissions(request, order.event_id)
             try:
-                confirm_registration_order(order, confirmed_by=request.user)
-                messages.success(request, "Inscription confirmée -- le participant dispose désormais d'un accès payé réel.")
+                confirm_registration_order(order, confirmed_by=request.user, payment_mode=payment_mode, sponsor=sponsor)
+                messages.success(request, "Inscription marquée payée (" + payment_label(payment_mode, sponsor.name if sponsor else None) + ").")
             except ValueError as exc:
                 messages.error(request, str(exc))
         elif new_status == 'rejected':

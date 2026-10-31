@@ -26,6 +26,21 @@ RESTAURATION_HEADER = 'Bloc: Restauration'
 SOCIAL_EVENT_HEADER = 'Bloc: Événement social'
 WORKSHOPS_HEADER = 'Ateliers (workshops)'
 
+# Payment columns (events with paid registration only). A "Payé" row is
+# confirmed on import, with its mode -- no script to run afterwards.
+PAYMENT_STATUS_HEADER = 'Statut du paiement'
+PAYMENT_MODE_HEADER = 'Mode de règlement'
+PAYMENT_SPONSOR_HEADER = 'Organisme payeur'
+PAYMENT_STATUS_PAID = 'Payé'
+PAYMENT_STATUS_PENDING = 'En attente de paiement'
+# Same labels as everywhere else, so a registrations export can be
+# re-imported as is.
+IMPORT_PAYMENT_MODES = {
+    'Espèces': 'cash',
+    'Virement bancaire': 'bank_transfer',
+    'Prise en charge (Sponsoring)': 'sponsoring',
+}
+
 # On the live public form these render as a fixed <select>/radio
 # group/checkbox group bound to the field's own 'options' list -- a
 # submission can never carry anything else. The import must enforce the
@@ -93,7 +108,19 @@ def build_import_columns(event):
                 'valid_values': [s.title for s in bloc_context['paid_sessions']],
             })
 
-    return {'form_fields': form_fields, 'bloc_columns': bloc_columns, 'bloc_context': bloc_context}
+    payment_columns = None
+    if bloc_context:
+        from .models_blocs import EventSponsor
+        sponsors = list(EventSponsor.objects.filter(event=event, is_active=True).order_by('order', 'name'))
+        payment_columns = {
+            'status_values': [PAYMENT_STATUS_PAID, PAYMENT_STATUS_PENDING],
+            'mode_values': list(IMPORT_PAYMENT_MODES),
+            'sponsors': sponsors,
+            'sponsor_values': [sponsor.name for sponsor in sponsors],
+        }
+
+    return {'form_fields': form_fields, 'bloc_columns': bloc_columns, 'bloc_context': bloc_context,
+            'payment_columns': payment_columns}
 
 
 def generate_import_template_workbook(event):
@@ -114,6 +141,8 @@ def generate_import_template_workbook(event):
 
     headers = [f['label'] + (' *' if f['required'] else '') for f in columns['form_fields']]
     headers += [c['header'] for c in columns['bloc_columns']]
+    if columns['payment_columns']:
+        headers += [PAYMENT_STATUS_HEADER, PAYMENT_MODE_HEADER, PAYMENT_SPONSOR_HEADER]
     for col_idx, header in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col_idx, value=header)
         cell.font = header_font
@@ -141,10 +170,12 @@ def generate_import_template_workbook(event):
             example.append(', '.join(c['valid_values'][:2]))
         else:
             example.append(c['valid_values'][0])
+    if columns['payment_columns']:
+        example += [PAYMENT_STATUS_PENDING, '', '']
     ws.append(example)
 
     select_like_fields = [f for f in columns['form_fields'] if f['type'] in SELECT_LIKE_FIELD_TYPES and f['options']]
-    if columns['bloc_columns'] or select_like_fields:
+    if columns['bloc_columns'] or select_like_fields or columns['payment_columns']:
         legend = wb.create_sheet('Valeurs valides')
         legend.append(['Colonne', 'Valeurs acceptées (orthographe exacte)'])
         legend['A1'].font = Font(bold=True)
@@ -164,6 +195,17 @@ def generate_import_template_workbook(event):
             )
             legend.append([c['header'], note])
             for value in c['valid_values']:
+                legend.append(['', value])
+        payment = columns['payment_columns']
+        if payment:
+            legend.append([PAYMENT_STATUS_HEADER, 'Une seule valeur (vide = En attente de paiement)'])
+            for value in payment['status_values']:
+                legend.append(['', value])
+            legend.append([PAYMENT_MODE_HEADER, 'Obligatoire si « Payé »'])
+            for value in payment['mode_values']:
+                legend.append(['', value])
+            legend.append([PAYMENT_SPONSOR_HEADER, 'Obligatoire si « Prise en charge »'])
+            for value in payment['sponsor_values'] or ["(aucun organisme : ajoutez-en dans « Inscription et blocs »)"]:
                 legend.append(['', value])
         legend.column_dimensions['A'].width = 30
         legend.column_dimensions['B'].width = 50
@@ -375,6 +417,38 @@ def _validate_row(event, columns, row_dict, registered_emails):
             }
             resolved_item_ids.extend(str(items_by_name[name].id) for name in matched if name in items_by_name)
 
+    payment = columns.get('payment_columns')
+    if payment:
+        status_matched, status_unmatched = _match_names(row_dict.get(PAYMENT_STATUS_HEADER, ''), payment['status_values'], False)
+        raw_mode = row_dict.get(PAYMENT_MODE_HEADER, '')
+        raw_sponsor = row_dict.get(PAYMENT_SPONSOR_HEADER, '')
+        if status_unmatched:
+            errors.append(f"« {PAYMENT_STATUS_HEADER} » : valeur non reconnue : {status_unmatched[0]}. "
+                          f"Valeurs acceptées : {', '.join(payment['status_values'])}.")
+        elif status_matched == [PAYMENT_STATUS_PAID]:
+            mode_matched, mode_unmatched = _match_names(raw_mode, payment['mode_values'], False)
+            if not mode_matched:
+                errors.append(f"« {PAYMENT_MODE_HEADER} » est requis quand le paiement est « Payé » "
+                              f"({', '.join(payment['mode_values'])}).")
+            else:
+                mode = IMPORT_PAYMENT_MODES[mode_matched[0]]
+                sponsor_id = None
+                if mode == 'sponsoring':
+                    sponsor_matched, _ = _match_names(raw_sponsor, payment['sponsor_values'], False)
+                    if not payment['sponsor_values']:
+                        errors.append("Aucun organisme payeur n'est défini pour cet événement "
+                                      "(« Inscription et blocs » > Organismes payeurs).")
+                    elif not sponsor_matched:
+                        errors.append(f"« {PAYMENT_SPONSOR_HEADER} » est requis pour une prise en charge "
+                                      f"({', '.join(payment['sponsor_values'])}).")
+                    else:
+                        sponsor_id = next(sp.id for sp in payment['sponsors'] if sp.name == sponsor_matched[0])
+                if not errors:
+                    form_data['__payment__'] = {'mode': mode, 'sponsor_id': sponsor_id}
+        elif str(raw_mode or '').strip() or str(raw_sponsor or '').strip():
+            errors.append(f"« {PAYMENT_MODE_HEADER} » / « {PAYMENT_SPONSOR_HEADER} » sont remplis "
+                          f"alors que le paiement n'est pas « Payé ».")
+
     if email and not errors:
         if email in registered_emails:
             return {
@@ -461,10 +535,14 @@ def process_import_row(row, event, config, bloc_context, form_config):
             user = get_or_create_user_for_manual_registration(row.email, first_name, last_name)
             participant = create_participant_for_event(user, event)
 
+            # Payment decided at validation -- not part of the form answers.
+            form_answers = dict(row.form_data)
+            payment = form_answers.pop('__payment__', None)
+
             submission = None
             if form_config:
                 submission = FormSubmission.objects.create(
-                    form=form_config, data=row.form_data, email=row.email,
+                    form=form_config, data=form_answers, email=row.email,
                 )
 
             if bloc_context:
@@ -473,8 +551,8 @@ def process_import_row(row, event, config, bloc_context, form_config):
                     selected_item_ids=row.resolved_item_ids, selected_session_ids=row.resolved_session_ids,
                     on_date=timezone.now().date(),
                 )
-                from .models_blocs import RegistrationOrder
-                RegistrationOrder.objects.create(
+                from .models_blocs import EventSponsor, RegistrationOrder
+                order = RegistrationOrder.objects.create(
                     event=event, form_submission=submission, participant=participant,
                     period_id=result['active_period_id'], full_name=row.full_name, email=row.email,
                     items_snapshot=result['snapshot'], subtotals=result['subtotals'],
@@ -486,6 +564,14 @@ def process_import_row(row, event, config, bloc_context, form_config):
                     total_after_reduction=result['total_after_reduction'],
                     receipt_file='',  # bulk-imported rows never carry an upload receipt
                 )
+                if payment:
+                    # "Payé" in the file: confirmed right away, with its mode,
+                    # exactly like "Marquer payé" -- but no e-mail here (the
+                    # import's own e-mail phase sends the confirmation).
+                    from caisse.services import confirm_registration_order
+                    sponsor = EventSponsor.objects.filter(id=payment.get('sponsor_id'), event=event).first() \
+                        if payment.get('sponsor_id') else None
+                    confirm_registration_order(order, payment_mode=payment['mode'], sponsor=sponsor, send_email=False)
 
             row.status = 'created'
             row.participant = participant

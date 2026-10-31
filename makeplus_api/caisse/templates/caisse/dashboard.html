@@ -427,6 +427,7 @@
                             <span>Traiter la transaction</span>
                             <span class="text-muted fs-6 fw-normal" id="participantNameInline"></span>
                         </h5>
+                        <div class="mb-2"><span id="participantPaymentStatus" class="badge"></span></div>
                         <!-- Name/Email/QR Code are already shown on the selected participant card
                              on the left -- keeping them out of this panel too leaves more room
                              for the item list, which is the part actually used per transaction. -->
@@ -508,6 +509,32 @@
                             </div>
                         </div>
 
+                        <!-- How this payment is made: Espèces by default, the cashier
+                             can switch it. Recorded on the transaction and split out
+                             in the totals below and on the stats page. -->
+                        <div class="mb-3" id="paymentModeBox">
+                            <label class="form-label d-block">Mode de règlement</label>
+                            <div class="btn-group flex-wrap" role="group" aria-label="Mode de règlement">
+                                <input type="radio" class="btn-check" name="paymentMode" id="paymentModeCash" value="cash" checked>
+                                <label class="btn btn-outline-primary" for="paymentModeCash">Espèces</label>
+                                <input type="radio" class="btn-check" name="paymentMode" id="paymentModeTransfer" value="bank_transfer">
+                                <label class="btn btn-outline-primary" for="paymentModeTransfer">Virement bancaire</label>
+                                {% if sponsors %}
+                                <input type="radio" class="btn-check" name="paymentMode" id="paymentModeSponsoring" value="sponsoring">
+                                <label class="btn btn-outline-primary" for="paymentModeSponsoring">Prise en charge</label>
+                                {% endif %}
+                            </div>
+                            {% if sponsors %}
+                            <select class="form-select mt-2" id="sponsorSelect" style="display:none;" aria-label="Organisme payeur">
+                                <option value="">Choisir l'organisme payeur…</option>
+                                {% for sponsor in sponsors %}<option value="{{ sponsor.id }}">{{ sponsor.name }}</option>{% endfor %}
+                            </select>
+                            {% endif %}
+                            <small id="receiptHint" class="text-muted mt-1" style="display:none;">
+                                Un reçu bancaire est joint à cette inscription : choisissez « Virement bancaire » si le paiement a été fait par virement.
+                            </small>
+                        </div>
+
                         <div class="mb-3">
                             <label for="notes" class="form-label">
                                 Notes (facultatif)
@@ -553,6 +580,17 @@
                 <div class="stat-card">
                     <h6 class="text-muted mb-1">Montant total</h6>
                     <h3 class="mb-0" style="color: #10b981;">{{ total_amount|floatformat:2 }} DZD</h3>
+                    <div class="small mt-2" style="line-height:1.7;">
+                        <div class="d-flex justify-content-between"><span>Espèces</span><strong>{{ payment_totals.cash.amount|floatformat:2 }} DZD</strong></div>
+                        <div class="d-flex justify-content-between"><span>Virement bancaire</span><strong>{{ payment_totals.bank_transfer.amount|floatformat:2 }} DZD</strong></div>
+                        <div class="d-flex justify-content-between"><span>Prise en charge</span><strong>{{ payment_totals.sponsoring.amount|floatformat:2 }} DZD</strong></div>
+                        {% for row in payment_totals.sponsors %}
+                        <div class="d-flex justify-content-between text-muted ps-3"><span>{{ row.name }}</span><span>{{ row.amount|floatformat:2 }} DZD</span></div>
+                        {% endfor %}
+                        {% if payment_totals.other.count %}
+                        <div class="d-flex justify-content-between text-muted"><span>Mixte (ancien)</span><span>{{ payment_totals.other.amount|floatformat:2 }} DZD</span></div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
             <div class="col-md-4">
@@ -590,6 +628,7 @@
                                     <th>Participant</th>
                                     <th>Articles</th>
                                     <th>Montant</th>
+                                    <th>Mode</th>
                                     <th>Heure</th>
                                     <th>Actions</th>
                                 </tr>
@@ -613,6 +652,9 @@
                                         <span class="badge bg-success">{{ transaction.total_amount }} DZD</span>
                                     </td>
                                     <td>
+                                        <small>{{ transaction.payment_display }}</small>
+                                    </td>
+                                    <td>
                                         <small class="text-muted">{{ transaction.created_at|date:"d/m/Y H:i" }}</small>
                                     </td>
                                     <td>
@@ -623,7 +665,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">
+                                    <td colspan="6" class="text-center text-muted py-4">
                                         Aucune transaction pour le moment
                                     </td>
                                 </tr>
@@ -708,6 +750,8 @@
         // whether anything is currently flagged as a pending reservation
         // to confirm (see modify_pending_order in caisse/views.py).
         const participantEditableOrderIds = new Set({{ participant_editable_order_ids_json|safe }});
+        // "Payé · Virement bancaire" / "En attente de paiement", per participant
+        const participantPaymentStatusData = {{ participant_payment_status_json|safe }};
         // Same discount config the registration form uses (dashboard/blocs_service.py
         // compute_order): bloc-count % only (capped at 100), applied to newly-selected
         // bloc items so the live preview matches what actually gets charged. No period
@@ -734,6 +778,7 @@
             participantReservedSummaryData: participantReservedSummaryData,
             participantItemPricesData: participantItemPricesData,
             participantStatusIdData: participantStatusIdData,
+            participantPaymentStatusData: participantPaymentStatusData,
             statusCatalogData: statusCatalogData,
         };
         let refreshInFlight = null;
@@ -993,6 +1038,8 @@
             
             selectedParticipantId = id;
             document.getElementById('participantNameInline').textContent = name;
+            showPaymentStatus(id);
+            resetPaymentMode(id);
             document.getElementById('participantDetails').style.display = 'block';
             document.getElementById('noParticipantSelected').style.display = 'none';
 
@@ -1253,9 +1300,44 @@
             calculateTotal();
         }
 
+        // Mode de règlement: Espèces by default for every participant; the
+        // organisation list only shows for "Prise en charge".
+        function chosenPayment() {
+            const checked = document.querySelector('input[name="paymentMode"]:checked');
+            const method = checked ? checked.value : 'cash';
+            const select = document.getElementById('sponsorSelect');
+            return { method: method, sponsorId: method === 'sponsoring' && select ? select.value : '' };
+        }
+
+        function syncPaymentMode() {
+            const select = document.getElementById('sponsorSelect');
+            if (select) select.style.display = chosenPayment().method === 'sponsoring' ? 'block' : 'none';
+        }
+
+        function resetPaymentMode(participantId) {
+            document.getElementById('paymentModeCash').checked = true;
+            const select = document.getElementById('sponsorSelect');
+            if (select) select.value = '';
+            syncPaymentMode();
+            const hasReceipt = participantId && (participantReservedSummaryData[participantId] || [])
+                .some(function (order) { return order.has_receipt; });
+            document.getElementById('receiptHint').style.display = hasReceipt ? 'block' : 'none';
+        }
+
+        function showPaymentStatus(participantId) {
+            const badge = document.getElementById('participantPaymentStatus');
+            const status = participantPaymentStatusData[participantId];
+            badge.textContent = status ? status.label : 'En attente de paiement';
+            badge.className = 'badge ' + (status && status.paid ? 'bg-success' : 'bg-warning text-dark');
+        }
+
+        document.querySelectorAll('input[name="paymentMode"]').forEach(function (radio) {
+            radio.addEventListener('change', syncPaymentMode);
+        });
+
         // Paid items move from "reserved/due" to "paid" for this participant
         // in the page's own data (see processTransaction).
-        function markPaidLocally(participantId, paidIds) {
+        function markPaidLocally(participantId, paidIds, paymentLabelText) {
             const paid = new Set((participantPaidItemsData[participantId] || []).map(Number));
             paidIds.forEach(function (id) { paid.add(id); });
             participantPaidItemsData[participantId] = Array.from(paid);
@@ -1265,6 +1347,9 @@
                 .filter(function (order) {
                     return !(order.payable_ids || []).every(function (id) { return paid.has(Number(id)); });
                 });
+            if (!participantReservedSummaryData[participantId].length && paymentLabelText) {
+                participantPaymentStatusData[participantId] = { paid: true, label: 'Payé · ' + paymentLabelText };
+            }
         }
 
         // Load items already paid by participant from pre-loaded data
@@ -1444,6 +1529,12 @@
                 .map(cb => cb.value);
 
             const notes = document.getElementById('notes').value;
+
+            const payment = chosenPayment();
+            if (selectedItems.length && action !== 'print_badge' && payment.method === 'sponsoring' && !payment.sponsorId) {
+                customAlert("Choisissez l'organisme payeur pour une prise en charge.", 'Erreur');
+                return;
+            }
             
             // Find which button was clicked and disable it
             let buttonElement;
@@ -1487,7 +1578,9 @@
                     participant_id: selectedParticipantId,
                     items: selectedItems,
                     notes: notes,
-                    action: action
+                    action: action,
+                    payment_method: payment.method,
+                    sponsor_id: payment.sponsorId
                 })
             })
             .then(response => response.json())
@@ -1497,7 +1590,7 @@
                     // away -- the background refresh can take seconds, and
                     // re-selecting this participant meanwhile used to show
                     // the items as still due (and let them be collected twice).
-                    markPaidLocally(String(selectedParticipantId), selectedItems.map(Number));
+                    markPaidLocally(String(selectedParticipantId), selectedItems.map(Number), data.payment_label);
                 }
                 if (data.success) {
                     // Point the already-open window at the real print page
@@ -1586,6 +1679,7 @@
             document.getElementById('noParticipantSelected').style.display = 'block';
             document.querySelectorAll('#payableItems input').forEach(cb => cb.checked = false);
             document.getElementById('notes').value = '';
+            resetPaymentMode(null);
             calculateTotal();
             
             // Remove highlighting from all participants

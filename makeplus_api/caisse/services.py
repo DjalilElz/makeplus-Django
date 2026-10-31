@@ -26,9 +26,74 @@ from django.utils.crypto import get_random_string
 
 from caisse.models import Caisse, CaisseTransaction, PayableItem
 from dashboard.email_sender import send_email
-from dashboard.models_blocs import BlocItem, CUSTOM_BLOC_CHOICES
+from dashboard.models_blocs import BlocItem, CUSTOM_BLOC_CHOICES, EventSponsor, PAYMENT_MODE_LABELS
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_payment_choice(event, method, sponsor_id=None):
+    """
+    Validate how a payment was made, as chosen at the caisse or on the
+    dashboard: 'cash' (default), 'bank_transfer', or 'sponsoring' with one
+    of this event's active paying organisations.
+
+    Returns (method, sponsor, error) -- error is a French message for the
+    operator, or None.
+    """
+    method = (method or 'cash').strip()
+    if method not in PAYMENT_MODE_LABELS:
+        return None, None, "Mode de règlement inconnu."
+    if method != 'sponsoring':
+        return method, None, None
+    sponsor = None
+    if sponsor_id not in (None, ''):
+        sponsor = EventSponsor.objects.filter(id=sponsor_id, event=event, is_active=True).first()
+    if sponsor is None:
+        return None, None, "Choisissez l'organisme payeur pour une prise en charge."
+    return method, sponsor, None
+
+
+def payment_breakdown(transactions):
+    """
+    Totals of completed caisse payments by payment mode -- the ONE
+    calculation behind the caisse screen, the stats page and its exports,
+    so they always agree. `transactions` is a CaisseTransaction queryset
+    already narrowed (event, caisse, dates...).
+
+    Returns {'total': {...}, 'cash': {...}, 'bank_transfer': {...},
+    'sponsoring': {...}, 'other': {...}, 'sponsors': [...]}, each total
+    being {'amount': Decimal, 'count': int, 'participants': int}. 'other'
+    holds legacy 'mixed' payments recorded before modes existed; the
+    total is always the sum of every mode.
+    """
+    from decimal import Decimal
+    from django.db.models import Count, Sum
+
+    def empty():
+        return {'amount': Decimal('0'), 'count': 0, 'participants': 0}
+
+    completed = transactions.filter(status='completed').order_by()
+    result = {'total': empty(), 'cash': empty(), 'bank_transfer': empty(), 'sponsoring': empty(), 'other': empty()}
+    for row in completed.values('payment_method').annotate(
+        amount=Sum('total_amount'), count=Count('id'), participants=Count('participant', distinct=True),
+    ):
+        key = row['payment_method'] if row['payment_method'] in PAYMENT_MODE_LABELS else 'other'
+        bucket = result[key]
+        bucket['amount'] += row['amount'] or Decimal('0')
+        bucket['count'] += row['count']
+        bucket['participants'] += row['participants']
+    totals = completed.aggregate(amount=Sum('total_amount'), count=Count('id'), participants=Count('participant', distinct=True))
+    result['total'] = {
+        'amount': totals['amount'] or Decimal('0'), 'count': totals['count'], 'participants': totals['participants'],
+    }
+    result['sponsors'] = [
+        {'name': row['sponsor__name'] or 'Organisme supprimé', 'amount': row['amount'] or Decimal('0'),
+         'count': row['count'], 'participants': row['participants']}
+        for row in completed.filter(payment_method='sponsoring').values('sponsor__name').annotate(
+            amount=Sum('total_amount'), count=Count('id'), participants=Count('participant', distinct=True),
+        ).order_by('-amount')
+    ]
+    return result
 
 OWNER_CAISSE_EMAIL_TEMPLATE = 'owner-confirmations+{event_id}@makeplus.internal'
 OWNER_CAISSE_NAME = "Confirmé par l'organisateur"
@@ -85,7 +150,7 @@ def _payable_item_for_snapshot_entry(event, entry):
     return payable_item
 
 
-def confirm_registration_order(order, confirmed_by=None):
+def confirm_registration_order(order, confirmed_by=None, payment_mode='cash', sponsor=None, send_email=True):
     """
     Confirm a RegistrationOrder for real: creates a completed
     CaisseTransaction (same effect as caisse's own process_transaction
@@ -99,6 +164,12 @@ def confirm_registration_order(order, confirmed_by=None):
     from reviewed_by_caisse, which stays set to the virtual owner Caisse
     (consistent with how a real caisse confirmation sets it) so it's
     clear in caisse's own history that this wasn't a physical station.
+
+    payment_mode / sponsor: how it was paid ('cash', 'bank_transfer', or
+    'sponsoring' with one of the event's organisations) -- recorded on the
+    order and on its transaction, so the stats split it the same way as
+    payments taken at a caisse. send_email=False for bulk confirmations
+    (the import), which mustn't e-mail everyone.
     """
     from events.models import SessionAccess, UserProfile
 
@@ -124,7 +195,8 @@ def confirm_registration_order(order, confirmed_by=None):
             caisse=caisse,
             participant=participant,
             total_amount=order.total_after_reduction,
-            payment_method='bank_transfer',
+            payment_method=payment_mode,
+            sponsor=sponsor if payment_mode == 'sponsoring' else None,
             status='completed',
             notes=f'Confirmed by event owner for registration {order.id}.',
             marked_present=True,
@@ -137,8 +209,12 @@ def confirm_registration_order(order, confirmed_by=None):
         order.reviewed_by = confirmed_by
         order.reviewed_at = timezone.now()
         order.caisse_transaction = caisse_txn
+        order.payment_mode = payment_mode
+        order.sponsor = sponsor if payment_mode == 'sponsoring' else None
+        order.paid_at = order.reviewed_at
         order.save(update_fields=[
             'status', 'reviewed_by_caisse', 'reviewed_by', 'reviewed_at', 'caisse_transaction',
+            'payment_mode', 'sponsor', 'paid_at',
         ])
 
         for payable_item in payable_items:
@@ -155,7 +231,8 @@ def confirm_registration_order(order, confirmed_by=None):
     participant.qr_code_data = updated_qr_data
     participant.save(update_fields=['qr_code_data'])
 
-    _send_confirmation_email(order)
+    if send_email:
+        _send_confirmation_email(order)
 
     return caisse_txn
 
@@ -277,9 +354,10 @@ def cancel_registration_order(order, cancelled_by=None, reason=''):
     order.status = 'rejected'
     order.reviewed_by = cancelled_by
     order.reviewed_at = timezone.now()
+    order.payment_mode, order.sponsor, order.paid_at = '', None, None
     if reason:
         order.admin_notes = f'{reason}\n{order.admin_notes}' if order.admin_notes else reason
-    order.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'admin_notes'])
+    order.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'admin_notes', 'payment_mode', 'sponsor', 'paid_at'])
 
 
 def unconfirm_registration_order(order, new_status, changed_by=None):
@@ -313,7 +391,8 @@ def unconfirm_registration_order(order, new_status, changed_by=None):
     order.status = new_status
     order.reviewed_by = changed_by
     order.reviewed_at = timezone.now()
-    order.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
+    order.payment_mode, order.sponsor, order.paid_at = '', None, None
+    order.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'payment_mode', 'sponsor', 'paid_at'])
 
 
 def resync_confirmed_registration_order(order, result, edited_by=None):
@@ -390,7 +469,10 @@ def resync_confirmed_registration_order(order, result, edited_by=None):
             caisse=caisse,
             participant=participant,
             total_amount=result['total_after_reduction'],
-            payment_method='bank_transfer',
+            # Same way of paying as the transaction it replaces -- an edit of
+            # the blocs mustn't move the money to another mode in the stats.
+            payment_method=order.payment_mode or old_txn.payment_method,
+            sponsor_id=order.sponsor_id if (order.payment_mode or old_txn.payment_method) == 'sponsoring' else None,
             status='completed',
             notes=f'Confirmed by event owner (blocs edit) for registration {order.id}. Replaces transaction {old_txn.id}.',
             marked_present=True,

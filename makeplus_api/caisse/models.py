@@ -115,10 +115,14 @@ class CaisseTransaction(models.Model):
         ('cancelled', 'Cancelled'),
     ]
 
+    # 'cash' / 'bank_transfer' / 'sponsoring' are chosen by the cashier (cash
+    # by default) or the dashboard -- same values as RegistrationOrder's
+    # payment_mode. 'mixed' only exists on older transactions.
     PAYMENT_METHOD_CHOICES = [
-        ('cash', 'Cash'),
-        ('bank_transfer', 'Bank Transfer'),
-        ('mixed', 'Mixed (cash + bank transfer)'),
+        ('cash', 'Espèces'),
+        ('bank_transfer', 'Virement bancaire'),
+        ('sponsoring', 'Prise en charge (Sponsoring)'),
+        ('mixed', 'Mixte (espèces + virement)'),
     ]
 
     caisse = models.ForeignKey(Caisse, on_delete=models.CASCADE, related_name='transactions')
@@ -128,6 +132,10 @@ class CaisseTransaction(models.Model):
     items = models.ManyToManyField(PayableItem, related_name='transactions')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='cash')
+    sponsor = models.ForeignKey(
+        'dashboard.EventSponsor', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='caisse_transactions', help_text="Paying organisation, for 'sponsoring' only",
+    )
 
     # Status and metadata
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
@@ -140,6 +148,15 @@ class CaisseTransaction(models.Model):
     
     # Check-in tracking
     marked_present = models.BooleanField(default=True, help_text="Whether participant was marked as present")
+
+    @property
+    def payment_display(self):
+        """'Espèces' / 'Virement bancaire' / 'Prise en charge · Laboratoire X'
+        -- the one wording used by the caisse history, the stats and exports."""
+        if self.payment_method == 'sponsoring':
+            from dashboard.models_blocs import payment_label
+            return payment_label('sponsoring', self.sponsor.name if self.sponsor_id else None)
+        return self.get_payment_method_display()
 
     class Meta:
         verbose_name = "Caisse Transaction"

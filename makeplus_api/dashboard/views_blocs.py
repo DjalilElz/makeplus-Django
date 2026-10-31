@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 
 from events.models import Event, Session, WORKSHOP_BLOC_Q
 from .models_blocs import (
-    EventBlocConfig, BlocItem, BlocItemStatusRule, ReductionPeriod, RegistrationOrder,
+    EventBlocConfig, BlocItem, BlocItemStatusRule, EventSponsor, ReductionPeriod, RegistrationOrder,
     CUSTOM_BLOC_CHOICES,
 )
 from .blocs_service import compute_order
@@ -54,6 +54,7 @@ def blocs_config(request, event_id):
 
     paid_sessions = Session.objects.filter(WORKSHOP_BLOC_Q, event=event).order_by('order', 'start_time')
     periods = ReductionPeriod.objects.filter(event=event).order_by('start_date')
+    sponsors = EventSponsor.objects.filter(event=event).order_by('order', 'name')
     pending_orders = RegistrationOrder.objects.filter(event=event, status__in=['pending', 'reserved']).count()
 
     # Status-dependent rules matrix: rows = every item in the other blocs
@@ -128,6 +129,7 @@ def blocs_config(request, event_id):
         'blocs': blocs,
         'paid_sessions': paid_sessions,
         'periods': periods,
+        'sponsors': sponsors,
         'pending_orders': pending_orders,
         'select_mode_choices': [('single', 'Single choice (radio)'), ('multiple', 'Multiple choice (checkbox)')],
         'status_items': status_items,
@@ -204,6 +206,36 @@ def bloc_item_save(request, event_id):
         BlocItem.objects.create(event=event, bloc=bloc, name=name, description=description, price=price, order=order)
         messages.success(request, f'Article « {name} » ajouté.')
 
+    return redirect('dashboard:blocs_config', event_id=event.id)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+@require_POST
+def sponsor_save(request, event_id):
+    """Add or update one of the event's paying organisations ("Prise en
+    charge"). Not deletable on purpose: payments already made keep their
+    organisation -- deactivate it instead to stop offering it."""
+    event = get_object_or_404(Event, id=event_id)
+    name = (request.POST.get('name') or '').strip()
+    if not name:
+        messages.error(request, "Le nom de l'organisme est obligatoire.")
+        return redirect('dashboard:blocs_config', event_id=event.id)
+    try:
+        order = int(request.POST.get('order') or 0)
+    except ValueError:
+        order = 0
+    sponsor_id = request.POST.get('sponsor_id')
+    if sponsor_id:
+        sponsor = get_object_or_404(EventSponsor, id=sponsor_id, event=event)
+        sponsor.name = name
+        sponsor.order = order
+        sponsor.is_active = request.POST.get('is_active') == 'on'
+        sponsor.save(update_fields=['name', 'order', 'is_active'])
+        messages.success(request, f"Organisme « {name} » mis à jour.")
+    else:
+        EventSponsor.objects.create(event=event, name=name, order=order)
+        messages.success(request, f"Organisme « {name} » ajouté.")
     return redirect('dashboard:blocs_config', event_id=event.id)
 
 

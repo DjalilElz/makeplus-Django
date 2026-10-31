@@ -240,6 +240,7 @@ urlpatterns = [
     path('events/<uuid:event_id>/blocs/items/save/', views_blocs.bloc_item_save, name='bloc_item_save'),
     path('blocs/items/<int:item_id>/delete/', views_blocs.bloc_item_delete, name='bloc_item_delete'),
     path('events/<uuid:event_id>/blocs/items/public-visibility/', views_blocs.bloc_item_public_visibility, name='bloc_item_public_visibility'),
+    path('events/<uuid:event_id>/blocs/sponsors/save/', views_blocs.sponsor_save, name='sponsor_save'),
     path('events/<uuid:event_id>/blocs/status-rules/save/', views_blocs.bloc_status_rules_save, name='bloc_status_rules_save'),
     path('events/<uuid:event_id>/blocs/periods/save/', views_blocs.reduction_period_save, name='reduction_period_save'),
     path('blocs/periods/<int:period_id>/delete/', views_blocs.reduction_period_delete, name='reduction_period_delete'),

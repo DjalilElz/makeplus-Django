@@ -462,19 +462,29 @@ def _gather_event_stats(request, event):
         transactions_base_qs = transactions_base_qs.filter(caisse=selected_caisse)
     transactions_base_qs = _in_date_range(transactions_base_qs, 'created_at', date_from, date_to)
 
-    money_stats = transactions_base_qs.aggregate(
-        total_amount=Sum('total_amount'),
-        transaction_count=Count('id'),
-        total_participants=Count('participant_id', distinct=True),
-    )
+    # Totals by payment mode -- the same payment_breakdown() the caisse
+    # screen uses, so both always show the same figures. money_stats is
+    # derived from it rather than queried separately.
+    from caisse.services import payment_breakdown
+    payment_totals = payment_breakdown(transactions_base_qs)
+    money_stats = {
+        'total_amount': payment_totals['total']['amount'],
+        'transaction_count': payment_totals['total']['count'],
+        'total_participants': payment_totals['total']['participants'],
+    }
+    # Per-mode sums come BEFORE total_amount: that annotation shadows the
+    # model field of the same name for anything annotated after it.
     per_caisse_stats = list(transactions_base_qs.values('caisse_id', 'caisse__name').annotate(
-        total_amount=Sum('total_amount'),
+        cash_amount=Sum('total_amount', filter=Q(payment_method='cash')),
+        bank_transfer_amount=Sum('total_amount', filter=Q(payment_method='bank_transfer')),
+        sponsoring_amount=Sum('total_amount', filter=Q(payment_method='sponsoring')),
         transaction_count=Count('id'),
         total_participants=Count('participant_id', distinct=True),
+        total_amount=Sum('total_amount'),
     ).order_by('caisse__name'))
 
     transactions_qs = transactions_base_qs.select_related(
-        'caisse', 'participant__user',
+        'caisse', 'participant__user', 'sponsor',
     ).prefetch_related('items').order_by('-created_at')
 
     # ---- Presence (event-wide check-in, set by the caisse only),
@@ -561,7 +571,7 @@ def _gather_event_stats(request, event):
         'date_from_str': date_from_str, 'date_to_str': date_to_str,
         'scan_search': scan_search, 'presence_search': presence_search,
         'caisses': caisses, 'caisse_id': caisse_id, 'selected_caisse': selected_caisse,
-        'money_stats': money_stats, 'per_caisse_stats': per_caisse_stats,
+        'money_stats': money_stats, 'per_caisse_stats': per_caisse_stats, 'payment_totals': payment_totals,
         'transactions_qs': transactions_qs,
         'presence_qs': presence_qs, 'presence_count': presence_count, 'total_registered': total_registered,
         'controller_scans_qs': controller_scans_qs, 'exposant_scans_qs': exposant_scans_qs,
@@ -626,6 +636,7 @@ def event_stats(request, event_id):
         'caisse_id': data['caisse_id'],
         'selected_caisse': data['selected_caisse'],
         'money_stats': data['money_stats'],
+        'payment_totals': data['payment_totals'],
         'per_caisse_stats': data['per_caisse_stats'],
         'per_controller_stats': data['per_controller_stats'],
         'transactions': transactions_qs[:_EVENT_STATS_LIST_LIMIT],
@@ -698,23 +709,34 @@ def event_stats_export_excel(request, event_id):
     ws.append(["Période", _stats_period_label(data)])
     ws.append(["Caisse", data['selected_caisse'].name if data['selected_caisse'] else 'Toutes les caisses'])
     ws.append([])
-    ws.append(["Montant total collecté (DZD)", float(money_stats['total_amount'] or 0)])
+    payment_totals = data['payment_totals']
+    ws.append(["Montant total (DZD)", float(money_stats['total_amount'] or 0)])
+    ws.append(["  Espèces (DZD)", float(payment_totals['cash']['amount'])])
+    ws.append(["  Virement bancaire (DZD)", float(payment_totals['bank_transfer']['amount'])])
+    ws.append(["  Prise en charge (DZD)", float(payment_totals['sponsoring']['amount'])])
+    for sponsor_row in payment_totals['sponsors']:
+        ws.append([f"    {sponsor_row['name']} (DZD)", float(sponsor_row['amount'])])
+    if payment_totals['other']['count']:
+        ws.append(["  Mixte, ancien (DZD)", float(payment_totals['other']['amount'])])
     ws.append(["Transactions", money_stats['transaction_count'] or 0])
     ws.append(["Participants traités", money_stats['total_participants'] or 0])
     ws.append(["Participants présents", data['presence_count']])
     ws.append(["Total inscrits", data['total_registered']])
     ws.append([])
     header_row = ws.max_row + 1
-    _write_header(ws, header_row, ["Caisse", "Montant (DZD)", "Transactions", "Participants"])
-    total_amount = 0.0
-    total_txn = 0
+    _write_header(ws, header_row, ["Caisse", "Montant (DZD)", "Espèces", "Virement", "Prise en charge", "Transactions", "Participants"])
     for row in data['per_caisse_stats']:
-        amount = float(row['total_amount'] or 0)
-        ws.append([row['caisse__name'], amount, row['transaction_count'], row['total_participants']])
-        total_amount += amount
-        total_txn += row['transaction_count']
-    ws.append(["TOTAL", total_amount, total_txn, money_stats['total_participants'] or 0])
-    for col in range(1, 5):
+        ws.append([
+            row['caisse__name'], float(row['total_amount'] or 0), float(row['cash_amount'] or 0),
+            float(row['bank_transfer_amount'] or 0), float(row['sponsoring_amount'] or 0),
+            row['transaction_count'], row['total_participants'],
+        ])
+    ws.append([
+        "TOTAL", float(money_stats['total_amount'] or 0), float(payment_totals['cash']['amount']),
+        float(payment_totals['bank_transfer']['amount']), float(payment_totals['sponsoring']['amount']),
+        money_stats['transaction_count'] or 0, money_stats['total_participants'] or 0,
+    ])
+    for col in range(1, 8):
         ws.cell(row=ws.max_row, column=col).font = Font(bold=True)
         ws.column_dimensions[get_column_letter(col)].width = 26
 
@@ -735,12 +757,12 @@ def event_stats_export_excel(request, event_id):
             txn.caisse.name,
             items,
             float(txn.total_amount),
-            txn.get_payment_method_display(),
+            txn.payment_display,
             timezone.localtime(txn.created_at).strftime('%d/%m/%Y %H:%M'),
         ])
     _write_sheet(
         wb.create_sheet("Transactions"),
-        ["Participant", "E-mail", "Caisse", "Articles", "Montant (DZD)", "Méthode", "Heure"], rows,
+        ["Participant", "E-mail", "Caisse", "Articles", "Montant (DZD)", "Mode de règlement", "Heure"], rows,
     )
 
     # ---- Présence ----
@@ -855,8 +877,19 @@ def event_stats_export_pdf(request, event_id):
     controller_scans_count = data['controller_scans_qs'].count()
     exposant_scans_count = data['exposant_scans_qs'].count()
 
+    payment_totals = data['payment_totals']
+    breakdown_rows = [
+        ["   Espèces", f"{float(payment_totals['cash']['amount']):.2f} DZD"],
+        ["   Virement bancaire", f"{float(payment_totals['bank_transfer']['amount']):.2f} DZD"],
+        ["   Prise en charge", f"{float(payment_totals['sponsoring']['amount']):.2f} DZD"],
+    ] + [
+        [f"      {row['name']}", f"{float(row['amount']):.2f} DZD"] for row in payment_totals['sponsors']
+    ] + ([
+        ["   Mixte (ancien)", f"{float(payment_totals['other']['amount']):.2f} DZD"]
+    ] if payment_totals['other']['count'] else [])
     summary_rows_raw = [
-        ["Montant total collecté", f"{float(money_stats['total_amount'] or 0):.2f} DZD"],
+        ["Montant total", f"{float(money_stats['total_amount'] or 0):.2f} DZD"],
+        *breakdown_rows,
         ["Transactions", str(money_stats['transaction_count'] or 0)],
         ["Participants traités", str(money_stats['total_participants'] or 0)],
         ["Participants présents", f"{data['presence_count']} / {data['total_registered']}"],
@@ -902,18 +935,26 @@ def event_stats_export_pdf(request, event_id):
     # exists for, given an explicit width split so it fills the page
     # properly instead of shrinking to its own content on a wide layout ----
     per_caisse_rows = []
-    total_amount = 0.0
-    total_txn = 0
     for row in data['per_caisse_stats']:
-        amount = float(row['total_amount'] or 0)
-        per_caisse_rows.append([row['caisse__name'], f"{amount:.2f} DZD", str(row['transaction_count']), str(row['total_participants'])])
-        total_amount += amount
-        total_txn += row['transaction_count']
-    per_caisse_rows.append(["TOTAL", f"{total_amount:.2f} DZD", str(total_txn), str(money_stats['total_participants'] or 0)])
+        per_caisse_rows.append([
+            row['caisse__name'], f"{float(row['total_amount'] or 0):.2f} DZD",
+            f"{float(row['cash_amount'] or 0):.2f}", f"{float(row['bank_transfer_amount'] or 0):.2f}",
+            f"{float(row['sponsoring_amount'] or 0):.2f}",
+            str(row['transaction_count']), str(row['total_participants']),
+        ])
+    if per_caisse_rows:
+        per_caisse_rows.append([
+            "TOTAL", f"{float(money_stats['total_amount'] or 0):.2f} DZD",
+            f"{float(payment_totals['cash']['amount']):.2f}", f"{float(payment_totals['bank_transfer']['amount']):.2f}",
+            f"{float(payment_totals['sponsoring']['amount']):.2f}",
+            str(money_stats['transaction_count'] or 0), str(money_stats['total_participants'] or 0),
+        ])
     _section(
-        "Détail par caisse", ["Caisse", "Montant", "Transactions", "Participants"],
+        "Détail par caisse",
+        ["Caisse", "Montant", "Espèces", "Virement", "Prise en charge", "Transactions", "Participants"],
         per_caisse_rows, "Aucune transaction pour cette période.",
-        col_widths=[usable_width * 0.40, usable_width * 0.20, usable_width * 0.20, usable_width * 0.20],
+        col_widths=[usable_width * 0.22, usable_width * 0.14, usable_width * 0.13, usable_width * 0.13,
+                    usable_width * 0.14, usable_width * 0.12, usable_width * 0.12],
     )
 
     elements.append(PageBreak())
@@ -923,11 +964,11 @@ def event_stats_export_pdf(request, event_id):
         txn_rows.append([
             txn.participant.user.get_full_name() or txn.participant.user.username,
             txn.caisse.name, items, f"{float(txn.total_amount):.2f} DZD",
-            txn.get_payment_method_display(),
+            txn.payment_display,
             timezone.localtime(txn.created_at).strftime('%d/%m/%Y %H:%M'),
         ])
     _section(
-        "Transactions", ["Participant", "Caisse", "Articles", "Montant", "Méthode", "Heure"],
+        "Transactions", ["Participant", "Caisse", "Articles", "Montant", "Mode de règlement", "Heure"],
         txn_rows, "Aucune transaction pour cette période.",
         col_widths=[
             usable_width * 0.20, usable_width * 0.13, usable_width * 0.27,
