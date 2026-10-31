@@ -3,191 +3,174 @@
 {% block page_title %}Accueil du tableau de bord{% endblock %}
 
 {% block content %}
+<style>
+    .events-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .events-toolbar h5 { margin: 0; display: flex; align-items: center; gap: 8px; }
+    .events-search { flex: 1 1 260px; max-width: 420px; position: relative; }
+    .events-search .bi-search { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #8a8f98; }
+    .events-search input { padding-left: 36px; border-radius: 10px; }
+    .events-table td { vertical-align: middle; }
+    .event-cell { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .event-logo {
+        width: 72px; height: 72px; flex: 0 0 72px; object-fit: contain; border-radius: 14px;
+        border: 1px solid #ececf0; background: #fff; padding: 6px;
+    }
+    .event-logo-fallback {
+        width: 72px; height: 72px; flex: 0 0 72px; border-radius: 14px; display: flex; align-items: center;
+        justify-content: center; font-size: 1.6rem; font-weight: 700; color: #fff;
+        background: linear-gradient(135deg, #2D1B6B, #46309a);
+    }
+    .event-name { font-weight: 600; font-size: 1rem; color: inherit; text-decoration: none; }
+    .event-name:hover { text-decoration: underline; }
+    .event-dates { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .event-actions { white-space: nowrap; }
+</style>
+<script>
+// Defined before the table: a logo's onerror can fire as soon as it renders.
+function logoFailed(img) {
+    var fallback = document.createElement('div');
+    fallback.className = 'event-logo-fallback';
+    fallback.setAttribute('aria-hidden', 'true');
+    fallback.textContent = img.getAttribute('data-initial');
+    img.replaceWith(fallback);
+}
+</script>
+
 <div class="container-fluid">
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted mb-1">Total des événements</p>
-                        <h2 class="mb-0">{{ total_events }}</h2>
-                    </div>
-                    <div class="stat-icon primary">
-                        <i class="bi bi-calendar-event"></i>
-                    </div>
-                </div>
+    <div class="stat-card">
+        <div class="events-toolbar">
+            <h5><i class="bi bi-calendar-event"></i> Événements <span class="badge bg-secondary" id="events-count">{{ events|length }}</span></h5>
+            <div class="events-search">
+                <i class="bi bi-search"></i>
+                <input type="search" id="events-search" class="form-control" placeholder="Rechercher un événement (nom, lieu, statut)…" autocomplete="off" aria-label="Rechercher un événement">
             </div>
+            <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-primary ms-auto">
+                <i class="bi bi-plus"></i> Nouvel événement
+            </a>
         </div>
-        
-        <div class="col-md-3 mb-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted mb-1">Événements actifs</p>
-                        <h2 class="mb-0">{{ active_events }}</h2>
-                    </div>
-                    <div class="stat-icon success">
-                        <i class="bi bi-broadcast"></i>
-                    </div>
-                </div>
-            </div>
+
+        {% if events %}
+        <div class="table-responsive">
+            <table class="table table-hover events-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Événement</th>
+                        <th>Dates</th>
+                        <th>Lieu</th>
+                        <th>Statut</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                    <tr class="event-row" data-search="{{ event.name|lower }} {{ event.location|lower }} {{ event.get_status_display|lower }}">
+                        <td>
+                            <div class="event-cell">
+                                {% if event.logo %}
+                                <img src="{{ event.logo.url }}" alt="" class="event-logo" width="72" height="72" loading="lazy"
+                                     data-initial="{{ event.name|slice:":1"|upper }}" onerror="logoFailed(this)">
+                                {% else %}
+                                <div class="event-logo-fallback" aria-hidden="true">{{ event.name|slice:":1"|upper }}</div>
+                                {% endif %}
+                                <a href="{% url 'dashboard:event_detail' event.id %}" class="event-name">{{ event.name }}</a>
+                            </div>
+                        </td>
+                        <td class="event-dates">
+                            {{ event.start_date|date:"d/m/Y" }}{% if event.end_date and event.end_date|date:"d/m/Y" != event.start_date|date:"d/m/Y" %} → {{ event.end_date|date:"d/m/Y" }}{% endif %}
+                        </td>
+                        <td>{{ event.location|default:"—" }}</td>
+                        <td>
+                            {% if event.status == 'active' %}
+                                <span class="badge bg-success">Actif</span>
+                            {% elif event.status == 'upcoming' %}
+                                <span class="badge bg-primary">À venir</span>
+                            {% elif event.status == 'completed' %}
+                                <span class="badge bg-secondary">Terminé</span>
+                            {% else %}
+                                <span class="badge bg-danger">Annulé</span>
+                            {% endif %}
+                        </td>
+                        <td class="event-actions text-end">
+                            <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-sm btn-outline-primary" title="Voir l'événement">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{% url 'dashboard:event_edit' event.id %}" class="btn btn-sm btn-outline-secondary" title="Modifier l'événement">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-event-btn"
+                                    data-event-id="{{ event.id }}"
+                                    data-event-name="{{ event.name }}"
+                                    title="Supprimer l'événement">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr id="events-no-result" style="display:none;">
+                        <td colspan="5" class="text-center text-muted py-4">Aucun événement ne correspond à cette recherche.</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
-        
-        <div class="col-md-3 mb-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted mb-1">Total des utilisateurs</p>
-                        <h2 class="mb-0">{{ total_users }}</h2>
-                    </div>
-                    <div class="stat-icon warning">
-                        <i class="bi bi-people"></i>
-                    </div>
-                </div>
-            </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-calendar-x" style="font-size: 3rem; color: #ccc;"></i>
+            <p class="text-muted mt-3">Aucun événement pour le moment. Créez votre premier événement !</p>
+            <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Créer un événement
+            </a>
         </div>
-        
-        <div class="col-md-3 mb-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted mb-1">Total des sessions</p>
-                        <h2 class="mb-0">{{ total_sessions }}</h2>
-                    </div>
-                    <div class="stat-icon info">
-                        <i class="bi bi-collection"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Events List -->
-    <div class="row events-list-section">
-        <div class="col-12">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="bi bi-calendar-event"></i> Tous les événements - Accès ePoster</h5>
-                    <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-sm btn-primary">
-                        <i class="bi bi-plus"></i> Nouvel événement
-                    </a>
-                </div>
-                
-                {% if events %}
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Nom de l'événement</th>
-                                <th>Statut</th>
-                                <th>Dates</th>
-                                <th>Lieu</th>
-                                <th>Participants</th>
-                                <th>Salles</th>
-                                <th>Sessions</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for event in events %}
-                            <tr>
-                                <td>
-                                    <strong>{{ event.name }}</strong>
-                                </td>
-                                <td>
-                                    {% if event.status == 'active' %}
-                                        <span class="badge bg-success">Actif</span>
-                                    {% elif event.status == 'upcoming' %}
-                                        <span class="badge bg-primary">À venir</span>
-                                    {% elif event.status == 'completed' %}
-                                        <span class="badge bg-secondary">Terminé</span>
-                                    {% else %}
-                                        <span class="badge bg-danger">Annulé</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <small>{{ event.start_date|date:"d/m/Y" }}</small>
-                                </td>
-                                <td>
-                                    <small>{{ event.location }}</small>
-                                </td>
-                                <td>
-                                    <span class="badge bg-info">{{ event.participant_count }}</span>
-                                </td>
-                                <td>
-                                    <span class="badge bg-warning text-dark">{{ event.room_count }}</span>
-                                </td>
-                                <td>
-                                    <span class="badge bg-secondary">{{ event.session_count }}</span>
-                                </td>
-                                <td>
-                                    <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-sm btn-outline-primary" title="Voir l'événement">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                    <a href="{% url 'dashboard:event_edit' event.id %}" class="btn btn-sm btn-outline-secondary" title="Modifier l'événement">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
-                                    <button type="button" class="btn btn-sm btn-outline-danger delete-event-btn"
-                                            data-event-id="{{ event.id }}"
-                                            data-event-name="{{ event.name }}"
-                                            title="Supprimer l'événement">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="bi bi-calendar-x" style="font-size: 3rem; color: #ccc;"></i>
-                    <p class="text-muted mt-3">Aucun événement pour le moment. Créez votre premier événement !</p>
-                    <a href="{% url 'dashboard:event_create_step1' %}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Créer un événement
-                    </a>
-                </div>
-                {% endif %}
-            </div>
-        </div>
+        {% endif %}
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Instant search over the loaded list -- no request to the server.
+    var searchInput = document.getElementById('events-search');
+    var countBadge = document.getElementById('events-count');
+    var noResult = document.getElementById('events-no-result');
+
+    function normalize(text) {
+        return (text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    }
+
+    function applySearch() {
+        var query = normalize(searchInput.value.trim());
+        var visible = 0;
+        document.querySelectorAll('.event-row').forEach(function (row) {
+            var match = !query || normalize(row.getAttribute('data-search')).indexOf(query) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        countBadge.textContent = visible;
+        if (noResult) noResult.style.display = visible ? 'none' : '';
+    }
+
+    if (searchInput) searchInput.addEventListener('input', applySearch);
+
     // Delete event handler
     document.body.addEventListener('click', function(e) {
         if (e.target.closest('.delete-event-btn')) {
             const button = e.target.closest('.delete-event-btn');
             const eventId = button.getAttribute('data-event-id');
             const eventName = button.getAttribute('data-event-name');
-            
+
             if (confirm(`Êtes-vous sûr de vouloir supprimer « ${eventName} » ?\n\nCette action est irréversible. Toutes les salles, sessions et affectations de participants associées seront également supprimées.`)) {
-                // Get CSRF token
-                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-                if (!csrfToken) {
-                    // Create a hidden form to get CSRF token
-                    const tempForm = document.createElement('form');
-                    tempForm.innerHTML = '{% csrf_token %}';
-                    document.body.appendChild(tempForm);
-                    const token = tempForm.querySelector('[name=csrfmiddlewaretoken]').value;
-                    document.body.removeChild(tempForm);
-                    
-                    submitDelete(eventId, token, button);
-                } else {
-                    submitDelete(eventId, csrfToken.value, button);
-                }
+                const tempForm = document.createElement('form');
+                tempForm.innerHTML = '{% csrf_token %}';
+                document.body.appendChild(tempForm);
+                const token = tempForm.querySelector('[name=csrfmiddlewaretoken]').value;
+                document.body.removeChild(tempForm);
+                submitDelete(eventId, token, button);
             }
         }
     });
-    
+
     function submitDelete(eventId, csrfToken, button) {
-        // Show loading state
         button.disabled = true;
         button.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-        
-        // Submit deletion via fetch
+
         fetch(`/dashboard/events/${eventId}/delete/`, {
             method: 'POST',
             headers: {
@@ -198,23 +181,16 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => {
             if (response.redirected) {
-                // Successful deletion - remove the row from table
                 const row = button.closest('tr');
                 row.style.opacity = '0.5';
                 setTimeout(() => {
                     row.remove();
-                    
-                    // Update statistics
-                    updateStatistics();
-                    
-                    // Check if table is empty
-                    const tbody = document.querySelector('tbody');
-                    if (tbody && tbody.children.length === 0) {
-                        location.reload(); // Reload to show "no events" message
+                    if (!document.querySelector('.event-row')) {
+                        location.reload(); // show the "no events" message
+                    } else {
+                        applySearch();
                     }
                 }, 300);
-                
-                // Show success message
                 showMessage('Événement supprimé avec succès !', 'success');
             } else {
                 throw new Error('Deletion failed');
@@ -227,16 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
             button.innerHTML = '<i class="bi bi-trash"></i>';
         });
     }
-    
-    function updateStatistics() {
-        // Decrease total events count
-        const totalEventsEl = document.querySelector('.stat-card h2');
-        if (totalEventsEl) {
-            const currentCount = parseInt(totalEventsEl.textContent);
-            totalEventsEl.textContent = currentCount - 1;
-        }
-    }
-    
+
     function showMessage(message, type) {
         const alertDiv = document.createElement('div');
         alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
@@ -246,10 +213,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
         document.body.appendChild(alertDiv);
-        
-        setTimeout(() => {
-            alertDiv.remove();
-        }, 5000);
+        setTimeout(() => { alertDiv.remove(); }, 5000);
     }
 });
 </script>

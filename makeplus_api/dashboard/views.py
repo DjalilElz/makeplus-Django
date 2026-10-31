@@ -262,96 +262,18 @@ def csrf_failure(request, reason=""):
 @login_required
 @user_passes_test(is_staff_user)
 def dashboard_home(request):
-    """Main dashboard with statistics and event list"""
-    from django.core.cache import cache
-    
+    """Admin home: the events list -- logo, name, dates, place, status and
+    actions only, with an instant search. One light query (no statistics
+    cards, no per-event counts) so it opens fast."""
     # Committee members should be redirected to their events page
     if not request.user.is_staff and not request.user.is_superuser:
-        # Check if user is a committee member
         if EPosterCommitteeMember.objects.filter(user=request.user, is_active=True).exists():
             return redirect('dashboard:eposter_management_home')
-    
-    # Get cache version
-    cache_version = get_dashboard_cache_version()
-    cache_key = f'dashboard_home_v{cache_version}'
-    
-    # Try to get from cache
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        context = cached_data
-    else:
-        # Get recent events only (limit to 20 for performance).
-        # The list only shows a count of participants/rooms/sessions per
-        # event, so those are computed by the database as correlated
-        # subqueries in this one query. This used to prefetch the related
-        # rows themselves -- every participant (5,500+ full rows, each with
-        # its QR-code JSON), room and session of all 20 events -- just to
-        # count them in the template (and the participant badge read a
-        # relation that doesn't exist, so it always rendered blank anyway).
-        # Subqueries rather than Count() over joins: three joins in one
-        # GROUP BY multiply into participants x rooms x sessions rows.
-        from django.db.models import OuterRef, Subquery, IntegerField
-        from django.db.models.functions import Coalesce
-        from events.models import ParticipantEventRegistration
 
-        def _count_per_event(model):
-            return Coalesce(Subquery(
-                model.objects.filter(event=OuterRef('pk')).order_by().values('event')
-                .annotate(n=Count('pk')).values('n'),
-                output_field=IntegerField(),
-            ), 0)
-
-        events = list(Event.objects.select_related('created_by').annotate(
-            participant_count=_count_per_event(ParticipantEventRegistration),
-            room_count=_count_per_event(Room),
-            session_count=_count_per_event(Session),
-        ).order_by('-start_date')[:20])
-        
-        # Calculate overall statistics using aggregate (single query)
-        from django.db.models import Q
-        stats = Event.objects.aggregate(
-            total=Count('id'),
-            active=Count('id', filter=Q(status='active')),
-            upcoming=Count('id', filter=Q(status='upcoming')),
-            completed=Count('id', filter=Q(status='completed'))
-        )
-        
-        total_events = stats['total']
-        active_events = stats['active']
-        upcoming_events = stats['upcoming']
-        completed_events = stats['completed']
-        
-        # Simple counts (cached values from Event model where possible)
-        total_participants = Participant.objects.count()
-        total_users = User.objects.count()
-        total_sessions = Session.objects.count()
-        
-        # Skip recent activity for performance (or make it optional)
-        recent_room_accesses = 0
-        recent_scans = 0
-        
-        context = {
-            'events': events,
-            'total_events': total_events,
-            'active_events': active_events,
-            'upcoming_events': upcoming_events,
-            'completed_events': completed_events,
-            'total_participants': total_participants,
-            'total_users': total_users,
-            'total_sessions': total_sessions,
-            'recent_room_accesses': recent_room_accesses,
-            'recent_scans': recent_scans,
-        }
-        
-        # Cache for 5 minutes
-        cache.set(cache_key, context, 300)
-    
-    response = render(request, 'dashboard/home.html', context)
-    
-    # Allow browser to cache for 30 seconds
-    response['Cache-Control'] = 'private, max-age=30'
-    
-    return response
+    events = Event.objects.only(
+        'id', 'name', 'status', 'start_date', 'end_date', 'location', 'logo',
+    ).order_by('-start_date')
+    return render(request, 'dashboard/home.html', {'events': events})
 
 
 # ==================== Event Detail View ====================
