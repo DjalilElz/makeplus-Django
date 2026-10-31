@@ -1,6 +1,7 @@
-/* Shared between participant and controller announcements pages -- same
-   list, same GET /api/annonces/ call (server-filters by role/event from
-   the JWT already), just a different tab-bar/top-bar shell around it. */
+/* Shared by the participant, controller and exposant announcements pages --
+   same list, same GET /api/annonces/?event_id=<current event> call (the
+   server filters by role within that event), just a different tab-bar
+   shell around it. */
 (function () {
     if (!requireAuth()) return;
 
@@ -22,10 +23,19 @@
 
     var event = Auth.getEvent() || {};
 
-    loadWithCache('announcements_' + (event.id || ''), function () {
+    // Always scoped to the event the user is currently in. Without the
+    // event_id the server would return announcements from every event the
+    // account belongs to, mixed together.
+    if (!event.id) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('empty').style.display = 'block';
+        return;
+    }
+
+    loadWithCache('announcements_' + event.id, function () {
         // getAll: the endpoint is paginated (20 per page) -- reading just
         // the first page silently hid every older announcement.
-        return Api.getAll('/annonces/');
+        return Api.getAll('/annonces/?event_id=' + encodeURIComponent(event.id));
     }, function (data) {
         document.getElementById('loading').style.display = 'none';
         var items = Array.isArray(data) ? data : (data.results || []);

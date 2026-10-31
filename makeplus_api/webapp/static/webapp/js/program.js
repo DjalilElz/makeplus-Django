@@ -5,7 +5,11 @@
 (function () {
     if (!requireAuth()) return;
     var event = Auth.getEvent() || {};
-    var rolePrefix = Auth.getRole() === 'controlleur_des_badges' ? 'controller' : 'participant';
+    // Session cards open the detail page of the viewer's own role, so the
+    // tab bar stays their own (an exposant must not land in the participant
+    // shell).
+    var ROLE_PREFIX = { controlleur_des_badges: 'controller', exposant: 'exposant' };
+    var rolePrefix = ROLE_PREFIX[Auth.getRole()] || 'participant';
 
     var pdfBtn = document.getElementById('pdf-toggle');
     var pdfBtnIcon = document.getElementById('pdf-toggle-icon');

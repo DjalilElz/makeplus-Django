@@ -542,3 +542,58 @@ class UserProfileAPIEventResolutionTests(TestCase):
         self.assertEqual(response.data['event']['location'], 'Algiers')
         self.assertEqual(response.data['event']['primary_color'], '#123456')
         self.assertIsNotNone(response.data['event']['start_date'])
+
+
+class AnnonceIsolationTests(TestCase):
+    """Announcements never cross events: an 'all' or self-written
+    announcement of one event must not reach another event's users."""
+
+    def setUp(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        self.now = timezone.now()
+        self.event_a = Event.objects.create(name='A', start_date=self.now, end_date=self.now + timedelta(days=2), location='x')
+        self.event_b = Event.objects.create(name='B', start_date=self.now, end_date=self.now + timedelta(days=2), location='y')
+        self.organizer_b = User.objects.create_user(username='org_b', password='x')
+        self.user = User.objects.create_user(username='both', password='x')
+        UserEventAssignment.objects.create(user=self.user, event=self.event_a, role='participant')
+        UserEventAssignment.objects.create(user=self.user, event=self.event_b, role='exposant')
+        from events.models import Annonce
+        self.a_all = Annonce.objects.create(event=self.event_a, title='A all', description='x', target='all', created_by=self.organizer_b)
+        self.b_all = Annonce.objects.create(event=self.event_b, title='B all', description='x', target='all', created_by=self.organizer_b)
+        self.outsider_all = Annonce.objects.create(event=self.event_b, title='B only', description='x', target='all', created_by=self.organizer_b)
+        self.b_expo = Annonce.objects.create(event=self.event_b, title='B exposants', description='x', target='exposants', created_by=self.organizer_b)
+        self.b_participants = Annonce.objects.create(event=self.event_b, title='B participants', description='x', target='participants', created_by=self.organizer_b)
+        self.api = APIClient()
+        self.api.force_authenticate(self.user)
+
+    def _titles(self, url):
+        response = self.api.get(url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        return sorted(item['title'] for item in data.get('results', data))
+
+    def test_event_list_shows_only_that_events_announcements_for_the_role(self):
+        self.assertEqual(self._titles(f'/api/annonces/?event_id={self.event_a.id}'), ['A all'])
+        self.assertEqual(self._titles(f'/api/annonces/?event_id={self.event_b.id}'), ['B all', 'B exposants', 'B only'])
+
+    def test_unfiltered_list_is_still_isolated_per_event(self):
+        titles = self._titles('/api/annonces/')
+        self.assertNotIn('B participants', titles)
+        self.assertEqual(sorted(titles), ['A all', 'B all', 'B exposants', 'B only'])
+
+    def test_event_the_user_does_not_belong_to_returns_nothing(self):
+        other = Event.objects.create(name='C', start_date=self.now, end_date=self.now, location='z')
+        self.assertEqual(self._titles(f'/api/annonces/?event_id={other.id}'), [])
+
+    def test_announcement_of_an_event_the_user_is_not_in_never_appears(self):
+        # The real-data case: an 'all' notice of a fourth event reached
+        # every user of the other events.
+        from events.models import Annonce
+        other = Event.objects.create(name='C', start_date=self.now, end_date=self.now, location='z')
+        Annonce.objects.create(event=other, title='C all', description='x', target='all', created_by=self.organizer_b)
+        titles = self._titles('/api/annonces/')
+        self.assertNotIn('C all', titles)
+
+    def test_invalid_event_id_returns_nothing_instead_of_crashing(self):
+        self.assertEqual(self._titles('/api/annonces/?event_id=not-a-uuid'), [])

@@ -10,6 +10,7 @@ urlpatterns = [
     path('sw.js', views.service_worker, name='service_worker'),
 
     path('login/', views.login_view, name='login'),
+    path('forgot-password/', views.forgot_password_view, name='forgot_password'),
     path('signup/', views.signup_view, name='signup'),
     path('select-event/', views.select_event_view, name='select_event'),
     path('install/', views.install_view, name='install'),
@@ -30,6 +31,8 @@ urlpatterns = [
     path('controller/session/<uuid:session_id>/', views.controller_session_detail_view, name='controller_session_detail'),
 
     path('exposant/home/', views.exposant_home_view, name='exposant_home'),
+    path('exposant/program/', views.exposant_program_view, name='exposant_program'),
+    path('exposant/session/<uuid:session_id>/', views.exposant_session_detail_view, name='exposant_session_detail'),
     path('exposant/guide/', views.exposant_guide_view, name='exposant_guide'),
     path('exposant/scanner/', views.exposant_scanner_view, name='exposant_scanner'),
     path('exposant/stats/', views.exposant_stats_view, name='exposant_stats'),

@@ -28,6 +28,13 @@ def login_view(request):
 
 
 @never_cache
+def forgot_password_view(request):
+    # Anonymous by design: the user can't sign in yet. Uses the same
+    # password-reset endpoints as the mobile app (events/password_reset_views).
+    return render(request, 'webapp/forgot_password.html')
+
+
+@never_cache
 def signup_view(request):
     return render(request, 'webapp/signup.html')
 
@@ -144,6 +151,20 @@ def controller_session_detail_view(request, session_id):
 def exposant_home_view(request):
     return render(request, 'webapp/exposant/home.html', {
         'show_tab_bar': True, 'active_tab': 'home', 'role': 'exposant',
+    })
+
+
+@never_cache
+def exposant_program_view(request):
+    return render(request, 'webapp/exposant/program.html', {
+        'show_tab_bar': True, 'active_tab': 'program', 'role': 'exposant',
+    })
+
+
+@never_cache
+def exposant_session_detail_view(request, session_id):
+    return render(request, 'webapp/session_detail.html', {
+        'show_tab_bar': True, 'active_tab': 'program', 'role': 'exposant',
     })
 
 

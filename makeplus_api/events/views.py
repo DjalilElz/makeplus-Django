@@ -1152,37 +1152,49 @@ class AnnonceViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        """Filter annonces by user role and event"""
+        """Announcements of the user's own events only, for the user's role.
+
+        Isolation between events: a target='all' or self-written announcement
+        of one event used to reach every user with ANY role in ANY event, so
+        an organizer's notice for event A appeared in event B (and in events
+        the user doesn't belong to at all). Each event's announcements are
+        now only visible through that event's own assignment, and ?event_id=
+        narrows the list to one event.
+        """
+        import uuid as uuid_lib
         user = self.request.user
         queryset = Annonce.objects.select_related('event', 'created_by')
-        
-        # Filter by event
+
+        if user.is_superuser:
+            event_id = self.request.query_params.get('event_id')
+            if event_id:
+                try:
+                    queryset = queryset.filter(event_id=uuid_lib.UUID(event_id))
+                except ValueError:
+                    return queryset.none()
+            return queryset
+
+        assignments = UserEventAssignment.objects.filter(user=user, is_active=True)
+        user_roles = {str(a.event_id): a.role for a in assignments}
+
         event_id = self.request.query_params.get('event_id')
         if event_id:
-            queryset = queryset.filter(event_id=event_id)
-        
-        # Filter by target based on user role (even for staff/admins)
-        # Only superusers see all announcements
-        if not user.is_superuser:
-            # Get user's role in events
-            user_assignments = UserEventAssignment.objects.filter(user=user, is_active=True)
-            user_roles = {assignment.event_id: assignment.role for assignment in user_assignments}
-            
-            # Filter annonces targeted to user's roles or 'all' OR created by user
-            role_filters = Q(target='all') | Q(created_by=user)
-            for event_id, role in user_roles.items():
-                if role == 'participant':
-                    role_filters |= Q(event_id=event_id, target='participants')
-                elif role == 'exposant':
-                    role_filters |= Q(event_id=event_id, target='exposants')
-                elif role == 'controlleur_des_badges':
-                    role_filters |= Q(event_id=event_id, target='controlleurs')
-                elif role == 'gestionnaire_des_salles':
-                    role_filters |= Q(event_id=event_id, target='gestionnaires')
-            
-            queryset = queryset.filter(role_filters)
-        
-        return queryset
+            user_roles = {eid: role for eid, role in user_roles.items() if eid == str(event_id)}
+
+        role_target = {
+            'participant': 'participants',
+            'exposant': 'exposants',
+            'controlleur_des_badges': 'controlleurs',
+            'gestionnaire_des_salles': 'gestionnaires',
+        }
+        role_filters = Q(pk__in=[])
+        for eid, role in user_roles.items():
+            event_filter = Q(event_id=eid) & (Q(target='all') | Q(created_by=user))
+            if role in role_target:
+                event_filter |= Q(event_id=eid, target=role_target[role])
+            role_filters |= event_filter
+
+        return queryset.filter(role_filters)
     
     def perform_create(self, serializer):
         """Set created_by on creation"""

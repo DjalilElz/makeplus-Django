@@ -23,6 +23,10 @@
         <button type="submit" class="btn btn-primary" id="submit-btn">Se connecter</button>
     </form>
 
+    <div style="text-align:center; margin-top:12px;">
+        <a href="/app/forgot-password/" class="btn-link">Mot de passe oublié ?</a>
+    </div>
+
     <div style="text-align:center; margin-top:20px;">
         <a href="/app/signup/" class="btn-link">Vous vous êtes déjà inscrit(e) à l'événement ? Créer votre accès</a>
     </div>
@@ -35,6 +39,13 @@
 <script>
 (function () {
     if (Auth.isLoggedIn()) { window.location.href = Auth.homeUrl(); return; }
+
+    if (new URLSearchParams(window.location.search).get('reset') === '1') {
+        var doneBox = document.createElement('div');
+        doneBox.className = 'alert alert-success';
+        doneBox.textContent = 'Votre mot de passe a été modifié. Connectez-vous avec le nouveau.';
+        document.getElementById('login-form').before(doneBox);
+    }
 
     var form = document.getElementById('login-form');
     var errorBox = document.getElementById('error-box');

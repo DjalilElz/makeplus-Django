@@ -49,6 +49,10 @@
             <span class="tab-icon"><i class="bi bi-house tab-icon-inactive"></i><i class="bi bi-house-fill tab-icon-active"></i></span>
             <span class="tab-label">Accueil</span>
         </a>
+        <a href="/app/exposant/program/" class="{% if active_tab == 'program' %}active{% endif %}">
+            <span class="tab-icon"><i class="bi bi-grid tab-icon-inactive"></i><i class="bi bi-grid-fill tab-icon-active"></i></span>
+            <span class="tab-label">Programme</span>
+        </a>
         <a href="/app/exposant/guide/" class="{% if active_tab == 'guide' %}active{% endif %}">
             <span class="tab-icon"><i class="bi bi-map tab-icon-inactive"></i><i class="bi bi-map-fill tab-icon-active"></i></span>
             <span class="tab-label">Guide</span>
