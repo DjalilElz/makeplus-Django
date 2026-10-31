@@ -1271,6 +1271,30 @@ def process_transaction(request):
 
     try:
         with db_transaction.atomic():
+            # Never charge an item this participant already paid for at this
+            # event. The page only sends items it shows as unpaid, but its
+            # data can be seconds stale (the in-place refresh after a
+            # payment runs in the background) -- that let the same
+            # 4000 DZD status be collected twice, 7 s apart (SARM 2026).
+            # The participant row lock makes a second caisse / double
+            # click wait for this one and then see its result.
+            Participant.objects.select_for_update().filter(id=participant.id).exists()
+            already_paid = list(
+                PayableItem.objects.filter(
+                    id__in=[item.id for item in items],
+                    transactions__participant=participant,
+                    transactions__status='completed',
+                    transactions__caisse__event=caisse.event,
+                ).values_list('name', flat=True).distinct()
+            )
+            if already_paid:
+                return JsonResponse({
+                    'success': False,
+                    'already_paid': True,
+                    'message': 'Déjà payé par ce participant : ' + ', '.join(already_paid)
+                               + ". Rien n'a été encaissé -- rechargez la page.",
+                })
+
             # Create the transaction record
             transaction = CaisseTransaction.objects.create(
                 caisse=caisse,

@@ -737,9 +737,16 @@
             statusCatalogData: statusCatalogData,
         };
         let refreshInFlight = null;
+        let refreshAgain = false;
 
         function refreshDashboard() {
-            if (refreshInFlight) return refreshInFlight;
+            if (refreshInFlight) {
+                // The running refresh fetched the page BEFORE whatever just
+                // happened (e.g. a payment) -- its data would overwrite the
+                // newer state. Run one more right after it.
+                refreshAgain = true;
+                return refreshInFlight;
+            }
             refreshInFlight = fetch(window.location.pathname, { cache: 'no-store', credentials: 'same-origin' })
                 .then(function (r) {
                     if (!r.ok || r.redirected) throw new Error('HTTP ' + r.status);
@@ -789,7 +796,13 @@
                     console.error('In-place refresh failed, reloading:', err);
                     window.location.reload();
                 })
-                .finally(function () { refreshInFlight = null; });
+                .finally(function () {
+                    refreshInFlight = null;
+                    if (refreshAgain) {
+                        refreshAgain = false;
+                        refreshDashboard();
+                    }
+                });
             return refreshInFlight;
         }
 
@@ -1240,6 +1253,20 @@
             calculateTotal();
         }
 
+        // Paid items move from "reserved/due" to "paid" for this participant
+        // in the page's own data (see processTransaction).
+        function markPaidLocally(participantId, paidIds) {
+            const paid = new Set((participantPaidItemsData[participantId] || []).map(Number));
+            paidIds.forEach(function (id) { paid.add(id); });
+            participantPaidItemsData[participantId] = Array.from(paid);
+            participantReservedItemsData[participantId] = (participantReservedItemsData[participantId] || [])
+                .filter(function (id) { return !paid.has(Number(id)); });
+            participantReservedSummaryData[participantId] = (participantReservedSummaryData[participantId] || [])
+                .filter(function (order) {
+                    return !(order.payable_ids || []).every(function (id) { return paid.has(Number(id)); });
+                });
+        }
+
         // Load items already paid by participant from pre-loaded data
         function loadParticipantPaidItems(participantId) {
             const paidItems = participantPaidItemsData[participantId] || [];
@@ -1465,6 +1492,13 @@
             })
             .then(response => response.json())
             .then(data => {
+                if (data.success && action !== 'print_badge' && selectedItems.length) {
+                    // Record what was just paid in this page's own data right
+                    // away -- the background refresh can take seconds, and
+                    // re-selecting this participant meanwhile used to show
+                    // the items as still due (and let them be collected twice).
+                    markPaidLocally(String(selectedParticipantId), selectedItems.map(Number));
+                }
                 if (data.success) {
                     // Point the already-open window at the real print page
                     // now that the transaction actually succeeded.
