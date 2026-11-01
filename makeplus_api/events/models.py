@@ -1206,6 +1206,17 @@ class ControllerScan(models.Model):
         default='success'
     )
     error_message = models.TextField(blank=True, help_text="Error message if scan failed")
+
+    # What the controller did after seeing the result: the webapp shows
+    # "Laisser entrer" / "Refuser l'accès" buttons. Empty = no decision
+    # recorded (older scans, or the controller just scanned the next badge).
+    ACCESS_GRANTED = 'granted'
+    ACCESS_DENIED = 'denied'
+    access_decision = models.CharField(
+        max_length=10, blank=True, default='',
+        choices=[(ACCESS_GRANTED, 'Accès autorisé'), (ACCESS_DENIED, 'Accès refusé')],
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
     
     # Metadata
     total_paid_items = models.IntegerField(default=0, help_text="Number of paid items at scan time")

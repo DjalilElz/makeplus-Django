@@ -27,6 +27,11 @@
     }
     .result-sheet.visible { transform: translateY(0); }
     .result-status { text-align: center; font-size: 2.4rem; margin-bottom: 6px; }
+    .decision-row { display: flex; gap: 10px; margin-top: 16px; }
+    .decision-row .btn { flex: 1; color: #fff; border: none; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-grant { background: var(--success); }
+    .btn-deny { background: var(--error); }
+    .decision-row .btn:disabled { opacity: 0.6; }
 </style>
 {% endblock %}
 {% block body %}
@@ -49,7 +54,13 @@
     <div id="result-name" style="text-align:center; font-size:1.2rem; font-weight:800; margin-bottom:2px;"></div>
     <div id="result-message" style="text-align:center; color:var(--text-secondary); font-size:0.9rem; margin-bottom:16px;"></div>
     <div id="result-items"></div>
-    <button class="btn btn-primary" id="scan-again-btn" style="margin-top:16px;">Scanner à nouveau</button>
+    <!-- Recorded on the scan so the stats show who was let in / turned away -->
+    <div class="decision-row" id="decision-row" style="display:none;">
+        <button class="btn btn-grant" id="grant-btn" type="button"><i class="bi bi-door-open"></i> Laisser entrer</button>
+        <button class="btn btn-deny" id="deny-btn" type="button"><i class="bi bi-slash-circle"></i> Refuser l'accès</button>
+    </div>
+    <div id="decision-error" style="display:none; text-align:center; color:var(--error); font-size:0.85rem; margin-top:8px;"></div>
+    <button class="btn btn-secondary" id="scan-again-btn" style="margin-top:12px;">Scanner à nouveau</button>
 </div>
 {% endblock %}
 {% block extra_scripts %}
@@ -142,8 +153,16 @@
         });
     }
 
+    var currentScanId = null;
+
     function showResult(data) {
         var success = data.status === 'success';
+        currentScanId = data.scan_id || null;
+        var decisionRow = document.getElementById('decision-row');
+        decisionRow.style.display = currentScanId ? 'flex' : 'none';
+        document.getElementById('decision-error').style.display = 'none';
+        document.getElementById('grant-btn').disabled = false;
+        document.getElementById('deny-btn').disabled = false;
         var resultIcon = document.getElementById('result-icon');
         resultIcon.innerHTML = success
             ? '<i class="bi bi-check-circle-fill" style="color:var(--success);"></i>'
@@ -176,11 +195,36 @@
         sheet.classList.add('visible');
     }
 
-    document.getElementById('scan-again-btn').addEventListener('click', function () {
+    function resumeScanning() {
+        currentScanId = null;
         sheet.classList.remove('visible');
         scanning = true;
         rafId = requestAnimationFrame(tick);
-    });
+    }
+
+    function recordDecision(decision) {
+        if (!currentScanId) { resumeScanning(); return; }
+        var grantBtn = document.getElementById('grant-btn');
+        var denyBtn = document.getElementById('deny-btn');
+        var errorEl = document.getElementById('decision-error');
+        grantBtn.disabled = true;
+        denyBtn.disabled = true;
+        errorEl.style.display = 'none';
+        Api.post('/participants/scan-decision/', { scan_id: currentScanId, decision: decision }).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            if (navigator.vibrate) navigator.vibrate(40);
+            resumeScanning();
+        }).catch(function () {
+            grantBtn.disabled = false;
+            denyBtn.disabled = false;
+            errorEl.textContent = "La décision n'a pas pu être enregistrée. Réessayez.";
+            errorEl.style.display = 'block';
+        });
+    }
+
+    document.getElementById('grant-btn').addEventListener('click', function () { recordDecision('granted'); });
+    document.getElementById('deny-btn').addEventListener('click', function () { recordDecision('denied'); });
+    document.getElementById('scan-again-btn').addEventListener('click', resumeScanning);
 
     document.getElementById('retry-camera-btn').addEventListener('click', startCamera);
 

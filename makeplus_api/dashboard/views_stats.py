@@ -12,6 +12,7 @@ from datetime import timedelta, datetime, time
 from .models_email import EmailCampaign, EmailRecipient, EmailLink, EmailClick, EmailOpen
 from .models_form import FormConfiguration, FormAnalytics, FormView, FormFieldInteraction
 from .views import is_staff_user
+from .stats_insights import build_insights, chart_payload, person_name
 
 
 @login_required
@@ -487,12 +488,14 @@ def _gather_event_stats(request, event):
         'caisse', 'participant__user', 'sponsor',
     ).prefetch_related('items').order_by('-created_at')
 
-    # ---- Presence (event-wide check-in, set by the caisse only),
-    # optionally narrowed to a participant by name/e-mail/badge ----
-    presence_qs = _in_date_range(
+    # ---- Presence (event-wide check-in, set by the caisse only). The
+    # base queryset feeds the figures and charts; the name/e-mail/badge
+    # search only narrows the detail list. ----
+    presence_base_qs = _in_date_range(
         ParticipantEventRegistration.objects.filter(event=event, is_checked_in=True),
         'checked_in_at', date_from, date_to,
-    ).select_related('participant__user')
+    )
+    presence_qs = presence_base_qs.select_related('participant__user')
     if presence_search:
         presence_qs = presence_qs.filter(
             Q(participant__user__first_name__icontains=presence_search)
@@ -501,56 +504,55 @@ def _gather_event_stats(request, event):
             | Q(participant__badge_id__icontains=presence_search)
         )
     presence_qs = presence_qs.order_by('-checked_in_at')
-    presence_count = presence_qs.count()
+    presence_total = presence_base_qs.count()
+    presence_count = presence_qs.count() if presence_search else presence_total
     total_registered = ParticipantEventRegistration.objects.filter(event=event).count()
 
-    # ---- Scans (badge controllers + exhibitor booth visits), filterable
-    # by the same date range, by a specific scanned participant, and by
-    # WHICH controller/exposant did the scanning ----
-    controller_id = request.GET.get('controller_id', '').strip()
-    exposant_id = request.GET.get('exposant_id', '').strip()
+    # ---- Scans (badge controllers + exhibitor booth visits) ----
+    # One "Compte" filter for both kinds of account: ?account=c<user id>
+    # for a controller, e<participant id> for an exposant. The older
+    # controller_id / exposant_id parameters still work (bookmarks).
+    controller_options = [
+        {'key': f"c{row['controller_id']}",
+         'name': person_name(row['controller__first_name'], row['controller__last_name'], row['controller__username'])}
+        for row in ControllerScan.objects.filter(event=event).order_by()
+        .values('controller_id', 'controller__first_name', 'controller__last_name', 'controller__username').distinct()
+    ]
+    exposant_options = [
+        {'key': f"e{row['exposant_id']}",
+         'name': person_name(row['exposant__user__first_name'], row['exposant__user__last_name'], row['exposant__user__username'])}
+        for row in ExposantScan.objects.filter(event=event).order_by()
+        .values('exposant_id', 'exposant__user__first_name', 'exposant__user__last_name', 'exposant__user__username').distinct()
+    ]
+    controller_options.sort(key=lambda o: o['name'].lower())
+    exposant_options.sort(key=lambda o: o['name'].lower())
 
-    # Dropdown options are the controllers/exposants who actually have scan
-    # history for this event (not every assigned controller/exposant) --
-    # anyone with zero scans has nothing to filter down to anyway.
-    controller_options = list(
-        ControllerScan.objects.filter(event=event).select_related('controller')
-        .values('controller_id', 'controller__first_name', 'controller__last_name', 'controller__username')
-        .distinct().order_by('controller__first_name', 'controller__last_name')
-    )
-    exposant_options = list(
-        ExposantScan.objects.filter(event=event).select_related('exposant__user')
-        .values('exposant_id', 'exposant__user__first_name', 'exposant__user__last_name', 'exposant__user__username')
-        .distinct().order_by('exposant__user__first_name', 'exposant__user__last_name')
-    )
+    account = request.GET.get('account', '').strip()
+    if not account and request.GET.get('controller_id', '').strip():
+        account = 'c' + request.GET['controller_id'].strip()
+    elif not account and request.GET.get('exposant_id', '').strip():
+        account = 'e' + request.GET['exposant_id'].strip()
+    selected_account = next((o for o in controller_options + exposant_options if o['key'] == account), None)
+    if not selected_account:
+        account = ''
+    controller_id = account[1:] if account.startswith('c') else ''
+    exposant_id = account[1:] if account.startswith('e') else ''
 
     controller_scans_base_qs = _in_date_range(
         ControllerScan.objects.filter(event=event), 'scanned_at', date_from, date_to,
     )
+    exposant_scans_base_qs = _in_date_range(
+        ExposantScan.objects.filter(event=event), 'scanned_at', date_from, date_to,
+    )
     if controller_id:
         controller_scans_base_qs = controller_scans_base_qs.filter(controller_id=controller_id)
-
-    # Per-controller breakdown (mirrors per_caisse_stats below): one row
-    # per controller with their own scan count and distinct participants
-    # scanned, independent of every other controller's numbers -- not
-    # just a dropdown to view one controller's raw list at a time.
-    # Must run against an UN-ordered queryset (see per_caisse_stats'
-    # note) -- order_by() gets folded into GROUP BY otherwise.
-    per_controller_stats = list(controller_scans_base_qs.values(
-        'controller_id', 'controller__first_name', 'controller__last_name', 'controller__username'
-    ).annotate(
-        scan_count=Count('id'),
-        unique_participants=Count('participant_user_id', distinct=True),
-    ).order_by('controller__first_name', 'controller__last_name'))
+        exposant_scans_base_qs = exposant_scans_base_qs.none()
+    elif exposant_id:
+        exposant_scans_base_qs = exposant_scans_base_qs.filter(exposant_id=exposant_id)
+        controller_scans_base_qs = controller_scans_base_qs.none()
 
     controller_scans_qs = controller_scans_base_qs.select_related('controller')
-    exposant_scans_qs = _in_date_range(
-        ExposantScan.objects.filter(event=event), 'scanned_at', date_from, date_to,
-    ).select_related('exposant__user', 'scanned_participant__user')
-
-    if exposant_id:
-        exposant_scans_qs = exposant_scans_qs.filter(exposant_id=exposant_id)
-
+    exposant_scans_qs = exposant_scans_base_qs.select_related('exposant__user', 'scanned_participant__user')
     if scan_search:
         controller_scans_qs = controller_scans_qs.filter(
             Q(participant_name__icontains=scan_search)
@@ -563,7 +565,6 @@ def _gather_event_stats(request, event):
             | Q(scanned_participant__user__email__icontains=scan_search)
             | Q(scanned_participant__badge_id__icontains=scan_search)
         )
-
     controller_scans_qs = controller_scans_qs.order_by('-scanned_at')
     exposant_scans_qs = exposant_scans_qs.order_by('-scanned_at')
 
@@ -572,55 +573,69 @@ def _gather_event_stats(request, event):
         'scan_search': scan_search, 'presence_search': presence_search,
         'caisses': caisses, 'caisse_id': caisse_id, 'selected_caisse': selected_caisse,
         'money_stats': money_stats, 'per_caisse_stats': per_caisse_stats, 'payment_totals': payment_totals,
-        'transactions_qs': transactions_qs,
-        'presence_qs': presence_qs, 'presence_count': presence_count, 'total_registered': total_registered,
+        'transactions_base_qs': transactions_base_qs, 'transactions_qs': transactions_qs,
+        'presence_base_qs': presence_base_qs, 'presence_qs': presence_qs,
+        'presence_total': presence_total, 'presence_count': presence_count, 'total_registered': total_registered,
+        'controller_scans_base_qs': controller_scans_base_qs, 'exposant_scans_base_qs': exposant_scans_base_qs,
         'controller_scans_qs': controller_scans_qs, 'exposant_scans_qs': exposant_scans_qs,
-        'controller_id': controller_id, 'exposant_id': exposant_id,
+        'account': account, 'selected_account': selected_account,
         'controller_options': controller_options, 'exposant_options': exposant_options,
-        'per_controller_stats': per_controller_stats,
     }
 
 
-def _group_scans_by_controller(controller_scans_qs, per_controller_stats):
-    """
-    The per-controller table isn't just counts -- each controller needs
-    their own actual list of scans underneath, not a click-through to a
-    separate combined list. Reuses the same _EVENT_STATS_LIST_LIMIT cap
-    as every other on-page list here, so a controller's shown scans can
-    fall short of their real total (scan_count, from the exact aggregate
-    query) if the global cap is hit first -- shown_count lets the
-    template flag that per group instead of silently under-reporting.
-    """
-    scans_by_controller = {}
-    for scan in controller_scans_qs[:_EVENT_STATS_LIST_LIMIT]:
-        scans_by_controller.setdefault(scan.controller_id, []).append(scan)
+def _event_day_shortcuts(event, data):
+    """Quick period buttons: 'Tout l'événement' + one per event day (max 14)."""
+    from urllib.parse import urlencode
 
-    return [
-        {**row, 'scans': scans_by_controller.get(row['controller_id'], []),
-         'shown_count': len(scans_by_controller.get(row['controller_id'], []))}
-        for row in per_controller_stats
-    ]
+    keep = {k: v for k, v in (('caisse_id', data['caisse_id']), ('account', data['account'])) if v}
+    shortcuts = [{
+        'label': "Tout l'événement", 'query': urlencode(keep),
+        'active': not data['date_from_str'] and not data['date_to_str'],
+    }]
+    if event.start_date and event.end_date:
+        first = timezone.localtime(event.start_date).date()
+        last = timezone.localtime(event.end_date).date()
+        for index in range(min((last - first).days + 1, 14)):
+            day = first + timedelta(days=index)
+            date_from, date_to = f'{day.isoformat()}T00:00', f'{day.isoformat()}T23:59'
+            shortcuts.append({
+                'label': f'Jour {index + 1} · {day.strftime("%d/%m")}',
+                'query': urlencode({**keep, 'date_from': date_from, 'date_to': date_to}),
+                'active': data['date_from_str'] == date_from and data['date_to_str'] == date_to,
+            })
+    # "Aujourd'hui" only when today isn't already one of the event-day buttons.
+    today = timezone.localdate()
+    date_from, date_to = f'{today.isoformat()}T00:00', f'{today.isoformat()}T23:59'
+    if not any(sc['query'].endswith(f'date_to={today.isoformat()}T23%3A59') for sc in shortcuts):
+        shortcuts.append({
+            'label': "Aujourd'hui",
+            'query': urlencode({**keep, 'date_from': date_from, 'date_to': date_to}),
+            'active': data['date_from_str'] == date_from and data['date_to_str'] == date_to,
+        })
+    return shortcuts
 
 
 @login_required
 @user_passes_test(is_staff_user)
 def event_stats(request, event_id):
     """
-    Combined, date-filterable view of everything happening at an event on
-    the ground: money collected across ALL caisses (not just one
-    station's own dashboard), who's actually present, and scan history --
-    previously scattered with no single place to see it all together or
-    narrow it to a specific day/hour range.
+    Event dashboard: one filter bar (period, caisse, account) applied to
+    everything -- money, presence, scans, charts and both exports -- then
+    key figures, insights (peaks, refusals, double scans, stand ranking),
+    charts, and the detail lists folded underneath.
     """
     from events.models import Event
 
     event = get_object_or_404(Event, id=event_id)
     data = _gather_event_stats(request, event)
+    insights = build_insights(data)
 
-    transactions_qs = data['transactions_qs']
     transaction_count = data['money_stats']['transaction_count'] or 0
     controller_scans_qs = data['controller_scans_qs']
     exposant_scans_qs = data['exposant_scans_qs']
+    controller_scans_count = controller_scans_qs.count() if data['scan_search'] else insights['controller_totals']['scans']
+    exposant_scans_count = exposant_scans_qs.count() if data['scan_search'] else insights['exposant_totals']['scans']
+    total_registered = data['total_registered']
 
     context = {
         'event': event,
@@ -628,187 +643,263 @@ def event_stats(request, event_id):
         'date_to': data['date_to_str'],
         'scan_search': data['scan_search'],
         'presence_search': data['presence_search'],
-        'controller_id': data['controller_id'],
-        'exposant_id': data['exposant_id'],
+        'account': data['account'],
+        'selected_account': data['selected_account'],
         'controller_options': data['controller_options'],
         'exposant_options': data['exposant_options'],
         'caisses': data['caisses'],
         'caisse_id': data['caisse_id'],
         'selected_caisse': data['selected_caisse'],
+        'day_shortcuts': _event_day_shortcuts(event, data),
         'money_stats': data['money_stats'],
         'payment_totals': data['payment_totals'],
         'per_caisse_stats': data['per_caisse_stats'],
-        'per_controller_stats': data['per_controller_stats'],
-        'transactions': transactions_qs[:_EVENT_STATS_LIST_LIMIT],
+        'insights': insights,
+        'chart_data': chart_payload(insights, data['per_caisse_stats']),
+        'presence_total': data['presence_total'],
+        'presence_rate': round(100 * data['presence_total'] / total_registered) if total_registered else 0,
+        'total_registered': total_registered,
+        'transactions': data['transactions_qs'][:_EVENT_STATS_LIST_LIMIT],
         'transactions_total_count': transaction_count,
         'transactions_truncated': transaction_count > _EVENT_STATS_LIST_LIMIT,
         'presence_list': data['presence_qs'][:_EVENT_STATS_LIST_LIMIT],
         'presence_count': data['presence_count'],
         'presence_truncated': data['presence_count'] > _EVENT_STATS_LIST_LIMIT,
-        'total_registered': data['total_registered'],
         'controller_scans': controller_scans_qs[:_EVENT_STATS_LIST_LIMIT],
-        'controller_scans_count': controller_scans_qs.count(),
-        'controller_scans_grouped': _group_scans_by_controller(controller_scans_qs, data['per_controller_stats']),
+        'controller_scans_count': controller_scans_count,
         'exposant_scans': exposant_scans_qs[:_EVENT_STATS_LIST_LIMIT],
-        'exposant_scans_count': exposant_scans_qs.count(),
+        'exposant_scans_count': exposant_scans_count,
+        'list_limit': _EVENT_STATS_LIST_LIMIT,
         'export_querystring': request.GET.urlencode(),
     }
     return render(request, 'dashboard/event_stats.html', context)
 
 
+def _readable_stats_date(value, fallback):
+    # '2026-10-28T09:30' -> '28/10/2026 09:30'
+    if not value:
+        return fallback
+    try:
+        return datetime.fromisoformat(value).strftime('%d/%m/%Y %H:%M')
+    except ValueError:
+        return value
+
+
 def _stats_period_label(data):
-    return f"{data['date_from_str'] or 'depuis le début'} → {data['date_to_str'] or 'aujourd’hui'}"
+    return (f"{_readable_stats_date(data['date_from_str'], 'depuis le début')} → "
+            f"{_readable_stats_date(data['date_to_str'], 'aujourd’hui')}")
 
 
 @login_required
 @user_passes_test(is_staff_user)
 def event_stats_export_excel(request, event_id):
     """
-    Full-detail Excel export of the Stats page for the exact filters
-    currently applied -- one workbook, one sheet per tab, uncapped (the
-    on-page tables cap at _EVENT_STATS_LIST_LIMIT for render speed; an
-    export is explicitly asked for everything).
+    One workbook with everything behind the Stats dashboard, for the exact
+    filters applied on screen (period, caisse, account): summary and
+    insights, activity over time, per-account figures, stand ranking, the
+    account x time grid, payments, double scans, and every transaction,
+    check-in and scan (uncapped -- the page caps its lists, the export
+    doesn't).
     """
+    from django.utils.text import slugify
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
     from events.models import Event
 
     event = get_object_or_404(Event, id=event_id)
     data = _gather_event_stats(request, event)
+    insights = build_insights(data)
     money_stats = data['money_stats']
+    payment_totals = data['payment_totals']
+    ctotals = insights['controller_totals']
 
     header_fill = PatternFill(start_color="2D1B6B", end_color="2D1B6B", fill_type="solid")
-    header_font = Font(bold=True, color="FFFFFF", size=12)
-    border = Border(
-        left=Side(style='thin'), right=Side(style='thin'),
-        top=Side(style='thin'), bottom=Side(style='thin'),
-    )
+    header_font = Font(bold=True, color="FFFFFF")
+    section_font = Font(bold=True, color="872C7A", size=12)
+    bold = Font(bold=True)
 
-    def _write_header(ws, row_num, headers):
-        for col, label in enumerate(headers, start=1):
-            cell = ws.cell(row=row_num, column=col, value=label)
+    def local(dt, fmt='%d/%m/%Y %H:%M'):
+        return timezone.localtime(dt).strftime(fmt) if dt else ''
+
+    def header(ws, labels):
+        ws.append(labels)
+        for cell in ws[ws.max_row]:
             cell.fill = header_fill
             cell.font = header_font
-            cell.alignment = Alignment(horizontal='center', vertical='center')
-            cell.border = border
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-    def _write_sheet(ws, headers, rows):
-        _write_header(ws, 1, headers)
+    def section(ws, title):
+        if ws.max_row > 1:
+            ws.append([])
+        ws.append([title])
+        ws.cell(row=ws.max_row, column=1).font = section_font
+
+    def widths(ws, values):
+        for col, width in enumerate(values, start=1):
+            ws.column_dimensions[get_column_letter(col)].width = width
+
+    def table_sheet(title, labels, rows, col_widths):
+        ws = wb.create_sheet(title)
+        header(ws, labels)
         for row in rows:
             ws.append(row)
-        for col in range(1, len(headers) + 1):
-            ws.column_dimensions[get_column_letter(col)].width = 24
+        ws.freeze_panes = 'A2'
+        if rows:
+            ws.auto_filter.ref = ws.dimensions
+        widths(ws, col_widths)
+        return ws
 
     wb = Workbook()
 
-    # ---- Aperçu ----
+    # ---- Résumé ----
     ws = wb.active
-    ws.title = "Aperçu"
-    ws.append(["Événement", event.name])
+    ws.title = "Résumé"
+    ws.append([f"Tableau de bord — {event.name}"])
+    ws.cell(row=1, column=1).font = Font(bold=True, size=14, color="2D1B6B")
     ws.append(["Période", _stats_period_label(data)])
     ws.append(["Caisse", data['selected_caisse'].name if data['selected_caisse'] else 'Toutes les caisses'])
-    ws.append([])
-    payment_totals = data['payment_totals']
-    ws.append(["Montant total (DZD)", float(money_stats['total_amount'] or 0)])
-    ws.append(["  Espèces (DZD)", float(payment_totals['cash']['amount'])])
-    ws.append(["  Virement bancaire (DZD)", float(payment_totals['bank_transfer']['amount'])])
-    ws.append(["  Prise en charge (DZD)", float(payment_totals['sponsoring']['amount'])])
-    for sponsor_row in payment_totals['sponsors']:
-        ws.append([f"    {sponsor_row['name']} (DZD)", float(sponsor_row['amount'])])
+    ws.append(["Compte", data['selected_account']['name'] if data['selected_account'] else 'Tous les comptes'])
+    ws.append(["Exporté le", timezone.localtime().strftime('%d/%m/%Y %H:%M')])
+
+    section(ws, "Chiffres clés")
+    total_registered = data['total_registered']
+    for label, value in (
+        ("Montant total (DZD)", float(money_stats['total_amount'] or 0)),
+        ("Transactions", money_stats['transaction_count'] or 0),
+        ("Participants traités en caisse", money_stats['total_participants'] or 0),
+        ("Participants présents", data['presence_total']),
+        ("Total inscrits", total_registered),
+        ("Taux de présence (%)", round(100 * data['presence_total'] / total_registered, 1) if total_registered else 0),
+        ("Scans contrôleurs", ctotals['scans']),
+        ("Participants distincts scannés (contrôleurs)", ctotals['distinct']),
+        ("Laissés entrer", ctotals['granted']),
+        ("Accès refusé", ctotals['denied']),
+        ("Sans décision", ctotals['undecided']),
+        ("Scans « non inscrit »", ctotals['not_registered']),
+        ("Scans refusés (refus + non inscrits)", ctotals['refused']),
+        ("Doubles scans (< 5 min)", ctotals['doubles']),
+        ("Scans exposants", insights['exposant_totals']['scans']),
+        ("Visiteurs distincts des stands", insights['exposant_totals']['distinct']),
+        ("Stands actifs", len(insights['stands'])),
+    ):
+        ws.append([label, value])
+
+    section(ws, "Pointes d'activité")
+    for label, peak in (("Arrivées", insights['peaks']['arrivals']), ("Scans", insights['peaks']['scans']),
+                        ("Paiements", insights['peaks']['payments'])):
+        ws.append([label, peak['label'] if peak else '—', peak['count'] if peak else 0])
+    widths(ws, [44, 34, 14])
+
+    # ---- Activité (per hour or per day) ----
+    timeline = insights['timeline']
+    unit = 'Jour' if timeline['granularity'] == 'day' else 'Heure'
+    buckets = insights['buckets']
+    rows = []
+    for i, key in enumerate(buckets.keys):
+        rows.append([
+            buckets.range_label(key), timeline['arrivals'][i], timeline['payments'][i], timeline['amounts'][i],
+            timeline['controller_scans'][i], timeline['exposant_scans'][i],
+        ])
+    table_sheet("Activité", [unit, "Arrivées", "Paiements", "Montant (DZD)", "Scans contrôleurs", "Scans exposants"],
+                rows, [22, 12, 12, 16, 18, 18])
+
+    # ---- Contrôleurs ----
+    rows = [[
+        a['name'], a['scans'], a['distinct'], a['granted'], a['denied'], a['undecided'], a['not_registered'],
+        a['doubles'], a['peak']['label'] if a['peak'] else '', a['peak']['count'] if a['peak'] else 0,
+        local(a['first_at']), local(a['last_at']),
+    ] for a in insights['controllers']]
+    table_sheet("Contrôleurs", [
+        "Contrôleur", "Scans", "Participants distincts", "Laissés entrer", "Accès refusé", "Sans décision",
+        "Non inscrits", "Doubles scans", "Pointe", "Scans à la pointe", "Premier scan", "Dernier scan",
+    ], rows, [28, 10, 14, 14, 13, 13, 12, 13, 18, 12, 17, 17])
+
+    # ---- Stands (exposants ranking) ----
+    rows = [[
+        st['rank'], st['name'], st['distinct'], st['scans'], st['peak']['label'] if st['peak'] else '',
+        st['peak']['count'] if st['peak'] else 0, local(st['first_at']), local(st['last_at']),
+    ] for st in insights['stands']]
+    table_sheet("Stands", ["Rang", "Exposant", "Visiteurs distincts", "Scans", "Pointe", "Scans à la pointe",
+                           "Premier scan", "Dernier scan"], rows, [7, 28, 16, 10, 18, 12, 17, 17])
+
+    # ---- Account x time grid ----
+    labels = [buckets.label(k) for k in buckets.keys]
+    rows = [[a['name'], 'Contrôleur'] + a['series'] + [a['scans']] for a in insights['controllers']]
+    rows += [[st['name'], 'Exposant'] + st['series'] + [st['scans']] for st in insights['stands']]
+    table_sheet(f"Compte par {unit.lower()}", ["Compte", "Rôle"] + labels + ["Total"], rows,
+                [28, 12] + [9] * len(labels) + [10])
+
+    # ---- Paiements ----
+    ws = wb.create_sheet("Paiements")
+    section(ws, "Par mode de règlement")
+    header(ws, ["Mode", "Organisme", "Transactions", "Montant (DZD)"])
+    ws.append(["Espèces", "", payment_totals['cash']['count'], float(payment_totals['cash']['amount'])])
+    ws.append(["Virement bancaire", "", payment_totals['bank_transfer']['count'], float(payment_totals['bank_transfer']['amount'])])
+    ws.append(["Prise en charge", "Tous", payment_totals['sponsoring']['count'], float(payment_totals['sponsoring']['amount'])])
+    for row in payment_totals['sponsors']:
+        ws.append(["  Prise en charge", row['name'], row['count'], float(row['amount'])])
     if payment_totals['other']['count']:
-        ws.append(["  Mixte, ancien (DZD)", float(payment_totals['other']['amount'])])
-    ws.append(["Transactions", money_stats['transaction_count'] or 0])
-    ws.append(["Participants traités", money_stats['total_participants'] or 0])
-    ws.append(["Participants présents", data['presence_count']])
-    ws.append(["Total inscrits", data['total_registered']])
-    ws.append([])
-    header_row = ws.max_row + 1
-    _write_header(ws, header_row, ["Caisse", "Montant (DZD)", "Espèces", "Virement", "Prise en charge", "Transactions", "Participants"])
+        ws.append(["Mixte (ancien)", "", payment_totals['other']['count'], float(payment_totals['other']['amount'])])
+    ws.append(["TOTAL", "", payment_totals['total']['count'], float(payment_totals['total']['amount'])])
+    for cell in ws[ws.max_row]:
+        cell.font = bold
+    section(ws, "Par caisse")
+    header(ws, ["Caisse", "Montant (DZD)", "Espèces", "Virement bancaire", "Prise en charge", "Transactions", "Participants"])
     for row in data['per_caisse_stats']:
         ws.append([
             row['caisse__name'], float(row['total_amount'] or 0), float(row['cash_amount'] or 0),
             float(row['bank_transfer_amount'] or 0), float(row['sponsoring_amount'] or 0),
             row['transaction_count'], row['total_participants'],
         ])
-    ws.append([
-        "TOTAL", float(money_stats['total_amount'] or 0), float(payment_totals['cash']['amount']),
-        float(payment_totals['bank_transfer']['amount']), float(payment_totals['sponsoring']['amount']),
-        money_stats['transaction_count'] or 0, money_stats['total_participants'] or 0,
-    ])
-    for col in range(1, 8):
-        ws.cell(row=ws.max_row, column=col).font = Font(bold=True)
-        ws.column_dimensions[get_column_letter(col)].width = 26
+    widths(ws, [26, 22, 14, 18, 16, 14, 14])
 
-    ws.append([])
-    header_row = ws.max_row + 1
-    _write_header(ws, header_row, ["Contrôleur", "Scans", "Participants distincts"])
-    for row in data['per_controller_stats']:
-        name = f"{row['controller__first_name']} {row['controller__last_name']}".strip() or row['controller__username']
-        ws.append([name, row['scan_count'], row['unique_participants']])
+    # ---- Doubles scans ----
+    rows = [[d['participant'], d['badge_id'], d['controller'], d['count'],
+             local(d['first_at'], '%d/%m/%Y %H:%M:%S'), local(d['last_at'], '%d/%m/%Y %H:%M:%S')]
+            for d in insights['double_incidents']]
+    table_sheet("Doubles scans", ["Participant", "Badge", "Contrôleur", "Scans", "Premier", "Dernier"],
+                rows, [28, 16, 24, 8, 20, 20])
 
-    # ---- Transactions ----
-    rows = []
-    for txn in data['transactions_qs']:
-        items = ', '.join(i.name for i in txn.items.all())
-        rows.append([
-            txn.participant.user.get_full_name() or txn.participant.user.username,
-            txn.participant.user.email,
-            txn.caisse.name,
-            items,
-            float(txn.total_amount),
-            txn.payment_display,
-            timezone.localtime(txn.created_at).strftime('%d/%m/%Y %H:%M'),
-        ])
-    _write_sheet(
-        wb.create_sheet("Transactions"),
-        ["Participant", "E-mail", "Caisse", "Articles", "Montant (DZD)", "Mode de règlement", "Heure"], rows,
-    )
+    # ---- Detail lists ----
+    rows = [[
+        txn.participant.user.get_full_name() or txn.participant.user.username, txn.participant.user.email,
+        txn.caisse.name, ', '.join(i.name for i in txn.items.all()), float(txn.total_amount), txn.payment_display,
+        local(txn.created_at),
+    ] for txn in data['transactions_qs']]
+    table_sheet("Transactions", ["Participant", "E-mail", "Caisse", "Articles", "Montant (DZD)", "Mode de règlement", "Date"],
+                rows, [28, 30, 18, 40, 14, 26, 17])
 
-    # ---- Présence ----
-    rows = []
-    for reg in data['presence_qs']:
-        rows.append([
-            reg.participant.user.get_full_name() or reg.participant.user.username,
-            reg.participant.user.email,
-            reg.participant.badge_id,
-            timezone.localtime(reg.checked_in_at).strftime('%d/%m/%Y %H:%M') if reg.checked_in_at else '',
-        ])
-    _write_sheet(wb.create_sheet("Présence"), ["Participant", "E-mail", "Badge", "Présent depuis"], rows)
+    rows = [[
+        reg.participant.user.get_full_name() or reg.participant.user.username, reg.participant.user.email,
+        reg.participant.badge_id, local(reg.checked_in_at),
+    ] for reg in data['presence_qs']]
+    table_sheet("Présence", ["Participant", "E-mail", "Badge", "Présent depuis"], rows, [28, 30, 18, 17])
 
-    # ---- Scans contrôleurs ----
-    rows = []
-    for scan in data['controller_scans_qs']:
-        rows.append([
-            scan.participant_name, scan.participant_email, scan.badge_id,
-            scan.controller.get_full_name() or scan.controller.username,
-            scan.get_status_display(),
-            timezone.localtime(scan.scanned_at).strftime('%d/%m/%Y %H:%M'),
-        ])
-    _write_sheet(
-        wb.create_sheet("Scans contrôleurs"),
-        ["Participant", "E-mail", "Badge", "Contrôleur", "Statut", "Heure"], rows,
-    )
+    decision_labels = {'granted': 'Laissé entrer', 'denied': 'Accès refusé'}
+    result_labels = {'success': 'Inscrit', 'not_registered': 'Non inscrit', 'error': 'Erreur'}
+    rows = [[
+        local(scan.scanned_at, '%d/%m/%Y'), local(scan.scanned_at, '%H:%M:%S'),
+        scan.controller.get_full_name() or scan.controller.username,
+        scan.participant_name, scan.participant_email, scan.badge_id,
+        result_labels.get(scan.status, scan.status), decision_labels.get(scan.access_decision, 'Sans décision'),
+        local(scan.decided_at, '%H:%M:%S'),
+    ] for scan in data['controller_scans_qs']]
+    table_sheet("Scans contrôleurs", ["Date", "Heure", "Contrôleur", "Participant", "E-mail", "Badge", "Résultat",
+                                      "Décision", "Heure de décision"], rows, [12, 10, 24, 28, 30, 16, 13, 15, 16])
 
-    # ---- Scans exposants ----
-    rows = []
-    for scan in data['exposant_scans_qs']:
-        rows.append([
-            scan.scanned_participant.user.get_full_name() or scan.scanned_participant.user.username,
-            scan.scanned_participant.user.email,
-            scan.exposant.user.get_full_name() or scan.exposant.user.username,
-            scan.notes or '',
-            timezone.localtime(scan.scanned_at).strftime('%d/%m/%Y %H:%M'),
-        ])
-    _write_sheet(
-        wb.create_sheet("Scans exposants"),
-        ["Participant scanné", "E-mail", "Exposant", "Notes", "Heure"], rows,
-    )
+    rows = [[
+        local(scan.scanned_at, '%d/%m/%Y'), local(scan.scanned_at, '%H:%M:%S'),
+        scan.exposant.user.get_full_name() or scan.exposant.user.username,
+        scan.scanned_participant.user.get_full_name() or scan.scanned_participant.user.username,
+        scan.scanned_participant.user.email, scan.notes or '',
+    ] for scan in data['exposant_scans_qs']]
+    table_sheet("Scans exposants", ["Date", "Heure", "Exposant", "Participant scanné", "E-mail", "Notes"],
+                rows, [12, 10, 24, 28, 30, 40])
 
-    response = HttpResponse(
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    response['Content-Disposition'] = f'attachment; filename="stats_{event.name}_{timezone.now().date()}.xlsx"'
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f'stats_{slugify(event.name)[:60]}_{timezone.localdate()}.xlsx'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
 
@@ -828,20 +919,10 @@ def event_stats_export_pdf(request, event_id):
 
     event = get_object_or_404(Event, id=event_id)
     data = _gather_event_stats(request, event)
-    def readable(value, fallback):
-        # '2026-10-28T09:30' -> '28/10/2026 09:30'
-        if not value:
-            return fallback
-        try:
-            return datetime.fromisoformat(value).strftime('%d/%m/%Y %H:%M')
-        except ValueError:
-            return value
 
     scope_lines = []
     if data['date_from_str'] or data['date_to_str']:
-        scope_lines.append(
-            f"Période : {readable(data['date_from_str'], 'depuis le début')} → {readable(data['date_to_str'], 'aujourd’hui')}"
-        )
+        scope_lines.append('Période : ' + _stats_period_label(data))
     if data['selected_caisse']:
         scope_lines.append('Caisse : ' + data['selected_caisse'].name)
     edited_by = request.user.get_full_name().strip() or request.user.username

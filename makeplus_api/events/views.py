@@ -834,6 +834,28 @@ class ParticipantViewSet(viewsets.ModelViewSet):
 
         return queryset
     
+    @action(detail=False, methods=['post'], url_path='scan-decision')
+    def scan_decision(self, request):
+        """
+        Records what the controller did after a scan ("Laisser entrer" /
+        "Refuser l'accès" in the webapp). Only the controller who made the
+        scan can record or change its decision.
+        """
+        from .models import ControllerScan
+
+        decision = request.data.get('decision')
+        if decision not in (ControllerScan.ACCESS_GRANTED, ControllerScan.ACCESS_DENIED):
+            return Response({'status': 'error', 'message': 'decision must be granted or denied'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            scan = ControllerScan.objects.get(id=request.data.get('scan_id'), controller=request.user)
+        except (ControllerScan.DoesNotExist, ValueError, TypeError):
+            return Response({'status': 'error', 'message': 'Scan introuvable'}, status=status.HTTP_404_NOT_FOUND)
+        scan.access_decision = decision
+        scan.decided_at = timezone.now()
+        scan.save(update_fields=['access_decision', 'decided_at'])
+        return Response({'status': 'success', 'scan_id': scan.id, 'decision': decision})
+
     @action(detail=False, methods=['post'], url_path='scan')
     def scan_participant(self, request):
         """
@@ -921,8 +943,9 @@ class ParticipantViewSet(viewsets.ModelViewSet):
             if not participant.is_registered_for_event(event):
                 # ✅ SAVE FAILED SCAN LOG
                 from .models import ControllerScan
+                scan_log = None
                 try:
-                    ControllerScan.objects.create(
+                    scan_log = ControllerScan.objects.create(
                         controller=request.user,
                         event=event,
                         participant_user_id=user.id,
@@ -940,6 +963,7 @@ class ParticipantViewSet(viewsets.ModelViewSet):
                 return Response({
                     'status': 'error',
                     'message': 'Participant not registered for this event',
+                    'scan_id': scan_log.id if scan_log else None,
                     'participant': {
                         'id': str(participant.id),
                         'name': user.get_full_name(),
@@ -1025,8 +1049,9 @@ class ParticipantViewSet(viewsets.ModelViewSet):
             
             # ✅ SAVE SCAN LOG TO DATABASE (for statistics)
             from .models import ControllerScan
+            scan_log = None
             try:
-                ControllerScan.objects.create(
+                scan_log = ControllerScan.objects.create(
                     controller=request.user,
                     event=event,
                     participant_user_id=user.id,
@@ -1044,6 +1069,7 @@ class ParticipantViewSet(viewsets.ModelViewSet):
 
             return Response({
                 'status': 'success',
+                'scan_id': scan_log.id if scan_log else None,
                 'participant': {
                     'id': str(participant.id),
                     'name': user.get_full_name(),

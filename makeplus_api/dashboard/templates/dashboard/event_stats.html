@@ -1,470 +1,652 @@
 {% extends 'dashboard/base.html' %}
+{% load stats_format %}
 
 {% block title %}Stats - {{ event.name }}{% endblock %}
 {% block page_title %}Stats{% endblock %}
 
+{% block extra_css %}
+<style>
+    .sd { --ink: #1f1a2e; --muted: #6b6478; --line: #ebe7f0; --panel: #f7f3f8;
+          --purple: #872C7A; --violet: #2D1B6B;
+          --s1: #4C3AA6; --s2: #D97A1E; --s3: #2B8FCF; --s4: #B8357F;
+          --good: #1f9d55; --bad: #d64545; --warn: #c98a12; --none: #b9b3c4; }
+    .sd .stat-card:hover { transform: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .sd .card-title { font-size: 0.95rem; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+    .sd .card-sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
+    .sd-filter .form-label { font-size: 0.75rem; color: var(--muted); margin-bottom: 2px; }
+    .sd-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .sd-chip { font-size: 0.8rem; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line);
+               color: var(--ink); text-decoration: none; background: #fff; }
+    .sd-chip:hover { border-color: var(--purple); color: var(--purple); }
+    .sd-chip.active { background: var(--violet); border-color: var(--violet); color: #fff; }
+    .sd-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px; }
+    .kpi { padding: 16px 18px; }
+    .kpi .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .kpi .value { font-size: 1.6rem; font-weight: 700; color: var(--ink); line-height: 1.2; margin: 4px 0;
+                  font-variant-numeric: tabular-nums; }
+    .kpi .value.money { color: var(--purple); }
+    .kpi .meta { font-size: 0.8rem; color: var(--muted); }
+    .kpi .split { font-size: 0.78rem; margin-top: 6px; line-height: 1.6; }
+    .kpi .split div { display: flex; justify-content: space-between; gap: 8px; }
+    .kpi .split strong { font-variant-numeric: tabular-nums; }
+    .insight { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; }
+    .insight .icon { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 10px; display: flex;
+                     align-items: center; justify-content: center; font-size: 1.1rem; }
+    .insight .title { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .insight .text { font-weight: 700; color: var(--ink); }
+    .insight .meta { font-size: 0.78rem; color: var(--muted); }
+    .chart-box { position: relative; height: 280px; }
+    .chart-box.tall { height: 320px; }
+    .sd-row { display: grid; gap: 16px; grid-template-columns: 1fr; margin-bottom: 16px; }
+    @media (min-width: 1100px) { .sd-row.two { grid-template-columns: 1fr 1fr; } }
+    .heatmap-wrap { overflow-x: auto; }
+    table.heatmap { border-collapse: separate; border-spacing: 2px; font-size: 0.75rem; }
+    table.heatmap th { font-weight: 600; color: var(--muted); padding: 2px 4px; white-space: nowrap; text-align: center; }
+    table.heatmap th.name { text-align: left; color: var(--ink); max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+    table.heatmap td { min-width: 34px; height: 28px; text-align: center; border-radius: 4px;
+                       font-variant-numeric: tabular-nums; }
+    .sd .table { font-size: 0.875rem; }
+    .sd .table td, .sd .table th { vertical-align: middle; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .pill { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+    .pill.good { background: #e6f5ec; color: #17733f; }
+    .pill.bad { background: #fbe9e9; color: #a83232; }
+    .pill.warn { background: #fdf3df; color: #8a5d08; }
+    .pill.none { background: #f0eef3; color: var(--muted); }
+    details.sd-details { background: #fff; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 12px; }
+    details.sd-details > summary { padding: 14px 18px; cursor: pointer; font-weight: 600; display: flex;
+                                   justify-content: space-between; align-items: center; list-style: none; }
+    details.sd-details > summary::-webkit-details-marker { display: none; }
+    details.sd-details > summary::after { content: "\F282"; font-family: bootstrap-icons; color: var(--muted); transition: transform .2s; }
+    details.sd-details[open] > summary::after { transform: rotate(180deg); }
+    details.sd-details .body { padding: 0 18px 16px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.78rem; color: var(--muted); margin-bottom: 8px; }
+    .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+                           margin-right: 6px; vertical-align: -1px; background: var(--c); }
+    .empty-chart { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-size: 0.9rem; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid sd">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div>
             <h4 class="mb-0">{{ event.name }}</h4>
-            <small class="text-muted">Statistiques combinées : caisses, présence et scans</small>
+            <small class="text-muted">Tableau de bord : caisses, présence et scans</small>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
             <a href="{% url 'dashboard:event_stats_export_excel' event.id %}?{{ export_querystring }}" class="btn btn-outline-success">
                 <i class="bi bi-file-earmark-excel"></i> Exporter Excel
             </a>
             <a href="{% url 'dashboard:event_stats_export_pdf' event.id %}?{{ export_querystring }}" class="btn btn-outline-danger">
-                <i class="bi bi-file-earmark-pdf"></i> Exporter PDF
+                <i class="bi bi-file-earmark-pdf"></i> Rapport de caisse (PDF)
             </a>
             <a href="{% url 'dashboard:event_detail' event.id %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Retour à l'événement
+                <i class="bi bi-arrow-left"></i> Retour
             </a>
         </div>
     </div>
 
-    <!-- Date/heure + caisse filter -- the range applies to every tab below
-         (money, presence, scans) down to the minute (datetime-local, not
-         just a whole day); the caisse filter narrows the Aperçu cards and
-         the Transactions tab (presence/scans aren't tied to a specific
-         caisse station, so it doesn't apply to those). -->
-    <div class="stat-card mb-4">
+    <!-- One filter bar for everything: figures, charts, lists and both exports. -->
+    <div class="stat-card sd-filter mb-3">
         <form method="get" class="row g-2 align-items-end">
-            <input type="hidden" name="scan_search" value="{{ scan_search }}">
-            <input type="hidden" name="presence_search" value="{{ presence_search }}">
-            <input type="hidden" name="controller_id" value="{{ controller_id }}">
-            <input type="hidden" name="exposant_id" value="{{ exposant_id }}">
-            <div class="col-auto">
-                <label class="form-label small text-muted mb-1" for="date_from">Du</label>
+            <div class="col-6 col-md-auto">
+                <label class="form-label" for="date_from">Du</label>
                 <input type="datetime-local" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
             </div>
-            <div class="col-auto">
-                <label class="form-label small text-muted mb-1" for="date_to">Au</label>
+            <div class="col-6 col-md-auto">
+                <label class="form-label" for="date_to">Au</label>
                 <input type="datetime-local" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
             </div>
-            <div class="col-auto">
-                <label class="form-label small text-muted mb-1" for="caisse_id">Caisse</label>
+            <div class="col-6 col-md-auto">
+                <label class="form-label" for="caisse_id">Caisse</label>
                 <select class="form-select" id="caisse_id" name="caisse_id">
                     <option value="">Toutes les caisses</option>
                     {% for caisse in caisses %}
-                    <option value="{{ caisse.id }}" {% if caisse_id == caisse.id|stringformat:"s" %}selected{% endif %}>
-                        {{ caisse.name }}
-                    </option>
+                    <option value="{{ caisse.id }}" {% if caisse_id == caisse.id|stringformat:"s" %}selected{% endif %}>{{ caisse.name }}</option>
                     {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-auto">
+                <label class="form-label" for="account">Compte</label>
+                <select class="form-select" id="account" name="account">
+                    <option value="">Tous les comptes</option>
+                    {% if controller_options %}
+                    <optgroup label="Contrôleurs">
+                        {% for option in controller_options %}
+                        <option value="{{ option.key }}" {% if account == option.key %}selected{% endif %}>{{ option.name }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                    {% if exposant_options %}
+                    <optgroup label="Exposants">
+                        {% for option in exposant_options %}
+                        <option value="{{ option.key }}" {% if account == option.key %}selected{% endif %}>{{ option.name }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
                 </select>
             </div>
             <div class="col-auto">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrer</button>
             </div>
-            {% if date_from or date_to or caisse_id or scan_search or presence_search or controller_id or exposant_id %}
+            {% if date_from or date_to or caisse_id or account or scan_search or presence_search %}
             <div class="col-auto">
-                <a href="{% url 'dashboard:event_stats' event.id %}" class="btn btn-outline-secondary">
-                    <i class="bi bi-x-circle"></i> Réinitialiser
-                </a>
+                <a href="{% url 'dashboard:event_stats' event.id %}" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Réinitialiser</a>
             </div>
             {% endif %}
         </form>
+        <div class="sd-chips">
+            {% for shortcut in day_shortcuts %}
+            <a class="sd-chip {% if shortcut.active %}active{% endif %}" href="?{{ shortcut.query }}">{{ shortcut.label }}</a>
+            {% endfor %}
+        </div>
     </div>
 
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-4" id="statsTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button">
-                <i class="bi bi-info-circle"></i> Aperçu
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="transactions-tab" data-bs-toggle="tab" data-bs-target="#transactions" type="button">
-                <i class="bi bi-cash-register"></i> Transactions ({{ transactions_total_count }})
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="presence-tab" data-bs-toggle="tab" data-bs-target="#presence" type="button">
-                <i class="bi bi-person-check"></i> Présence ({{ presence_count }})
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="scans-tab" data-bs-toggle="tab" data-bs-target="#scans" type="button">
-                <i class="bi bi-qr-code-scan"></i> Scans
-            </button>
-        </li>
-    </ul>
-
-    <div class="tab-content" id="statsTabsContent">
-        <!-- Overview -->
-        <div class="tab-pane fade show active" id="overview" role="tabpanel">
-            <div class="row g-3 mb-4">
-                <div class="col-md-3">
-                    <div class="stat-card text-center">
-                        <h6 class="text-muted mb-1">Montant total</h6>
-                        <h3 class="mb-0" style="color: #10b981;">{{ money_stats.total_amount|default:0|floatformat:2 }} DZD</h3>
-                        <small class="text-muted">{% if selected_caisse %}{{ selected_caisse.name }}{% else %}toutes caisses confondues{% endif %}</small>
-                        <div class="small text-start mt-2" style="line-height:1.7;">
-                            <div class="d-flex justify-content-between"><span>Espèces</span><strong>{{ payment_totals.cash.amount|floatformat:2 }}</strong></div>
-                            <div class="d-flex justify-content-between"><span>Virement</span><strong>{{ payment_totals.bank_transfer.amount|floatformat:2 }}</strong></div>
-                            <div class="d-flex justify-content-between"><span>Prise en charge</span><strong>{{ payment_totals.sponsoring.amount|floatformat:2 }}</strong></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card text-center">
-                        <h6 class="text-muted mb-1">Transactions</h6>
-                        <h3 class="mb-0">{{ money_stats.transaction_count|default:0 }}</h3>
-                        <small class="text-muted">{{ money_stats.total_participants|default:0 }} participant(s) traité(s)</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card text-center">
-                        <h6 class="text-muted mb-1">Participants présents</h6>
-                        <h3 class="mb-0">{{ presence_count }}</h3>
-                        <small class="text-muted">sur {{ total_registered }} inscrit(s)</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card text-center">
-                        <h6 class="text-muted mb-1">Scans</h6>
-                        <h3 class="mb-0">{{ controller_scans_count|add:exposant_scans_count }}</h3>
-                        <small class="text-muted">{{ controller_scans_count }} contrôleurs · {{ exposant_scans_count }} exposants</small>
-                    </div>
-                </div>
+    <!-- Key figures -->
+    <div class="sd-grid">
+        <div class="stat-card kpi">
+            <div class="label">Montant total</div>
+            <div class="value money">{{ money_stats.total_amount|spaced }} DZD</div>
+            <div class="split">
+                <div><span>Espèces</span><strong>{{ payment_totals.cash.amount|spaced }}</strong></div>
+                <div><span>Virement bancaire</span><strong>{{ payment_totals.bank_transfer.amount|spaced }}</strong></div>
+                <div><span>Prise en charge</span><strong>{{ payment_totals.sponsoring.amount|spaced }}</strong></div>
             </div>
-
-            <div class="stat-card mb-4">
-                <h5 class="mb-3"><i class="bi bi-wallet2"></i> Par mode de règlement</h5>
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr><th>Mode de règlement</th><th>Organisme</th><th class="text-end">Transactions</th><th class="text-end">Montant</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr><td>Espèces</td><td class="text-muted">—</td><td class="text-end">{{ payment_totals.cash.count }}</td><td class="text-end">{{ payment_totals.cash.amount|floatformat:2 }} DZD</td></tr>
-                            <tr><td>Virement bancaire</td><td class="text-muted">—</td><td class="text-end">{{ payment_totals.bank_transfer.count }}</td><td class="text-end">{{ payment_totals.bank_transfer.amount|floatformat:2 }} DZD</td></tr>
-                            <tr><td>Prise en charge</td><td class="text-muted">tous les organismes</td><td class="text-end">{{ payment_totals.sponsoring.count }}</td><td class="text-end">{{ payment_totals.sponsoring.amount|floatformat:2 }} DZD</td></tr>
-                            {% for row in payment_totals.sponsors %}
-                            <tr><td class="ps-4 text-muted">↳ Prise en charge</td><td>{{ row.name }}</td><td class="text-end">{{ row.count }}</td><td class="text-end">{{ row.amount|floatformat:2 }} DZD</td></tr>
-                            {% endfor %}
-                            {% if payment_totals.other.count %}
-                            <tr><td>Mixte (ancien)</td><td class="text-muted">—</td><td class="text-end">{{ payment_totals.other.count }}</td><td class="text-end">{{ payment_totals.other.amount|floatformat:2 }} DZD</td></tr>
-                            {% endif %}
-                        </tbody>
-                        <tfoot>
-                            <tr class="fw-bold"><td>TOTAL</td><td></td><td class="text-end">{{ payment_totals.total.count }}</td><td class="text-end">{{ payment_totals.total.amount|floatformat:2 }} DZD</td></tr>
-                        </tfoot>
-                    </table>
-                </div>
+        </div>
+        <div class="stat-card kpi">
+            <div class="label">Transactions</div>
+            <div class="value">{{ money_stats.transaction_count|default:0 }}</div>
+            <div class="meta">{{ money_stats.total_participants|default:0 }} participant(s) traité(s){% if selected_caisse %} · {{ selected_caisse.name }}{% endif %}</div>
+        </div>
+        <div class="stat-card kpi">
+            <div class="label">Présents</div>
+            <div class="value">{{ presence_total }} <small class="text-muted fs-6">/ {{ total_registered }}</small></div>
+            <div class="meta">{{ presence_rate }} % des inscrits</div>
+        </div>
+        <div class="stat-card kpi">
+            <div class="label">Scans contrôleurs</div>
+            <div class="value">{{ insights.controller_totals.scans }}</div>
+            <div class="meta">{{ insights.controller_totals.distinct }} participant(s) distinct(s)</div>
+            <div class="split">
+                <div><span>Laissés entrer</span><strong>{{ insights.controller_totals.granted }}</strong></div>
+                <div><span>Accès refusé</span><strong>{{ insights.controller_totals.denied }}</strong></div>
             </div>
+        </div>
+        <div class="stat-card kpi">
+            <div class="label">Scans exposants</div>
+            <div class="value">{{ insights.exposant_totals.scans }}</div>
+            <div class="meta">{{ insights.exposant_totals.distinct }} visiteur(s) distinct(s) · {{ insights.stands|length }} stand(s)</div>
+        </div>
+    </div>
 
-            <div class="stat-card">
-                <h5 class="mb-3"><i class="bi bi-cash-register"></i> Détail par caisse</h5>
-                <p class="text-muted small mb-2">
-                    <i class="bi bi-info-circle"></i> Cliquez sur une caisse pour voir ses transactions dans l'onglet Transactions.
-                </p>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Caisse</th>
-                                <th>Montant</th>
-                                <th>Espèces</th>
-                                <th>Virement</th>
-                                <th>Prise en charge</th>
-                                <th>Transactions</th>
-                                <th>Participants</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in per_caisse_stats %}
-                            <tr>
-                                <td>
-                                    <a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ row.caisse_id }}&scan_search={{ scan_search|urlencode }}&presence_search={{ presence_search|urlencode }}&controller_id={{ controller_id|urlencode }}&exposant_id={{ exposant_id|urlencode }}#transactions"
-                                       class="stats-caisse-link">{{ row.caisse__name }}</a>
-                                </td>
-                                <td>{{ row.total_amount|floatformat:2 }} DZD</td>
-                                <td>{{ row.cash_amount|default:0|floatformat:2 }}</td>
-                                <td>{{ row.bank_transfer_amount|default:0|floatformat:2 }}</td>
-                                <td>{{ row.sponsoring_amount|default:0|floatformat:2 }}</td>
-                                <td>{{ row.transaction_count }}</td>
-                                <td>{{ row.total_participants }}</td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="7" class="text-center text-muted py-4">Aucune transaction pour cette période</td></tr>
-                            {% endfor %}
-                        </tbody>
-                        {% if per_caisse_stats %}
-                        <tfoot>
-                            <tr class="fw-bold">
-                                <td>TOTAL</td>
-                                <td>{{ money_stats.total_amount|default:0|floatformat:2 }} DZD</td>
-                                <td>{{ payment_totals.cash.amount|floatformat:2 }}</td>
-                                <td>{{ payment_totals.bank_transfer.amount|floatformat:2 }}</td>
-                                <td>{{ payment_totals.sponsoring.amount|floatformat:2 }}</td>
-                                <td>{{ money_stats.transaction_count|default:0 }}</td>
-                                <td>{{ money_stats.total_participants|default:0 }}</td>
-                            </tr>
-                        </tfoot>
+    <!-- Insights -->
+    <div class="sd-grid">
+        <div class="stat-card insight">
+            <div class="icon" style="background:#efeafb;color:var(--s1);"><i class="bi bi-person-walking"></i></div>
+            <div>
+                <div class="title">Pointe des arrivées</div>
+                {% if insights.peaks.arrivals %}
+                <div class="text">{{ insights.peaks.arrivals.label }}</div>
+                <div class="meta">{{ insights.peaks.arrivals.count }} arrivée(s)</div>
+                {% else %}<div class="meta">Aucune arrivée sur la période</div>{% endif %}
+            </div>
+        </div>
+        <div class="stat-card insight">
+            <div class="icon" style="background:#e6f2fa;color:var(--s3);"><i class="bi bi-qr-code-scan"></i></div>
+            <div>
+                <div class="title">Pointe des scans</div>
+                {% if insights.peaks.scans %}
+                <div class="text">{{ insights.peaks.scans.label }}</div>
+                <div class="meta">{{ insights.peaks.scans.count }} scan(s)</div>
+                {% else %}<div class="meta">Aucun scan sur la période</div>{% endif %}
+            </div>
+        </div>
+        <div class="stat-card insight">
+            <div class="icon" style="background:#fbe9e9;color:var(--bad);"><i class="bi bi-slash-circle"></i></div>
+            <div>
+                <div class="title">Scans refusés</div>
+                <div class="text">{{ insights.controller_totals.refused }}</div>
+                <div class="meta">{{ insights.controller_totals.denied }} accès refusé(s) · {{ insights.controller_totals.not_registered }} non inscrit(s)</div>
+            </div>
+        </div>
+        <div class="stat-card insight">
+            <div class="icon" style="background:#fdf3df;color:var(--warn);"><i class="bi bi-files"></i></div>
+            <div>
+                <div class="title">Doubles scans</div>
+                <div class="text">{{ insights.controller_totals.doubles }}</div>
+                <div class="meta">scans en trop sur {{ insights.double_incidents|length }} badge(s) · même contrôleur, moins de 5 min</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="sd-row">
+        <div class="stat-card">
+            <div class="card-title">Activité dans le temps</div>
+            <div class="card-sub" id="timeline-sub">Par heure</div>
+            <div class="chart-box tall"><canvas id="chart-timeline" aria-label="Activité dans le temps"></canvas></div>
+        </div>
+    </div>
+
+    <div class="sd-row two">
+        <div class="stat-card">
+            <div class="card-title">Scans par contrôleur</div>
+            <div class="card-sub">Décision prise après chaque scan</div>
+            <div class="chart-box"><canvas id="chart-controllers" aria-label="Scans par contrôleur"></canvas></div>
+        </div>
+        <div class="stat-card">
+            <div class="card-title">Classement des stands</div>
+            <div class="card-sub">Visiteurs distincts scannés par chaque exposant</div>
+            <div class="chart-box"><canvas id="chart-stands" aria-label="Classement des stands"></canvas></div>
+        </div>
+    </div>
+
+    <div class="sd-row">
+        <div class="stat-card">
+            <div class="card-title">Activité par compte et par <span id="heatmap-unit">heure</span></div>
+            <div class="card-sub">Nombre de scans de chaque compte : plus la case est foncée, plus il a scanné</div>
+            <div class="heatmap-wrap" id="heatmap"></div>
+        </div>
+    </div>
+
+    <div class="sd-row two">
+        <div class="stat-card">
+            <div class="card-title">Montant par caisse</div>
+            <div class="card-sub">Réparti par mode de règlement (DZD)</div>
+            <div class="chart-box"><canvas id="chart-caisses" aria-label="Montant par caisse"></canvas></div>
+        </div>
+        <div class="stat-card">
+            <div class="card-title">Par mode de règlement</div>
+            <div class="card-sub">Mêmes chiffres que la caisse et le rapport PDF</div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Mode</th><th class="num">Transactions</th><th class="num">Montant</th></tr></thead>
+                    <tbody>
+                        <tr><td>Espèces</td><td class="num">{{ payment_totals.cash.count }}</td><td class="num">{{ payment_totals.cash.amount|spaced }} DZD</td></tr>
+                        <tr><td>Virement bancaire</td><td class="num">{{ payment_totals.bank_transfer.count }}</td><td class="num">{{ payment_totals.bank_transfer.amount|spaced }} DZD</td></tr>
+                        <tr><td>Prise en charge</td><td class="num">{{ payment_totals.sponsoring.count }}</td><td class="num">{{ payment_totals.sponsoring.amount|spaced }} DZD</td></tr>
+                        {% for row in payment_totals.sponsors %}
+                        <tr><td class="ps-4 text-muted">↳ {{ row.name }}</td><td class="num">{{ row.count }}</td><td class="num">{{ row.amount|spaced }} DZD</td></tr>
+                        {% endfor %}
+                        {% if payment_totals.other.count %}
+                        <tr><td>Mixte (ancien)</td><td class="num">{{ payment_totals.other.count }}</td><td class="num">{{ payment_totals.other.amount|spaced }} DZD</td></tr>
                         {% endif %}
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Transactions -->
-        <div class="tab-pane fade" id="transactions" role="tabpanel">
-            <div class="stat-card">
-                {% if transactions_truncated %}
-                <p class="text-muted small mb-3">
-                    <i class="bi bi-info-circle"></i>
-                    Affichage des {{ transactions|length }} transactions les plus récentes sur {{ transactions_total_count }} pour cette période.
-                </p>
-                {% endif %}
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Participant</th>
-                                <th>Caisse</th>
-                                <th>Articles</th>
-                                <th>Montant</th>
-                                <th>Mode de règlement</th>
-                                <th>Heure</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for txn in transactions %}
-                            <tr>
-                                <td>
-                                    <strong>{{ txn.participant.user.get_full_name|default:txn.participant.user.username }}</strong><br>
-                                    <small class="text-muted">{{ txn.participant.user.email }}</small>
-                                </td>
-                                <td>{{ txn.caisse.name }}</td>
-                                <td>
-                                    <small>
-                                        {% for item in txn.items.all %}<span class="badge bg-secondary">{{ item.name }}</span>{% endfor %}
-                                    </small>
-                                </td>
-                                <td><span class="badge bg-success">{{ txn.total_amount }} DZD</span></td>
-                                <td>{{ txn.payment_display }}</td>
-                                <td><small class="text-muted">{{ txn.created_at|date:"d/m/Y H:i" }}</small></td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="6" class="text-center text-muted py-4">Aucune transaction pour cette période</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Presence -->
-        <div class="tab-pane fade" id="presence" role="tabpanel">
-            <div class="stat-card mb-4">
-                <form method="get" class="row g-2 align-items-end">
-                    <input type="hidden" name="date_from" value="{{ date_from }}">
-                    <input type="hidden" name="date_to" value="{{ date_to }}">
-                    <input type="hidden" name="caisse_id" value="{{ caisse_id }}">
-                    <input type="hidden" name="scan_search" value="{{ scan_search }}">
-                    <input type="hidden" name="controller_id" value="{{ controller_id }}">
-                    <input type="hidden" name="exposant_id" value="{{ exposant_id }}">
-                    <div class="col-auto">
-                        <label class="form-label small text-muted mb-1" for="presence_search">Rechercher un participant</label>
-                        <input type="text" class="form-control" id="presence_search" name="presence_search"
-                               value="{{ presence_search }}" placeholder="Nom, e-mail ou badge...">
-                    </div>
-                    <div class="col-auto">
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Rechercher</button>
-                    </div>
-                    {% if presence_search %}
-                    <div class="col-auto">
-                        <a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ caisse_id|urlencode }}&scan_search={{ scan_search|urlencode }}&controller_id={{ controller_id|urlencode }}&exposant_id={{ exposant_id|urlencode }}#presence"
-                           class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Effacer</a>
-                    </div>
-                    {% endif %}
-                </form>
-            </div>
-            <div class="stat-card">
-                {% if presence_truncated %}
-                <p class="text-muted small mb-3">
-                    <i class="bi bi-info-circle"></i>
-                    Affichage des {{ presence_list|length }} présences les plus récentes sur {{ presence_count }} pour cette période.
-                </p>
-                {% endif %}
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Participant</th>
-                                <th>Badge</th>
-                                <th>Présent depuis</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for reg in presence_list %}
-                            <tr>
-                                <td>
-                                    <strong>{{ reg.participant.user.get_full_name|default:reg.participant.user.username }}</strong><br>
-                                    <small class="text-muted">{{ reg.participant.user.email }}</small>
-                                </td>
-                                <td><small class="text-muted">{{ reg.participant.badge_id }}</small></td>
-                                <td><small class="text-muted">{{ reg.checked_in_at|date:"d/m/Y H:i" }}</small></td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="3" class="text-center text-muted py-4">Aucun participant présent pour cette période</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Scans -->
-        <div class="tab-pane fade" id="scans" role="tabpanel">
-            <div class="stat-card mb-4">
-                <form method="get" class="row g-2 align-items-end">
-                    <input type="hidden" name="date_from" value="{{ date_from }}">
-                    <input type="hidden" name="date_to" value="{{ date_to }}">
-                    <input type="hidden" name="caisse_id" value="{{ caisse_id }}">
-                    <input type="hidden" name="presence_search" value="{{ presence_search }}">
-                    <div class="col-auto">
-                        <label class="form-label small text-muted mb-1" for="scan_search">Participant scanné</label>
-                        <input type="text" class="form-control" id="scan_search" name="scan_search"
-                               value="{{ scan_search }}" placeholder="Nom, e-mail ou badge...">
-                    </div>
-                    <div class="col-auto">
-                        <label class="form-label small text-muted mb-1" for="controller_id">Contrôleur</label>
-                        <select class="form-select" id="controller_id" name="controller_id">
-                            <option value="">Tous les contrôleurs</option>
-                            {% for c in controller_options %}
-                            <option value="{{ c.controller_id }}" {% if controller_id == c.controller_id|stringformat:"s" %}selected{% endif %}>
-                                {{ c.controller__first_name }} {{ c.controller__last_name }}{% if not c.controller__first_name and not c.controller__last_name %}{{ c.controller__username }}{% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-auto">
-                        <label class="form-label small text-muted mb-1" for="exposant_id">Exposant</label>
-                        <select class="form-select" id="exposant_id" name="exposant_id">
-                            <option value="">Tous les exposants</option>
-                            {% for e in exposant_options %}
-                            <option value="{{ e.exposant_id }}" {% if exposant_id == e.exposant_id|stringformat:"s" %}selected{% endif %}>
-                                {{ e.exposant__user__first_name }} {{ e.exposant__user__last_name }}{% if not e.exposant__user__first_name and not e.exposant__user__last_name %}{{ e.exposant__user__username }}{% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-auto">
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Rechercher</button>
-                    </div>
-                    {% if scan_search or controller_id or exposant_id %}
-                    <div class="col-auto">
-                        <a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ caisse_id|urlencode }}&presence_search={{ presence_search|urlencode }}#scans"
-                           class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Effacer</a>
-                    </div>
-                    {% endif %}
-                </form>
-            </div>
-
-            <div class="stat-card mb-4">
-                <h5 class="mb-3"><i class="bi bi-person-badge"></i> Scans des contrôleurs de badges ({{ controller_scans_count }})</h5>
-                {% for group in controller_scans_grouped %}
-                <details class="mb-3" {% if forloop.first %}open{% endif %}>
-                    <summary class="d-flex justify-content-between align-items-center py-2 px-2" style="cursor: pointer; background: #f8f9fa; border-radius: 6px;">
-                        <span class="fw-bold">
-                            {{ group.controller__first_name }} {{ group.controller__last_name }}{% if not group.controller__first_name and not group.controller__last_name %}{{ group.controller__username }}{% endif %}
-                        </span>
-                        <span class="text-muted small">{{ group.scan_count }} scan{{ group.scan_count|pluralize }} · {{ group.unique_participants }} participant{{ group.unique_participants|pluralize }} distinct{{ group.unique_participants|pluralize }}</span>
-                    </summary>
-                    {% if group.shown_count < group.scan_count %}
-                    <p class="text-muted small mt-2 mb-1">
-                        <i class="bi bi-info-circle"></i> Affichage de {{ group.shown_count }} scans sur {{ group.scan_count }} pour ce contrôleur.
-                    </p>
-                    {% endif %}
-                    <div class="table-responsive mt-2">
-                        <table class="table table-hover table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Participant</th>
-                                    <th>Badge</th>
-                                    <th>Statut</th>
-                                    <th>Heure</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for scan in group.scans %}
-                                <tr>
-                                    <td>
-                                        <strong>{{ scan.participant_name }}</strong><br>
-                                        <small class="text-muted">{{ scan.participant_email }}</small>
-                                    </td>
-                                    <td><small class="text-muted">{{ scan.badge_id }}</small></td>
-                                    <td>
-                                        {% if scan.status == 'success' %}
-                                            <span class="badge bg-success">Succès</span>
-                                        {% elif scan.status == 'not_registered' %}
-                                            <span class="badge bg-warning text-dark">Non inscrit</span>
-                                        {% else %}
-                                            <span class="badge bg-danger">Erreur</span>
-                                        {% endif %}
-                                    </td>
-                                    <td><small class="text-muted">{{ scan.scanned_at|date:"d/m/Y H:i" }}</small></td>
-                                </tr>
-                                {% empty %}
-                                <tr><td colspan="4" class="text-center text-muted py-3">Aucun scan pour ce contrôleur sur cette période</td></tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </details>
-                {% empty %}
-                <p class="text-center text-muted py-4">Aucun scan pour cette période</p>
-                {% endfor %}
-            </div>
-
-            <div class="stat-card">
-                <h5 class="mb-3"><i class="bi bi-shop"></i> Scans des exposants ({{ exposant_scans_count }})</h5>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Participant scanné</th>
-                                <th>Exposant</th>
-                                <th>Notes</th>
-                                <th>Heure</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for scan in exposant_scans %}
-                            <tr>
-                                <td>
-                                    <strong>{{ scan.scanned_participant.user.get_full_name|default:scan.scanned_participant.user.username }}</strong><br>
-                                    <small class="text-muted">{{ scan.scanned_participant.user.email }}</small>
-                                </td>
-                                <td>{{ scan.exposant.user.get_full_name|default:scan.exposant.user.username }}</td>
-                                <td><small class="text-muted">{{ scan.notes|default:"—" }}</small></td>
-                                <td><small class="text-muted">{{ scan.scanned_at|date:"d/m/Y H:i" }}</small></td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="4" class="text-center text-muted py-4">Aucun scan pour ces critères</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                    </tbody>
+                    <tfoot>
+                        <tr class="fw-bold"><td>Total</td><td class="num">{{ payment_totals.total.count }}</td><td class="num">{{ payment_totals.total.amount|spaced }} DZD</td></tr>
+                    </tfoot>
+                </table>
             </div>
         </div>
     </div>
+
+    <!-- Per account tables -->
+    <div class="sd-row">
+        <div class="stat-card">
+            <div class="card-title">Contrôleurs</div>
+            <div class="card-sub">Cliquez sur un nom pour filtrer tout le tableau de bord sur ce compte</div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Compte</th><th class="num">Scans</th><th class="num">Distincts</th>
+                            <th class="num">Entrés</th><th class="num">Refusés</th><th class="num">Non inscrits</th>
+                            <th class="num">Doubles</th><th>Pointe</th><th>Premier → dernier</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in insights.controllers %}
+                        <tr>
+                            <td><a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ caisse_id|urlencode }}&account={{ a.key }}">{{ a.name }}</a></td>
+                            <td class="num fw-semibold">{{ a.scans }}</td>
+                            <td class="num">{{ a.distinct }}</td>
+                            <td class="num">{{ a.granted }}</td>
+                            <td class="num">{% if a.denied %}<span class="pill bad">{{ a.denied }}</span>{% else %}0{% endif %}</td>
+                            <td class="num">{% if a.not_registered %}<span class="pill warn">{{ a.not_registered }}</span>{% else %}0{% endif %}</td>
+                            <td class="num">{% if a.doubles %}<span class="pill warn">{{ a.doubles }}</span>{% else %}0{% endif %}</td>
+                            <td class="text-nowrap">{% if a.peak %}{{ a.peak.label }} <small class="text-muted">({{ a.peak.count }})</small>{% else %}—{% endif %}</td>
+                            <td class="text-nowrap small text-muted">{{ a.first_at|date:"d/m H:i" }} → {{ a.last_at|date:"d/m H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="9" class="text-center text-muted py-3">Aucun scan de contrôleur sur cette période</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="card-title">Classement des stands</div>
+            <div class="card-sub">Exposants classés par visiteurs distincts</div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr><th>#</th><th>Exposant</th><th class="num">Visiteurs</th><th class="num">Scans</th><th>Pointe</th><th>Premier → dernier</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for s in insights.stands %}
+                        <tr>
+                            <td class="text-muted">{{ s.rank }}</td>
+                            <td><a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ caisse_id|urlencode }}&account={{ s.key }}">{{ s.name }}</a></td>
+                            <td class="num fw-semibold">{{ s.distinct }}</td>
+                            <td class="num">{{ s.scans }}</td>
+                            <td class="text-nowrap">{% if s.peak %}{{ s.peak.label }} <small class="text-muted">({{ s.peak.count }})</small>{% else %}—{% endif %}</td>
+                            <td class="text-nowrap small text-muted">{{ s.first_at|date:"d/m H:i" }} → {{ s.last_at|date:"d/m H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">Aucune visite de stand sur cette période</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Details, folded -->
+    <h6 class="text-muted text-uppercase small mt-4 mb-2" style="letter-spacing:.05em;">Détails</h6>
+
+    <details class="sd-details" id="transactions">
+        <summary><span><i class="bi bi-cash-register"></i> Transactions</span><span class="badge bg-secondary ms-auto me-2">{{ transactions_total_count }}</span></summary>
+        <div class="body">
+            {% if transactions_truncated %}<p class="text-muted small"><i class="bi bi-info-circle"></i> Les {{ list_limit }} plus récentes sur {{ transactions_total_count }} — l'export Excel contient tout.</p>{% endif %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr><th>Participant</th><th>Caisse</th><th>Articles</th><th class="num">Montant</th><th>Mode</th><th>Heure</th></tr></thead>
+                    <tbody>
+                        {% for txn in transactions %}
+                        <tr>
+                            <td><strong>{{ txn.participant.user.get_full_name|default:txn.participant.user.username }}</strong><br><small class="text-muted">{{ txn.participant.user.email }}</small></td>
+                            <td>{{ txn.caisse.name }}</td>
+                            <td><small>{% for item in txn.items.all %}<span class="badge bg-light text-dark border">{{ item.name }}</span> {% endfor %}</small></td>
+                            <td class="num">{{ txn.total_amount|spaced }} DZD</td>
+                            <td>{{ txn.payment_display }}</td>
+                            <td class="text-nowrap"><small class="text-muted">{{ txn.created_at|date:"d/m/Y H:i" }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">Aucune transaction sur cette période</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </details>
+
+    <details class="sd-details" id="presence" {% if presence_search %}open{% endif %}>
+        <summary><span><i class="bi bi-person-check"></i> Présence</span><span class="badge bg-secondary ms-auto me-2">{{ presence_count }}</span></summary>
+        <div class="body">
+            <form method="get" class="row g-2 mb-3">
+                <input type="hidden" name="date_from" value="{{ date_from }}">
+                <input type="hidden" name="date_to" value="{{ date_to }}">
+                <input type="hidden" name="caisse_id" value="{{ caisse_id }}">
+                <input type="hidden" name="account" value="{{ account }}">
+                <input type="hidden" name="scan_search" value="{{ scan_search }}">
+                <div class="col-sm-6 col-md-4"><input type="search" class="form-control form-control-sm" name="presence_search" value="{{ presence_search }}" placeholder="Nom, e-mail ou badge"></div>
+                <div class="col-auto"><button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-search"></i> Rechercher</button></div>
+            </form>
+            {% if presence_truncated %}<p class="text-muted small"><i class="bi bi-info-circle"></i> Les {{ list_limit }} plus récents sur {{ presence_count }} — l'export Excel contient tout.</p>{% endif %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr><th>Participant</th><th>Badge</th><th>Présent depuis</th></tr></thead>
+                    <tbody>
+                        {% for reg in presence_list %}
+                        <tr>
+                            <td><strong>{{ reg.participant.user.get_full_name|default:reg.participant.user.username }}</strong><br><small class="text-muted">{{ reg.participant.user.email }}</small></td>
+                            <td><small class="text-muted">{{ reg.participant.badge_id }}</small></td>
+                            <td class="text-nowrap"><small class="text-muted">{{ reg.checked_in_at|date:"d/m/Y H:i" }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">Aucun participant présent sur cette période</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </details>
+
+    <details class="sd-details" id="scans" {% if scan_search %}open{% endif %}>
+        <summary><span><i class="bi bi-person-badge"></i> Scans des contrôleurs</span><span class="badge bg-secondary ms-auto me-2">{{ controller_scans_count }}</span></summary>
+        <div class="body">
+            <form method="get" class="row g-2 mb-3">
+                <input type="hidden" name="date_from" value="{{ date_from }}">
+                <input type="hidden" name="date_to" value="{{ date_to }}">
+                <input type="hidden" name="caisse_id" value="{{ caisse_id }}">
+                <input type="hidden" name="account" value="{{ account }}">
+                <input type="hidden" name="presence_search" value="{{ presence_search }}">
+                <div class="col-sm-6 col-md-4"><input type="search" class="form-control form-control-sm" name="scan_search" value="{{ scan_search }}" placeholder="Participant scanné : nom, e-mail ou badge"></div>
+                <div class="col-auto"><button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-search"></i> Rechercher</button></div>
+            </form>
+            {% if controller_scans_count > list_limit %}<p class="text-muted small"><i class="bi bi-info-circle"></i> Les {{ list_limit }} plus récents sur {{ controller_scans_count }} — l'export Excel contient tout.</p>{% endif %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr><th>Participant</th><th>Badge</th><th>Contrôleur</th><th>Résultat</th><th>Décision</th><th>Heure</th></tr></thead>
+                    <tbody>
+                        {% for scan in controller_scans %}
+                        <tr>
+                            <td><strong>{{ scan.participant_name }}</strong><br><small class="text-muted">{{ scan.participant_email }}</small></td>
+                            <td><small class="text-muted">{{ scan.badge_id }}</small></td>
+                            <td>{{ scan.controller.get_full_name|default:scan.controller.username }}</td>
+                            <td>
+                                {% if scan.status == 'success' %}<span class="pill good">Inscrit</span>
+                                {% elif scan.status == 'not_registered' %}<span class="pill warn">Non inscrit</span>
+                                {% else %}<span class="pill bad">Erreur</span>{% endif %}
+                            </td>
+                            <td>
+                                {% if scan.access_decision == 'granted' %}<span class="pill good"><i class="bi bi-door-open"></i> Entré</span>
+                                {% elif scan.access_decision == 'denied' %}<span class="pill bad"><i class="bi bi-slash-circle"></i> Refusé</span>
+                                {% else %}<span class="pill none">—</span>{% endif %}
+                            </td>
+                            <td class="text-nowrap"><small class="text-muted">{{ scan.scanned_at|date:"d/m/Y H:i" }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">Aucun scan sur cette période</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </details>
+
+    <details class="sd-details" {% if scan_search %}open{% endif %}>
+        <summary><span><i class="bi bi-shop"></i> Scans des exposants</span><span class="badge bg-secondary ms-auto me-2">{{ exposant_scans_count }}</span></summary>
+        <div class="body">
+            {% if exposant_scans_count > list_limit %}<p class="text-muted small"><i class="bi bi-info-circle"></i> Les {{ list_limit }} plus récents sur {{ exposant_scans_count }} — l'export Excel contient tout.</p>{% endif %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr><th>Participant scanné</th><th>Exposant</th><th>Notes</th><th>Heure</th></tr></thead>
+                    <tbody>
+                        {% for scan in exposant_scans %}
+                        <tr>
+                            <td><strong>{{ scan.scanned_participant.user.get_full_name|default:scan.scanned_participant.user.username }}</strong><br><small class="text-muted">{{ scan.scanned_participant.user.email }}</small></td>
+                            <td>{{ scan.exposant.user.get_full_name|default:scan.exposant.user.username }}</td>
+                            <td><small>{{ scan.notes|default:"—" }}</small></td>
+                            <td class="text-nowrap"><small class="text-muted">{{ scan.scanned_at|date:"d/m/Y H:i" }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">Aucun scan d'exposant sur cette période</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </details>
+
+    <details class="sd-details">
+        <summary><span><i class="bi bi-files"></i> Doubles scans <small class="text-muted fw-normal">(badges concernés)</small></span><span class="badge bg-secondary ms-auto me-2">{{ insights.double_incidents|length }}</span></summary>
+        <div class="body">
+            <p class="text-muted small">Le même badge scanné plusieurs fois par le même contrôleur en moins de 5 minutes (souvent un problème de scanner ou une erreur).</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr><th>Participant</th><th>Badge</th><th>Contrôleur</th><th class="num">Scans</th><th>Entre</th></tr></thead>
+                    <tbody>
+                        {% for d in insights.double_incidents|slice:":200" %}
+                        <tr>
+                            <td>{{ d.participant }}</td>
+                            <td><small class="text-muted">{{ d.badge_id }}</small></td>
+                            <td>{{ d.controller }}</td>
+                            <td class="num">{{ d.count }}</td>
+                            <td class="text-nowrap small text-muted">{{ d.first_at|date:"d/m H:i:s" }} → {{ d.last_at|date:"H:i:s" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted py-3">Aucun double scan sur cette période</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </details>
 </div>
+
+{{ chart_data|json_script:"stats-chart-data" }}
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-// Jump straight to a tab (e.g. clicking a caisse in "Détail par caisse"
-// links to #transactions) instead of always landing back on Aperçu.
-document.addEventListener('DOMContentLoaded', function () {
-    var hash = window.location.hash;
-    if (!hash) return;
-    var trigger = document.querySelector('#statsTabs button[data-bs-target="' + hash + '"]');
-    if (trigger) {
-        new bootstrap.Tab(trigger).show();
+(function () {
+    var data = JSON.parse(document.getElementById('stats-chart-data').textContent);
+    var css = getComputedStyle(document.querySelector('.sd'));
+    function v(name) { return css.getPropertyValue(name).trim(); }
+    var C = { s1: v('--s1'), s2: v('--s2'), s3: v('--s3'), s4: v('--s4'), good: v('--good'), bad: v('--bad'),
+              none: v('--none'), muted: v('--muted'), line: v('--line'), ink: v('--ink') };
+    var fmt = new Intl.NumberFormat('fr-FR');
+
+    function empty(canvasId, message) {
+        var box = document.getElementById(canvasId).parentNode;
+        box.innerHTML = '<div class="empty-chart">' + message + '</div>';
     }
-});
+
+    if (window.Chart) {
+        Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+        Chart.defaults.font.size = 12;
+        Chart.defaults.color = C.muted;
+        Chart.defaults.plugins.legend.labels.usePointStyle = true;
+        Chart.defaults.plugins.legend.labels.pointStyle = 'rectRounded';
+        Chart.defaults.plugins.tooltip.callbacks.label = function (ctx) {
+            var value = ctx.parsed.y !== undefined && ctx.chart.options.indexAxis !== 'y' ? ctx.parsed.y : ctx.parsed.x;
+            return ' ' + ctx.dataset.label + ' : ' + fmt.format(value);
+        };
+    }
+    var grid = { color: C.line, drawTicks: false };
+    var noGrid = { display: false };
+
+    // ---- Activité dans le temps (one axis: everything is a count) ----
+    var t = data.timeline;
+    document.getElementById('timeline-sub').textContent = t.granularity === 'day' ? 'Par jour' : 'Par heure';
+    if (!window.Chart || !t.labels.length) {
+        empty('chart-timeline', 'Aucune activité sur cette période');
+    } else {
+        function line(label, values, color) {
+            return { label: label, data: values, borderColor: color, backgroundColor: color, borderWidth: 2,
+                     pointRadius: 0, pointHoverRadius: 5, cubicInterpolationMode: 'monotone' };
+        }
+        new Chart(document.getElementById('chart-timeline'), {
+            type: 'line',
+            data: { labels: t.labels, datasets: [
+                line('Arrivées', t.arrivals, C.s1),
+                line('Paiements', t.payments, C.s2),
+                line('Scans contrôleurs', t.controller_scans, C.s3),
+                line('Scans exposants', t.exposant_scans, C.s4)
+            ] },
+            options: { responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'top', align: 'start' } },
+                scales: { x: { grid: noGrid }, y: { beginAtZero: true, grid: grid, ticks: { precision: 0 } } } }
+        });
+    }
+
+    function barHeight(count) { return Math.max(200, count * 34 + 60) + 'px'; }
+
+    // ---- Scans par contrôleur (stacked by decision; status colours + legend) ----
+    if (!window.Chart || !data.controllers.length) {
+        empty('chart-controllers', 'Aucun scan de contrôleur sur cette période');
+    } else {
+        var cBox = document.getElementById('chart-controllers').parentNode;
+        cBox.style.height = barHeight(data.controllers.length);
+        function seg(label, key, color) {
+            return { label: label, data: data.controllers.map(function (c) { return c[key]; }), backgroundColor: color,
+                     borderColor: '#fff', borderWidth: { right: 2 }, borderRadius: 4, borderSkipped: false, maxBarThickness: 22 };
+        }
+        new Chart(document.getElementById('chart-controllers'), {
+            type: 'bar',
+            data: { labels: data.controllers.map(function (c) { return c.name; }), datasets: [
+                seg('Laissés entrer', 'granted', C.good), seg('Accès refusé', 'denied', C.bad), seg('Sans décision', 'undecided', C.none)
+            ] },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', align: 'start' } },
+                scales: { x: { stacked: true, beginAtZero: true, grid: grid, ticks: { precision: 0 } }, y: { stacked: true, grid: noGrid } } }
+        });
+    }
+
+    // ---- Classement des stands (single series: the title names it) ----
+    if (!window.Chart || !data.stands.length) {
+        empty('chart-stands', 'Aucune visite de stand sur cette période');
+    } else {
+        var stands = data.stands.slice(0, 15);
+        document.getElementById('chart-stands').parentNode.style.height = barHeight(stands.length);
+        new Chart(document.getElementById('chart-stands'), {
+            type: 'bar',
+            data: { labels: stands.map(function (s) { return s.name; }), datasets: [{
+                label: 'Visiteurs distincts', data: stands.map(function (s) { return s.distinct; }),
+                backgroundColor: C.s1, borderRadius: 4, maxBarThickness: 22 }] },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true, grid: grid, ticks: { precision: 0 } }, y: { grid: noGrid } } }
+        });
+    }
+
+    // ---- Montant par caisse (stacked by payment mode) ----
+    if (!window.Chart || !data.caisses.length) {
+        empty('chart-caisses', 'Aucune transaction sur cette période');
+    } else {
+        document.getElementById('chart-caisses').parentNode.style.height = barHeight(data.caisses.length);
+        function mode(label, key, color) {
+            return { label: label, data: data.caisses.map(function (c) { return c[key]; }), backgroundColor: color,
+                     borderColor: '#fff', borderWidth: { right: 2 }, borderRadius: 4, borderSkipped: false, maxBarThickness: 22 };
+        }
+        new Chart(document.getElementById('chart-caisses'), {
+            type: 'bar',
+            data: { labels: data.caisses.map(function (c) { return c.name; }), datasets: [
+                mode('Espèces', 'cash', C.s1), mode('Virement bancaire', 'bank_transfer', C.s3), mode('Prise en charge', 'sponsoring', C.s4)
+            ] },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', align: 'start' } },
+                scales: { x: { stacked: true, beginAtZero: true, grid: grid }, y: { stacked: true, grid: noGrid } } }
+        });
+    }
+
+    // ---- Heatmap: account x time bucket (one hue, light -> dark) ----
+    document.getElementById('heatmap-unit').textContent = t.granularity === 'day' ? 'jour' : 'heure';
+    var rows = data.controllers.map(function (c) { return { name: c.name, role: 'Contrôleur', series: c.series }; })
+        .concat(data.stands.map(function (s) { return { name: s.name, role: 'Exposant', series: s.series }; }));
+    var heat = document.getElementById('heatmap');
+    if (!rows.length || !t.labels.length) {
+        heat.innerHTML = '<div class="text-muted small py-3">Aucun scan sur cette période</div>';
+    } else {
+        // Only the time buckets where at least one account scanned.
+        var cols = t.labels.map(function (_, i) { return i; }).filter(function (i) {
+            return rows.some(function (r) { return r.series[i] > 0; });
+        });
+        var max = 1;
+        rows.forEach(function (r) { cols.forEach(function (i) { if (r.series[i] > max) max = r.series[i]; }); });
+        var esc = function (s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+        var html = '<table class="heatmap"><thead><tr><th></th>';
+        cols.forEach(function (i) { html += '<th>' + esc(t.labels[i]) + '</th>'; });
+        html += '</tr></thead><tbody>';
+        rows.forEach(function (r) {
+            html += '<tr><th class="name" title="' + esc(r.role) + '">' + esc(r.name) +
+                    ' <small class="text-muted fw-normal">' + (r.role === 'Exposant' ? '· stand' : '') + '</small></th>';
+            cols.forEach(function (i) {
+                var n = r.series[i];
+                var a = n ? 0.12 + 0.88 * (n / max) : 0;
+                var bg = n ? 'rgba(76,58,166,' + a.toFixed(2) + ')' : '#f6f4f8';
+                var fg = a > 0.55 ? '#fff' : C.ink;
+                html += '<td style="background:' + bg + ';color:' + fg + '" title="' + esc(r.name) + ' · ' +
+                        esc(t.labels[i]) + ' : ' + n + ' scan(s)">' + (n || '') + '</td>';
+            });
+            html += '</tr>';
+        });
+        heat.innerHTML = html + '</tbody></table>';
+    }
+})();
 </script>
 {% endblock %}
