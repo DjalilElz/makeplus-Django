@@ -834,3 +834,25 @@ class PaymentModeTests(TestCase):
         self.assertEqual((biopharm.name, biopharm.is_active), ('Biopharm', False))
         page = self.client.get(reverse('dashboard:blocs_config', args=[self.event.id]))
         self.assertContains(page, 'Organismes payeurs')
+
+    def test_cashier_downloads_the_caisse_report(self):
+        participant, _ = self._participant('k')
+        self._pay(participant, payment_method='sponsoring', sponsor_id=self.hikma.id)
+        response = self.client.get(reverse('caisse:caisse_report'))  # still logged in as the caisse
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(response.content.startswith(b'%PDF'))
+        self.assertIn('remise-caisse_caisse-1_', response['Content-Disposition'])
+        self.assertContains(self.client.get(reverse('caisse:dashboard')), 'Rapport de remise de caisse')
+
+    def test_stats_pdf_is_the_caisse_report_with_filters(self):
+        participant, _ = self._participant('l')
+        self._pay(participant, payment_method='bank_transfer')
+        self.client.force_login(self.admin)
+        url = reverse('dashboard:event_stats_export_pdf', args=[self.event.id])
+        for query in ('', f'?caisse_id={self.caisse.id}', '?date_from=2020-01-01T00:00&date_to=2099-12-31T23:59'):
+            response = self.client.get(url + query)
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.content.startswith(b'%PDF'))
+            self.assertIn('rapport-caisse_congress_', response['Content-Disposition'])
+

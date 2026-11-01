@@ -1604,6 +1604,25 @@ def modify_pending_order(request):
 
 
 @caisse_required
+def caisse_report_pdf(request):
+    """"Rapport de remise de caisse": this caisse's completed payments as the
+    MakePlus-branded caisse report (dashboard.caisse_report), downloaded by
+    the cashier at handover."""
+    from django.utils.text import slugify
+    from dashboard.caisse_report import build_caisse_report
+
+    caisse = request.caisse
+    pdf = build_caisse_report(
+        caisse.event, caisse.transactions.all(), caisse.name, [f'Caisse : {caisse.name}'],
+    )
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = (
+        f'attachment; filename="remise-caisse_{slugify(caisse.name)}_{timezone.localdate()}.pdf"'
+    )
+    return response
+
+
+@caisse_required
 @require_http_methods(["POST"])
 def cancel_transaction(request, transaction_id):
     """Cancel a transaction and remove granted access"""

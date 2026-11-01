@@ -80,6 +80,16 @@
             z-index: 3;
         }
 
+        /* Report + logout buttons, top right of the header */
+        .header-actions {
+            position: absolute;
+            top: 8px;
+            right: 15px;
+            display: flex;
+            gap: 8px;
+            z-index: 3;
+        }
+        .header-actions .logout-btn { position: static; }
         .logout-btn:hover {
             background: rgba(255,255,255,0.28);
             color: white;
@@ -368,9 +378,14 @@
                 {{ caisse.name }} - {{ event.name }}
             </h5>
         </div>
-        <a href="{% url 'caisse:logout' %}" class="logout-btn">
-            Déconnexion
-        </a>
+        <div class="header-actions">
+            <a href="{% url 'caisse:caisse_report' %}" class="logout-btn" title="Télécharger le rapport PDF des encaissements de cette caisse">
+                Rapport de remise de caisse
+            </a>
+            <a href="{% url 'caisse:logout' %}" class="logout-btn">
+                Déconnexion
+            </a>
+        </div>
     </div>
 
     <div class="container-fluid mt-3">

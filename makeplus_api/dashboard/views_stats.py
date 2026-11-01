@@ -817,167 +817,38 @@ def event_stats_export_excel(request, event_id):
 @user_passes_test(is_staff_user)
 def event_stats_export_pdf(request, event_id):
     """
-    Printable summary report -- the money side (caisse breakdown +
-    transactions) is the whole point of a PDF here, so it gets full detail
-    and a properly proportioned layout. Présence and scans are individually
-    huge, low-signal-per-row lists that don't read well on paper -- they
-    get one summary line each instead of a full dump; anyone who needs the
-    row-by-row detail has the Excel export for that.
+    "Rapport de caisse" (dashboard.caisse_report): MakePlus-branded PDF of
+    the completed payments -- totals by payment mode, transactions per
+    caisse, every payment line -- following the stats page's own filters
+    (period, caisse) so it always matches what's on screen.
     """
-    from io import BytesIO
-    from xml.sax.saxutils import escape as xml_escape
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.units import mm
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+    from django.utils.text import slugify
     from events.models import Event
+    from .caisse_report import build_caisse_report
 
     event = get_object_or_404(Event, id=event_id)
     data = _gather_event_stats(request, event)
-    money_stats = data['money_stats']
-    styles = getSampleStyleSheet()
+    def readable(value, fallback):
+        # '2026-10-28T09:30' -> '28/10/2026 09:30'
+        if not value:
+            return fallback
+        try:
+            return datetime.fromisoformat(value).strftime('%d/%m/%Y %H:%M')
+        except ValueError:
+            return value
 
-    # Plain strings in a reportlab Table are drawn as a single line and
-    # never wrap -- long content (a full name, a comma-joined item list)
-    # just overflows past the cell into whatever is below it, which is
-    # the row-overlap the PDF was shipped with. Paragraph cells wrap
-    # properly AND report the real multi-line height back to the Table,
-    # so the row grows to fit instead of overlapping the next one.
-    cell_style = ParagraphStyle('TableCell', fontName='Helvetica', fontSize=8, leading=10)
-    header_cell_style = ParagraphStyle(
-        'TableHeaderCell', fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=colors.white,
+    scope_lines = []
+    if data['date_from_str'] or data['date_to_str']:
+        scope_lines.append(
+            f"Période : {readable(data['date_from_str'], 'depuis le début')} → {readable(data['date_to_str'], 'aujourd’hui')}"
+        )
+    if data['selected_caisse']:
+        scope_lines.append('Caisse : ' + data['selected_caisse'].name)
+    edited_by = request.user.get_full_name().strip() or request.user.username
+    pdf = build_caisse_report(event, data['transactions_qs'], edited_by, scope_lines)
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = (
+        f'attachment; filename="rapport-caisse_{slugify(event.name)}_{timezone.localdate()}.pdf"'
     )
-    summary_label_style = ParagraphStyle(
-        'SummaryLabel', fontName='Helvetica-Bold', fontSize=10, leading=13, textColor=colors.white,
-    )
-    summary_value_style = ParagraphStyle('SummaryValue', fontName='Helvetica', fontSize=10, leading=13)
-
-    def _cell(value, style):
-        return Paragraph(xml_escape(str(value)), style)
-
-    page_width, _page_height = landscape(A4)
-    usable_width = page_width - 24 * mm  # minus left+right margins below
-
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=landscape(A4),
-        topMargin=15 * mm, bottomMargin=15 * mm, leftMargin=12 * mm, rightMargin=12 * mm,
-    )
-    elements = [
-        Paragraph(f"Statistiques — {event.name}", styles['Title']),
-        Paragraph(
-            f"Période : {_stats_period_label(data)} &nbsp;&nbsp;|&nbsp;&nbsp; "
-            f"Caisse : {data['selected_caisse'].name if data['selected_caisse'] else 'Toutes les caisses'}",
-            styles['Normal'],
-        ),
-        Spacer(1, 10),
-    ]
-
-    controller_scans_count = data['controller_scans_qs'].count()
-    exposant_scans_count = data['exposant_scans_qs'].count()
-
-    payment_totals = data['payment_totals']
-    breakdown_rows = [
-        ["   Espèces", f"{float(payment_totals['cash']['amount']):.2f} DZD"],
-        ["   Virement bancaire", f"{float(payment_totals['bank_transfer']['amount']):.2f} DZD"],
-        ["   Prise en charge", f"{float(payment_totals['sponsoring']['amount']):.2f} DZD"],
-    ] + [
-        [f"      {row['name']}", f"{float(row['amount']):.2f} DZD"] for row in payment_totals['sponsors']
-    ] + ([
-        ["   Mixte (ancien)", f"{float(payment_totals['other']['amount']):.2f} DZD"]
-    ] if payment_totals['other']['count'] else [])
-    summary_rows_raw = [
-        ["Montant total", f"{float(money_stats['total_amount'] or 0):.2f} DZD"],
-        *breakdown_rows,
-        ["Transactions", str(money_stats['transaction_count'] or 0)],
-        ["Participants traités", str(money_stats['total_participants'] or 0)],
-        ["Participants présents", f"{data['presence_count']} / {data['total_registered']}"],
-        [
-            "Scans", f"{controller_scans_count + exposant_scans_count} au total "
-            f"({controller_scans_count} contrôleurs, {exposant_scans_count} exposants)",
-        ],
-    ]
-    summary_table = Table(
-        [[_cell(label, summary_label_style), _cell(value, summary_value_style)] for label, value in summary_rows_raw],
-        colWidths=[usable_width * 0.35, usable_width * 0.65],
-    )
-    summary_table.setStyle(TableStyle([
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#2D1B6B')),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-    ]))
-    elements.append(summary_table)
-    elements.append(Spacer(1, 16))
-
-    def _section(title, headers, rows, empty_message, col_widths=None):
-        elements.append(Paragraph(title, styles['Heading2']))
-        if not rows:
-            elements.append(Paragraph(empty_message, styles['Italic']))
-            elements.append(Spacer(1, 10))
-            return
-        header_row = [_cell(h, header_cell_style) for h in headers]
-        body_rows = [[_cell(v, cell_style) for v in row] for row in rows]
-        table = Table([header_row] + body_rows, colWidths=col_widths, repeatRows=1)
-        table.setStyle(TableStyle([
-            ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2D1B6B')),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ]))
-        elements.append(table)
-        elements.append(Spacer(1, 14))
-
-    # ---- Détail par caisse -- the core financial breakdown this export
-    # exists for, given an explicit width split so it fills the page
-    # properly instead of shrinking to its own content on a wide layout ----
-    per_caisse_rows = []
-    for row in data['per_caisse_stats']:
-        per_caisse_rows.append([
-            row['caisse__name'], f"{float(row['total_amount'] or 0):.2f} DZD",
-            f"{float(row['cash_amount'] or 0):.2f}", f"{float(row['bank_transfer_amount'] or 0):.2f}",
-            f"{float(row['sponsoring_amount'] or 0):.2f}",
-            str(row['transaction_count']), str(row['total_participants']),
-        ])
-    if per_caisse_rows:
-        per_caisse_rows.append([
-            "TOTAL", f"{float(money_stats['total_amount'] or 0):.2f} DZD",
-            f"{float(payment_totals['cash']['amount']):.2f}", f"{float(payment_totals['bank_transfer']['amount']):.2f}",
-            f"{float(payment_totals['sponsoring']['amount']):.2f}",
-            str(money_stats['transaction_count'] or 0), str(money_stats['total_participants'] or 0),
-        ])
-    _section(
-        "Détail par caisse",
-        ["Caisse", "Montant", "Espèces", "Virement", "Prise en charge", "Transactions", "Participants"],
-        per_caisse_rows, "Aucune transaction pour cette période.",
-        col_widths=[usable_width * 0.22, usable_width * 0.14, usable_width * 0.13, usable_width * 0.13,
-                    usable_width * 0.14, usable_width * 0.12, usable_width * 0.12],
-    )
-
-    elements.append(PageBreak())
-    txn_rows = []
-    for txn in data['transactions_qs']:
-        items = ', '.join(i.name for i in txn.items.all())
-        txn_rows.append([
-            txn.participant.user.get_full_name() or txn.participant.user.username,
-            txn.caisse.name, items, f"{float(txn.total_amount):.2f} DZD",
-            txn.payment_display,
-            timezone.localtime(txn.created_at).strftime('%d/%m/%Y %H:%M'),
-        ])
-    _section(
-        "Transactions", ["Participant", "Caisse", "Articles", "Montant", "Mode de règlement", "Heure"],
-        txn_rows, "Aucune transaction pour cette période.",
-        col_widths=[
-            usable_width * 0.20, usable_width * 0.13, usable_width * 0.27,
-            usable_width * 0.13, usable_width * 0.14, usable_width * 0.13,
-        ],
-    )
-
-    doc.build(elements)
-    buffer.seek(0)
-    response = HttpResponse(buffer.read(), content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="stats_{event.name}_{timezone.now().date()}.pdf"'
     return response
