@@ -285,3 +285,40 @@ def chart_payload(insights, per_caisse_stats):
             for row in per_caisse_stats
         ],
     }
+
+
+def today_activity(qs, field='scanned_at'):
+    """
+    One account's activity today (local time), for the webapp stats
+    screens: ({'labels': ['09h', ...], 'counts': [...]}, peak or None),
+    from the first to the last active hour.
+    """
+    from datetime import datetime, time
+
+    start = timezone.make_aware(datetime.combine(timezone.localdate(), time.min))
+    today_qs = qs.filter(**{f'{field}__gte': start, f'{field}__lt': start + timedelta(days=1)})
+    by_hour = defaultdict(int)
+    for hour, row in _hourly(today_qs, field).items():
+        by_hour[hour.hour] += row['n']
+    if not by_hour:
+        return {'labels': [], 'counts': []}, None
+    hours = list(range(min(by_hour), max(by_hour) + 1))
+    counts = [by_hour.get(h, 0) for h in hours]
+    best = max(range(len(hours)), key=lambda i: counts[i])
+    peak = {'label': f'{hours[best]:02d}h–{(hours[best] + 1) % 24:02d}h', 'count': counts[best]}
+    return {'labels': [f'{h:02d}h' for h in hours], 'counts': counts}, peak
+
+
+def controller_summary(qs):
+    """Decision counts + double scans for a set of one controller's scans."""
+    row = qs.order_by().aggregate(
+        scans=Count('id'),
+        distinct=Count('participant_user_id', distinct=True),
+        granted=Count('id', filter=Q(access_decision='granted')),
+        denied=Count('id', filter=Q(access_decision='denied')),
+        not_registered=Count('id', filter=Q(status='not_registered')),
+    )
+    row['undecided'] = row['scans'] - row['granted'] - row['denied']
+    _, doubles = _double_scans(qs, {})
+    row['doubles'] = sum(doubles.values())
+    return row

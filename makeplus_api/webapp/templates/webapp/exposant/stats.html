@@ -1,5 +1,15 @@
 {% extends 'webapp/base.html' %}
 {% block title %}Statistiques — DendrIQ{% endblock %}
+{% block extra_head %}
+<style>
+    .bars { display:flex; align-items:flex-end; gap:4px; height:120px; margin-top:12px; }
+    .bar { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; min-width:0; }
+    .bar .fill { width:100%; max-width:28px; background:var(--navy); border-radius:4px 4px 0 0; min-height:2px; }
+    .bar.peak .fill { background:var(--sage); }
+    .bar .v { font-size:0.68rem; font-weight:700; color:var(--text-secondary); margin-bottom:2px; }
+    .bar .h { font-size:0.66rem; color:var(--text-secondary); margin-top:4px; }
+</style>
+{% endblock %}
 {% block body %}
 <div class="top-bar">
     <span class="title">Statistiques</span>
@@ -17,6 +27,20 @@
         <div class="card" style="flex:1; text-align:center;">
             <div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); font-weight:700;">Aujourd'hui</div>
             <div id="today-visits" style="font-size:2rem; font-weight:800; color:var(--sage); margin-top:4px;">—</div>
+        </div>
+    </div>
+    <div class="section" style="margin-top:-6px;">
+        <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:0.85rem; color:var(--text-secondary);"><i class="bi bi-people"></i> Visiteurs distincts</div>
+            <div style="font-weight:800; color:var(--navy);"><span id="distinct-visitors">—</span> <span id="distinct-today" style="font-weight:600; font-size:0.8rem; color:var(--text-secondary);"></span></div>
+        </div>
+    </div>
+
+    <div class="section" id="hourly-section" style="display:none;">
+        <div class="card">
+            <div style="font-weight:700;">Aujourd'hui, par heure</div>
+            <div id="peak" style="font-size:0.82rem; color:var(--text-secondary); margin-top:2px;"></div>
+            <div class="bars" id="bars" role="img" aria-label="Visites par heure aujourd'hui"></div>
         </div>
     </div>
 
@@ -86,6 +110,26 @@
         render(visibleScans());
     });
 
+    function renderBars(hourly, peak) {
+        var section = document.getElementById('hourly-section');
+        if (!hourly || !hourly.labels || !hourly.labels.length) { section.style.display = 'none'; return; }
+        section.style.display = 'block';
+        document.getElementById('peak').textContent = peak ? 'Pointe : ' + peak.label + ' (' + peak.count + ' visite' + (peak.count > 1 ? 's' : '') + ')' : '';
+        var max = Math.max.apply(null, hourly.counts.concat([1]));
+        var bars = document.getElementById('bars');
+        bars.innerHTML = '';
+        hourly.labels.forEach(function (label, i) {
+            var n = hourly.counts[i];
+            var bar = document.createElement('div');
+            bar.className = 'bar' + (peak && n === peak.count && n > 0 ? ' peak' : '');
+            bar.innerHTML = '<span class="v">' + (n || '') + '</span>' +
+                '<div class="fill" style="height:' + Math.round(80 * n / max) + '%;"></div>' +
+                '<span class="h">' + escapeHtml(label) + '</span>';
+            bar.title = label + ' : ' + n + ' visite(s)';
+            bars.appendChild(bar);
+        });
+    }
+
     function showToast(message, isError) {
         var toast = document.getElementById('toast');
         toast.textContent = message;
@@ -101,6 +145,10 @@
         document.getElementById('content').style.display = 'block';
         document.getElementById('total-visits').textContent = data.total_visits != null ? data.total_visits : '0';
         document.getElementById('today-visits').textContent = data.today_visits != null ? data.today_visits : '0';
+        document.getElementById('distinct-visitors').textContent = data.distinct_visitors != null ? data.distinct_visitors : '—';
+        document.getElementById('distinct-today').textContent =
+            data.today_distinct_visitors != null ? '(' + data.today_distinct_visitors + " aujourd'hui)" : '';
+        renderBars(data.hourly_today, data.peak_today);
         allScans = data.scans || [];
         // A background refresh must not silently drop whatever search
         // filter was already typed in.

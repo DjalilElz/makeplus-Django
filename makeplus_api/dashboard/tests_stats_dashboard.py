@@ -170,3 +170,52 @@ class StatsDashboardTests(TestCase):
                                    {'account': f'c{self.c2.id}'})
         wb = load_workbook(BytesIO(response.content))
         self.assertEqual(wb['Scans contrôleurs'].max_row, 2)
+
+
+class WebappStatsApiTests(TestCase):
+    """The webapp's own stats screens get the same insights for one account."""
+
+    def setUp(self):
+        self.event = Event.objects.create(
+            name='Congress', start_date=timezone.now(), end_date=timezone.now() + timedelta(days=1), location='Alger',
+        )
+        self.controller = User.objects.create_user(username='ctrl', password='x')
+        UserEventAssignment.objects.create(user=self.controller, event=self.event, role='controlleur_des_badges')
+        self.visitors = []
+        for i in range(2):
+            user = User.objects.create_user(username=f'v{i}', email=f'v{i}@example.com', password='x')
+            self.visitors.append((user, create_participant_for_event(user, self.event)))
+
+    def test_controller_statistics_include_decisions_doubles_and_hours(self):
+        for (user, participant), decision in ((self.visitors[0], 'granted'), (self.visitors[0], ''),
+                                              (self.visitors[1], 'denied')):
+            ControllerScan.objects.create(
+                controller=self.controller, event=self.event, participant_user_id=user.id,
+                badge_id=participant.badge_id, participant_name=user.username, participant_email=user.email,
+                access_decision=decision,
+            )
+        api = APIClient()
+        api.force_authenticate(self.controller)
+        data = api.get(f'/api/my-room/statistics/?event_id={self.event.id}').json()
+        self.assertEqual(data['my_check_ins_today'], 3)
+        today = data['today']
+        self.assertEqual((today['scans'], today['distinct'], today['granted'], today['denied'], today['undecided'],
+                          today['doubles']), (3, 2, 1, 1, 1, 1))
+        self.assertEqual(data['totals']['scans'], 3)
+        self.assertEqual(sum(data['hourly_today']['counts']), 3)
+        self.assertEqual(data['peak_today']['count'], 3)
+        self.assertEqual({s['access_decision'] for s in data['recent_scans']}, {'granted', 'denied', ''})
+
+    def test_exposant_my_scans_include_distinct_visitors_and_hours(self):
+        stand_user = User.objects.create_user(username='stand', password='x')
+        stand = create_participant_for_event(stand_user, self.event)
+        UserEventAssignment.objects.filter(user=stand_user, event=self.event).update(role='exposant')
+        for _, participant in self.visitors + [self.visitors[0]]:
+            ExposantScan.objects.create(exposant=stand, scanned_participant=participant, event=self.event)
+        api = APIClient()
+        api.force_authenticate(stand_user)
+        data = api.get(f'/api/exposant-scans/my_scans/?event_id={self.event.id}').json()
+        self.assertEqual((data['total_visits'], data['today_visits']), (3, 3))
+        self.assertEqual((data['distinct_visitors'], data['today_distinct_visitors']), (2, 2))
+        self.assertEqual(sum(data['hourly_today']['counts']), 3)
+        self.assertEqual(len(data['scans']), 3)

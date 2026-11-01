@@ -1435,13 +1435,22 @@ class ExposantScanViewSet(viewsets.ModelViewSet):
             
             # Get statistics
             total_scans = scans.count()
-            today_scans = scans.filter(scanned_at__date=timezone.now().date()).count()
+            today_scans = scans.filter(scanned_at__date=timezone.localdate()).count()
             
             serializer = self.get_serializer(scans, many=True)
+
+            # Insights for the webapp stats screen (same rules as the dashboard)
+            from dashboard.stats_insights import today_activity
+            hourly_today, peak_today = today_activity(scans)
             
             return Response({
                 'total_visits': total_scans,
                 'today_visits': today_scans,
+                'distinct_visitors': scans.order_by().values('scanned_participant_id').distinct().count(),
+                'today_distinct_visitors': scans.filter(scanned_at__date=timezone.localdate())
+                    .order_by().values('scanned_participant_id').distinct().count(),
+                'hourly_today': hourly_today,
+                'peak_today': peak_today,
                 'scans': serializer.data
             })
         except Event.DoesNotExist:

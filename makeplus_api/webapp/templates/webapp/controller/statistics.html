@@ -1,5 +1,23 @@
 {% extends 'webapp/base.html' %}
 {% block title %}Statistiques — DendrIQ{% endblock %}
+{% block extra_head %}
+<style>
+    .kpi-label { font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); font-weight:700; }
+    .tiles { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+    .tile { background:var(--surface-2); border-radius:12px; padding:10px 12px; }
+    .tile .n { font-size:1.4rem; font-weight:800; line-height:1.2; }
+    .tile .l { font-size:0.75rem; color:var(--text-secondary); display:flex; align-items:center; gap:5px; }
+    .bars { display:flex; align-items:flex-end; gap:4px; height:120px; margin-top:12px; }
+    .bar { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; min-width:0; }
+    .bar .fill { width:100%; max-width:28px; background:var(--navy); border-radius:4px 4px 0 0; min-height:2px; }
+    .bar.peak .fill { background:var(--sage); }
+    .bar .v { font-size:0.68rem; font-weight:700; color:var(--text-secondary); margin-bottom:2px; }
+    .bar .h { font-size:0.66rem; color:var(--text-secondary); margin-top:4px; }
+    .pill { font-size:0.7rem; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+    .pill.granted { color:#17733f; background:rgba(52,199,89,0.14); }
+    .pill.denied { color:#b3261e; background:rgba(255,59,48,0.12); }
+</style>
+{% endblock %}
 {% block body %}
 <div class="top-bar"><span class="title">Statistiques</span></div>
 
@@ -7,9 +25,37 @@
 
 <div id="content" style="display:none;">
     <div class="section">
-        <div class="card" style="text-align:center;">
-            <div style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); font-weight:700;">Contrôles effectués aujourd'hui</div>
-            <div id="checkins-today" style="font-size:2.4rem; font-weight:800; color:var(--navy); margin-top:4px;">—</div>
+        <div class="card">
+            <div style="text-align:center;">
+                <div class="kpi-label">Contrôles effectués aujourd'hui</div>
+                <div id="checkins-today" style="font-size:2.4rem; font-weight:800; color:var(--navy); margin-top:4px;">—</div>
+                <div id="distinct-today" style="font-size:0.8rem; color:var(--text-secondary);"></div>
+            </div>
+            <div class="tiles">
+                <div class="tile"><div class="n" id="t-granted" style="color:var(--success);">0</div><div class="l"><i class="bi bi-door-open"></i> Laissés entrer</div></div>
+                <div class="tile"><div class="n" id="t-denied" style="color:var(--error);">0</div><div class="l"><i class="bi bi-slash-circle"></i> Accès refusé</div></div>
+                <div class="tile"><div class="n" id="t-notreg" style="color:var(--warning);">0</div><div class="l"><i class="bi bi-exclamation-triangle"></i> Non inscrits</div></div>
+                <div class="tile"><div class="n" id="t-doubles">0</div><div class="l"><i class="bi bi-files"></i> Doubles scans</div></div>
+            </div>
+            <div id="t-undecided" style="font-size:0.78rem; color:var(--text-secondary); margin-top:10px; text-align:center;"></div>
+        </div>
+    </div>
+
+    <div class="section" id="hourly-section" style="display:none;">
+        <div class="card">
+            <div style="font-weight:700;">Aujourd'hui, par heure</div>
+            <div id="peak" style="font-size:0.82rem; color:var(--text-secondary); margin-top:2px;"></div>
+            <div class="bars" id="bars" role="img" aria-label="Scans par heure aujourd'hui"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <div class="kpi-label">Depuis le début de l'événement</div>
+                <div id="totals-line" style="font-size:0.85rem; margin-top:4px;"></div>
+            </div>
+            <div id="total-scans" style="font-size:1.6rem; font-weight:800; color:var(--navy);">—</div>
         </div>
     </div>
 
@@ -44,6 +90,12 @@
         return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     }
 
+    function decisionPill(scan) {
+        if (scan.access_decision === 'granted') return '<span class="pill granted">Entré</span>';
+        if (scan.access_decision === 'denied') return '<span class="pill denied">Refusé</span>';
+        return '';
+    }
+
     function render(scans) {
         var listEl = document.getElementById('scan-list');
         listEl.innerHTML = '';
@@ -58,10 +110,33 @@
                 '<span style="font-size:1.1rem; color:' + (ok ? 'var(--success)' : 'var(--warning)') + ';"><i class="bi ' + (ok ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill') + '"></i></span>' +
                 '<div style="flex:1; min-width:0;">' +
                     '<div style="font-weight:600;">' + escapeHtml(p.name || 'Inconnu') + '</div>' +
-                    '<div style="font-size:0.78rem; color:var(--text-secondary);">' + escapeHtml(p.email || '') + '</div>' +
+                    '<div style="font-size:0.78rem; color:var(--text-secondary);">' + escapeHtml(p.email || '') + (ok ? '' : ' · non inscrit') + '</div>' +
                 '</div>' +
-                '<span style="font-size:0.78rem; color:var(--text-secondary);">' + fmtTime(scan.scanned_at) + '</span>';
+                '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">' +
+                    '<span style="font-size:0.78rem; color:var(--text-secondary);">' + fmtTime(scan.scanned_at) + '</span>' +
+                    decisionPill(scan) +
+                '</div>';
             listEl.appendChild(row);
+        });
+    }
+
+    function renderBars(hourly, peak) {
+        var section = document.getElementById('hourly-section');
+        if (!hourly || !hourly.labels || !hourly.labels.length) { section.style.display = 'none'; return; }
+        section.style.display = 'block';
+        document.getElementById('peak').textContent = peak ? 'Pointe : ' + peak.label + ' (' + peak.count + ' scan' + (peak.count > 1 ? 's' : '') + ')' : '';
+        var max = Math.max.apply(null, hourly.counts.concat([1]));
+        var bars = document.getElementById('bars');
+        bars.innerHTML = '';
+        hourly.labels.forEach(function (label, i) {
+            var n = hourly.counts[i];
+            var bar = document.createElement('div');
+            bar.className = 'bar' + (peak && n === peak.count && n > 0 ? ' peak' : '');
+            bar.innerHTML = '<span class="v">' + (n || '') + '</span>' +
+                '<div class="fill" style="height:' + Math.round(80 * n / max) + '%;"></div>' +
+                '<span class="h">' + escapeHtml(label) + '</span>';
+            bar.title = label + ' : ' + n + ' scan(s)';
+            bars.appendChild(bar);
         });
     }
 
@@ -71,11 +146,27 @@
     });
 
     loadWithCache('controller_stats_' + (event.id || ''), function () {
-        return Api.get('/my-room/statistics/').then(function (r) { return r.json(); });
+        return Api.get('/my-room/statistics/' + (event.id ? '?event_id=' + encodeURIComponent(event.id) : ''))
+            .then(function (r) { return r.json(); });
     }, function (data) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').style.display = 'block';
         document.getElementById('checkins-today').textContent = data.my_check_ins_today != null ? data.my_check_ins_today : '0';
+        var today = data.today || {};
+        var totals = data.totals || {};
+        document.getElementById('distinct-today').textContent =
+            today.distinct != null ? today.distinct + ' participant' + (today.distinct > 1 ? 's' : '') + ' distinct' + (today.distinct > 1 ? 's' : '') : '';
+        document.getElementById('t-granted').textContent = today.granted || 0;
+        document.getElementById('t-denied').textContent = today.denied || 0;
+        document.getElementById('t-notreg').textContent = today.not_registered || 0;
+        document.getElementById('t-doubles').textContent = today.doubles || 0;
+        document.getElementById('t-undecided').textContent =
+            today.undecided ? today.undecided + ' scan' + (today.undecided > 1 ? 's' : '') + ' sans décision' : '';
+        renderBars(data.hourly_today, data.peak_today);
+        document.getElementById('total-scans').textContent = totals.scans != null ? totals.scans : '—';
+        document.getElementById('totals-line').textContent = totals.scans != null
+            ? (totals.granted || 0) + ' entrés · ' + (totals.denied || 0) + ' refusés · ' + (totals.not_registered || 0) + ' non inscrits'
+            : '';
         allScans = data.recent_scans || [];
         // A background refresh must not silently drop whatever search
         // filter was already typed in.

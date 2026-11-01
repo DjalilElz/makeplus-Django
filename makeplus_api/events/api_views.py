@@ -12,6 +12,7 @@ from django.db import transaction as db_transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from datetime import datetime, timedelta
 from .models import (
     UserEventAssignment, Session, RoomAccess, Room,
     Participant, Event, SessionQuestion, SessionAccess,
@@ -31,11 +32,14 @@ class MyRoomStatisticsAPIView(APIView):
     def get(self, request):
         user = request.user
         
-        # Get user's assignment with event in one query
-        assignment = UserEventAssignment.objects.select_related('event').filter(
+        # Get user's assignment with event in one query -- the event chosen
+        # in the app (?event_id=) when the controller works on several.
+        assignments = UserEventAssignment.objects.select_related('event').filter(
             user=user,
             is_active=True
-        ).first()
+        )
+        event_id = request.query_params.get('event_id')
+        assignment = (assignments.filter(event_id=event_id).first() if event_id else None) or assignments.first()
         
         if not assignment:
             return Response({
@@ -44,9 +48,9 @@ class MyRoomStatisticsAPIView(APIView):
         
         event = assignment.event
         
-        # Get today's date range
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start.replace(hour=23, minute=59, second=59)
+        # Today's date range, in local time (UTC midnight is 01:00 in Algiers)
+        today_start = timezone.make_aware(datetime.combine(timezone.localdate(), datetime.min.time()))
+        today_end = today_start + timedelta(days=1) - timedelta(microseconds=1)
         
         # ✅ USE NEW ControllerScan MODEL
         from .models import ControllerScan
@@ -89,8 +93,15 @@ class MyRoomStatisticsAPIView(APIView):
                 'status': scan.status,
                 'error_message': scan.error_message if scan.error_message else None,
                 'total_paid_items': scan.total_paid_items,
-                'total_amount': float(scan.total_amount)
+                'total_amount': float(scan.total_amount),
+                'access_decision': scan.access_decision,
             })
+
+        # Insights for the webapp stats screen (same rules as the dashboard):
+        # decisions, double scans, today's activity per hour and its peak.
+        from dashboard.stats_insights import controller_summary, today_activity
+        my_scans = ControllerScan.objects.filter(controller=user, event=event)
+        hourly_today, peak_today = today_activity(my_scans)
         
         # Get all active rooms in the event (for compatibility)
         rooms = Room.objects.filter(
@@ -112,6 +123,10 @@ class MyRoomStatisticsAPIView(APIView):
             'my_check_ins_today': my_scans_today,  # Total scans today
             'successful_scans_today': successful_scans_today,
             'recent_scans': recent_scans_data,  # ✅ NEW: Recent scan logs
+            'today': controller_summary(my_scans.filter(scanned_at__gte=today_start, scanned_at__lte=today_end)),
+            'totals': controller_summary(my_scans),
+            'hourly_today': hourly_today,
+            'peak_today': peak_today,
             'role': assignment.role,
             'event': {
                 'id': str(event.id),
