@@ -126,7 +126,7 @@ class ScientificContributionSubmission(models.Model):
     
     # Code for final submission. For communication_orale, still set
     # manually by the committee (see eposter_set_contribution_code). For
-    # e_poster, auto-generated as "P-<n>" (sequential per event) the
+    # e_poster, auto-generated as a plain number "1", "2"... (sequential per event) the
     # moment the SUPERVISOR makes the final decision to accept it (see
     # generate_next_eposter_number in views_eposter_dashboard.py) --
     # settable any time after, not required at the moment of approval.
@@ -186,36 +186,6 @@ class ScientificContributionSubmission(models.Model):
         total_committee = self.event.contribution_committee_members.filter(is_active=True).count()
         voted = self.validations.count()
         return total_committee - voted
-    
-    def check_and_update_status(self):
-        """
-        Check validations and update status automatically
-        Returns True if status changed
-        """
-        if self.status not in ['pending']:
-            return False
-        
-        approvals = self.get_validations_count()
-        rejections = self.get_rejections_count()
-        
-        # If enough approvals, mark as accepted
-        if approvals >= self.validations_required:
-            self.status = 'accepted'
-            # contribution_code is set manually by the committee (see
-            # eposter_set_contribution_code) -- it's fine for it to still
-            # be empty here, it's settable at any point after acceptance.
-            self.save(update_fields=['status', 'updated_at'])
-            return True
-        
-        # If more rejections than possible remaining approvals, reject
-        total_committee = self.event.contribution_committee_members.filter(is_active=True).count()
-        remaining_votes = total_committee - (approvals + rejections)
-        if approvals + remaining_votes < self.validations_required:
-            self.status = 'rejected'
-            self.save(update_fields=['status', 'updated_at'])
-            return True
-        
-        return False
     
     def requires_final_submission(self):
         """Check if this submission type requires a final submission"""
@@ -623,17 +593,12 @@ class EventFormConfiguration(models.Model):
         return theme in self.theme_options
 
 
-# Signals for automatic actions
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-
-@receiver(post_save, sender=ScientificContributionValidation)
-def check_submission_status_after_validation(sender, instance, created, **kwargs):
-    """
-    After each validation, check if the submission status should be updated
-    """
-    if created:
-        instance.submission.check_and_update_status()
+# No automatic status change on validations: a committee member's opinion is
+# never final on its own (it used to auto-accept a submission as soon as one
+# member approved, while a rejection never applied -- the supervisor's
+# "reject" looked broken and 288 SANDT submissions were accepted with no
+# decision, e-mail or P-number). The final decision is
+# views_eposter_dashboard.apply_final_decision, supervisor/staff only.
 
 
 # Legacy aliases for backward compatibility

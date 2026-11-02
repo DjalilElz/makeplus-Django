@@ -226,13 +226,10 @@ class EPosterSubmissionViewSet(viewsets.ModelViewSet):
             # Create new validation
             validation = serializer.save()
         
-        # Check if status should change
-        status_changed = submission.check_and_update_status()
-        
-        # If status changed to accepted/rejected, send email
-        if status_changed:
-            self.send_decision_email(submission)
-        
+        # An opinion never changes the status (see models_eposter): the
+        # final decision is the supervisor's, through set_status.
+        status_changed = False
+
         return Response({
             'validation': EPosterValidationSerializer(validation).data,
             'submission': EPosterSubmissionSerializer(submission).data,

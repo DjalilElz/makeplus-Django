@@ -1,3 +1,4 @@
+import re
 """
 ePoster Dashboard Views
 Admin dashboard views for managing ePoster submissions
@@ -95,23 +96,28 @@ def can_see_submission_identity(user, event):
     return check_supervisor_access(user, event)
 
 
+def eposter_number_value(code):
+    """
+    The number inside an e-poster code: '12' -> 12, and the older formats
+    'P-12' / 'EPOSTER-46AE7D35-012' -> 12. None when there is no number.
+    """
+    match = re.search(r'(\d+)\s*$', code or '')
+    return int(match.group(1)) if match else None
+
+
 def generate_next_eposter_number(event):
     """
-    Next "P-<n>" number for this event's e_poster submissions, locking
-    the event row for the duration so two near-simultaneous final
-    approvals can't compute the same next number -- call only from
-    inside a transaction.atomic() block that already holds that lock
-    (see eposter_set_status).
+    Next e-poster number for this event, plain and sequential: "1", "2",
+    "3"... It continues after the highest number already used, whatever its
+    format, so it never duplicates one. The caller must hold the event-row
+    lock inside transaction.atomic() (see apply_final_decision) so two
+    near-simultaneous acceptances can't compute the same number.
     """
     existing = EPosterSubmission.objects.filter(
-        event=event, type_participation='e_poster', contribution_code__regex=r'^P-\d+$'
-    ).values_list('contribution_code', flat=True)
-    max_n = 0
-    for code in existing:
-        n = int(code.split('-', 1)[1])
-        if n > max_n:
-            max_n = n
-    return f'P-{max_n + 1}'
+        event=event, type_participation='e_poster',
+    ).exclude(contribution_code='').exclude(contribution_code__isnull=True).values_list('contribution_code', flat=True)
+    max_n = max((n for n in map(eposter_number_value, existing) if n is not None), default=0)
+    return str(max_n + 1)
 
 
 @never_cache
@@ -193,6 +199,8 @@ def eposter_dashboard(request, event_id):
         for row in submissions.values('type_participation').annotate(count=Count('id')).order_by('-count')
     ]
 
+    unapplied = list(_unapplied_supervisor_opinions(event))
+
     # Who decided what -- the supervisor's "see who validated/rejected each
     # submission" view. Each submission has a single, final decider now
     # (see eposter_validate_submission), so this is just the decided
@@ -209,9 +217,99 @@ def eposter_dashboard(request, event_id):
         'committee': committee,
         'by_type': by_type,
         'recent_decisions': recent_decisions,
+        'unapplied_supervisor_opinions': len(unapplied),
+        'missing_decision_templates': _missing_decision_templates(event, unapplied),
     }
 
     return render(request, 'dashboard/eposter/dashboard.html', context)
+
+
+def _unapplied_supervisor_opinions(event):
+    """
+    Opinions a supervisor gave on submissions that are still pending. Before
+    the supervisor's own choice became the final decision, it was recorded
+    as a mere opinion -- a rejection then left the submission pending. These
+    are applied on demand by eposter_apply_supervisor_opinions.
+    """
+    supervisor_ids = EPosterCommitteeMember.objects.filter(
+        event=event, is_active=True, role__in=('supervisor', 'president'),
+    ).values_list('user_id', flat=True)
+    # Pending submissions the supervisor gave an opinion on, and submissions
+    # the old automatic rule accepted right after the supervisor's approval
+    # (accepted, but no recorded decision, number or e-mail).
+    return EPosterValidation.objects.filter(
+        submission__event=event, committee_member_id__in=supervisor_ids,
+    ).filter(
+        Q(submission__status='pending')
+        | Q(submission__status='accepted', submission__final_decision_by__isnull=True, is_approved=True)
+    ).select_related('submission', 'committee_member').order_by('updated_at')
+
+
+def _missing_decision_templates(event, validations):
+    """Decision e-mail templates these decisions need but the event lacks."""
+    needed = {
+        f"{v.submission.type_participation}_{'accepted' if v.is_approved else 'rejected'}" for v in validations
+    }
+    existing = set(EPosterEmailTemplate.objects.filter(
+        event=event, is_active=True, template_type__in=needed,
+    ).values_list('template_type', flat=True))
+    return sorted(needed - existing)
+
+
+@never_cache
+@login_required
+def eposter_apply_supervisor_opinions(request, event_id):
+    """
+    Applies, as final decisions, the opinions the supervisor already gave on
+    still-pending submissions (status, rejection reason = their comment,
+    P-number, decision e-mail) -- as if the decision had worked at the time.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    event = get_object_or_404(Event, id=event_id)
+    if not check_supervisor_access(request.user, event):
+        messages.error(request, "Seul le superviseur du comité ou un administrateur peut faire cette action.")
+        return redirect('dashboard:contributions_dashboard', event_id=event.id)
+
+    applied = {'accepted': 0, 'rejected': 0}
+    emails_sent = 0
+    emails_missing = 0
+    done = set()
+    for validation in _unapplied_supervisor_opinions(event):
+        submission = validation.submission
+        if submission.id in done:
+            continue  # two supervisors gave an opinion: the earliest one decides
+        submission.refresh_from_db()
+        still_open = submission.status == 'pending' or (
+            submission.status == 'accepted' and submission.final_decision_by_id is None
+        )
+        if not still_open:
+            continue
+        new_status = 'accepted' if validation.is_approved else 'rejected'
+        sent = apply_final_decision(
+            submission, validation.committee_member, new_status,
+            rejection_reason=validation.comments, request=request,
+        )
+        applied[new_status] += 1
+        if sent:
+            emails_sent += 1
+        else:
+            emails_missing += 1
+        done.add(submission.id)
+
+    message = (
+        f"Décisions du superviseur appliquées : {applied['rejected']} rejet(s), "
+        f"{applied['accepted']} acceptation(s). E-mails envoyés : {emails_sent}."
+    )
+    if emails_missing:
+        messages.warning(
+            request,
+            message + f" {emails_missing} e-mail(s) non envoyé(s) : aucun modèle d'e-mail actif pour ce type "
+            "de décision (Modèles d'e-mails), ou échec d'envoi.",
+        )
+    else:
+        messages.success(request, message)
+    return redirect('dashboard:contributions_dashboard', event_id=event.id)
 
 
 @never_cache
@@ -534,14 +632,62 @@ def eposter_validate_submission(request, event_id, submission_id):
         }
     )
 
+    # The supervisor's own choice IS the final decision (status, e-mail,
+    # P-number) -- a plain member's stays a recommendation.
+    final = False
+    if check_supervisor_access(request.user, event):
+        apply_final_decision(
+            submission, request.user, 'accepted' if is_approved else 'rejected',
+            rejection_reason=comments, request=request,
+        )
+        final = True
+
     return JsonResponse({
         'success': True,
+        'final': final,
+        'status': submission.status,
         'validation': {
             'id': str(validation.id),
             'is_approved': validation.is_approved,
             'comments': validation.comments,
         },
     })
+
+
+def apply_final_decision(submission, user, new_status, rejection_reason='', request=None, send_email=True):
+    """
+    The supervisor's/staff's FINAL decision on a submission: status,
+    who/when, rejection reason, number ("1", "2"...) for an accepted e-poster, and
+    the decision e-mail. Used by the Actions menu (eposter_set_status) and by
+    the supervisor's own "Votre décision" form (eposter_validate_submission).
+    Returns True/False for the decision e-mail (False: no active template for
+    this type/decision, or the send failed), None when no e-mail applies.
+    """
+    event = submission.event
+    with transaction.atomic():
+        # Locks this event's row for the duration -- generate_next_eposter_number
+        # relies on this to serialize concurrent final approvals so two
+        # posters accepted moments apart can't compute the same number.
+        Event.objects.select_for_update().get(id=event.id)
+
+        submission.status = new_status
+        submission.final_decision_by = user
+        submission.final_decision_date = timezone.now()
+
+        if new_status == 'rejected':
+            submission.rejection_reason = rejection_reason or ''
+
+        if (
+            new_status == 'accepted' and submission.type_participation == 'e_poster'
+            and not submission.contribution_code
+        ):
+            submission.contribution_code = generate_next_eposter_number(event)
+
+        submission.save()
+
+    if send_email and new_status in ['accepted', 'rejected']:
+        return bool(send_decision_email(submission, request=request))
+    return None
 
 
 @never_cache
@@ -579,30 +725,10 @@ def eposter_set_status(request, event_id, submission_id):
     if new_status not in ['pending', 'accepted', 'rejected', 'revision_requested']:
         return JsonResponse({'error': 'Statut invalide'}, status=400)
 
-    with transaction.atomic():
-        # Locks this event's row for the duration -- generate_next_eposter_number
-        # relies on this to serialize concurrent final approvals so two
-        # posters accepted moments apart can't compute the same "P-<n>".
-        Event.objects.select_for_update().get(id=event.id)
-
-        submission.status = new_status
-        submission.final_decision_by = request.user
-        submission.final_decision_date = timezone.now()
-
-        if new_status == 'rejected':
-            submission.rejection_reason = request.POST.get('rejection_reason', '')
-
-        if (
-            new_status == 'accepted' and submission.type_participation == 'e_poster'
-            and not submission.contribution_code
-        ):
-            submission.contribution_code = generate_next_eposter_number(event)
-
-        submission.save()
-
-    # Send email
-    if new_status in ['accepted', 'rejected']:
-        send_decision_email(submission, request=request)
+    apply_final_decision(
+        submission, request.user, new_status,
+        rejection_reason=request.POST.get('rejection_reason', ''), request=request,
+    )
 
     messages.success(request, f'Statut mis à jour: {submission.get_status_display()}')
 

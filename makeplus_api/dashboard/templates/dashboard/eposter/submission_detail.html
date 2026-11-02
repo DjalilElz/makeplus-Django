@@ -66,7 +66,7 @@
             {% if is_supervisor %}
             <p class="text-muted small mb-2">
                 {% if submission.type_participation == 'e_poster' %}
-                Généré automatiquement ("P-&lt;n&gt;") à l'acceptation finale -- modifiable ici si besoin.
+                Généré automatiquement (1, 2, 3…) à l'acceptation finale -- modifiable ici si besoin.
                 {% else %}
                 À communiquer à l'auteur -- il en aura besoin pour sa soumission finale. Peut être renseigné à tout moment, pas nécessairement maintenant.
                 {% endif %}
@@ -156,15 +156,24 @@
         </div>
         {% endif %}
 
-        <!-- Recommendation form -- never final on its own, see the view's docstring.
-             Only the Actions dropdown above (supervisor/staff only) makes the real decision. -->
+        <!-- A member's opinion is a recommendation only; the SUPERVISOR's choice here is
+             the final decision (eposter_validate_submission -> apply_final_decision). -->
         {% if can_validate %}
         <div class="breakdown-panel">
+            {% if is_supervisor %}
+            <div class="breakdown-title mb-1"><i class="bi bi-check2-square me-1"></i> Votre décision</div>
+            <p class="text-muted small mb-3">
+                En tant que superviseur, votre choix est la <strong>décision finale</strong> : le statut de la
+                soumission change et l'auteur reçoit l'e-mail de décision. En cas de rejet, votre commentaire
+                sert de motif.
+            </p>
+            {% else %}
             <div class="breakdown-title mb-1"><i class="bi bi-check2-square me-1"></i> Votre avis</div>
             <p class="text-muted small mb-3">
                 Ceci est une recommandation transmise au superviseur -- elle ne change pas le statut de la soumission
                 et n'envoie aucun e-mail. Seul le superviseur prend la décision finale.
             </p>
+            {% endif %}
             {% if user_validation %}
             {# Make it obvious the recommendation WAS recorded -- the status staying "En attente" made members think it hadn't. #}
             <div class="alert {% if user_validation.is_approved %}alert-success{% else %}alert-danger{% endif %} py-2 small">
@@ -173,32 +182,32 @@
                 (le {{ user_validation.updated_at|date:"d/m/Y à H:i" }}) -- transmis au superviseur.
             </div>
             {% endif %}
-            <form id="validation-form">
+            <form id="validation-form" data-final="{% if is_supervisor %}1{% else %}0{% endif %}">
                 {% csrf_token %}
                 <div class="mb-3">
                     <div class="btn-group w-100" role="group">
                         <input type="radio" class="btn-check" name="is_approved" id="approve" value="true"
                                {% if user_validation and user_validation.is_approved %}checked{% endif %}>
                         <label class="btn btn-outline-success" for="approve">
-                            <i class="bi bi-check-circle me-1"></i> Recommander l'acceptation
+                            <i class="bi bi-check-circle me-1"></i> {% if is_supervisor %}Accepter{% else %}Recommander l'acceptation{% endif %}
                         </label>
 
                         <input type="radio" class="btn-check" name="is_approved" id="reject" value="false"
                                {% if user_validation and not user_validation.is_approved %}checked{% endif %}>
                         <label class="btn btn-outline-danger" for="reject">
-                            <i class="bi bi-x-circle me-1"></i> Recommander le rejet
+                            <i class="bi bi-x-circle me-1"></i> {% if is_supervisor %}Rejeter{% else %}Recommander le rejet{% endif %}
                         </label>
                     </div>
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label small">Commentaires</label>
+                    <label class="form-label small">{% if is_supervisor %}Commentaire (motif en cas de rejet){% else %}Commentaires{% endif %}</label>
                     <textarea class="form-control" name="comments" rows="3" placeholder="Vos remarques...">{{ user_validation.comments|default:"" }}</textarea>
                 </div>
 
                 <button type="submit" class="btn btn-elegant">
                     <i class="bi bi-send me-1"></i>
-                    {% if user_validation %}Modifier mon avis{% else %}Envoyer mon avis{% endif %}
+                    {% if is_supervisor %}Enregistrer la décision{% elif user_validation %}Modifier mon avis{% else %}Envoyer mon avis{% endif %}
                 </button>
             </form>
         </div>
@@ -340,6 +349,19 @@ document.addEventListener('DOMContentLoaded', function() {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
 
+            const isFinal = form.dataset.final === '1';
+            const choice = form.querySelector('input[name="is_approved"]:checked');
+            if (!choice) {
+                alert(isFinal ? 'Choisissez « Accepter » ou « Rejeter ».' : 'Choisissez une recommandation.');
+                return;
+            }
+            if (isFinal) {
+                const label = choice.value === 'true' ? 'ACCEPTER' : 'REJETER';
+                if (!confirm('Décision finale : ' + label + ' cette soumission ?\n\nLe statut sera mis à jour et l\'auteur recevra l\'e-mail de décision.')) {
+                    return;
+                }
+            }
+
             const submitBtn = form.querySelector('button[type="submit"]');
             if (window.ButtonStateManager && submitBtn) {
                 window.ButtonStateManager.setProcessing(submitBtn, 'Envoi...');
@@ -357,7 +379,9 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Votre avis a été transmis au superviseur.');
+                    alert(data.final
+                        ? (data.status === 'accepted' ? 'Décision enregistrée : soumission acceptée.' : 'Décision enregistrée : soumission rejetée.')
+                        : 'Votre avis a été transmis au superviseur.');
                     const timestamp = new Date().getTime();
                     window.location.href = '{% url "dashboard:contributions_submissions_list" event.id %}?_=' + timestamp;
                 } else {

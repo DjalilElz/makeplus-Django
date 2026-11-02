@@ -8,6 +8,28 @@
 {% endblock %}
 
 {% block content %}
+{% if unapplied_supervisor_opinions %}
+<div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        <strong>{{ unapplied_supervisor_opinions }} décision{{ unapplied_supervisor_opinions|pluralize }} du superviseur
+        non appliquée{{ unapplied_supervisor_opinions|pluralize }}</strong> : le superviseur a déjà choisi d'accepter ou de
+        rejeter ces soumissions, mais la décision (statut, numéro, e-mail) n'a pas été appliquée.
+        {% if missing_decision_templates %}
+        <div class="small mt-1">
+            <i class="bi bi-envelope-x me-1"></i> Modèles d'e-mail manquants (ces auteurs ne recevront pas d'e-mail) :
+            <strong>{{ missing_decision_templates|join:", " }}</strong> —
+            <a href="{% url 'dashboard:contributions_email_templates' event.id %}">créer les modèles</a> avant d'appliquer.
+        </div>
+        {% endif %}
+    </div>
+    <form method="post" action="{% url 'dashboard:contributions_apply_supervisor_opinions' event.id %}"
+          onsubmit="return confirm('Appliquer ces décisions ? Le statut sera mis à jour et chaque auteur recevra l\'e-mail de décision.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-warning"><i class="bi bi-check2-all me-1"></i> Appliquer les décisions</button>
+    </form>
+</div>
+{% endif %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div class="stats-row flex-grow-1 mb-0">
         <div class="stat-tile">
