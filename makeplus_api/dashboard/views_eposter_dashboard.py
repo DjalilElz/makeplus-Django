@@ -1438,7 +1438,13 @@ def eposter_export_excel(request, event_id):
         messages.error(request, "Vous n'avez pas accès à cet événement.")
         return _permission_denied_redirect(request.user)
 
-    submissions = EPosterSubmission.objects.filter(event=event).order_by('-submitted_at')
+    # Counts in the same query: two COUNT queries per row (783 queries for
+    # SANDT's 390 submissions) made the export run past the server's request
+    # timeout -- "Internal Server Error".
+    submissions = EPosterSubmission.objects.filter(event=event).annotate(
+        approvals_count=Count('validations', filter=Q(validations__is_approved=True)),
+        refusals_count=Count('validations', filter=Q(validations__is_approved=False)),
+    ).order_by('-submitted_at')
 
     wb = Workbook()
     ws = wb.active
@@ -1472,7 +1478,7 @@ def eposter_export_excel(request, event_id):
             s.nom, s.prenom, s.email, s.telephone, s.get_genre_display(),
             s.get_grade_display(), s.get_secteur_display(), s.etablissement, s.wilaya,
             s.get_type_participation_display(), s.theme, s.titre_travail,
-            s.get_validations_count(), s.get_rejections_count(),
+            s.approvals_count, s.refusals_count,
             {'sent': 'Envoyé', 'not_sent': 'Non envoyé'}.get(s.decision_email_state, ''),
             timezone.localtime(s.decision_email_sent_at).strftime('%Y-%m-%d %H:%M') if s.decision_email_sent_at else '',
             s.decision_email_error if s.decision_email_state == 'not_sent' else '',
