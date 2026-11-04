@@ -112,6 +112,22 @@
                     </div>
                 </div>
 
+                <hr class="my-4">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Comité scientifique</label>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="members_see_identity" name="members_see_identity"
+                               {% if config.members_see_identity %}checked{% endif %}>
+                        <label class="form-check-label" for="members_see_identity">Les membres du comité voient l'identité des auteurs</label>
+                    </div>
+                    <div class="form-text">
+                        Désactivé (par défaut) : révision à l'aveugle -- les membres ne voient que le contenu scientifique.
+                        Activé : ils voient aussi le nom, l'e-mail, le téléphone, le grade, l'établissement et les co-auteurs.
+                        Les fichiers joints restent réservés au superviseur dans tous les cas.
+                    </div>
+                </div>
+
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-save"></i> Enregistrer
                 </button>

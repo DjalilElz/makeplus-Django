@@ -273,3 +273,138 @@ class OralNumberOptionTests(TestCase):
         self.assertContains(oral_form, 'laissez vide si aucun numéro')
         poster_form = self.client.get(reverse('public_final_submission_eposter', args=[event.id]))
         self.assertTrue(poster_form.context['require_contribution_number'])
+
+
+class MemberIdentityOptionTests(TestCase):
+    """Per event: blind review (default) or members see the authors; files stay supervisor-only."""
+
+    def setUp(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.event = Event.objects.create(
+            name='Congress', start_date=timezone.now(), end_date=timezone.now() + timedelta(days=2), location='Alger',
+        )
+        self.member = User.objects.create_user(username='mem', password='x')
+        Member.objects.create(event=self.event, user=self.member, role='member', is_active=True)
+        self.submission = ContributionDecisionTests._submission(self, 'e_poster')
+        self.submission.fichier_resume = SimpleUploadedFile('resume.pdf', b'%PDF-1.4', content_type='application/pdf')
+        self.submission.save()
+        self.submission.assigned_to.add(self.member)
+        self.client.force_login(self.member)
+        self.detail = reverse('dashboard:contributions_submission_detail', args=[self.event.id, self.submission.id])
+        self.list = reverse('dashboard:contributions_submissions_list', args=[self.event.id])
+
+    def _set(self, value):
+        from dashboard.models_eposter import EventFormConfiguration
+        EventFormConfiguration.objects.update_or_create(
+            event=self.event, form_type='communicant', defaults={'members_see_identity': value})
+
+    def test_blind_review_by_default(self):
+        page = self.client.get(self.detail)
+        self.assertNotContains(page, 'karim@example.com')
+        self.assertContains(page, "Révision à l'aveugle")
+        listing = self.client.get(self.list)
+        self.assertNotContains(listing, 'karim@example.com')
+        self.assertFalse(listing.context['show_identity'])
+        # can't fish the author out by searching their name
+        self.assertEqual(len(self.client.get(self.list, {'search': 'Ben Ali'}).context['submissions']), 0)
+
+    def test_members_see_authors_when_enabled_but_not_files(self):
+        self._set(True)
+        page = self.client.get(self.detail)
+        self.assertContains(page, 'karim@example.com')
+        self.assertContains(page, 'Informations auteur')
+        self.assertNotContains(page, 'FICHIERS JOINTS')
+        listing = self.client.get(self.list)
+        self.assertContains(listing, 'karim@example.com')
+        self.assertEqual(len(self.client.get(self.list, {'search': 'Ben Ali'}).context['submissions']), 1)
+
+    def test_api_serializer_follows_the_option(self):
+        from rest_framework.test import APIRequestFactory, force_authenticate
+        from dashboard.serializers_eposter import EPosterSubmissionSerializer
+        request = APIRequestFactory().get('/')
+        request.user = self.member
+        data = EPosterSubmissionSerializer(self.submission, context={'request': request}).data
+        self.assertNotIn('email', data)
+        self._set(True)
+        data = EPosterSubmissionSerializer(self.submission, context={'request': request}).data
+        self.assertEqual(data['email'], 'karim@example.com')
+        self.assertNotIn('fichier_resume', data)
+
+    def test_settings_switch_is_saved(self):
+        from dashboard.models_eposter import EventFormConfiguration
+        admin = User.objects.create_user(username='adm', password='x', is_staff=True, is_superuser=True)
+        self.client.force_login(admin)
+        url = reverse('dashboard:contributions_form_settings', args=[self.event.id])
+        page = self.client.get(url)
+        self.assertContains(page, "voient l'identité des auteurs")
+        self.client.post(url, {'title': 'T', 'members_see_identity': 'on', 'theme_field_mode': 'free_text'})
+        self.assertTrue(EventFormConfiguration.objects.get(event=self.event, form_type='communicant').members_see_identity)
+
+
+class BulkResendDecisionEmailTests(TestCase):
+    """Decision e-mails can be (re)sent to several authors at once, as often as needed."""
+
+    def setUp(self):
+        from dashboard.models_eposter import ScientificContributionEmailTemplate as Template
+        self.event = Event.objects.create(
+            name='Congress', start_date=timezone.now(), end_date=timezone.now() + timedelta(days=2), location='Alger',
+        )
+        self.supervisor = User.objects.create_user(username='sup', password='x')
+        Member.objects.create(event=self.event, user=self.supervisor, role='supervisor', is_active=True)
+        for kind in ('e_poster', 'communication_orale'):
+            for decision in ('accepted', 'rejected'):
+                Template.objects.create(event=self.event, template_type=f'{kind}_{decision}', subject='Décision',
+                                        body_html='<p>{{titre}}</p>', is_active=True)
+        self.accepted = self._decided('accepted')
+        self.rejected = self._decided('rejected')
+        self.pending = ContributionDecisionTests._submission(self, 'e_poster')
+        patcher = mock.patch('dashboard.email_sender.send_email', return_value=(True, None, 'msg'))
+        self.send_email = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client.force_login(self.supervisor)
+        self.url = reverse('dashboard:contributions_bulk_resend_decision_emails', args=[self.event.id])
+
+    def _decided(self, status):
+        s = ContributionDecisionTests._submission(self, 'e_poster')
+        Submission.objects.filter(id=s.id).update(status=status, final_decision_by=self.supervisor)
+        s.refresh_from_db()
+        return s
+
+    def test_selected_submissions_resent_repeatedly(self):
+        ids = [self.accepted.id, self.rejected.id, self.pending.id]
+        response = self.client.post(self.url, {'submission_ids': ids}, follow=True)
+        self.assertContains(response, '2 envoyé(s)')
+        self.assertContains(response, '1 soumission(s) ignorée(s)')
+        self.client.post(self.url, {'submission_ids': [self.accepted.id]})
+        self.accepted.refresh_from_db()
+        self.rejected.refresh_from_db()
+        self.assertEqual((self.accepted.decision_email_send_count, self.rejected.decision_email_send_count), (2, 1))
+        self.assertEqual(self.send_email.call_count, 3)
+        listing = self.client.get(reverse('dashboard:contributions_submissions_list', args=[self.event.id]))
+        self.assertContains(listing, 'Envoyé 2×')
+        self.assertContains(listing, "Renvoyer l'e-mail de décision")
+
+    def test_send_the_not_sent_ones(self):
+        Submission.objects.filter(id=self.accepted.id).update(acceptance_email_sent=True)
+        dashboard = self.client.get(reverse('dashboard:contributions_dashboard', args=[self.event.id]))
+        self.assertContains(dashboard, 'Envoyer les non envoyés')
+        self.client.post(self.url, {'scope': 'not_sent'})
+        self.assertEqual(self.send_email.call_count, 1)  # only the rejected one, not the already-sent acceptance
+        self.rejected.refresh_from_db()
+        self.assertEqual(self.rejected.decision_email_state, 'sent')
+
+    def test_large_batches_go_to_the_background(self):
+        ids = [self._decided('accepted').id for _ in range(11)]
+        with mock.patch('threading.Thread') as thread:
+            response = self.client.post(self.url, {'submission_ids': ids}, follow=True)
+        thread.assert_called_once()
+        self.assertEqual(sorted(thread.call_args.kwargs['args'][0]), sorted(ids))
+        self.assertContains(response, 'arrière-plan')
+        self.send_email.assert_not_called()
+
+    def test_member_cannot_bulk_send(self):
+        member = User.objects.create_user(username='mem', password='x')
+        Member.objects.create(event=self.event, user=member, role='member', is_active=True)
+        self.client.force_login(member)
+        self.client.post(self.url, {'submission_ids': [self.accepted.id]})
+        self.send_email.assert_not_called()

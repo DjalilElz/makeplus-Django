@@ -66,7 +66,7 @@
                 {% if submission.decision_email_state == 'sent' %}
                 <i class="bi bi-envelope-check me-1" style="color:#0f5132;"></i>
                 E-mail {% if submission.status == 'accepted' %}d'acceptation{% else %}de rejet{% endif %} <strong>envoyé</strong>
-                à {{ submission.email }}{% if submission.decision_email_sent_at %} le {{ submission.decision_email_sent_at|date:"d/m/Y à H:i" }}{% endif %}
+                à {{ submission.email }}{% if submission.decision_email_send_count > 1 %} ({{ submission.decision_email_send_count }} fois){% endif %}{% if submission.decision_email_sent_at %} — dernier envoi le {{ submission.decision_email_sent_at|date:"d/m/Y à H:i" }}{% endif %}
                 {% else %}
                 <i class="bi bi-envelope-x me-1" style="color:#842029;"></i>
                 E-mail {% if submission.status == 'accepted' %}d'acceptation{% else %}de rejet{% endif %} <strong>non envoyé</strong>
@@ -98,7 +98,7 @@
                 {% csrf_token %}
                 <input type="text" class="form-control" name="contribution_code" id="contribution_code_input"
                        value="{{ submission.contribution_code|default:'' }}"
-                       placeholder="{% if submission.type_participation == 'e_poster' %}Ex : P-1{% else %}Ex : COMORAL-XXXXXXXX-001{% endif %}">
+                       placeholder="{% if submission.type_participation == 'e_poster' %}Ex : 12{% else %}Ex : 12 (si l'événement numérote les communications){% endif %}">
                 <button type="submit" class="btn btn-outline-elegant text-nowrap">
                     <i class="bi bi-save me-1"></i> Enregistrer
                 </button>
@@ -117,7 +117,7 @@
 
         <div class="detail-label mb-2">AUTEURS</div>
         <div class="mb-4">
-            {% if is_supervisor %}
+            {% if show_identity %}
             <strong>Auteur principal :</strong> {{ submission.prenom }} {{ submission.nom }}
             <br>
             <small class="text-muted">
@@ -250,7 +250,7 @@
 
     <!-- Sidebar -->
     <div class="col-lg-4">
-        {% if is_supervisor %}
+        {% if show_identity %}
         <div class="breakdown-panel">
             <div class="breakdown-title mb-2"><i class="bi bi-person me-1"></i> Informations auteur</div>
             <p class="mb-1"><strong>{{ submission.prenom }} {{ submission.nom }}</strong></p>

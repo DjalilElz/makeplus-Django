@@ -25,7 +25,8 @@ from .models_eposter import (
     EPosterSubmission,
     EPosterValidation,
     EPosterCommitteeMember,
-    EPosterEmailTemplate
+    EPosterEmailTemplate,
+    EventFormConfiguration,
 )
 
 
@@ -86,14 +87,25 @@ def _permission_denied_redirect(user):
     return redirect('dashboard:eposter_committee_home')
 
 
+def members_see_identity(event):
+    """Per-event option (communicant form settings); default False = blind review."""
+    return EventFormConfiguration.objects.filter(
+        event=event, form_type='communicant', members_see_identity=True,
+    ).exists()
+
+
 def can_see_submission_identity(user, event):
     """
-    Blind review: a plain 'member' never sees who wrote a submission
-    (name, e-mail, phone, institution) -- only its scientific content.
-    Supervisors/staff always see everything, same as every other
-    elevated-visibility check in this file.
+    Who wrote a submission (name, e-mail, phone, grade, institution,
+    co-authors): supervisors/staff always; plain committee members only
+    when the event turned blind review off (members_see_identity).
+    Attachments are a separate, supervisor-only rule.
     """
-    return check_supervisor_access(user, event)
+    if check_supervisor_access(user, event):
+        return True
+    return members_see_identity(event) and EPosterCommitteeMember.objects.filter(
+        event=event, user=user, is_active=True,
+    ).exists()
 
 
 def eposter_number_value(code):
@@ -380,8 +392,9 @@ def eposter_submissions_list(request, event_id):
     elif assignment_filter == 'assigned' and is_supervisor:
         submissions = submissions.filter(assigned_to__isnull=False).distinct()
 
+    show_identity = can_see_submission_identity(request.user, event)
     if search:
-        if is_supervisor:
+        if show_identity:
             submissions = submissions.filter(
                 Q(nom__icontains=search) |
                 Q(prenom__icontains=search) |
@@ -437,6 +450,7 @@ def eposter_submissions_list(request, event_id):
         'member_filter_user': member_filter_user,
         'assignment_filter': assignment_filter,
         'email_filter': email_filter,
+        'show_identity': show_identity,
         'search': search,
         'status_choices': EPosterSubmission.STATUS_CHOICES,
         'type_choices': EPosterSubmission.TYPE_PARTICIPATION_CHOICES,
@@ -582,6 +596,7 @@ def eposter_submission_detail(request, event_id, submission_id):
         # author's identity (blind review), and can make the final call
         # -- plain members just see the content + the resulting status.
         'is_supervisor': is_supervisor,
+        'show_identity': can_see_submission_identity(request.user, event),
     }
 
     return render(request, 'dashboard/eposter/submission_detail.html', context)
@@ -795,9 +810,12 @@ def _record_decision_email(submission, sent, error=''):
     if sent:
         submission.decision_email_sent_at = timezone.now()
         submission.decision_email_error = ''
+        submission.decision_email_send_count = (submission.decision_email_send_count or 0) + 1
     else:
         submission.decision_email_error = (error or "Non envoyé")[:255]
-    submission.save(update_fields=[field, 'decision_email_sent_at', 'decision_email_error'])
+    submission.save(update_fields=[
+        field, 'decision_email_sent_at', 'decision_email_error', 'decision_email_send_count',
+    ])
 
 
 def decision_email_filter(state):
@@ -829,7 +847,87 @@ def eposter_resend_decision_email(request, event_id, submission_id):
     return redirect('dashboard:contributions_submission_detail', event_id=event.id, submission_id=submission.id)
 
 
-def send_decision_email(submission, request=None):
+# Up to this many e-mails are sent within the request (immediate result);
+# more go to a background thread so the request can't hit the server timeout.
+BULK_RESEND_INLINE_LIMIT = 10
+
+
+def _bulk_send_decision_emails(submission_ids, base_url, in_background=False):
+    """
+    Sends the decision e-mails one by one; results are recorded per
+    submission. A background thread manages its own DB connection (Django
+    only closes connections at the end of a request), so it closes it.
+    """
+    from django.db import connection
+    sent = failed = 0
+    try:
+        for submission in EPosterSubmission.objects.filter(
+            id__in=submission_ids, status__in=['accepted', 'rejected'],
+        ).select_related('event', 'final_decision_by'):
+            if send_decision_email(submission, base_url=base_url):
+                sent += 1
+            else:
+                failed += 1
+    finally:
+        if in_background:
+            connection.close()
+    return sent, failed
+
+
+@never_cache
+@login_required
+def eposter_bulk_resend_decision_emails(request, event_id):
+    """
+    (Re)send the decision e-mail of several decided submissions at once:
+    the ticked ones in the list (submission_ids) or every decided submission
+    whose e-mail was not sent (scope=not_sent). Can be repeated as often as
+    needed; each successful send is counted on the submission.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    event = get_object_or_404(Event, id=event_id)
+    if not check_supervisor_access(request.user, event):
+        messages.error(request, "Seul le superviseur du comité ou un administrateur peut envoyer ces e-mails.")
+        return redirect('dashboard:contributions_submissions_list', event_id=event.id)
+
+    decided = EPosterSubmission.objects.filter(event=event, status__in=['accepted', 'rejected'])
+    if request.POST.get('scope') == 'not_sent':
+        targets = decided.filter(decision_email_filter('not_sent'))
+    else:
+        targets = decided.filter(id__in=request.POST.getlist('submission_ids'))
+    ids = list(targets.values_list('id', flat=True))
+    skipped = len(request.POST.getlist('submission_ids')) - len(ids) if request.POST.get('scope') != 'not_sent' else 0
+    back = request.POST.get('next') or ''
+    destination = back if back.startswith('/dashboard/') else None
+
+    if not ids:
+        messages.warning(request, "Aucune soumission décidée (acceptée ou rejetée) à envoyer.")
+    else:
+        base_url = request.build_absolute_uri('/').rstrip('/')
+        if len(ids) <= BULK_RESEND_INLINE_LIMIT:
+            sent, failed = _bulk_send_decision_emails(ids, base_url)
+            text = f"E-mails de décision : {sent} envoyé(s)"
+            if failed:
+                messages.warning(request, text + f", {failed} non envoyé(s) (voir la colonne « E-mail de décision »).")
+            else:
+                messages.success(request, text + ".")
+        else:
+            import threading
+            threading.Thread(target=_bulk_send_decision_emails, args=(ids, base_url, True), daemon=True).start()
+            messages.success(
+                request,
+                f"Envoi de {len(ids)} e-mails de décision lancé. Il se poursuit en arrière-plan : "
+                "rafraîchissez la page dans quelques minutes, la colonne « E-mail de décision » se met à jour.",
+            )
+        if skipped:
+            messages.info(request, f"{skipped} soumission(s) ignorée(s) : encore en attente, aucune décision à envoyer.")
+
+    if destination:
+        return redirect(destination)
+    return redirect('dashboard:contributions_submissions_list', event_id=event.id)
+
+
+def send_decision_email(submission, request=None, base_url=None):
     """Helper to send acceptance/rejection email using Postmark API"""
     from .email_sender import send_email
 
@@ -865,7 +963,7 @@ def send_decision_email(submission, request=None):
             show_final_submission = True
             if request is not None:
                 base_url = request.build_absolute_uri('/').rstrip('/')
-            else:
+            elif not base_url:
                 base_url = getattr(settings, 'SITE_URL', 'https://makeplus-events.onrender.com')
 
             # Generate URL based on submission type

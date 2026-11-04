@@ -28,11 +28,13 @@ class HidePrivateFieldsForMembersMixin:
     committee member and an anonymous public submitter, gets them removed.
     Decided per submission's event, memoized per request.
     """
-    PRIVATE_FIELDS = (
+    IDENTITY_FIELDS = (
         'nom', 'prenom', 'full_name', 'email', 'telephone', 'genre', 'genre_display',
         'grade', 'grade_display', 'grade_autre', 'secteur', 'secteur_display',
-        'etablissement', 'wilaya', 'auteurs', 'fichier_resume', 'fichier_poster',
+        'etablissement', 'wilaya', 'auteurs',
     )
+    FILE_FIELDS = ('fichier_resume', 'fichier_poster')
+    PRIVATE_FIELDS = IDENTITY_FIELDS + FILE_FIELDS
 
     def _supervised_event_ids(self):
         cache = self.context.setdefault('_supervised_event_ids', {})
@@ -50,13 +52,23 @@ class HidePrivateFieldsForMembersMixin:
                 cache['ids'] = set(EPosterCommitteeMember.objects.filter(
                     user=user, is_active=True, role__in=('supervisor', 'president'),
                 ).values_list('event_id', flat=True))
+                # Events where blind review is off: a plain member sees
+                # the authors (not the files).
+                from .models_eposter import EventFormConfiguration
+                member_events = EPosterCommitteeMember.objects.filter(
+                    user=user, is_active=True,
+                ).values_list('event_id', flat=True)
+                cache['identity_ids'] = set(EventFormConfiguration.objects.filter(
+                    event_id__in=member_events, form_type='communicant', members_see_identity=True,
+                ).values_list('event_id', flat=True))
         return cache
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         allowed = self._supervised_event_ids()
         if not (allowed['all'] or instance.event_id in allowed['ids']):
-            for field in self.PRIVATE_FIELDS:
+            hidden = self.FILE_FIELDS if instance.event_id in allowed.get('identity_ids', ()) else self.PRIVATE_FIELDS
+            for field in hidden:
                 data.pop(field, None)
         return data
 

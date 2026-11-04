@@ -128,7 +128,8 @@ class ScientificContributionSubmission(models.Model):
     # views_eposter_dashboard.send_decision_email.
     decision_email_sent_at = models.DateTimeField(null=True, blank=True)
     decision_email_error = models.CharField(max_length=255, blank=True, default='')
-    
+    decision_email_send_count = models.PositiveIntegerField(default=0)
+
     # Code for final submission. For communication_orale, still set
     # manually by the committee (see eposter_set_contribution_code). For
     # e_poster, auto-generated as a plain number "1", "2"... (sequential per event) the
@@ -576,6 +577,14 @@ class EventFormConfiguration(models.Model):
     require_communication_number = models.BooleanField(
         default=True,
         verbose_name="Numéro obligatoire pour les communications orales",
+    )
+
+    # Blind review is the default: plain committee members judge the
+    # scientific content without knowing who wrote it. Some events prefer
+    # their reviewers to see the authors -- attachments stay supervisor-only.
+    members_see_identity = models.BooleanField(
+        default=False,
+        verbose_name="Les membres du comité voient l'identité des auteurs",
     )
 
     def requires_number_for(self, submission_type):
