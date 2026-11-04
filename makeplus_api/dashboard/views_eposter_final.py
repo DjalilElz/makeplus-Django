@@ -18,15 +18,15 @@ from .models_eposter import ScientificContributionSubmission, ScientificContribu
 from events.models import Event
 
 
-def _require_contribution_number(event):
+def _require_contribution_number(event, submission_type='e_poster'):
     """
     Whether the "Numéro de Contribution (Code)" field is mandatory on the
-    final submission form for this event -- per-event toggle on the
-    communicant EventFormConfiguration, defaulting to True (today's
-    behavior) when no config row exists yet for this event.
+    final submission form for this event and type -- per-event toggles on
+    the communicant EventFormConfiguration (one for e-posters, one for oral
+    communications), defaulting to True when no config row exists yet.
     """
     config = EventFormConfiguration.objects.filter(event=event, form_type='communicant').first()
-    return config.require_contribution_number if config else True
+    return config.requires_number_for(submission_type) if config else True
 
 
 def _communicant_form_config(event):
@@ -57,7 +57,7 @@ def eposter_final_submission_form(request, event_id):
             'submission_label': 'E-Poster',
             'file_label': 'E-Poster Final (PDF)',
             'form_config': form_config,
-            'require_contribution_number': form_config.require_contribution_number if form_config else True,
+            'require_contribution_number': _require_contribution_number(event, 'e_poster'),
         }
         return render(request, 'dashboard/eposter/final_submission_form.html', context)
 
@@ -83,7 +83,7 @@ def communication_orale_final_submission_form(request, event_id):
             'submission_label': 'Communication Orale',
             'file_label': 'Présentation Finale (PDF)',
             'form_config': form_config,
-            'require_contribution_number': form_config.require_contribution_number if form_config else True,
+            'require_contribution_number': _require_contribution_number(event, 'communication_orale'),
         }
         return render(request, 'dashboard/eposter/final_submission_form.html', context)
 
@@ -164,7 +164,7 @@ def handle_final_submission(request, event, expected_type):
         # Whether the code field is mandatory for this event -- if not,
         # authors who don't have (or lost) their code can still submit,
         # matched instead by e-mail + participation type below.
-        code_required = _require_contribution_number(event)
+        code_required = _require_contribution_number(event, expected_type)
         if code_required and not contribution_number:
             return JsonResponse({
                 'success': False,

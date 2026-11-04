@@ -48,6 +48,15 @@
             <div class="stat-label">Rejetées</div>
             <div class="stat-value" style="color: #842029;">{{ stats.rejected }}</div>
         </div>
+        <div class="stat-tile">
+            <div class="stat-label">E-mails de décision</div>
+            <div class="stat-value" style="font-size: 1.1rem; line-height: 1.6;">
+                <a href="{% url 'dashboard:contributions_submissions_list' event.id %}?email=sent" class="text-decoration-none" style="color:#0f5132;">
+                    <i class="bi bi-envelope-check"></i> {{ stats.emails_sent }} envoyé{{ stats.emails_sent|pluralize }}</a><br>
+                <a href="{% url 'dashboard:contributions_submissions_list' event.id %}?email=not_sent" class="text-decoration-none" style="color:#842029;">
+                    <i class="bi bi-envelope-x"></i> {{ stats.emails_not_sent }} non envoyé{{ stats.emails_not_sent|pluralize }}</a>
+            </div>
+        </div>
     </div>
     <div class="ms-3 d-flex gap-2 text-nowrap">
         <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="btn btn-elegant">

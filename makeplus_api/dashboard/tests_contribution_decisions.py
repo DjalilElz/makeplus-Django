@@ -173,3 +173,103 @@ class ContributionDecisionTests(TestCase):
         self.assertEqual((self.submission.status, self.submission.final_decision_by), ('accepted', self.supervisor))
         self.assertEqual(self.submission.contribution_code, '1')
         self.assertIsNone(member_only.final_decision_by)
+
+
+class DecisionEmailTrackingTests(TestCase):
+    """Who received the accept/reject e-mail: recorded, listed, filterable, resendable."""
+
+    def setUp(self):
+        from dashboard.models_eposter import ScientificContributionEmailTemplate as Template
+        self.event = Event.objects.create(
+            name='Congress', start_date=timezone.now(), end_date=timezone.now() + timedelta(days=2), location='Alger',
+        )
+        self.supervisor = User.objects.create_user(username='sup', password='x')
+        Member.objects.create(event=self.event, user=self.supervisor, role='supervisor', is_active=True)
+        Template.objects.create(event=self.event, template_type='e_poster_accepted', subject='Acceptée {{titre}}',
+                                body_html='<p>Numéro {{contribution_number}}</p>', is_active=True)
+        self.poster = ContributionDecisionTests._submission(self, 'e_poster')
+        self.oral = ContributionDecisionTests._submission(self, 'communication_orale')
+        patcher = mock.patch('dashboard.email_sender.send_email', return_value=(True, None, 'msg-1'))
+        self.send_email = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client.force_login(self.supervisor)
+
+    def _decide(self, submission, approved):
+        return self.client.post(
+            reverse('dashboard:contributions_validate_submission', args=[self.event.id, submission.id]),
+            {'is_approved': 'true' if approved else 'false', 'comments': 'motif'},
+        )
+
+    def test_sent_and_not_sent_are_recorded(self):
+        self._decide(self.poster, True)       # template exists -> sent
+        self._decide(self.oral, False)        # no communication_orale_rejected template -> not sent
+        self.poster.refresh_from_db()
+        self.oral.refresh_from_db()
+        self.assertEqual(self.poster.decision_email_state, 'sent')
+        self.assertIsNotNone(self.poster.decision_email_sent_at)
+        self.assertEqual(self.oral.decision_email_state, 'not_sent')
+        self.assertIn('communication_orale_rejected', self.oral.decision_email_error)
+        self.assertEqual(self.send_email.call_count, 1)
+
+        list_url = reverse('dashboard:contributions_submissions_list', args=[self.event.id])
+        sent = self.client.get(list_url, {'email': 'sent'})
+        self.assertEqual([s.id for s in sent.context['submissions']], [self.poster.id])
+        not_sent = self.client.get(list_url, {'email': 'not_sent'})
+        self.assertEqual([s.id for s in not_sent.context['submissions']], [self.oral.id])
+        self.assertContains(not_sent, 'Non envoyé')
+
+        stats = self.client.get(reverse('dashboard:contributions_dashboard', args=[self.event.id])).context['stats']
+        self.assertEqual((stats['emails_sent'], stats['emails_not_sent']), (1, 1))
+
+        detail = self.client.get(reverse('dashboard:contributions_submission_detail', args=[self.event.id, self.oral.id]))
+        self.assertContains(detail, 'non envoyé')
+        self.assertContains(detail, 'communication_orale_rejected')
+
+    def test_resend_after_creating_the_missing_template(self):
+        from dashboard.models_eposter import ScientificContributionEmailTemplate as Template
+        self._decide(self.oral, False)
+        Template.objects.create(event=self.event, template_type='communication_orale_rejected', subject='Décision',
+                                body_html='<p>{{remarque}}</p>', is_active=True)
+        response = self.client.post(
+            reverse('dashboard:contributions_resend_decision_email', args=[self.event.id, self.oral.id]), follow=True)
+        self.assertContains(response, 'E-mail de décision envoyé')
+        self.oral.refresh_from_db()
+        self.assertEqual((self.oral.decision_email_state, self.oral.decision_email_error), ('sent', ''))
+
+    def test_postmark_failure_is_recorded(self):
+        self.send_email.return_value = (False, 'Inactive recipient', None)
+        self._decide(self.poster, True)
+        self.poster.refresh_from_db()
+        self.assertEqual(self.poster.decision_email_state, 'not_sent')
+        self.assertIn('Inactive recipient', self.poster.decision_email_error)
+
+    def test_excel_has_the_email_columns(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+        self._decide(self.poster, True)
+        response = self.client.get(reverse('dashboard:contributions_export_excel', args=[self.event.id]))
+        ws = load_workbook(BytesIO(response.content)).active
+        headers = [c.value for c in ws[1]]
+        self.assertIn('E-mail de décision', headers)
+        col = headers.index('E-mail de décision')
+        values = [row[col] for row in ws.iter_rows(min_row=2, values_only=True)]
+        self.assertIn('Envoyé', values)
+
+
+class OralNumberOptionTests(TestCase):
+    """The final-submission number is required (or not) separately for oral communications."""
+
+    def test_switches_are_independent(self):
+        from dashboard.models_eposter import EventFormConfiguration
+        from dashboard.views_eposter_final import _require_contribution_number
+        event = Event.objects.create(name='E', start_date=timezone.now(), end_date=timezone.now(), location='x')
+        self.assertTrue(_require_contribution_number(event, 'communication_orale'))  # no config: required
+        EventFormConfiguration.objects.create(event=event, form_type='communicant',
+                                              require_contribution_number=True, require_communication_number=False)
+        self.assertTrue(_require_contribution_number(event, 'e_poster'))
+        self.assertFalse(_require_contribution_number(event, 'communication_orale'))
+        oral_form = self.client.get(reverse('public_final_submission_communication', args=[event.id]))
+        self.assertFalse(oral_form.context['require_contribution_number'])
+        self.assertContains(oral_form, 'laissez vide si aucun numéro')
+        poster_form = self.client.get(reverse('public_final_submission_eposter', args=[event.id]))
+        self.assertTrue(poster_form.context['require_contribution_number'])

@@ -123,6 +123,11 @@ class ScientificContributionSubmission(models.Model):
     # Email tracking
     acceptance_email_sent = models.BooleanField(default=False)
     rejection_email_sent = models.BooleanField(default=False)
+    # When the decision e-mail actually went out, or why it didn't (no active
+    # template for this type/decision, Postmark error) -- see
+    # views_eposter_dashboard.send_decision_email.
+    decision_email_sent_at = models.DateTimeField(null=True, blank=True)
+    decision_email_error = models.CharField(max_length=255, blank=True, default='')
     
     # Code for final submission. For communication_orale, still set
     # manually by the committee (see eposter_set_contribution_code). For
@@ -187,6 +192,15 @@ class ScientificContributionSubmission(models.Model):
         voted = self.validations.count()
         return total_committee - voted
     
+    @property
+    def decision_email_state(self):
+        """'sent' / 'not_sent' for a decided submission, None otherwise."""
+        if self.status == 'accepted':
+            return 'sent' if self.acceptance_email_sent else 'not_sent'
+        if self.status == 'rejected':
+            return 'sent' if self.rejection_email_sent else 'not_sent'
+        return None
+
     def requires_final_submission(self):
         """Check if this submission type requires a final submission"""
         return self.type_participation in ['e_poster', 'communication_orale']
@@ -556,6 +570,18 @@ class EventFormConfiguration(models.Model):
         verbose_name="Numéro de contribution obligatoire à la soumission finale",
         help_text="Si désactivé, l'auteur peut soumettre sans code -- le rapprochement se fait alors par e-mail + type de participation.",
     )
+    # Same, for oral communications only (require_contribution_number then
+    # governs e-posters): some events number their oral communications,
+    # others don't.
+    require_communication_number = models.BooleanField(
+        default=True,
+        verbose_name="Numéro obligatoire pour les communications orales",
+    )
+
+    def requires_number_for(self, submission_type):
+        if submission_type == 'communication_orale':
+            return self.require_communication_number
+        return self.require_contribution_number
 
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)

@@ -77,6 +77,14 @@
             <option value="assigned" {% if assignment_filter == 'assigned' %}selected{% endif %}>Assignées</option>
         </select>
     </div>
+    <div class="col-md-3">
+        <label class="form-label small">E-mail de décision</label>
+        <select name="email" class="form-select">
+            <option value="">Tous</option>
+            <option value="sent" {% if email_filter == 'sent' %}selected{% endif %}>Envoyé</option>
+            <option value="not_sent" {% if email_filter == 'not_sent' %}selected{% endif %}>Non envoyé</option>
+        </select>
+    </div>
     {% endif %}
     <div class="col-md-2 d-flex gap-2">
         <button type="submit" class="btn btn-elegant flex-grow-1"><i class="bi bi-funnel"></i> Filtrer</button>
@@ -113,6 +121,7 @@
                 {% if is_supervisor %}<th>Établissement</th>{% endif %}
                 <th>{% if is_supervisor %}Assigné à{% else %}Votre avis{% endif %}</th>
                 <th>Statut</th>
+                {% if is_supervisor %}<th>E-mail de décision</th>{% endif %}
                 <th>Date</th>
                 <th></th>
             </tr>
@@ -175,6 +184,21 @@
                         {% endif %}
                     </span>
                 </td>
+                {% if is_supervisor %}
+                <td>
+                    {% if submission.decision_email_state == 'sent' %}
+                    <span class="badge" style="background:#d1e7dd; color:#0f5132;" title="E-mail de décision envoyé{% if submission.decision_email_sent_at %} le {{ submission.decision_email_sent_at|date:'d/m/Y H:i' }}{% endif %}">
+                        <i class="bi bi-envelope-check me-1"></i>Envoyé{% if submission.decision_email_sent_at %} {{ submission.decision_email_sent_at|date:"d/m" }}{% endif %}
+                    </span>
+                    {% elif submission.decision_email_state == 'not_sent' %}
+                    <span class="badge" style="background:#f8d7da; color:#842029;" title="{{ submission.decision_email_error|default:'Non envoyé' }}">
+                        <i class="bi bi-envelope-x me-1"></i>Non envoyé
+                    </span>
+                    {% else %}
+                    <span class="text-muted small">—</span>
+                    {% endif %}
+                </td>
+                {% endif %}
                 <td>
                     {{ submission.submitted_at|date:"d/m/Y" }}
                     <br>
@@ -188,7 +212,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="{% if is_supervisor %}9{% else %}6{% endif %}" class="text-center py-5 text-muted">
+                <td colspan="{% if is_supervisor %}10{% else %}6{% endif %}" class="text-center py-5 text-muted">
                     <i class="bi bi-inbox fs-1 d-block mb-3"></i>
                     Aucune soumission trouvée
                     {% if search or status_filter or type_filter or member_filter or assignment_filter %}

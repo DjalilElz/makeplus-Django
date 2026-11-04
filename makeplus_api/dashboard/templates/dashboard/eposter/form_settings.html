@@ -98,11 +98,17 @@
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" role="switch" id="require_contribution_number" name="require_contribution_number"
                                {% if config.require_contribution_number %}checked{% endif %}>
-                        <label class="form-check-label" for="require_contribution_number">Numéro de contribution obligatoire</label>
+                        <label class="form-check-label" for="require_contribution_number">Numéro obligatoire pour les <strong>e-posters</strong></label>
+                    </div>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="require_communication_number" name="require_communication_number"
+                               {% if config.require_communication_number %}checked{% endif %}>
+                        <label class="form-check-label" for="require_communication_number">Numéro obligatoire pour les <strong>communications orales</strong></label>
                     </div>
                     <div class="form-text">
-                        Le code n'est plus généré automatiquement -- le comité le saisit manuellement depuis la fiche de chaque soumission.
-                        Si désactivé ici, l'auteur peut soumettre son fichier final sans code : il sera identifié par son e-mail à la place.
+                        Les e-posters sont numérotés automatiquement (1, 2, 3…) à l'acceptation ; le numéro d'une communication orale
+                        est saisi par le comité depuis la fiche de la soumission, si l'événement en utilise un.
+                        Si un numéro n'est pas obligatoire, l'auteur peut soumettre son fichier final sans numéro : il est identifié par son e-mail.
                     </div>
                 </div>
 

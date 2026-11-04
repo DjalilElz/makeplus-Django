@@ -174,6 +174,8 @@ def eposter_dashboard(request, event_id):
         'accepted': submissions.filter(status='accepted').count(),
         'rejected': submissions.filter(status='rejected').count(),
         'revision': submissions.filter(status='revision_requested').count(),
+        'emails_sent': submissions.filter(decision_email_filter('sent')).count(),
+        'emails_not_sent': submissions.filter(decision_email_filter('not_sent')).count(),
     }
     
     # Recent submissions
@@ -352,6 +354,11 @@ def eposter_submissions_list(request, event_id):
     if status_filter:
         submissions = submissions.filter(status=status_filter)
 
+    # Who received the accept/reject e-mail (supervisor/staff only).
+    email_filter = request.GET.get('email', '')
+    if email_filter in ('sent', 'not_sent') and is_supervisor:
+        submissions = submissions.filter(decision_email_filter(email_filter))
+
     if type_filter:
         submissions = submissions.filter(type_participation=type_filter)
 
@@ -429,6 +436,7 @@ def eposter_submissions_list(request, event_id):
         'member_filter': member_filter,
         'member_filter_user': member_filter_user,
         'assignment_filter': assignment_filter,
+        'email_filter': email_filter,
         'search': search,
         'status_choices': EPosterSubmission.STATUS_CHOICES,
         'type_choices': EPosterSubmission.TYPE_PARTICIPATION_CHOICES,
@@ -780,6 +788,47 @@ def eposter_set_contribution_code(request, event_id, submission_id):
     return JsonResponse({'success': True, 'contribution_code': submission.contribution_code or ''})
 
 
+def _record_decision_email(submission, sent, error=''):
+    """Keeps track of the decision e-mail: sent (when) or not (why)."""
+    field = 'acceptance_email_sent' if submission.status == 'accepted' else 'rejection_email_sent'
+    setattr(submission, field, bool(sent))
+    if sent:
+        submission.decision_email_sent_at = timezone.now()
+        submission.decision_email_error = ''
+    else:
+        submission.decision_email_error = (error or "Non envoyé")[:255]
+    submission.save(update_fields=[field, 'decision_email_sent_at', 'decision_email_error'])
+
+
+def decision_email_filter(state):
+    """Q() for decided submissions whose decision e-mail was sent / not sent."""
+    sent = Q(status='accepted', acceptance_email_sent=True) | Q(status='rejected', rejection_email_sent=True)
+    if state == 'sent':
+        return sent
+    return Q(status__in=['accepted', 'rejected']) & ~sent
+
+
+@never_cache
+@login_required
+def eposter_resend_decision_email(request, event_id, submission_id):
+    """(Re)send the decision e-mail of an accepted/rejected submission."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    event = get_object_or_404(Event, id=event_id)
+    if not check_supervisor_access(request.user, event):
+        messages.error(request, "Seul le superviseur du comité ou un administrateur peut envoyer cet e-mail.")
+        return redirect('dashboard:contributions_submission_detail', event_id=event.id, submission_id=submission_id)
+    submission = get_object_or_404(EPosterSubmission, id=submission_id, event=event)
+    if submission.status not in ('accepted', 'rejected'):
+        messages.error(request, "Aucune décision à envoyer : la soumission est encore en attente.")
+    elif send_decision_email(submission, request=request):
+        messages.success(request, f"E-mail de décision envoyé à {submission.email}.")
+    else:
+        submission.refresh_from_db()
+        messages.error(request, f"E-mail non envoyé : {submission.decision_email_error or 'erreur inconnue'}.")
+    return redirect('dashboard:contributions_submission_detail', event_id=event.id, submission_id=submission.id)
+
+
 def send_decision_email(submission, request=None):
     """Helper to send acceptance/rejection email using Postmark API"""
     from .email_sender import send_email
@@ -797,8 +846,9 @@ def send_decision_email(submission, request=None):
         
         if not template:
             print(f"No email template found for type '{template_type}' and event '{submission.event.name}'")
+            _record_decision_email(submission, False, f"Aucun modèle d'e-mail actif « {template_type} »")
             return False
-        
+
         # contribution_code is set manually by the committee (see
         # eposter_set_contribution_code) -- it may still be empty here if
         # nobody has set it yet, and that's fine; it's settable any time
@@ -875,22 +925,21 @@ def send_decision_email(submission, request=None):
         
         if success:
             print(f"Email sent successfully via Postmark API to {submission.email}, message_id: {message_id}")
-            
-            if submission.status == 'accepted':
-                submission.acceptance_email_sent = True
-            else:
-                submission.rejection_email_sent = True
-            submission.save(update_fields=['acceptance_email_sent', 'rejection_email_sent'])
-            
+            _record_decision_email(submission, True)
             return True
         else:
             print(f"Failed to send email via Postmark API: {error}")
+            _record_decision_email(submission, False, f"Échec d'envoi : {error}")
             return False
-            
+
     except Exception as e:
         print(f"Error sending decision email: {e}")
         import traceback
         traceback.print_exc()
+        try:
+            _record_decision_email(submission, False, f"Erreur : {e}")
+        except Exception:
+            pass
         return False
 
 
@@ -1407,7 +1456,7 @@ def eposter_export_excel(request, event_id):
         'Nom', 'Prénom', 'Email', 'Téléphone', 'Genre',
         'Grade', 'Secteur', 'Établissement', 'Wilaya',
         'Type', 'Thème', 'Titre',
-        'Validations', 'Rejets',
+        'Validations', 'Rejets', 'E-mail de décision', 'Envoyé le', 'Motif non envoyé',
     ]
     ws.append(headers)
     for col in range(1, len(headers) + 1):
@@ -1424,6 +1473,9 @@ def eposter_export_excel(request, event_id):
             s.get_grade_display(), s.get_secteur_display(), s.etablissement, s.wilaya,
             s.get_type_participation_display(), s.theme, s.titre_travail,
             s.get_validations_count(), s.get_rejections_count(),
+            {'sent': 'Envoyé', 'not_sent': 'Non envoyé'}.get(s.decision_email_state, ''),
+            timezone.localtime(s.decision_email_sent_at).strftime('%Y-%m-%d %H:%M') if s.decision_email_sent_at else '',
+            s.decision_email_error if s.decision_email_state == 'not_sent' else '',
         ])
 
     for col in range(1, len(headers) + 1):
