@@ -351,17 +351,23 @@ def eposter_submissions_list(request, event_id):
     
     event = get_object_or_404(Event, id=event_id)
     
-    # Check access permission
-    if not check_event_access(request.user, event):
+    # One membership lookup answers every access question of this page
+    # (it used to be four separate queries: event access, supervisor x2,
+    # identity visibility).
+    is_staff = request.user.is_staff or request.user.is_superuser
+    membership = None if is_staff else EPosterCommitteeMember.objects.filter(
+        user=request.user, event=event, is_active=True,
+    ).first()
+    if not is_staff and membership is None:
         messages.error(request, "Vous n'avez pas accès à cet événement.")
         return _permission_denied_redirect(request.user)
-    
+
     # No cache.clear() here: this list reads straight from the database
     # (it never used the cache), and clearing on every page view wiped the
     # ENTIRE site cache -- e.g. the dashboard home's cached page -- for
     # every user, each time anyone opened this list.
 
-    is_supervisor = check_supervisor_access(request.user, event)
+    is_supervisor = is_staff or membership.is_supervisor()
     submissions = EPosterSubmission.objects.filter(event=event)
 
     # Blind review + assignment: a plain member only ever sees
@@ -406,7 +412,8 @@ def eposter_submissions_list(request, event_id):
     elif assignment_filter == 'assigned' and is_supervisor:
         submissions = submissions.filter(assigned_to__isnull=False).distinct()
 
-    show_identity = can_see_submission_identity(request.user, event)
+    # Same rule as can_see_submission_identity (membership already checked above).
+    show_identity = is_supervisor or members_see_identity(event)
     if search:
         if show_identity:
             submissions = submissions.filter(
@@ -424,13 +431,14 @@ def eposter_submissions_list(request, event_id):
                 Q(titre_travail__icontains=search) | Q(theme__icontains=search)
             )
 
-    # Annotate with validation counts. prefetch_related('assigned_to') --
-    # the list now shows each submission's assigned reviewer(s) per row
-    # (see submissions_list.html), which would otherwise be one extra
-    # query per row (20/page) to read .assigned_to.all().
-    submissions = submissions.annotate(
-        validations_count=Count('validations', filter=Q(validations__is_approved=True)),
-        rejections_count=Count('validations', filter=Q(validations__is_approved=False))
+    # prefetch_related('assigned_to', 'validations') -- the list shows each
+    # submission's assigned reviewer(s) and their opinions per row, which
+    # would otherwise be extra queries per row. (Two per-row opinion counts
+    # used to be annotated here, never displayed, and they made both the
+    # list query and its pagination COUNT join and group every opinion.)
+    # The abstract itself (long texts) is only shown on a submission's page.
+    submissions = submissions.defer(
+        'introduction', 'materiels_methodes', 'resultats', 'conclusion', 'auteurs',
     ).prefetch_related('assigned_to', 'validations').order_by('-submitted_at')
 
     # Pagination
@@ -826,13 +834,12 @@ def _record_decision_email(submission, sent, error=''):
 
 def decision_counts(event):
     """Numbers shown in the "Envoyer toutes les décisions" confirmation."""
-    decided = EPosterSubmission.objects.filter(event=event, status__in=['accepted', 'rejected'])
-    counts = decided.aggregate(
+    counts = EPosterSubmission.objects.filter(event=event, status__in=['accepted', 'rejected']).aggregate(
         accepted=Count('id', filter=Q(status='accepted')),
         rejected=Count('id', filter=Q(status='rejected')),
+        already_sent=Count('id', filter=decision_email_filter('sent')),
     )
     counts['total'] = counts['accepted'] + counts['rejected']
-    counts['already_sent'] = decided.filter(decision_email_filter('sent')).count()
     return counts
 
 
