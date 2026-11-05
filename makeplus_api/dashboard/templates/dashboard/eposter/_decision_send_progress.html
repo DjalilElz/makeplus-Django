@@ -1,0 +1,127 @@
+{# Live progress of a bulk decision-e-mail send. Any form with the class
+   "js-decision-send" (send all / not sent / selection) is sent in the
+   background and followed here, author by author, without reloading. #}
+<div class="modal fade" id="decisionSendModal" tabindex="-1" data-bs-backdrop="static" aria-labelledby="decisionSendTitle">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius: 16px; border: none;">
+            <div class="modal-header">
+                <h5 class="modal-title" id="decisionSendTitle"><i class="bi bi-envelope-paper me-2"></i>Envoi des décisions</h5>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between small mb-1">
+                    <span id="ds-state">Démarrage…</span>
+                    <span id="ds-count">0 / 0</span>
+                </div>
+                <div class="progress mb-3" style="height: 10px;" role="progressbar" aria-label="Progression de l'envoi">
+                    <div class="progress-bar" id="ds-bar" style="width: 0%; background: #2D1B6B;"></div>
+                </div>
+                <div class="d-flex flex-wrap gap-3 mb-3 small">
+                    <span><i class="bi bi-envelope-check" style="color:#0f5132;"></i> <strong id="ds-sent">0</strong> envoyé(s)</span>
+                    <span><i class="bi bi-envelope-x" style="color:#842029;"></i> <strong id="ds-failed">0</strong> non envoyé(s)</span>
+                    <span class="text-muted"><i class="bi bi-hourglass-split"></i> <strong id="ds-waiting">0</strong> en attente</span>
+                    <label class="ms-auto form-check-label"><input type="checkbox" class="form-check-input me-1" id="ds-only-failed">Seulement les non envoyés</label>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Auteur</th><th>Décision</th><th>E-mail</th><th class="text-nowrap">Heure</th></tr></thead>
+                        <tbody id="ds-rows"><tr><td colspan="4" class="text-muted text-center py-3">En attente des premiers envois…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="me-auto small text-muted" id="ds-note">L’envoi continue même si vous fermez cette fenêtre.</span>
+                <button type="button" class="btn btn-outline-elegant" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-elegant" id="ds-reload" onclick="window.location.reload()">Actualiser la page</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var statusUrl = "{% url 'dashboard:contributions_decision_emails_status' event.id %}";
+    var modalEl = document.getElementById('decisionSendModal');
+    var rows = [], total = 0, timer = null, lastDone = -1, lastChange = 0;
+
+    function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+    function render() {
+        var onlyFailed = document.getElementById('ds-only-failed').checked;
+        var shown = rows.filter(function (r) { return !onlyFailed || !r.sent; });
+        var body = document.getElementById('ds-rows');
+        if (!shown.length) {
+            body.innerHTML = '<tr><td colspan="4" class="text-muted text-center py-3">' +
+                (rows.length ? 'Aucun e-mail non envoyé.' : 'En attente des premiers envois…') + '</td></tr>';
+            return;
+        }
+        body.innerHTML = shown.map(function (r) {
+            var badge = r.sent
+                ? '<span class="badge" style="background:#d1e7dd;color:#0f5132;"><i class="bi bi-envelope-check me-1"></i>Envoyé</span>'
+                : '<span class="badge" style="background:#f8d7da;color:#842029;" title="' + esc(r.error) + '"><i class="bi bi-envelope-x me-1"></i>Non envoyé</span>' +
+                  '<div class="small text-danger">' + esc(r.error) + '</div>';
+            return '<tr><td><strong>' + esc(r.name) + '</strong><br><small class="text-muted">' + esc(r.email) + '</small></td>' +
+                   '<td>' + esc(r.decision) + '</td><td>' + badge + '</td><td class="text-nowrap small text-muted">' + esc(r.at) + '</td></tr>';
+        }).join('');
+    }
+
+    function update(data) {
+        rows = data.rows || [];
+        var done = Math.min(data.done || 0, total);
+        document.getElementById('ds-sent').textContent = data.sent || 0;
+        document.getElementById('ds-failed').textContent = data.not_sent || 0;
+        document.getElementById('ds-waiting').textContent = Math.max(total - done, 0);
+        document.getElementById('ds-count').textContent = done + ' / ' + total;
+        document.getElementById('ds-bar').style.width = (total ? Math.round(100 * done / total) : 100) + '%';
+        if (done !== lastDone) { lastDone = done; lastChange = Date.now(); }
+        var finished = done >= total;
+        document.getElementById('ds-state').textContent = finished ? 'Terminé' : 'Envoi en cours…';
+        if (finished) {
+            clearInterval(timer);
+            document.getElementById('ds-note').textContent = (data.not_sent ? data.not_sent + ' e-mail(s) non envoyé(s) : voir le motif ci-dessus. ' : 'Tous les e-mails ont été envoyés. ') +
+                'Actualisez la page pour mettre à jour la colonne « E-mail de décision ».';
+        } else if (Date.now() - lastChange > 120000) {
+            document.getElementById('ds-state').textContent = 'Toujours en cours… (vous pouvez fermer, l’envoi continue)';
+        }
+        render();
+    }
+
+    function poll(startedAt) {
+        fetch(statusUrl + '?since=' + encodeURIComponent(startedAt), { credentials: 'same-origin', cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(update)
+            .catch(function () { document.getElementById('ds-state').textContent = 'Connexion perdue… nouvelle tentative'; });
+    }
+
+    document.getElementById('ds-only-failed').addEventListener('change', render);
+
+    document.querySelectorAll('form.js-decision-send').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (e.defaultPrevented) return;  // confirmation refused
+            e.preventDefault();
+            var buttons = form.querySelectorAll('button[type="submit"]');
+            buttons.forEach(function (b) { b.disabled = true; });
+            rows = []; total = 0; lastDone = -1; lastChange = Date.now();
+            render();
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            document.getElementById('ds-state').textContent = 'Démarrage…';
+            fetch(form.action, {
+                method: 'POST', body: new FormData(form), credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                buttons.forEach(function (b) { b.disabled = false; });
+                total = data.total || 0;
+                if (!total) {
+                    update({ sent: 0, not_sent: 0, done: 0, rows: [] });
+                    document.getElementById('ds-state').textContent = 'Aucune soumission décidée à envoyer.';
+                    return;
+                }
+                poll(data.started_at);
+                clearInterval(timer);
+                timer = setInterval(function () { poll(data.started_at); }, 1500);
+            }).catch(function () {
+                buttons.forEach(function (b) { b.disabled = false; });
+                document.getElementById('ds-state').textContent = 'L’envoi n’a pas pu démarrer. Réessayez.';
+            });
+        });
+    });
+})();
+</script>

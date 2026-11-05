@@ -103,6 +103,29 @@ class PostmarkClient:
 
         return self._request('POST', '/email', data=data)
 
+    def send_batch(self, messages):
+        """
+        Up to 500 messages in one call (POST /email/batch); each message is a
+        dict with Postmark's field names (From, To, Subject, HtmlBody...).
+        Returns Postmark's per-message results, in the same order:
+        [{'ErrorCode': 0, 'Message': 'OK', 'MessageID': ..., 'To': ...}, ...]
+        """
+        if not messages:
+            return []
+        if len(messages) > 500:
+            raise ValueError('Postmark accepts at most 500 messages per batch')
+        url = f"{self.BASE_URL}/email/batch"
+        # Longer timeout than a single send: one call carries the whole batch.
+        response = requests.post(url, headers=self._headers(), json=messages, timeout=60)
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if not response.ok or not isinstance(payload, list):
+            message = (payload or {}).get('Message') if isinstance(payload, dict) else response.text
+            raise Exception(f'Postmark batch API error {response.status_code}: {message}')
+        return payload
+
     def get_server_info(self):
         """Fetch this server's info (name, color, tracking defaults, ...)."""
         return self._request('GET', '/server')

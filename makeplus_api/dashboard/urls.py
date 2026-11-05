@@ -182,6 +182,7 @@ urlpatterns = [
     path('events/<uuid:event_id>/contributions/apply-supervisor-opinions/', views_eposter_dashboard.eposter_apply_supervisor_opinions, name='contributions_apply_supervisor_opinions'),
     path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/resend-decision-email/', views_eposter_dashboard.eposter_resend_decision_email, name='contributions_resend_decision_email'),
     path('events/<uuid:event_id>/contributions/resend-decision-emails/', views_eposter_dashboard.eposter_bulk_resend_decision_emails, name='contributions_bulk_resend_decision_emails'),
+    path('events/<uuid:event_id>/contributions/decision-emails/status/', views_eposter_dashboard.eposter_decision_emails_status, name='contributions_decision_emails_status'),
     path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/set-code/', views_eposter_dashboard.eposter_set_contribution_code, name='contributions_set_contribution_code'),
     path('events/<uuid:event_id>/contributions/submissions/assign/', views_eposter_dashboard.eposter_assign_submissions, name='contributions_assign_submissions'),
     path('events/<uuid:event_id>/contributions/submissions/<uuid:submission_id>/unassign/', views_eposter_dashboard.eposter_unassign_submission, name='contributions_unassign_submission'),

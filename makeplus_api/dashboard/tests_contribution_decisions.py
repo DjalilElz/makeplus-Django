@@ -361,6 +361,11 @@ class BulkResendDecisionEmailTests(TestCase):
         patcher = mock.patch('dashboard.email_sender.send_email', return_value=(True, None, 'msg'))
         self.send_email = patcher.start()
         self.addCleanup(patcher.stop)
+        # Batch API "unavailable" here: exercises the one-by-one fallback with
+        # the mocked send_email above (the batch path has its own tests).
+        batch = mock.patch('dashboard.decision_emails.postmark_batch', side_effect=Exception('no network in tests'))
+        batch.start()
+        self.addCleanup(batch.stop)
         self.client.force_login(self.supervisor)
         self.url = reverse('dashboard:contributions_bulk_resend_decision_emails', args=[self.event.id])
 
@@ -408,3 +413,134 @@ class BulkResendDecisionEmailTests(TestCase):
         self.client.force_login(member)
         self.client.post(self.url, {'submission_ids': [self.accepted.id]})
         self.send_email.assert_not_called()
+
+    def test_send_all_decisions(self):
+        Submission.objects.filter(id=self.accepted.id).update(acceptance_email_sent=True)  # already received
+        listing = self.client.get(reverse('dashboard:contributions_submissions_list', args=[self.event.id]))
+        self.assertContains(listing, 'Envoyer toutes les décisions (2)')
+        self.assertEqual(listing.context['decision_counts'],
+                         {'accepted': 1, 'rejected': 1, 'total': 2, 'already_sent': 1})
+        dashboard = self.client.get(reverse('dashboard:contributions_dashboard', args=[self.event.id]))
+        self.assertContains(dashboard, 'le recevront à nouveau')
+
+        response = self.client.post(self.url, {'scope': 'all'}, follow=True)
+        self.assertContains(response, '2 envoyé(s)')
+        # one e-mail per decided submission, with the template of its own decision; pending untouched
+        subjects = sorted(call.kwargs['to_email'] for call in self.send_email.call_args_list)
+        self.assertEqual(len(subjects), 2)
+        self.accepted.refresh_from_db()
+        self.rejected.refresh_from_db()
+        self.pending.refresh_from_db()
+        self.assertEqual((self.accepted.decision_email_send_count, self.rejected.decision_email_send_count), (1, 1))
+        self.assertTrue(self.rejected.rejection_email_sent)
+        self.assertEqual(self.pending.decision_email_send_count, 0)
+
+    def test_send_all_uses_the_right_template_per_decision(self):
+        from dashboard.models_eposter import ScientificContributionEmailTemplate as Template
+        Template.objects.filter(event=self.event, template_type='e_poster_accepted').update(subject='ACCEPTEE')
+        Template.objects.filter(event=self.event, template_type='e_poster_rejected').update(subject='REFUSEE')
+        self.client.post(self.url, {'scope': 'all'})
+        sent = sorted(call.kwargs['subject'] for call in self.send_email.call_args_list)
+        self.assertEqual(sent, ['ACCEPTEE', 'REFUSEE'])
+
+
+class FastLiveDecisionSendTests(TestCase):
+    """Bulk decision e-mails: Postmark batch API, constant query count, live progress."""
+
+    def setUp(self):
+        from dashboard.models_eposter import ScientificContributionEmailTemplate as Template
+        self.event = Event.objects.create(
+            name='Congress', start_date=timezone.now(), end_date=timezone.now() + timedelta(days=2), location='Alger',
+        )
+        self.supervisor = User.objects.create_user(username='sup', password='x')
+        Member.objects.create(event=self.event, user=self.supervisor, role='supervisor', is_active=True)
+        for decision in ('accepted', 'rejected'):
+            Template.objects.create(event=self.event, template_type='e_poster_' + decision,
+                                    subject=decision + ' {{titre}}', body_html='<p>{{remarque}}</p>', is_active=True)
+        self.client.force_login(self.supervisor)
+
+    def _decided(self, status, n):
+        ids = []
+        for i in range(n):
+            s = ContributionDecisionTests._submission(self, 'e_poster')
+            Submission.objects.filter(id=s.id).update(status=status, final_decision_by=self.supervisor,
+                                                      email=f'{status}{i}@example.com')
+            Validation.objects.create(submission=s, committee_member=self.supervisor,
+                                      is_approved=(status == 'accepted'), comments=f'motif {i}')
+            ids.append(s.id)
+        return ids
+
+    def test_batch_api_results_are_recorded_per_author(self):
+        from dashboard.decision_emails import send_many
+        accepted = self._decided('accepted', 2)
+        rejected = self._decided('rejected', 1)
+
+        def fake_batch(messages):
+            return [{'ErrorCode': 406 if 'rejected0' in m['To'] else 0,
+                     'Message': 'Inactive recipient' if 'rejected0' in m['To'] else 'OK'} for m in messages]
+
+        with mock.patch('dashboard.decision_emails.postmark_batch', side_effect=fake_batch) as batch:
+            sent, not_sent = send_many(accepted + rejected, 'https://example.com')
+        self.assertEqual((sent, not_sent), (2, 1))
+        batch.assert_called_once()  # 3 e-mails, one Postmark call
+        subjects = sorted(m['Subject'] for m in batch.call_args.args[0])
+        self.assertEqual(subjects, ['accepted Title', 'accepted Title', 'rejected Title'])
+        bad = Submission.objects.get(id=rejected[0])
+        self.assertEqual(bad.decision_email_state, 'not_sent')
+        self.assertIn('Inactive recipient', bad.decision_email_error)
+        self.assertIsNotNone(bad.decision_email_attempt_at)
+        good = Submission.objects.get(id=accepted[0])
+        self.assertEqual((good.decision_email_state, good.decision_email_send_count), ('sent', 1))
+        # the decider's comment reached the rejection e-mail
+        self.assertTrue(any('motif 0' in m['HtmlBody'] for m in batch.call_args.args[0] if 'rejected0' in m['To']))
+
+    def test_query_count_does_not_grow_with_the_number_of_emails(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from dashboard.decision_emails import send_many
+
+        def ok(messages):
+            return [{'ErrorCode': 0, 'Message': 'OK'} for _ in messages]
+
+        small_ids = self._decided('accepted', 3)
+        large_ids = self._decided('rejected', 20)
+        with mock.patch('dashboard.decision_emails.postmark_batch', side_effect=ok):
+            with CaptureQueriesContext(connection) as small:
+                send_many(small_ids)
+            with CaptureQueriesContext(connection) as large:
+                send_many(large_ids)
+        self.assertEqual(len(small), len(large))
+
+    def test_live_mode_starts_in_background_and_status_shows_who_received(self):
+        ids = self._decided('accepted', 2) + self._decided('rejected', 1)
+        url = reverse('dashboard:contributions_bulk_resend_decision_emails', args=[self.event.id])
+        with mock.patch('threading.Thread') as thread:
+            data = self.client.post(url, {'scope': 'all'}, HTTP_X_REQUESTED_WITH='XMLHttpRequest').json()
+        self.assertEqual(data['total'], 3)
+        thread.return_value.start.assert_called_once()
+        # what the background thread does, run here:
+        from dashboard.decision_emails import send_many
+
+        def fake(messages):
+            return [{'ErrorCode': 0 if i else 300, 'Message': 'OK' if i else 'Invalid email'}
+                    for i, _ in enumerate(messages)]
+
+        with mock.patch('dashboard.decision_emails.postmark_batch', side_effect=fake):
+            send_many(ids)
+        status = self.client.get(reverse('dashboard:contributions_decision_emails_status', args=[self.event.id]),
+                                 {'since': data['started_at']}).json()
+        self.assertEqual((status['done'], status['sent'], status['not_sent']), (3, 2, 1))
+        failed = [r for r in status['rows'] if not r['sent']]
+        self.assertEqual(len(failed), 1)
+        self.assertIn('Invalid email', failed[0]['error'])
+        page = self.client.get(reverse('dashboard:contributions_dashboard', args=[self.event.id]))
+        self.assertContains(page, 'decisionSendModal')
+        self.assertContains(page, 'js-decision-send')
+
+    def test_status_is_supervisor_only(self):
+        member = User.objects.create_user(username='mem', password='x')
+        Member.objects.create(event=self.event, user=member, role='member', is_active=True)
+        self.client.force_login(member)
+        r = self.client.get(reverse('dashboard:contributions_decision_emails_status', args=[self.event.id]),
+                            {'since': timezone.now().isoformat()})
+        self.assertEqual(r.status_code, 403)

@@ -31,6 +31,17 @@
         <a href="{% url 'dashboard:contributions_export_excel' event.id %}" class="btn btn-outline-elegant">
             <i class="bi bi-file-earmark-excel me-1"></i> Exporter Excel
         </a>
+        {% if is_supervisor %}
+    <form method="post" action="{% url 'dashboard:contributions_bulk_resend_decision_emails' event.id %}" class="m-0 js-decision-send"
+          onsubmit="return confirm('Envoyer la décision à tous les auteurs : {{ decision_counts.accepted }} e-mail(s) d\'acceptation et {{ decision_counts.rejected }} e-mail(s) de refus.{% if decision_counts.already_sent %}\n\n{{ decision_counts.already_sent }} auteur(s) ont déjà reçu leur e-mail et le recevront à nouveau.{% endif %}\n\nContinuer ?');">
+        {% csrf_token %}
+        <input type="hidden" name="scope" value="all">
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-elegant"{% if not decision_counts.total %} disabled{% endif %}>
+            <i class="bi bi-envelope-paper me-1"></i> Envoyer toutes les décisions{% if decision_counts.total %} ({{ decision_counts.total }}){% endif %}
+        </button>
+    </form>
+        {% endif %}
     </div>
 </div>
 
@@ -114,7 +125,7 @@
         </button>
     </div>
 </form>
-<form method="post" action="{% url 'dashboard:contributions_bulk_resend_decision_emails' event.id %}" id="resend-form">
+<form method="post" action="{% url 'dashboard:contributions_bulk_resend_decision_emails' event.id %}" id="resend-form" class="js-decision-send">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ request.get_full_path }}">
 </form>
@@ -303,4 +314,5 @@
 {% else %}
 <p class="text-muted text-center py-5 mb-0">Aucune soumission trouvée</p>
 {% endif %}
+{% if is_supervisor or decision_counts %}{% include 'dashboard/eposter/_decision_send_progress.html' %}{% endif %}
 {% endblock %}

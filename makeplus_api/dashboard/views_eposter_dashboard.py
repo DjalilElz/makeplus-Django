@@ -11,6 +11,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.core.mail import send_mail
 from django.template import Template, Context
 from django.conf import settings
@@ -232,6 +233,7 @@ def eposter_dashboard(request, event_id):
         'by_type': by_type,
         'recent_decisions': recent_decisions,
         'unapplied_supervisor_opinions': len(unapplied),
+        'decision_counts': decision_counts(event),
         'missing_decision_templates': _missing_decision_templates(event, unapplied),
     }
 
@@ -450,6 +452,7 @@ def eposter_submissions_list(request, event_id):
         'member_filter_user': member_filter_user,
         'assignment_filter': assignment_filter,
         'email_filter': email_filter,
+        'decision_counts': decision_counts(event) if is_supervisor else None,
         'show_identity': show_identity,
         'search': search,
         'status_choices': EPosterSubmission.STATUS_CHOICES,
@@ -805,17 +808,20 @@ def eposter_set_contribution_code(request, event_id, submission_id):
 
 def _record_decision_email(submission, sent, error=''):
     """Keeps track of the decision e-mail: sent (when) or not (why)."""
-    field = 'acceptance_email_sent' if submission.status == 'accepted' else 'rejection_email_sent'
-    setattr(submission, field, bool(sent))
-    if sent:
-        submission.decision_email_sent_at = timezone.now()
-        submission.decision_email_error = ''
-        submission.decision_email_send_count = (submission.decision_email_send_count or 0) + 1
-    else:
-        submission.decision_email_error = (error or "Non envoyé")[:255]
-    submission.save(update_fields=[
-        field, 'decision_email_sent_at', 'decision_email_error', 'decision_email_send_count',
-    ])
+    from .decision_emails import record
+    record(submission, sent, error)
+
+
+def decision_counts(event):
+    """Numbers shown in the "Envoyer toutes les décisions" confirmation."""
+    decided = EPosterSubmission.objects.filter(event=event, status__in=['accepted', 'rejected'])
+    counts = decided.aggregate(
+        accepted=Count('id', filter=Q(status='accepted')),
+        rejected=Count('id', filter=Q(status='rejected')),
+    )
+    counts['total'] = counts['accepted'] + counts['rejected']
+    counts['already_sent'] = decided.filter(decision_email_filter('sent')).count()
+    return counts
 
 
 def decision_email_filter(state):
@@ -854,24 +860,17 @@ BULK_RESEND_INLINE_LIMIT = 10
 
 def _bulk_send_decision_emails(submission_ids, base_url, in_background=False):
     """
-    Sends the decision e-mails one by one; results are recorded per
-    submission. A background thread manages its own DB connection (Django
-    only closes connections at the end of a request), so it closes it.
+    Sends the decision e-mails through Postmark's batch API (see
+    decision_emails.send_many). A background thread manages its own DB
+    connection (Django only closes connections at the end of a request).
     """
     from django.db import connection
-    sent = failed = 0
+    from .decision_emails import send_many
     try:
-        for submission in EPosterSubmission.objects.filter(
-            id__in=submission_ids, status__in=['accepted', 'rejected'],
-        ).select_related('event', 'final_decision_by'):
-            if send_decision_email(submission, base_url=base_url):
-                sent += 1
-            else:
-                failed += 1
+        return send_many(submission_ids, base_url)
     finally:
         if in_background:
             connection.close()
-    return sent, failed
 
 
 @never_cache
@@ -891,14 +890,29 @@ def eposter_bulk_resend_decision_emails(request, event_id):
         return redirect('dashboard:contributions_submissions_list', event_id=event.id)
 
     decided = EPosterSubmission.objects.filter(event=event, status__in=['accepted', 'rejected'])
-    if request.POST.get('scope') == 'not_sent':
+    scope = request.POST.get('scope')
+    if scope == 'all':
+        # Every decision: acceptance e-mail to the accepted, rejection e-mail
+        # to the rejected (send_decision_email picks the template per status).
+        targets = decided
+    elif scope == 'not_sent':
         targets = decided.filter(decision_email_filter('not_sent'))
     else:
         targets = decided.filter(id__in=request.POST.getlist('submission_ids'))
     ids = list(targets.values_list('id', flat=True))
-    skipped = len(request.POST.getlist('submission_ids')) - len(ids) if request.POST.get('scope') != 'not_sent' else 0
+    skipped = len(request.POST.getlist('submission_ids')) - len(ids) if scope not in ('not_sent', 'all') else 0
     back = request.POST.get('next') or ''
     destination = back if back.startswith('/dashboard/') else None
+
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        # Live mode (the progress panel): start right away in the background
+        # and tell the page what to track.
+        started_at = timezone.now()
+        if ids:
+            import threading
+            base_url = request.build_absolute_uri('/').rstrip('/')
+            threading.Thread(target=_bulk_send_decision_emails, args=(ids, base_url, True), daemon=True).start()
+        return JsonResponse({'started_at': started_at.isoformat(), 'total': len(ids), 'skipped': skipped})
 
     if not ids:
         messages.warning(request, "Aucune soumission décidée (acceptée ou rejetée) à envoyer.")
@@ -927,113 +941,71 @@ def eposter_bulk_resend_decision_emails(request, event_id):
     return redirect('dashboard:contributions_submissions_list', event_id=event.id)
 
 
+@never_cache
+@login_required
+def eposter_decision_emails_status(request, event_id):
+    """
+    Live progress of a bulk send: every decision e-mail attempted since
+    ?since= (the start time the send returned) -- sent or not, and why.
+    Read from the database, so it is right whichever server process answers.
+    """
+    event = get_object_or_404(Event, id=event_id)
+    if not check_supervisor_access(request.user, event):
+        return JsonResponse({'error': 'Accès refusé'}, status=403)
+    since = parse_datetime(request.GET.get('since', '') or '')
+    if since is None:
+        return JsonResponse({'error': 'since manquant'}, status=400)
+    rows = []
+    sent = not_sent = 0
+    for s in EPosterSubmission.objects.filter(
+        event=event, decision_email_attempt_at__gte=since,
+    ).order_by('-decision_email_attempt_at', 'nom').only(
+        'id', 'nom', 'prenom', 'email', 'status', 'type_participation', 'acceptance_email_sent',
+        'rejection_email_sent', 'decision_email_error', 'decision_email_attempt_at',
+    ):
+        ok = s.decision_email_state == 'sent'
+        sent += ok
+        not_sent += not ok
+        rows.append({
+            'id': str(s.id),
+            'name': f'{s.prenom} {s.nom}'.strip(),
+            'email': s.email,
+            'decision': 'Acceptation' if s.status == 'accepted' else 'Refus',
+            'sent': ok,
+            'error': '' if ok else s.decision_email_error,
+            'at': timezone.localtime(s.decision_email_attempt_at).strftime('%H:%M:%S'),
+        })
+    return JsonResponse({'sent': sent, 'not_sent': not_sent, 'done': sent + not_sent, 'rows': rows[:500]})
+
+
 def send_decision_email(submission, request=None, base_url=None):
-    """Helper to send acceptance/rejection email using Postmark API"""
+    """Sends one submission's acceptance/rejection e-mail and records the result."""
+    from .decision_emails import build
     from .email_sender import send_email
 
     try:
-        # Determine template type based on submission type and decision
-        decision = 'accepted' if submission.status == 'accepted' else 'rejected'
-        template_type = f"{submission.type_participation}_{decision}"
-        
-        template = EPosterEmailTemplate.objects.filter(
-            event=submission.event,
-            template_type=template_type,
-            is_active=True
-        ).first()
-        
-        if not template:
-            print(f"No email template found for type '{template_type}' and event '{submission.event.name}'")
+        if request is not None:
+            base_url = request.build_absolute_uri('/').rstrip('/')
+        template_type, subject, body = build(submission, base_url)
+        if subject is None:
             _record_decision_email(submission, False, f"Aucun modèle d'e-mail actif « {template_type} »")
             return False
-
-        # contribution_code is set manually by the committee (see
-        # eposter_set_contribution_code) -- it may still be empty here if
-        # nobody has set it yet, and that's fine; it's settable any time
-        # after acceptance, not required before the decision email goes out.
-
-        # Build final submission URL (only for types that require final submission).
-        # Derived from the actual incoming request whenever one is available,
-        # not the SITE_URL setting -- that env var has drifted to a retired
-        # domain before (makeplus-platform.onrender.com) and silently sent
-        # dead links in acceptance emails until the env var itself is fixed.
-        final_submission_url = ''
-        show_final_submission = False
-        if submission.status == 'accepted' and submission.requires_final_submission():
-            show_final_submission = True
-            if request is not None:
-                base_url = request.build_absolute_uri('/').rstrip('/')
-            elif not base_url:
-                base_url = getattr(settings, 'SITE_URL', 'https://makeplus-events.onrender.com')
-
-            # Generate URL based on submission type
-            if submission.type_participation == 'e_poster':
-                final_submission_url = f"{base_url}/contributions/final-submission/eposter/{submission.event.id}/"
-            elif submission.type_participation == 'communication_orale':
-                final_submission_url = f"{base_url}/contributions/final-submission/communication/{submission.event.id}/"
-            else:
-                final_submission_url = ''
-        
-        # Get committee member's remarks/comments from the validation
-        remarque = ''
-        if submission.final_decision_by:
-            validation = EPosterValidation.objects.filter(
-                submission=submission,
-                committee_member=submission.final_decision_by
-            ).first()
-            if validation and validation.comments:
-                remarque = validation.comments
-        
-        # Get contribution number (for e-poster and communication orale only)
-        contribution_number = submission.contribution_code if submission.contribution_code else ''
-        
-        context = {
-            'nom': submission.nom,
-            'prenom': submission.prenom,
-            'titre': submission.titre_travail,
-            'event_name': submission.event.name,
-            'event_location': submission.event.location or '',
-            'event_start_date': submission.event.start_date.strftime('%d/%m/%Y') if submission.event.start_date else '',
-            'event_end_date': submission.event.end_date.strftime('%d/%m/%Y') if submission.event.end_date else '',
-            'contribution_number': contribution_number,
-            'remarque': remarque,
-            'final_submission_url': final_submission_url if show_final_submission else '',
-            'type_participation': submission.get_type_participation_display(),
-            'show_final_submission': show_final_submission,
-        }
-        
-        subject = Template(template.subject).render(Context(context))
-        body = Template(template.body_html).render(Context(context))
-        
-        print(f"Sending {template_type} email to {submission.email} via Postmark API")
-        print(f"Subject: {subject}")
-        if submission.status == 'accepted':
-            print(f"Contribution Code: {submission.contribution_code}")
-            print(f"Final Submission URL: {final_submission_url}")
-        
-        # Use Postmark API for sending
         success, error, message_id = send_email(
             to_email=submission.email,
             subject=subject,
             html_content=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to_name=f"{submission.prenom} {submission.nom}",
-            use_api=True  # Force Postmark API usage
+            use_api=True,
         )
-        
         if success:
-            print(f"Email sent successfully via Postmark API to {submission.email}, message_id: {message_id}")
             _record_decision_email(submission, True)
             return True
-        else:
-            print(f"Failed to send email via Postmark API: {error}")
-            _record_decision_email(submission, False, f"Échec d'envoi : {error}")
-            return False
-
+        _record_decision_email(submission, False, f"Échec d'envoi : {error}")
+        return False
     except Exception as e:
-        print(f"Error sending decision email: {e}")
-        import traceback
-        traceback.print_exc()
+        import logging
+        logging.getLogger(__name__).exception('Error sending decision email')
         try:
             _record_decision_email(submission, False, f"Erreur : {e}")
         except Exception:

@@ -129,6 +129,8 @@ class ScientificContributionSubmission(models.Model):
     decision_email_sent_at = models.DateTimeField(null=True, blank=True)
     decision_email_error = models.CharField(max_length=255, blank=True, default='')
     decision_email_send_count = models.PositiveIntegerField(default=0)
+    # Last attempt (sent or not): drives the live progress of bulk sends.
+    decision_email_attempt_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     # Code for final submission. For communication_orale, still set
     # manually by the committee (see eposter_set_contribution_code). For

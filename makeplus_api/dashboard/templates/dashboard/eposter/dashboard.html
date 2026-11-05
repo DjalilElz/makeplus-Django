@@ -57,7 +57,7 @@
                     <i class="bi bi-envelope-x"></i> {{ stats.emails_not_sent }} non envoyé{{ stats.emails_not_sent|pluralize }}</a>
             </div>
             {% if stats.emails_not_sent %}
-            <form method="post" action="{% url 'dashboard:contributions_bulk_resend_decision_emails' event.id %}" class="mt-2"
+            <form method="post" action="{% url 'dashboard:contributions_bulk_resend_decision_emails' event.id %}" class="mt-2 js-decision-send"
                   onsubmit="return confirm('Envoyer l\'e-mail de décision aux {{ stats.emails_not_sent }} auteur(s) qui ne l\'ont pas reçu ?');">
                 {% csrf_token %}
                 <input type="hidden" name="scope" value="not_sent">
@@ -75,6 +75,17 @@
             <i class="bi bi-file-earmark-excel me-1"></i> Exporter Excel
         </a>
     </div>
+</div>
+<div class="d-flex justify-content-end mb-4">
+    <form method="post" action="{% url 'dashboard:contributions_bulk_resend_decision_emails' event.id %}" class="m-0 js-decision-send"
+          onsubmit="return confirm('Envoyer la décision à tous les auteurs : {{ decision_counts.accepted }} e-mail(s) d\'acceptation et {{ decision_counts.rejected }} e-mail(s) de refus.{% if decision_counts.already_sent %}\n\n{{ decision_counts.already_sent }} auteur(s) ont déjà reçu leur e-mail et le recevront à nouveau.{% endif %}\n\nContinuer ?');">
+        {% csrf_token %}
+        <input type="hidden" name="scope" value="all">
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-elegant"{% if not decision_counts.total %} disabled{% endif %}>
+            <i class="bi bi-envelope-paper me-1"></i> Envoyer toutes les décisions{% if decision_counts.total %} ({{ decision_counts.total }}){% endif %}
+        </button>
+    </form>
 </div>
 
 <div class="row">
@@ -201,6 +212,7 @@
 </div>
 
 {{ by_type|json_script:"by-type-json" }}
+{% if is_supervisor or decision_counts %}{% include 'dashboard/eposter/_decision_send_progress.html' %}{% endif %}
 {% endblock %}
 
 {% block extra_scripts %}
