@@ -179,26 +179,34 @@ def eposter_dashboard(request, event_id):
         messages.error(request, "Seul le superviseur du comité ou un administrateur peut voir ce tableau de bord.")
         return redirect('dashboard:contributions_submissions_list', event_id=event.id)
 
-    # Get statistics
+    # Every counter of the page in ONE query (it was one COUNT per figure).
     submissions = EPosterSubmission.objects.filter(event=event)
-    stats = {
-        'total': submissions.count(),
-        'pending': submissions.filter(status='pending').count(),
-        'accepted': submissions.filter(status='accepted').count(),
-        'rejected': submissions.filter(status='rejected').count(),
-        'revision': submissions.filter(status='revision_requested').count(),
-        'emails_sent': submissions.filter(decision_email_filter('sent')).count(),
-        'emails_not_sent': submissions.filter(decision_email_filter('not_sent')).count(),
-    }
+    stats = submissions.aggregate(
+        total=Count('id'),
+        pending=Count('id', filter=Q(status='pending')),
+        accepted=Count('id', filter=Q(status='accepted')),
+        rejected=Count('id', filter=Q(status='rejected')),
+        revision=Count('id', filter=Q(status='revision_requested')),
+        emails_sent=Count('id', filter=decision_email_filter('sent')),
+        emails_not_sent=Count('id', filter=decision_email_filter('not_sent')),
+    )
     
     # Recent submissions
     recent_submissions = submissions.order_by('-submitted_at')[:10]
     
-    # Committee members
+    # Committee members, each with their number of opinions on this event,
+    # counted in the same query -- it was 2 queries per member (the event,
+    # then a COUNT), ~120 queries for SANDT's committee.
     committee = EPosterCommitteeMember.objects.filter(
-        event=event, 
+        event=event,
         is_active=True
-    ).select_related('user')
+    ).select_related('user').annotate(
+        validations_done=Count(
+            'user__contribution_validations',
+            filter=Q(user__contribution_validations__submission__event=event),
+            distinct=True,
+        ),
+    )
     
     # By type stats -- resolved to a plain list of dicts (not a lazy
     # QuerySet) with a human-readable label, both for the template's
@@ -233,7 +241,11 @@ def eposter_dashboard(request, event_id):
         'by_type': by_type,
         'recent_decisions': recent_decisions,
         'unapplied_supervisor_opinions': len(unapplied),
-        'decision_counts': decision_counts(event),
+        # Same figures as decision_counts(event), already in stats.
+        'decision_counts': {
+            'accepted': stats['accepted'], 'rejected': stats['rejected'],
+            'total': stats['accepted'] + stats['rejected'], 'already_sent': stats['emails_sent'],
+        },
         'missing_decision_templates': _missing_decision_templates(event, unapplied),
     }
 
