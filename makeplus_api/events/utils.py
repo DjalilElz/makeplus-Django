@@ -271,6 +271,24 @@ def resolve_current_event(user):
     return None, None
 
 
+def role_in_event(user, event):
+    """
+    The user's role in this specific event, or None when they don't belong to
+    it: their active assignment's role, else 'participant' when registered.
+    """
+    from .models import UserEventAssignment, Participant
+
+    assignment = UserEventAssignment.objects.filter(
+        user=user, event=event, is_active=True,
+    ).only('role').first()
+    if assignment:
+        return assignment.role
+    participant = Participant.objects.filter(user=user).first()
+    if participant and participant.registrations.filter(event=event).exists():
+        return 'participant'
+    return None
+
+
 def resolve_scanned_user(qr_data):
     """
     Resolve the User a scanned badge QR refers to, accepting every format

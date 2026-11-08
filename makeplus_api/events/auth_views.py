@@ -11,6 +11,8 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.shortcuts import render, redirect
 from django.views import View
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 from django.http import JsonResponse
 from rest_framework import status
@@ -191,13 +193,38 @@ class RegisterView(View):
         return redirect('dashboard:registration_form_builder')
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(View):
-    """Logout view"""
+    """
+    GET: web logout (session) -> redirect to the login page.
+    POST: API logout for the mobile app -- {"refresh": "<refresh token>"}
+    blacklists that refresh token so it can't mint new access tokens after
+    the user signed out. Always answers 200: the app clears its own tokens
+    whatever happens, and an unknown/expired token is already unusable.
+    """
     def get(self, request):
         from django.contrib.auth import logout
         logout(request)
         messages.success(request, 'Vous avez été déconnecté avec succès')
         return redirect('events:login')
+
+    def post(self, request):
+        import json
+        from rest_framework_simplejwt.exceptions import TokenError
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        try:
+            refresh = (json.loads(request.body or b'{}') or {}).get('refresh')
+        except (ValueError, AttributeError):
+            refresh = None
+        revoked = False
+        if refresh:
+            try:
+                RefreshToken(refresh).blacklist()
+                revoked = True
+            except (TokenError, AttributeError):
+                pass
+        return JsonResponse({'success': True, 'revoked': revoked})
 
 
 class UserProfileView(View):

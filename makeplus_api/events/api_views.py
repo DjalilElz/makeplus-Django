@@ -309,8 +309,17 @@ class UserProfileAPIView(APIView):
         # that reads this profile's event (name/dates/location/theme
         # color) went blank for them even though login itself resolved
         # their event correctly.
-        from .utils import resolve_current_event
+        from .utils import resolve_current_event, role_in_event
         event, role = resolve_current_event(user)
+        # The event this person CHOSE (select-event puts it in the token)
+        # wins while they still belong to it -- otherwise someone registered
+        # for several events was switched back to their latest registration
+        # every time the app restarted.
+        chosen = getattr(request, 'event_context', None)
+        if chosen is not None and (event is None or chosen.id != event.id):
+            chosen_role = role_in_event(user, chosen)
+            if chosen_role:
+                event, role = chosen, chosen_role
 
         profile_data = {
             'id': user.id,
