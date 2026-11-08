@@ -637,10 +637,25 @@ def eposter_gallery_api(request, event_id):
 
     query = request.GET.get('q', '').strip()
 
+    # Same selection as the web gallery (eposter_public_gallery): by the final
+    # submission's own submission_type. Filtering on the ORIGINAL abstract's
+    # type dropped every standalone final submission (events without a call
+    # for abstracts) -- the app showed 0 of the Réanimation congress's 143.
+    from django.db.models import CharField
+    from django.db.models.functions import Coalesce
+    # (an older linked one may have no submission_type: its abstract's type
+    # still counts)
     submissions = EPosterFinalSubmission.objects.filter(
+        Q(submission_type='e_poster')
+        | Q(submission_type__isnull=True, original_submission__type_participation='e_poster')
+        | Q(submission_type='', original_submission__type_participation='e_poster'),
         event=event,
-        original_submission__type_participation='e_poster'
-    ).select_related('original_submission').order_by('-submitted_at')
+    ).select_related('original_submission').annotate(
+        display_number=Coalesce(
+            'contribution_number', 'original_submission__contribution_code',
+            output_field=CharField(),
+        ),
+    )
 
     if query:
         submissions = submissions.filter(
@@ -649,10 +664,20 @@ def eposter_gallery_api(request, event_id):
             Q(nom__icontains=query)
         )
 
+    def by_number(s):
+        # 1, 2, ... 10 (numbers stored as text sort 1, 10, 100, 2 in SQL);
+        # posters without a number last, newest first among them.
+        number = (s.display_number or '').strip()
+        if number.isdigit():
+            return (0, int(number), '')
+        return (1 if number else 2, 0, number or s.submitted_at.isoformat())
+
+    submissions = sorted(submissions, key=by_number)
+
     results = [
         {
             'id': str(s.id),
-            'contribution_number': s.contribution_number,
+            'contribution_number': s.display_number,
             'title': s.titre,
             'authors': s.auteurs,
             'co_authors': s.co_auteurs,
