@@ -68,8 +68,9 @@
     pour cet événement », vous pouvez supprimer votre inscription, vos accès
     aux salles et sessions, et vos questions posées pour un événement
     particulier, sans supprimer votre compte ni vos autres événements. Vous
-    pouvez aussi supprimer définitivement votre compte et toutes les données
-    associées depuis Paramètres&nbsp;&gt;&nbsp;Compte&nbsp;&gt;&nbsp;Supprimer
+    pouvez aussi supprimer définitivement votre compte (vos nom, e-mail et
+    mot de passe sont effacés ; les traces de participation restent, anonymes)
+    depuis Paramètres&nbsp;&gt;&nbsp;Compte&nbsp;&gt;&nbsp;Supprimer
     mon compte, ou en suivant la procédure décrite sur la page
     <a href="{% url 'legal_account_deletion' %}">Suppression de compte</a>.</p>
 </div>
@@ -89,6 +90,6 @@
 <div class="callout">
     <p><i class="bi bi-envelope"></i>&nbsp; Pour toute question concernant vos
     données, contactez-nous à
-    <a href="mailto:support@makeplus.com">support@makeplus.com</a>.</p>
+    <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
 </div>
 {% endblock %}

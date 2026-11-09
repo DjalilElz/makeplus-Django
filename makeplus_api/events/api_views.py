@@ -470,6 +470,13 @@ class UserProfileAPIView(APIView):
         user.set_unusable_password()
         user.save()
 
+        # The participant record keeps its own copy of the name/e-mail in the
+        # badge QR payload (and free-form metadata): clear them too, or the
+        # "deleted" account still holds personal data. Registrations, scans
+        # and questions stay attached to the now-anonymous account.
+        from .models import Participant
+        Participant.objects.filter(user=user).update(qr_code_data={}, metadata={})
+
         # Blacklist every refresh token ever issued to this user, so an old
         # session can't keep renewing access past its natural (short)
         # expiry once the account is deleted.

@@ -18,15 +18,22 @@ Content is kept in sync with the mobile app's own screens
 Play compares the two, and a contradiction between them is a rejection
 cause. Update both together.
 """
+from django.conf import settings
 from django.views.decorators.cache import never_cache
 from django.shortcuts import render
 
 
+def _context():
+    # A mailbox someone reads (support@makeplus.com, used before, has no mail
+    # server: requests sent there were lost).
+    return {'support_email': settings.SUPPORT_EMAIL}
+
+
 @never_cache
 def privacy_policy(request):
-    return render(request, 'legal/privacy_policy.html')
+    return render(request, 'legal/privacy_policy.html', _context())
 
 
 @never_cache
 def account_deletion(request):
-    return render(request, 'legal/account_deletion.html')
+    return render(request, 'legal/account_deletion.html', _context())

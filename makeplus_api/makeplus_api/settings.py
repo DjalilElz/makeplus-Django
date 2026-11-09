@@ -391,6 +391,8 @@ EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)
 # Must stay a Postmark-verified Sender Signature/domain -- every email
 # the platform sends uses this address unconditionally (see email_sender.send_email)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='support@wemakeplus.com')
+# Shown to users (mobile app legal pages, help) -- must be a mailbox someone reads.
+SUPPORT_EMAIL = config('SUPPORT_EMAIL', default='support@wemakeplus.com')
 
 # Optional HTTP Basic Auth credentials for the Postmark webhook endpoint
 # (/track/postmark/webhook/) -- set the same values in Postmark's own
