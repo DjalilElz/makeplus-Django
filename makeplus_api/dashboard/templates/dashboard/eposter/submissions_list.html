@@ -68,6 +68,25 @@
             {% endfor %}
         </select>
     </div>
+    {% if theme_options %}
+    <div class="col-md-3">
+        <label class="form-label small">Thème</label>
+        <select name="theme" class="form-select">
+            <option value="">Tous</option>
+            {% for theme in theme_options %}
+            <option value="{{ theme }}" {% if theme_filter == theme %}selected{% endif %}>{{ theme }}</option>
+            {% endfor %}
+            <option value="{{ other_themes }}" {% if theme_filter == other_themes %}selected{% endif %}>Autres thèmes</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">Ordre</label>
+        <select name="order" class="form-select">
+            <option value="theme" {% if order == 'theme' %}selected{% endif %}>Par thème, puis numéro</option>
+            <option value="recent" {% if order == 'recent' %}selected{% endif %}>Plus récentes d'abord</option>
+        </select>
+    </div>
+    {% endif %}
     {% if is_supervisor %}
     <div class="col-md-3">
         <label class="form-label small">Assigné à</label>
@@ -146,102 +165,8 @@
                 <th></th>
             </tr>
         </thead>
-        <tbody>
-            {% for submission in submissions %}
-            <tr>
-                {% if is_supervisor %}
-                <td><input type="checkbox" class="submission-checkbox" name="submission_ids" value="{{ submission.id }}" form="assign-form"></td>
-                {% endif %}
-                <td>
-                    <a href="{% url 'dashboard:contributions_submission_detail' event.id submission.id %}" class="text-decoration-none" style="color: var(--ink);">
-                        <strong>{{ submission.titre_travail|truncatechars:50 }}</strong>
-                    </a>
-                    <br>
-                    <small class="text-muted">{{ submission.theme|truncatechars:30 }}</small>
-                </td>
-                {% if show_identity %}
-                <td>
-                    {{ submission.prenom }} {{ submission.nom }}
-                    <br>
-                    <small class="text-muted">{{ submission.email }}</small>
-                </td>
-                {% endif %}
-                <td><span class="badge" style="background: var(--steel-blue); color: #fff;">{{ submission.get_type_participation_display }}</span></td>
-                {% if show_identity %}<td>{{ submission.etablissement|truncatechars:20 }}</td>{% endif %}
-                <td>
-                    {% with assigned=submission.assigned_to.all %}
-                    {% if assigned %}
-                        {% if is_supervisor %}
-                        <div class="d-flex flex-column gap-1">
-                            {% for row in submission.assignment_rows %}
-                            <a href="?member={{ row.user.id }}" class="badge text-decoration-none text-start"
-                               style="white-space: normal; {% if row.vote is None %}background:#e9ecef; color:#495057;{% elif row.vote %}background:#d1e7dd; color:#0f5132;{% else %}background:#f8d7da; color:#842029;{% endif %}"
-                               title="{% if row.vote is None %}Pas encore d'avis{% elif row.vote %}Recommande l'acceptation{% else %}Recommande le rejet{% endif %} -- voir ses communications">
-                                <i class="bi {% if row.vote is None %}bi-hourglass-split{% elif row.vote %}bi-check-circle{% else %}bi-x-circle{% endif %} me-1"></i>{{ row.user.get_full_name|default:row.user.username }}
-                            </a>
-                            {% endfor %}
-                        </div>
-                        {% else %}
-                        {% if submission.my_vote is None %}
-                        <span class="badge" style="background:#e9ecef; color:#495057;"><i class="bi bi-hourglass-split me-1"></i>À évaluer</span>
-                        {% elif submission.my_vote %}
-                        <span class="badge" style="background:#d1e7dd; color:#0f5132;"><i class="bi bi-check-circle me-1"></i>Acceptation recommandée</span>
-                        {% else %}
-                        <span class="badge" style="background:#f8d7da; color:#842029;"><i class="bi bi-x-circle me-1"></i>Rejet recommandé</span>
-                        {% endif %}
-                        {% endif %}
-                    {% else %}
-                        <span class="text-muted small">Non assigné</span>
-                    {% endif %}
-                    {% endwith %}
-                </td>
-                <td>
-                    <span class="status-select status-{{ submission.status }}">
-                        {% if submission.status == 'pending' %}En attente
-                        {% elif submission.status == 'accepted' %}Accepté
-                        {% elif submission.status == 'rejected' %}Rejeté
-                        {% elif submission.status == 'revision_requested' %}Révision
-                        {% endif %}
-                    </span>
-                </td>
-                {% if is_supervisor %}
-                <td>
-                    {% if submission.decision_email_state == 'sent' %}
-                    <span class="badge" style="background:#d1e7dd; color:#0f5132;" title="E-mail de décision envoyé{% if submission.decision_email_send_count > 1 %} {{ submission.decision_email_send_count }} fois{% endif %}{% if submission.decision_email_sent_at %}, dernier envoi le {{ submission.decision_email_sent_at|date:'d/m/Y H:i' }}{% endif %}">
-                        <i class="bi bi-envelope-check me-1"></i>Envoyé{% if submission.decision_email_send_count > 1 %} {{ submission.decision_email_send_count }}×{% endif %}{% if submission.decision_email_sent_at %} {{ submission.decision_email_sent_at|date:"d/m" }}{% endif %}
-                    </span>
-                    {% elif submission.decision_email_state == 'not_sent' %}
-                    <span class="badge" style="background:#f8d7da; color:#842029;" title="{{ submission.decision_email_error|default:'Non envoyé' }}">
-                        <i class="bi bi-envelope-x me-1"></i>Non envoyé
-                    </span>
-                    {% else %}
-                    <span class="text-muted small">—</span>
-                    {% endif %}
-                </td>
-                {% endif %}
-                <td>
-                    {{ submission.submitted_at|date:"d/m/Y" }}
-                    <br>
-                    <small class="text-muted">{{ submission.submitted_at|time:"H:i" }}</small>
-                </td>
-                <td class="text-nowrap">
-                    <a href="{% url 'dashboard:contributions_submission_detail' event.id submission.id %}" class="btn-view-row" title="Voir détails">
-                        <i class="bi bi-eye"></i>
-                    </a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="{% if is_supervisor %}10{% elif show_identity %}8{% else %}6{% endif %}" class="text-center py-5 text-muted">
-                    <i class="bi bi-inbox fs-1 d-block mb-3"></i>
-                    Aucune soumission trouvée
-                    {% if search or status_filter or type_filter or member_filter or assignment_filter %}
-                    <br>
-                    <a href="{% url 'dashboard:contributions_submissions_list' event.id %}" class="btn btn-link">Effacer les filtres</a>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
+        <tbody id="submission-rows">
+            {% include "dashboard/eposter/_submission_rows.html" %}
         </tbody>
     </table>
 </div>
@@ -250,14 +175,15 @@
 <script>
 (function() {
     const selectAll = document.getElementById('select-all');
-    const checkboxes = document.querySelectorAll('.submission-checkbox');
+    // Re-read on each use: the infinite scroll keeps appending rows.
+    const allBoxes = () => document.querySelectorAll('.submission-checkbox');
     const countLabel = document.getElementById('selected-count');
     const submitBtn = document.getElementById('assign-submit');
     const resendBtn = document.getElementById('resend-submit');
     const resendForm = document.getElementById('resend-form');
 
     function updateCount() {
-        const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
+        const checked = Array.from(allBoxes()).filter(cb => cb.checked).length;
         countLabel.textContent = checked + ' sélectionnée(s)';
         submitBtn.disabled = checked === 0;
         if (resendBtn) resendBtn.disabled = checked === 0;
@@ -268,7 +194,7 @@
     if (resendForm) {
         resendForm.addEventListener('submit', function () {
             resendForm.querySelectorAll('input[name="submission_ids"]').forEach(el => el.remove());
-            checkboxes.forEach(cb => {
+            allBoxes().forEach(cb => {
                 if (!cb.checked) return;
                 const input = document.createElement('input');
                 input.type = 'hidden';
@@ -281,34 +207,87 @@
 
     if (selectAll) {
         selectAll.addEventListener('change', function() {
-            checkboxes.forEach(cb => { cb.checked = selectAll.checked; });
+            allBoxes().forEach(cb => { cb.checked = selectAll.checked; });
             updateCount();
         });
     }
-    checkboxes.forEach(cb => cb.addEventListener('change', updateCount));
+    document.getElementById('submission-rows').addEventListener('change', function (e) {
+        if (e.target.classList.contains('submission-checkbox')) updateCount();
+    });
+    // Rows appended by the infinite scroll follow "select all".
+    document.addEventListener('submissions:appended', function () {
+        if (selectAll && selectAll.checked) allBoxes().forEach(cb => { cb.checked = true; });
+        updateCount();
+    });
     updateCount();
 })();
 </script>
 {% endif %}
 
-{% if submissions.has_other_pages %}
-<nav aria-label="Pagination" class="mt-3">
-    <ul class="pagination mb-0 justify-content-center">
-        {% if submissions.has_previous %}
-        <li class="page-item">
-            <a class="page-link" href="?page={{ submissions.previous_page_number }}&search={{ search }}&status={{ status_filter }}&type={{ type_filter }}&member={{ member_filter }}&assignment={{ assignment_filter }}">Précédent</a>
-        </li>
-        {% endif %}
-        <li class="page-item disabled">
-            <span class="page-link">Page {{ submissions.number }} sur {{ submissions.paginator.num_pages }}</span>
-        </li>
-        {% if submissions.has_next %}
-        <li class="page-item">
-            <a class="page-link" href="?page={{ submissions.next_page_number }}&search={{ search }}&status={{ status_filter }}&type={{ type_filter }}&member={{ member_filter }}&assignment={{ assignment_filter }}">Suivant</a>
-        </li>
-        {% endif %}
-    </ul>
-</nav>
+{% if submissions.has_next %}
+<div id="load-more" class="text-center text-muted small py-3" data-next-page="{{ submissions.next_page_number }}">
+    <span class="js-loading"><span class="spinner-border spinner-border-sm me-2"></span>Chargement…
+        (<span class="js-loaded">{{ submissions|length }}</span> / {{ submissions.paginator.count }})</span>
+    <button type="button" class="btn btn-outline-elegant btn-sm js-retry d-none">Charger la suite</button>
+</div>
+<script>
+(function () {
+    // Infinite scroll: fetch the next chunk of rows (same filters, ?partial=1)
+    // whenever the bottom of the list comes into view, until all are loaded.
+    const box = document.getElementById('load-more');
+    const tbody = document.getElementById('submission-rows');
+    const loaded = box.querySelector('.js-loaded');
+    const loading = box.querySelector('.js-loading');
+    const retry = box.querySelector('.js-retry');
+    let nextPage = parseInt(box.dataset.nextPage, 10);
+    let busy = false;
+
+    function loadNext() {
+        if (busy || !nextPage) return;
+        busy = true;
+        const params = new URLSearchParams(window.location.search);
+        params.set('page', nextPage);
+        params.set('partial', '1');
+        fetch(window.location.pathname + '?' + params.toString(), {credentials: 'same-origin'})
+            .then(function (r) {
+                if (!r.ok) throw new Error(r.status);
+                const more = r.headers.get('X-Has-Next') === '1';
+                return r.text().then(function (html) { return {html: html, more: more}; });
+            })
+            .then(function (res) {
+                tbody.insertAdjacentHTML('beforeend', res.html);
+                loaded.textContent = tbody.querySelectorAll('tr').length;
+                document.dispatchEvent(new Event('submissions:appended'));
+                busy = false;
+                if (res.more) {
+                    nextPage += 1;
+                    // Still on screen (tall window)? keep loading.
+                    const rect = box.getBoundingClientRect();
+                    if (rect.top < window.innerHeight + 400) loadNext();
+                } else {
+                    nextPage = null;
+                    observer.disconnect();
+                    box.remove();
+                }
+            })
+            .catch(function () {
+                busy = false;
+                loading.classList.add('d-none');
+                retry.classList.remove('d-none');
+            });
+    }
+
+    retry.addEventListener('click', function () {
+        retry.classList.add('d-none');
+        loading.classList.remove('d-none');
+        loadNext();
+    });
+    const observer = new IntersectionObserver(function (entries) {
+        if (entries.some(function (e) { return e.isIntersecting; })) loadNext();
+    }, {rootMargin: '400px 0px'});
+    observer.observe(box);
+})();
+</script>
 {% endif %}
 
 {% else %}

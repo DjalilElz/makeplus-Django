@@ -7,9 +7,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
-from django.core.paginator import Paginator
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Case, Count, IntegerField, Q, Value, When
+from django.db.models.functions import Length
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.core.mail import send_mail
@@ -86,6 +87,37 @@ def _permission_denied_redirect(user):
     if user.is_staff or user.is_superuser:
         return redirect('dashboard:contributions_management_home')
     return redirect('dashboard:eposter_committee_home')
+
+
+OTHER_THEMES = '__autres__'
+SUBMISSIONS_CHUNK = 50
+
+
+def submissions_theme_options(event):
+    """The event's predefined themes, in the admin's order ([] = free text)."""
+    config = EventFormConfiguration.objects.filter(
+        event=event, form_type='communicant', theme_field_mode='select',
+    ).only('theme_options').first()
+    return [t for t in (config.theme_options or []) if t] if config else []
+
+
+def order_by_theme_and_number(submissions, theme_options):
+    """
+    Theme first (in the list's order, unlisted themes last), then the
+    contribution number counted as a number -- by length then text, so
+    "4" < "11" < "54" -- and submissions without a number last, newest first.
+    """
+    theme_rank = Case(
+        *[When(theme=t, then=Value(i)) for i, t in enumerate(theme_options)],
+        default=Value(len(theme_options)), output_field=IntegerField(),
+    )
+    no_number = Case(
+        When(Q(contribution_code__isnull=True) | Q(contribution_code=''), then=Value(1)),
+        default=Value(0), output_field=IntegerField(),
+    )
+    return submissions.annotate(
+        _theme_rank=theme_rank, _no_number=no_number, _code_len=Length('contribution_code'),
+    ).order_by('_theme_rank', 'theme', '_no_number', '_code_len', 'contribution_code', '-submitted_at')
 
 
 def members_see_identity(event):
@@ -394,6 +426,16 @@ def eposter_submissions_list(request, event_id):
     if type_filter:
         submissions = submissions.filter(type_participation=type_filter)
 
+    # Theme filter + "by theme" order, only for events whose Thème field is
+    # a predefined list (e.g. SANDT). OTHER_THEMES gathers whatever doesn't
+    # match the list (old tests, free text typed before the list existed).
+    theme_options = submissions_theme_options(event)
+    theme_filter = request.GET.get('theme', '') if theme_options else ''
+    if theme_filter == OTHER_THEMES:
+        submissions = submissions.exclude(theme__in=theme_options)
+    elif theme_filter:
+        submissions = submissions.filter(theme=theme_filter)
+
     # Filter by who a submission is ASSIGNED to (used to be who made the
     # final decision -- since only the supervisor decides now, that was
     # always the same person). Also what the committee page's per-member
@@ -439,12 +481,31 @@ def eposter_submissions_list(request, event_id):
     # The abstract itself (long texts) is only shown on a submission's page.
     submissions = submissions.defer(
         'introduction', 'materiels_methodes', 'resultats', 'conclusion', 'auteurs',
-    ).prefetch_related('assigned_to', 'validations').order_by('-submitted_at')
+    ).prefetch_related('assigned_to', 'validations')
 
-    # Pagination
-    paginator = Paginator(submissions, 20)
-    page = request.GET.get('page', 1)
-    submissions_page = paginator.get_page(page)
+    # Default order: by theme then poster number when the event has a theme
+    # list, newest first otherwise; "?order=recent" switches back.
+    order = request.GET.get('order', '')
+    if order not in ('theme', 'recent'):
+        order = 'theme' if theme_options else 'recent'
+    if order == 'theme':
+        submissions = order_by_theme_and_number(submissions, theme_options)
+    else:
+        submissions = submissions.order_by('-submitted_at')
+
+    # Infinite scroll: the page renders the first chunk, then the script
+    # below fetches the next ones with ?partial=1 (rows only) as the user
+    # scrolls, until everything is loaded.
+    paginator = Paginator(submissions, SUBMISSIONS_CHUNK)
+    partial = request.GET.get('partial') == '1'
+    try:
+        submissions_page = paginator.page(request.GET.get('page', 1))
+    except (EmptyPage, PageNotAnInteger):
+        if partial:
+            response = HttpResponse('')
+            response['X-Has-Next'] = '0'
+            return response
+        submissions_page = paginator.page(1)
 
     # Members' recommendations, per row of this page (from the prefetch
     # above, no extra queries): the supervisor sees each assigned member's
@@ -480,10 +541,18 @@ def eposter_submissions_list(request, event_id):
         'is_supervisor': is_supervisor,
         'committee': committee,
         'assignable_members': assignable_members,
+        'theme_options': theme_options,
+        'theme_filter': theme_filter,
+        'other_themes': OTHER_THEMES,
+        'order': order,
     }
-    
+
+    if partial:
+        response = render(request, 'dashboard/eposter/_submission_rows.html', context)
+        response['X-Has-Next'] = '1' if submissions_page.has_next() else '0'
+    else:
+        response = render(request, 'dashboard/eposter/submissions_list.html', context)
     # Add no-cache headers
-    response = render(request, 'dashboard/eposter/submissions_list.html', context)
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
