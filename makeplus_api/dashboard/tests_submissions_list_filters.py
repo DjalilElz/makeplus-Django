@@ -106,3 +106,11 @@ class SubmissionsListFilterTests(TestCase):
         past_end = self.client.get(self.url, {'page': 9, 'partial': '1'})
         self.assertEqual(past_end['X-Has-Next'], '0')
         self.assertEqual(past_end.content, b'')
+
+    def test_number_and_theme_columns(self):
+        self._sub('poster', THEMES[1], '47')
+        r = self.client.get(self.url)
+        self.assertContains(r, '<th>N°</th>', html=True)
+        self.assertContains(r, '<th>Thème</th>', html=True)
+        self.assertContains(r, '<strong>47</strong>', html=True)
+        self.assertContains(r, f'<small>{THEMES[1]}</small>', html=True)

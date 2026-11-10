@@ -4,13 +4,15 @@
                 {% if is_supervisor %}
                 <td><input type="checkbox" class="submission-checkbox" name="submission_ids" value="{{ submission.id }}" form="assign-form"></td>
                 {% endif %}
+                <td class="text-nowrap">
+                    {% if submission.contribution_code %}<strong>{{ submission.contribution_code }}</strong>{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
                 <td>
                     <a href="{% url 'dashboard:contributions_submission_detail' event.id submission.id %}" class="text-decoration-none" style="color: var(--ink);">
                         <strong>{{ submission.titre_travail|truncatechars:50 }}</strong>
                     </a>
-                    <br>
-                    <small class="text-muted">{{ submission.theme|truncatechars:30 }}</small>
                 </td>
+                <td style="min-width: 140px;"><small>{{ submission.theme|default:"—" }}</small></td>
                 {% if show_identity %}
                 <td>
                     {{ submission.prenom }} {{ submission.nom }}
