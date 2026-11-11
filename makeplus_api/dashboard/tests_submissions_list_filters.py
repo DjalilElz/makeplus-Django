@@ -131,3 +131,20 @@ class SubmissionsListFilterTests(TestCase):
             [row[:2] for row in rows[1:]],
             [(4, THEMES[0]), (54, THEMES[0]), (None, THEMES[0]), (2, THEMES[2])],
         )
+
+    def test_excel_export_has_main_author_and_co_authors(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+        sub = self._sub('poster', THEMES[0], '1')
+        Submission.objects.filter(pk=sub.pk).update(prenom=' Amina ', nom='Benali ', auteurs=[
+            {'nom': 'Haddad ', 'prenom': 'Karim', 'affiliation': 'CHU Mustapha '},
+            {'nom': 'Saidi', 'prenom': 'Lina', 'affiliation': ''},
+            {'nom': '', 'prenom': '', 'affiliation': 'ignored'},
+        ])
+        self._sub('alone', THEMES[0], '2')  # no co-authors
+        r = self.client.get(reverse('dashboard:contributions_export_excel', args=[self.event.id]))
+        rows = list(load_workbook(BytesIO(r.content)).active.iter_rows(values_only=True))
+        main, co = rows[0].index('Auteur principal'), rows[0].index('Co-auteurs')
+        self.assertEqual(rows[1][main], 'Amina Benali')
+        self.assertEqual(rows[1][co], 'Karim Haddad (CHU Mustapha)\nLina Saidi')
+        self.assertIn(rows[2][co], ('', None))

@@ -1577,6 +1577,22 @@ def eposter_email_template_delete(request, event_id, template_id):
     return redirect('dashboard:contributions_email_templates', event_id=event_id)
 
 
+def co_authors_text(auteurs):
+    """
+    The submission's co-authors (the JSON list, without the main author,
+    who is nom/prenom), one per line: "Prénom Nom (Affiliation)".
+    """
+    lines = []
+    for a in auteurs if isinstance(auteurs, list) else []:
+        if not isinstance(a, dict):
+            continue
+        name = ' '.join(p for p in ((a.get('prenom') or '').strip(), (a.get('nom') or '').strip()) if p)
+        affiliation = (a.get('affiliation') or '').strip()
+        if name:
+            lines.append(f'{name} ({affiliation})' if affiliation else name)
+    return '\n'.join(lines)
+
+
 @never_cache
 @login_required
 def eposter_export_excel(request, event_id):
@@ -1626,7 +1642,7 @@ def eposter_export_excel(request, event_id):
         'N°', 'Thème', 'ID', 'Date soumission', 'Statut',
         'Nom', 'Prénom', 'Email', 'Téléphone', 'Genre',
         'Grade', 'Secteur', 'Établissement', 'Wilaya',
-        'Type', 'Titre',
+        'Type', 'Titre', 'Auteur principal', 'Co-auteurs',
         'Validations', 'Rejets', 'E-mail de décision', 'Envoyé le', 'Motif non envoyé',
     ]
     ws.append(headers)
@@ -1647,6 +1663,8 @@ def eposter_export_excel(request, event_id):
             s.nom, s.prenom, s.email, s.telephone, s.get_genre_display(),
             s.get_grade_display(), s.get_secteur_display(), s.etablissement, s.wilaya,
             s.get_type_participation_display(), s.titre_travail,
+            f'{(s.prenom or "").strip()} {(s.nom or "").strip()}'.strip(),
+            co_authors_text(s.auteurs),
             s.approvals_count, s.refusals_count,
             {'sent': 'Envoyé', 'not_sent': 'Non envoyé'}.get(s.decision_email_state, ''),
             timezone.localtime(s.decision_email_sent_at).strftime('%Y-%m-%d %H:%M') if s.decision_email_sent_at else '',
@@ -1657,6 +1675,10 @@ def eposter_export_excel(request, event_id):
         ws.column_dimensions[get_column_letter(col)].width = 20
     ws.column_dimensions['A'].width = 8
     ws.column_dimensions['B'].width = 28
+    co_col = get_column_letter(headers.index('Co-auteurs') + 1)
+    ws.column_dimensions[co_col].width = 45
+    for cell in ws[co_col][1:]:
+        cell.alignment = Alignment(wrap_text=True, vertical='top')
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
