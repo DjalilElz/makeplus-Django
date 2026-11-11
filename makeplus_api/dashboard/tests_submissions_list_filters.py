@@ -114,3 +114,20 @@ class SubmissionsListFilterTests(TestCase):
         self.assertContains(r, '<th>Thème</th>', html=True)
         self.assertContains(r, '<strong>47</strong>', html=True)
         self.assertContains(r, f'<small>{THEMES[1]}</small>', html=True)
+
+    def test_excel_export_has_number_and_theme_in_list_order(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+        self._sub('trans', THEMES[2], '2')
+        self._sub('nephro-54', THEMES[0], '54')
+        self._sub('nephro-4', THEMES[0], '4')
+        self._sub('pending', THEMES[0], None, status='pending')
+        r = self.client.get(reverse('dashboard:contributions_export_excel', args=[self.event.id]))
+        self.assertEqual(r.status_code, 200)
+        ws = load_workbook(BytesIO(r.content)).active
+        rows = list(ws.iter_rows(values_only=True))
+        self.assertEqual(rows[0][:2], ('N°', 'Thème'))
+        self.assertEqual(
+            [row[:2] for row in rows[1:]],
+            [(4, THEMES[0]), (54, THEMES[0]), (None, THEMES[0]), (2, THEMES[2])],
+        )

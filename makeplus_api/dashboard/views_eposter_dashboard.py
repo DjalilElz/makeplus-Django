@@ -1602,7 +1602,14 @@ def eposter_export_excel(request, event_id):
     submissions = EPosterSubmission.objects.filter(event=event).annotate(
         approvals_count=Count('validations', filter=Q(validations__is_approved=True)),
         refusals_count=Count('validations', filter=Q(validations__is_approved=False)),
-    ).order_by('-submitted_at')
+    )
+    # Same order as the submissions list: theme then number when the event
+    # has a theme list, newest first otherwise.
+    theme_options = submissions_theme_options(event)
+    if theme_options:
+        submissions = order_by_theme_and_number(submissions, theme_options)
+    else:
+        submissions = submissions.order_by('-submitted_at')
 
     wb = Workbook()
     ws = wb.active
@@ -1616,10 +1623,10 @@ def eposter_export_excel(request, event_id):
     )
 
     headers = [
-        'ID', 'Date soumission', 'Statut',
+        'N°', 'Thème', 'ID', 'Date soumission', 'Statut',
         'Nom', 'Prénom', 'Email', 'Téléphone', 'Genre',
         'Grade', 'Secteur', 'Établissement', 'Wilaya',
-        'Type', 'Thème', 'Titre',
+        'Type', 'Titre',
         'Validations', 'Rejets', 'E-mail de décision', 'Envoyé le', 'Motif non envoyé',
     ]
     ws.append(headers)
@@ -1631,11 +1638,15 @@ def eposter_export_excel(request, event_id):
         cell.border = border
 
     for s in submissions:
+        code = (s.contribution_code or '').strip()
         ws.append([
+            # A plain number is written as a number so Excel sorts 4 < 11 < 54.
+            int(code) if code.isdigit() else code,
+            s.theme,
             str(s.id), s.submitted_at.strftime('%Y-%m-%d %H:%M'), s.get_status_display(),
             s.nom, s.prenom, s.email, s.telephone, s.get_genre_display(),
             s.get_grade_display(), s.get_secteur_display(), s.etablissement, s.wilaya,
-            s.get_type_participation_display(), s.theme, s.titre_travail,
+            s.get_type_participation_display(), s.titre_travail,
             s.approvals_count, s.refusals_count,
             {'sent': 'Envoyé', 'not_sent': 'Non envoyé'}.get(s.decision_email_state, ''),
             timezone.localtime(s.decision_email_sent_at).strftime('%Y-%m-%d %H:%M') if s.decision_email_sent_at else '',
@@ -1644,6 +1655,8 @@ def eposter_export_excel(request, event_id):
 
     for col in range(1, len(headers) + 1):
         ws.column_dimensions[get_column_letter(col)].width = 20
+    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['B'].width = 28
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
