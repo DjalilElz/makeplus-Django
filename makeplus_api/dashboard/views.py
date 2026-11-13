@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.views.decorators.cache import cache_page, never_cache
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from datetime import timedelta
 import json
@@ -254,7 +255,12 @@ def csrf_failure(request, reason=""):
         return redirect('caisse:login')
     if path.startswith('/admin/'):
         return redirect('admin:login')
-    return redirect('dashboard:login')
+    if path.startswith('/dashboard/'):
+        return redirect('dashboard:login')
+    # Public pages (registration forms, etc.) are used by people who have no
+    # staff account: sending them to the dashboard login stranded real
+    # registrants there. Reload the page they were on instead.
+    return redirect(path)
 
 
 # ==================== Dashboard Home ====================
@@ -2314,6 +2320,7 @@ def api_event_rooms(request, event_id):
 
 # ==================== Public Form Views ====================
 
+@csrf_exempt
 @never_cache
 def public_form_view(request, slug):
     """
@@ -2332,6 +2339,16 @@ def public_form_view(request, slug):
     belt-and-suspenders for the browser's/any proxy's own cache, same
     as the manual `response['Cache-Control'] = 'no-cache, no-store,
     must-revalidate'` lines further down in this view.
+
+    @csrf_exempt: registrants are anonymous and this view never uses
+    request.user or the session, so CSRF protects nothing here -- a forged
+    submission can do no more than the attacker submitting the form
+    directly, and the e-mailed verification code still gates every
+    registration. Meanwhile the check rejected genuine registrants whose
+    browser had not kept the CSRF cookie (in-app browsers of social apps, a
+    tab restored much later, a login elsewhere on the site rotating the
+    cookie), and the failure handler sent them to the staff login page.
+    Same choice as the public final-submission forms (views_eposter_final).
     """
     from dashboard.models_form import FormConfiguration, FormSubmission
     from django.utils import timezone

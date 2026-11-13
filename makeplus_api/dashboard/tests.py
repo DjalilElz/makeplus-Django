@@ -780,6 +780,38 @@ class PublicFormNeverCachedTests(TestCase):
         response = self.client.get(reverse('public_form', args=[self.form.slug]))
         self.assertEqual(get_max_age(response), 0)
 
+    def test_submit_without_csrf_cookie_is_processed_not_sent_to_login(self):
+        # A browser that lost the CSRF cookie (social apps' in-app browsers,
+        # restored tabs) used to get bounced to the staff login page.
+        from django.test import Client
+
+        client = Client(enforce_csrf_checks=True)
+        response = client.post(reverse('public_form', args=[self.form.slug]), {'email': ''})
+        self.assertEqual(response.status_code, 200)  # the form re-rendered with its errors
+        self.assertNotIn('/dashboard/login/', response.get('Location', ''))
+
+
+class CsrfFailureRedirectTests(TestCase):
+    def _fail(self, path):
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.test import RequestFactory
+
+        from dashboard.views import csrf_failure
+
+        request = RequestFactory().post(path)
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        return csrf_failure(request)
+
+    def test_public_page_reloads_itself_instead_of_staff_login(self):
+        self.assertEqual(self._fail('/forms/sandt-2026-inscription/')['Location'], '/forms/sandt-2026-inscription/')
+
+    def test_dashboard_still_goes_to_its_login(self):
+        self.assertEqual(self._fail('/dashboard/events/')['Location'], reverse('dashboard:login'))
+
+    def test_caisse_still_goes_to_its_login(self):
+        self.assertEqual(self._fail('/caisse/x/')['Location'], reverse('caisse:login'))
+
 
 class BlocsAdminTests(TestCase):
     def setUp(self):
