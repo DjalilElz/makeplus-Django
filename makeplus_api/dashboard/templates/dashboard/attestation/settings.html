@@ -175,6 +175,12 @@
                 </div>
                 {% endif %}
 
+                <div class="form-check form-switch mt-4">
+                    <input class="form-check-input" type="checkbox" name="auto_send_on_presence" id="auto_send_on_presence_input" {% if template.auto_send_on_presence %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="auto_send_on_presence_input">Envoyer l'attestation automatiquement à la présence</label>
+                    <div class="form-text">Dès que la caisse marque un participant comme présent (transaction ou « Marquer comme présent »), son attestation lui est envoyée par e-mail. Une seule fois par participant&nbsp;; ceux qui l'ont déjà reçue ne la reçoivent pas une seconde fois.</div>
+                </div>
+
                 <button type="submit" class="btn btn-primary mt-4" id="save-template-btn">
                     <i class="bi bi-save"></i> Enregistrer
                 </button>

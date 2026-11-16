@@ -27,5 +27,6 @@ urlpatterns = [
     
     # Badge Printing
     path('print-badge/<int:participant_id>/', views.print_badge, name='print_badge'),
+    path('prints/', views.badge_prints, name='badge_prints'),
     path('report/', views.caisse_report_pdf, name='caisse_report'),
 ]

@@ -94,6 +94,14 @@ class AttestationTemplate(models.Model):
     font_weight = models.CharField(max_length=10, choices=WEIGHT_CHOICES, default='regular')
     font_color = models.CharField(max_length=7, default='#000000', verbose_name="Couleur (hex)")
 
+    # Opt-in per event: e-mail the attestation automatically the first time
+    # the caisse marks a participant present (a transaction or "Marquer
+    # comme présent") -- see attestation_service.queue_presence_attestation.
+    auto_send_on_presence = models.BooleanField(
+        default=False,
+        verbose_name="Envoyer automatiquement l'attestation à la présence (caisse)",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)

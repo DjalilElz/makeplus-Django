@@ -241,3 +241,70 @@ def send_attestation_to_participant(template, participant, sent_by=None):
         attachments=[{'name': safe_filename, 'content': pdf_bytes, 'mimetype': 'application/pdf'}],
     )
     return success, error
+
+
+def _send_presence_attestation_now(log_id):
+    """Background worker for queue_presence_attestation: sends one queued
+    attestation and records the outcome on its AttestationSendLog row."""
+    from django.db import connection
+    from .models_attestation import AttestationSendLog, AttestationTemplate
+    try:
+        log = AttestationSendLog.objects.select_related('participant__user', 'event').get(id=log_id)
+        if log.status != 'pending':
+            return
+        template = AttestationTemplate.objects.filter(event=log.event).first()
+        if not template:
+            success, error = False, "Aucun modèle d'attestation pour cet événement."
+        else:
+            success, error = send_attestation_to_participant(template, log.participant)
+        log.status = 'sent' if success else 'failed'
+        log.error_message = (error or '')[:500]
+        log.save(update_fields=['status', 'error_message'])
+    except Exception as e:  # never let a background send crash silently mid-way
+        import logging
+        logging.getLogger(__name__).exception("[ATTESTATION] presence send failed for log %s: %s", log_id, e)
+        AttestationSendLog.objects.filter(id=log_id, status='pending').update(
+            status='failed', error_message=str(e)[:500]
+        )
+    finally:
+        connection.close()
+
+
+def queue_presence_attestation(participant, event):
+    """
+    Called when the caisse marks a participant present for the first time.
+    If the event opted in (AttestationTemplate.auto_send_on_presence), queue
+    their attestation and send it in the background so the cashier is never
+    kept waiting on PDF generation or the e-mail provider.
+
+    Uses the same AttestationSendLog rows as the dashboard's bulk send, so a
+    participant never gets it twice: anyone already sent (or in progress) is
+    skipped, a previous failure is retried. Returns True if a send was queued.
+    """
+    from django.db import transaction
+    from .models_attestation import AttestationSendLog, AttestationTemplate
+
+    if not AttestationTemplate.objects.filter(event=event, auto_send_on_presence=True).exists():
+        return False
+    if not participant.user.email:
+        return False
+
+    existing = AttestationSendLog.objects.filter(event=event, participant=participant).order_by('-sent_at').first()
+    if existing and existing.status in ('sent', 'pending'):
+        return False
+    if existing:
+        existing.status = 'pending'
+        existing.error_message = ''
+        existing.save(update_fields=['status', 'error_message'])
+        log = existing
+    else:
+        log = AttestationSendLog.objects.create(event=event, participant=participant, status='pending')
+
+    import threading
+    log_id = log.id
+    # After commit: the caller may be inside a transaction (a caisse
+    # payment), and the worker must see the committed rows.
+    transaction.on_commit(
+        lambda: threading.Thread(target=_send_presence_attestation_now, args=(log_id,), daemon=True).start()
+    )
+    return True

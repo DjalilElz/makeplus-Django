@@ -15,7 +15,7 @@ import qrcode
 from io import BytesIO
 import base64
 
-from caisse.models import Caisse, PayableItem, CaisseTransaction
+from caisse.models import BadgePrint, Caisse, PayableItem, CaisseTransaction
 from caisse.services import payment_breakdown, resolve_payment_choice
 from dashboard.models_blocs import EventSponsor, payment_label
 from events.models import Participant, Event
@@ -323,9 +323,21 @@ def _mark_participant_present(participant, event):
     so the first arrival timestamp is never overwritten.
     """
     from events.models import ParticipantEventRegistration
-    ParticipantEventRegistration.objects.filter(
+    newly_present = ParticipantEventRegistration.objects.filter(
         participant=participant, event=event, is_checked_in=False
-    ).update(is_checked_in=True, checked_in_at=timezone.now())
+    ).update(is_checked_in=True, checked_in_at=timezone.now()) > 0
+    # First arrival only: e-mail the attestation if the event opted in
+    # (never blocks or fails the caisse action itself).
+    if newly_present:
+        try:
+            from dashboard.attestation_service import queue_presence_attestation
+            queue_presence_attestation(participant, event)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(
+                f"[CAISSE] Could not queue presence attestation for participant {participant.id}: {e}"
+            )
+    return newly_present
 
 
 def caisse_required(view_func):
@@ -1745,6 +1757,9 @@ def print_badge(request, participant_id):
     except Participant.DoesNotExist:
         messages.error(request, 'Participant introuvable')
         return redirect('caisse:dashboard')
+
+    # Every print and reprint goes through this page -- log it here.
+    BadgePrint.objects.create(event=caisse.event, participant=participant, caisse=caisse)
     
     # Generate QR code image -- must encode the plain user_id, not
     # badge_id: every real scan endpoint (events/views.py
@@ -1791,3 +1806,53 @@ def print_badge(request, participant_id):
     }
     
     return render(request, 'caisse/print_badge.html', context)
+
+
+@never_cache
+@caisse_required
+def badge_prints(request):
+    """
+    Every badge printed for this event (all caisse stations), newest first,
+    with each print's rank for that participant -- 1 is the first print,
+    anything above is a reprint.
+    """
+    from django.core.paginator import Paginator
+    from django.db.models import Count, F, Window
+    from django.db.models.functions import RowNumber
+
+    caisse = request.caisse
+    event = caisse.event
+    prints = BadgePrint.objects.filter(event=event)
+
+    stats = prints.aggregate(total=Count('id'), participants=Count('participant', distinct=True))
+    stats['reprints'] = stats['total'] - stats['participants']
+
+    rows = prints.select_related('participant__user', 'caisse').annotate(
+        print_number=Window(
+            expression=RowNumber(),
+            partition_by=[F('participant_id')],
+            order_by=[F('printed_at').asc(), F('id').asc()],
+        )
+    ).order_by('-printed_at', '-id')
+
+    search = request.GET.get('q', '').strip()
+    if search:
+        # Filter after numbering (in Python) so a reprint keeps its real
+        # rank instead of being renumbered from 1 within the search results.
+        terms = search.lower()
+        rows = [
+            r for r in rows
+            if terms in ' '.join([
+                r.participant.user.first_name, r.participant.user.last_name,
+                r.participant.user.email, r.participant.badge_id or '',
+            ]).lower()
+        ]
+
+    page = Paginator(rows, 100).get_page(request.GET.get('page'))
+    return render(request, 'caisse/badge_prints.html', {
+        'caisse': caisse,
+        'event': event,
+        'page': page,
+        'stats': stats,
+        'search': search,
+    })

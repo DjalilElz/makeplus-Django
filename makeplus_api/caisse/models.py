@@ -183,3 +183,29 @@ class CaisseTransaction(models.Model):
     def get_items_list(self):
         """Get comma-separated list of item names"""
         return ", ".join([item.name for item in self.items.all()])
+
+
+class BadgePrint(models.Model):
+    """
+    One row per badge print launched from a caisse (first print and every
+    reprint), so the organisers can see exactly which badges were printed,
+    when, from which station, and how many times each one was reprinted.
+    Recorded when the caisse opens the printable badge page
+    (views.print_badge), the single place every print goes through.
+    """
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='badge_prints')
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='badge_prints')
+    caisse = models.ForeignKey(Caisse, on_delete=models.SET_NULL, null=True, blank=True, related_name='badge_prints')
+    printed_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "Badge Print"
+        verbose_name_plural = "Badge Prints"
+        ordering = ['-printed_at']
+        indexes = [
+            models.Index(fields=['event', '-printed_at'], name='caisse_bp_event_printed_idx'),
+            models.Index(fields=['participant', 'event'], name='caisse_bp_part_event_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.participant} - {self.printed_at:%Y-%m-%d %H:%M}"

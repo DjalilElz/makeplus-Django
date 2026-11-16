@@ -114,6 +114,7 @@ def attestation_settings(request, event_id):
 
         for field, value in _parse_template_fields_from_post(request.POST).items():
             setattr(template, field, value)
+        template.auto_send_on_presence = request.POST.get('auto_send_on_presence') == 'on'
 
         template.save()
         messages.success(request, "Modèle d'attestation enregistré.")

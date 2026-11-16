@@ -856,3 +856,101 @@ class PaymentModeTests(TestCase):
             self.assertTrue(response.content.startswith(b'%PDF'))
             self.assertIn('rapport-caisse_congress_', response['Content-Disposition'])
 
+
+
+import shutil
+import tempfile
+
+from django.test import override_settings
+
+_TEST_MEDIA = tempfile.mkdtemp()
+
+
+@override_settings(MEDIA_ROOT=_TEST_MEDIA)
+class PresenceAttestationAndBadgePrintTests(TestCase):
+    """Auto-sent attestation on first presence, and the badge print log."""
+
+    def setUp(self):
+        from unittest import mock
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=2), location="Algiers",
+        )
+        self.user = User.objects.create_user(username='amina', email='amina@example.com', password='x',
+                                             first_name='Amina', last_name='B')
+        self.participant = create_participant_for_event(self.user, self.event)
+        self.caisse = Caisse.objects.create(name='Caisse 1', email='c1@example.com', event=self.event)
+        session = self.client.session
+        session['caisse_id'] = str(self.caisse.id)
+        session.save()
+        # Run the background send inline and stub the e-mail itself.
+        self.thread_patch = mock.patch('threading.Thread', side_effect=lambda target, args, daemon: mock.Mock(start=lambda: target(*args)))
+        self.thread_patch.start()
+        self.send_patch = mock.patch('dashboard.attestation_service.send_attestation_to_participant', return_value=(True, None))
+        self.send_mock = self.send_patch.start()
+        self.addCleanup(self.thread_patch.stop)
+        self.addCleanup(self.send_patch.stop)
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(_TEST_MEDIA, ignore_errors=True)
+
+    def _template(self, auto):
+        from dashboard.models_attestation import AttestationTemplate
+        return AttestationTemplate.objects.create(
+            event=self.event, auto_send_on_presence=auto,
+            template_image=SimpleUploadedFile('t.png', b'x', content_type='image/png'),
+        )
+
+    def _mark_present(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(reverse('caisse:process_transaction'),
+                                    data=json.dumps({'participant_id': self.participant.id, 'items': [], 'action': 'process'}),
+                                    content_type='application/json')
+
+    def test_marking_present_sends_attestation_once_when_enabled(self):
+        from dashboard.models_attestation import AttestationSendLog
+        self._template(auto=True)
+        self.assertTrue(self._mark_present().json()['success'])
+        self.assertEqual(self.send_mock.call_count, 1)
+        self.assertEqual(AttestationSendLog.objects.get(participant=self.participant).status, 'sent')
+        # A second visit to the counter does not send it again.
+        self._mark_present()
+        self.assertEqual(self.send_mock.call_count, 1)
+
+    def test_not_sent_when_option_disabled(self):
+        from dashboard.models_attestation import AttestationSendLog
+        self._template(auto=False)
+        self._mark_present()
+        self.send_mock.assert_not_called()
+        self.assertFalse(AttestationSendLog.objects.exists())
+
+    def test_not_sent_again_if_already_received_from_dashboard(self):
+        from dashboard.models_attestation import AttestationSendLog
+        self._template(auto=True)
+        AttestationSendLog.objects.create(event=self.event, participant=self.participant, status='sent')
+        self._mark_present()
+        self.send_mock.assert_not_called()
+
+    def test_failed_send_is_recorded(self):
+        from dashboard.models_attestation import AttestationSendLog
+        self._template(auto=True)
+        self.send_mock.return_value = (False, 'SMTP down')
+        self._mark_present()
+        log = AttestationSendLog.objects.get(participant=self.participant)
+        self.assertEqual((log.status, log.error_message), ('failed', 'SMTP down'))
+
+    def test_each_print_is_logged_and_listed_with_reprints(self):
+        from .models import BadgePrint
+        url = reverse('caisse:print_badge', args=[self.participant.id])
+        self.client.get(url)
+        self.client.get(url)
+        self.assertEqual(BadgePrint.objects.filter(participant=self.participant, caisse=self.caisse).count(), 2)
+        response = self.client.get(reverse('caisse:badge_prints'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['stats'], {'total': 2, 'participants': 1, 'reprints': 1})
+        self.assertContains(response, '1re impression')
+        self.assertContains(response, 'Réimpression n° 1')
+        self.assertContains(self.client.get(reverse('caisse:badge_prints'), {'q': 'amina'}), 'Réimpression n° 1')
+        self.assertNotContains(self.client.get(reverse('caisse:badge_prints'), {'q': 'nobody'}), 'Réimpression n°')
