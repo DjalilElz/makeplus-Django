@@ -5,7 +5,8 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     """
-    Badge print log. Guarded SQL (IF NOT EXISTS): production has repeatedly
+    Badge print log (events_event.id is a uuid, participant/caisse ids
+    are bigint -- checked against production). Guarded SQL (IF NOT EXISTS): production has repeatedly
     lost rows from django_migrations, so this can be replayed against a
     database that already has the table.
     """
@@ -23,7 +24,7 @@ class Migration(migrations.Migration):
                     CREATE TABLE IF NOT EXISTS caisse_badgeprint (
                         id bigserial PRIMARY KEY,
                         printed_at timestamp with time zone NOT NULL,
-                        event_id bigint NOT NULL
+                        event_id uuid NOT NULL
                             REFERENCES events_event (id) DEFERRABLE INITIALLY DEFERRED,
                         participant_id bigint NOT NULL
                             REFERENCES events_participant (id) DEFERRABLE INITIALLY DEFERRED,
