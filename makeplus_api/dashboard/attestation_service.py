@@ -114,6 +114,34 @@ def _draw_positioned_text(draw, img, template, text, x_frac, y_frac, align, font
     draw.text((draw_x, draw_y), text, font=font, fill=template.font_color)
 
 
+# Template image bytes by stored file name. Production media storage is
+# a slow HTTP server (a 1.2 MB template took ~25-30 s to download, close
+# to its 30 s timeout), and every attestation used to download the same
+# image again. A new upload always gets a new file name, so a cached
+# entry can never be stale; only a few events' templates are kept.
+_TEMPLATE_CACHE = {}
+_TEMPLATE_CACHE_MAX = 4
+
+
+def _template_image_bytes(template):
+    from django.db.models.fields.files import FieldFile
+    image = template.template_image
+    if not isinstance(image, FieldFile):
+        # Live preview of a not-yet-saved upload: its name is just the
+        # user's filename, not a unique stored name -- never cache it.
+        image.seek(0)
+        return image.read()
+    name = image.name
+    data = _TEMPLATE_CACHE.get(name)
+    if data is None:
+        with template.template_image.open('rb') as f:
+            data = f.read()
+        if len(_TEMPLATE_CACHE) >= _TEMPLATE_CACHE_MAX:
+            _TEMPLATE_CACHE.pop(next(iter(_TEMPLATE_CACHE)))
+        _TEMPLATE_CACHE[name] = data
+    return data
+
+
 def generate_attestation_pdf(template, full_name, poster_title=None, co_authors_text=None):
     """
     Returns the bytes of a single-page PDF: the event's template image
@@ -127,9 +155,8 @@ def generate_attestation_pdf(template, full_name, poster_title=None, co_authors_
     (this project switches to an HTTP-based cPanel storage in
     production), while .open() works uniformly on any Django Storage.
     """
-    with template.template_image.open('rb') as f:
-        img = Image.open(f)
-        img.load()
+    img = Image.open(io.BytesIO(_template_image_bytes(template)))
+    img.load()
 
     # Browsers auto-rotate a displayed <img> per its EXIF orientation tag,
     # but Pillow does not -- without this, a template photo with an

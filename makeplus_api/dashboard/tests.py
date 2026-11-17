@@ -2490,3 +2490,76 @@ class ImportExportPaymentTests(TestCase):
         response = self.client.get(reverse('dashboard:event_owner_export_excel', args=[self.event.id]) + '?payment=pending')
         exported = [r[header.index('Email *')] for r in list(load_workbook(BytesIO(response.content)).active.iter_rows(values_only=True))[1:]]
         self.assertEqual(exported, ['e@example.com'])
+
+
+class AttestationTemplateUploadTests(TestCase):
+    """Large template uploads are stored as an optimized JPEG, and the
+    template image is downloaded once, not once per attestation."""
+
+    def setUp(self):
+        import tempfile
+        from django.test import override_settings
+        self._media = tempfile.mkdtemp()
+        self._override = override_settings(MEDIA_ROOT=self._media)
+        self._override.enable()
+        self.addCleanup(self._override.disable)
+        import shutil
+        self.addCleanup(shutil.rmtree, self._media, True)
+        self.staff = User.objects.create_user(username='staffatt', password='x', is_staff=True)
+        self.client.force_login(self.staff)
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=1), location="Algiers",
+        )
+
+    def _png(self, size, mode='RGBA'):
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new(mode, size, (200, 30, 30, 255) if mode == 'RGBA' else (200, 30, 30)).save(buf, format='PNG')
+        return SimpleUploadedFile('Attestation de participation.png', buf.getvalue(), content_type='image/png')
+
+    def test_large_png_is_stored_as_jpeg_capped_to_a4_300dpi(self):
+        from PIL import Image
+        from dashboard.models_attestation import AttestationTemplate
+        r = self.client.post(reverse('dashboard:attestation_settings', args=[self.event.id]),
+                             {'template_image': self._png((7016, 4961)), 'auto_send_on_presence': 'on'})
+        self.assertEqual(r.status_code, 302)
+        t = AttestationTemplate.objects.get(event=self.event)
+        self.assertTrue(t.template_image.name.endswith('.jpg'))
+        self.assertTrue(t.auto_send_on_presence)
+        with t.template_image.open('rb') as f:
+            img = Image.open(f)
+            self.assertEqual(img.format, 'JPEG')
+            self.assertEqual(max(img.size), 3508)
+
+    def test_not_an_image_is_refused(self):
+        from dashboard.models_attestation import AttestationTemplate
+        bad = SimpleUploadedFile('a.png', b'not an image', content_type='image/png')
+        self.client.post(reverse('dashboard:attestation_settings', args=[self.event.id]), {'template_image': bad})
+        self.assertFalse(AttestationTemplate.objects.filter(event=self.event).exists())
+
+    def test_storage_failure_shows_message_instead_of_crashing(self):
+        from unittest import mock
+        from dashboard.models_attestation import AttestationTemplate
+        with mock.patch('django.core.files.storage.FileSystemStorage._save', side_effect=Exception('timeout')):
+            r = self.client.post(reverse('dashboard:attestation_settings', args=[self.event.id]),
+                                 {'template_image': self._png((800, 600), 'RGB')}, follow=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "n&#x27;a pas pu être enregistrée")
+        self.assertFalse(AttestationTemplate.objects.filter(event=self.event).exists())
+
+    def test_template_image_is_downloaded_once_for_many_attestations(self):
+        from unittest import mock
+        from dashboard import attestation_service
+        from dashboard.models_attestation import AttestationTemplate
+        self.client.post(reverse('dashboard:attestation_settings', args=[self.event.id]),
+                         {'template_image': self._png((800, 600), 'RGB')})
+        t = AttestationTemplate.objects.get(event=self.event)
+        attestation_service._TEMPLATE_CACHE.clear()
+        real_open = type(t.template_image).open
+        with mock.patch.object(type(t.template_image), 'open', autospec=True, side_effect=real_open) as opened:
+            for name in ('Amina B', 'Karim C', 'Lina D'):
+                pdf = attestation_service.generate_attestation_pdf(t, name)
+                self.assertTrue(pdf.startswith(b'%PDF'))
+        self.assertEqual(opened.call_count, 1)

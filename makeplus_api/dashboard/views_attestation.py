@@ -19,6 +19,45 @@ from .views import is_staff_user
 
 BATCH_SIZE = 10
 
+# A4 at 300 dpi: plenty for a printed certificate. Larger uploads are
+# scaled down to this before storing.
+TEMPLATE_MAX_SIDE = 3508
+
+
+def _optimized_template_image(upload):
+    """
+    The uploaded certificate background re-encoded as a high-quality JPEG,
+    at most A4/300 dpi. A raw designer PNG is often 5-20 MB, and the
+    production media storage (cPanel over HTTP) is slow: uploading such a
+    file could exceed its timeout and leave the "Enregistrer" button
+    spinning, and every attestation sent later had to download it again.
+    The text positions are fractions of the image and the preview scales
+    font sizes from the stored image itself, so nothing else changes.
+    Returns None if the file isn't a readable image.
+    """
+    import io
+    import os
+    from django.core.files.base import ContentFile
+    from PIL import Image, ImageOps
+
+    try:
+        img = Image.open(upload)
+        img = ImageOps.exif_transpose(img)
+    except Exception:
+        return None
+    if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+        img = img.convert('RGBA')
+        background = Image.new('RGB', img.size, 'white')
+        background.paste(img, mask=img.split()[-1])
+        img = background
+    else:
+        img = img.convert('RGB')
+    img.thumbnail((TEMPLATE_MAX_SIDE, TEMPLATE_MAX_SIDE), Image.LANCZOS)
+    buffer = io.BytesIO()
+    img.save(buffer, format='JPEG', quality=90, optimize=True)
+    base = os.path.splitext(os.path.basename(upload.name or ''))[0] or 'attestation'
+    return ContentFile(buffer.getvalue(), name=f'{base}.jpg')
+
 
 def _parse_fraction(post_data, key, default=0.5):
     try:
@@ -110,13 +149,30 @@ def attestation_settings(request, event_id):
             template = AttestationTemplate(event=event, created_by=request.user)
 
         if image_file:
-            template.template_image = image_file
+            optimized = _optimized_template_image(image_file)
+            if optimized is None:
+                messages.error(request, "Ce fichier n'est pas une image lisible. Choisissez un PNG ou un JPG.")
+                return redirect('dashboard:attestation_settings', event_id=event.id)
+            template.template_image = optimized
 
         for field, value in _parse_template_fields_from_post(request.POST).items():
             setattr(template, field, value)
         template.auto_send_on_presence = request.POST.get('auto_send_on_presence') == 'on'
 
-        template.save()
+        from django.db import transaction
+        try:
+            # Own savepoint: requests run inside a transaction, and a failed
+            # upload must not leave it broken for the redirect/message below.
+            with transaction.atomic():
+                template.save()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception("[ATTESTATION] template save failed for event %s: %s", event.id, e)
+            messages.error(
+                request,
+                "L'image n'a pas pu être enregistrée (stockage injoignable ou trop lent). Réessayez dans un instant."
+            )
+            return redirect('dashboard:attestation_settings', event_id=event.id)
         messages.success(request, "Modèle d'attestation enregistré.")
         return redirect('dashboard:attestation_settings', event_id=event.id)
 
