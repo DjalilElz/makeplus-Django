@@ -74,15 +74,9 @@
     </div>
     <p class="text-muted">{{ event.name }}</p>
 
-    {% if messages %}
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-        {% endfor %}
-    {% endif %}
-
     <div class="card">
         <div class="card-body">
-            <form method="post" enctype="multipart/form-data" id="attestation-form">
+            <form method="post" enctype="multipart/form-data" id="attestation-form" data-no-auto-loading>
                 {% csrf_token %}
                 <input type="hidden" name="eposter_preview" id="eposter_preview_input" value="0">
 
@@ -209,10 +203,20 @@
     // take a moment with a large template image) gets a loading state.
     const form = document.getElementById('attestation-form');
     const saveBtn = document.getElementById('save-template-btn');
+    //
+    // The loading state is applied on the next tick, not synchronously:
+    // base.html's global double-submit guard runs after this handler and
+    // cancels any submit whose button is already disabled -- disabling it
+    // here directly made it cancel every save (spinner forever, no request
+    // ever sent). The form opts out of the guard's own loading state
+    // (data-no-auto-loading) since this page manages its button itself.
     form.addEventListener('submit', function(e) {
         if (e.submitter && e.submitter.id === 'save-template-btn') {
-            saveBtn.disabled = true;
-            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Enregistrement...';
+            setTimeout(function() {
+                if (e.defaultPrevented) return;
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Enregistrement...';
+            }, 0);
         }
     });
 })();
