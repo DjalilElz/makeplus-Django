@@ -384,13 +384,35 @@ def attestation_send(request, event_id):
             | Q(participant__user__email__icontains=search)
             | Q(participant__badge_id__icontains=search)
         )
+    # Presence filter: "present" = checked in at the caisse
+    # (ParticipantEventRegistration.is_checked_in, set by a transaction or
+    # "Marquer comme présent"), so certificates can go to attendees only.
+    presence = request.GET.get('presence', '')
+    presence_counts = {
+        'all': ParticipantEventRegistration.objects.filter(event=event).count(),
+        'present': ParticipantEventRegistration.objects.filter(event=event, is_checked_in=True).count(),
+    }
+    presence_counts['absent'] = presence_counts['all'] - presence_counts['present']
+    if presence == 'present':
+        registrations = registrations.filter(is_checked_in=True)
+    elif presence == 'absent':
+        registrations = registrations.filter(is_checked_in=False)
+    else:
+        presence = ''
     registrations = registrations.order_by('participant__user__first_name', 'participant__user__last_name')
+
+    sent_ids = set(
+        AttestationSendLog.objects.filter(event=event, status='sent').values_list('participant_id', flat=True)
+    )
 
     context = {
         'event': event,
         'template': template,
         'registrations': registrations,
         'search': search,
+        'presence': presence,
+        'presence_counts': presence_counts,
+        'sent_ids': sent_ids,
         'status': _attestation_status_counts(event),
     }
     return render(request, 'dashboard/attestation/send_picker.html', context)

@@ -46,7 +46,20 @@
     </div>
     {% endif %}
 
+    <div class="btn-group mb-3" role="group" aria-label="Filtre de présence">
+        <a href="?{% if search %}search={{ search|urlencode }}{% endif %}" class="btn btn-sm {% if not presence %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            Tous ({{ presence_counts.all }})
+        </a>
+        <a href="?presence=present{% if search %}&search={{ search|urlencode }}{% endif %}" class="btn btn-sm {% if presence == 'present' %}btn-success{% else %}btn-outline-success{% endif %}">
+            <i class="bi bi-person-check"></i> Présents uniquement ({{ presence_counts.present }})
+        </a>
+        <a href="?presence=absent{% if search %}&search={{ search|urlencode }}{% endif %}" class="btn btn-sm {% if presence == 'absent' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+            Absents ({{ presence_counts.absent }})
+        </a>
+    </div>
+
     <form method="get" class="row g-2 mb-3">
+        {% if presence %}<input type="hidden" name="presence" value="{{ presence }}">{% endif %}
         <div class="col-md-8">
             <input type="text" class="form-control" name="search" placeholder="Rechercher par nom, e-mail ou badge..." value="{{ search }}">
         </div>
@@ -57,14 +70,14 @@
         </div>
         {% if search %}
         <div class="col-md-2">
-            <a href="{% url 'dashboard:attestation_send' event.id %}" class="btn btn-outline-secondary w-100">
+            <a href="?{% if presence %}presence={{ presence }}{% endif %}" class="btn btn-outline-secondary w-100">
                 <i class="bi bi-x-lg"></i> Effacer
             </a>
         </div>
         {% endif %}
     </form>
 
-    <form method="post" action="{% url 'dashboard:attestation_send' event.id %}" id="send-form">
+    <form method="post" action="{% url 'dashboard:attestation_send' event.id %}" id="send-form" data-no-auto-loading>
         {% csrf_token %}
         <input type="hidden" name="action" value="start">
 
@@ -85,6 +98,8 @@
                                 <th style="width: 40px;"></th>
                                 <th>Participant</th>
                                 <th>Badge</th>
+                                <th>Présence</th>
+                                <th>Attestation</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -98,9 +113,20 @@
                                     <small class="text-muted">{{ reg.participant.user.email }}</small>
                                 </td>
                                 <td><small class="text-muted">{{ reg.participant.badge_id }}</small></td>
+                                <td>
+                                    {% if reg.is_checked_in %}
+                                    <span class="badge bg-success">Présent</span>
+                                    {% if reg.checked_in_at %}<br><small class="text-muted">{{ reg.checked_in_at|date:"d/m H:i" }}</small>{% endif %}
+                                    {% else %}
+                                    <span class="badge bg-light text-muted border">Absent</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if reg.participant_id in sent_ids %}<span class="badge bg-primary">Déjà envoyée</span>{% else %}<small class="text-muted">--</small>{% endif %}
+                                </td>
                             </tr>
                             {% empty %}
-                            <tr><td colspan="3" class="text-center text-muted py-4">Aucun participant trouvé</td></tr>
+                            <tr><td colspan="5" class="text-center text-muted py-4">Aucun participant trouvé</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -150,8 +176,14 @@
         // existing send logs before it can show the progress page --
         // for a large list that's not instant, and with no feedback the
         // button just sits there looking unresponsive after the click.
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Préparation de l\'envoi...';
+        // Next tick, not synchronously: base.html's global double-submit
+        // guard runs after this handler and cancels any submit whose
+        // button is already disabled (that silently blocked every send).
+        setTimeout(function() {
+            if (e.defaultPrevented) return;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Préparation de l\'envoi...';
+        }, 0);
     });
 
     updateCount();

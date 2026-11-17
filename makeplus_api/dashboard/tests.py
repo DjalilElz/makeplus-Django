@@ -2563,3 +2563,46 @@ class AttestationTemplateUploadTests(TestCase):
                 pdf = attestation_service.generate_attestation_pdf(t, name)
                 self.assertTrue(pdf.startswith(b'%PDF'))
         self.assertEqual(opened.call_count, 1)
+
+
+class AttestationSendPresenceFilterTests(TestCase):
+    """The send page can list only participants marked present at the caisse."""
+
+    def setUp(self):
+        from events.form_validation_service import create_participant_for_event
+        from dashboard.models_attestation import AttestationTemplate
+        self.staff = User.objects.create_user(username='staffpres', password='x', is_staff=True)
+        self.client.force_login(self.staff)
+        self.event = Event.objects.create(
+            name="Congress", start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=1), location="Algiers",
+        )
+        AttestationTemplate.objects.create(
+            event=self.event, template_image=SimpleUploadedFile('t.jpg', b'x', content_type='image/jpeg'))
+        self.present = create_participant_for_event(
+            User.objects.create_user(username='pres', email='present@example.com', first_name='Pres'), self.event)
+        self.absent = create_participant_for_event(
+            User.objects.create_user(username='abs', email='absent@example.com', first_name='Abs'), self.event)
+        ParticipantEventRegistration.objects.filter(participant=self.present, event=self.event).update(
+            is_checked_in=True, checked_in_at=timezone.now())
+        self.url = reverse('dashboard:attestation_send', args=[self.event.id])
+
+    def test_present_only(self):
+        r = self.client.get(self.url, {'presence': 'present'})
+        self.assertContains(r, 'present@example.com')
+        self.assertNotContains(r, 'absent@example.com')
+        self.assertEqual(r.context['presence_counts'], {'all': 2, 'present': 1, 'absent': 1})
+
+    def test_absent_only_and_all(self):
+        r = self.client.get(self.url, {'presence': 'absent'})
+        self.assertNotContains(r, 'present@example.com')
+        self.assertContains(r, 'absent@example.com')
+        r = self.client.get(self.url)
+        self.assertContains(r, 'present@example.com')
+        self.assertContains(r, 'absent@example.com')
+
+    def test_presence_kept_with_search(self):
+        r = self.client.get(self.url, {'presence': 'present', 'search': 'example.com'})
+        self.assertContains(r, 'present@example.com')
+        self.assertNotContains(r, 'absent@example.com')
+        self.assertContains(r, 'name="presence" value="present"')

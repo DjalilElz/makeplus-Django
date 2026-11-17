@@ -22,7 +22,7 @@
                         <i class="bi bi-info-circle"></i> <strong>Modèle :</strong> {{ template.name }}
                     </div>
 
-                    <form method="post" id="sendEmailForm">
+                    <form method="post" id="sendEmailForm" data-no-auto-loading>
                         {% csrf_token %}
 
                         <div class="mb-4">
@@ -153,8 +153,14 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Envoi...';
+        // Next tick, not synchronously: base.html's global double-submit
+        // guard runs after this handler and cancels any submit whose
+        // button is already disabled (that silently blocked every send).
+        setTimeout(function() {
+            if (e.defaultPrevented) return;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Envoi...';
+        }, 0);
     });
 });
 </script>
