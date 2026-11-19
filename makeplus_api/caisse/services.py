@@ -191,6 +191,29 @@ def confirm_registration_order(order, confirmed_by=None, payment_mode='cash', sp
             )
 
     with db_transaction.atomic():
+        # Same guard as the caisse's process_transaction: never record an
+        # item this participant already paid for at this event (paid at a
+        # caisse, or through another of their registrations). Without it a
+        # person with two registrations, or one confirmed on the dashboard
+        # after paying at the counter, had the same items -- and money --
+        # counted twice in the totals (ICC 2026). The participant row lock
+        # makes a concurrent caisse payment wait for this one.
+        from events.models import Participant
+        Participant.objects.select_for_update().filter(id=participant.id).exists()
+        already_paid = list(
+            PayableItem.objects.filter(
+                id__in=[item.id for item in payable_items],
+                transactions__participant=participant,
+                transactions__status='completed',
+                transactions__caisse__event=order.event,
+            ).values_list('name', flat=True).distinct()
+        )
+        if already_paid:
+            raise ValueError(
+                'Déjà payé par ce participant : ' + ', '.join(already_paid)
+                + ". Rien n'a été enregistré : annulez d'abord l'ancien paiement si cette inscription le remplace."
+            )
+
         caisse_txn = CaisseTransaction.objects.create(
             caisse=caisse,
             participant=participant,

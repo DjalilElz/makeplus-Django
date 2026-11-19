@@ -883,6 +883,40 @@ class PaymentModeTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.payment_mode, 'cash')
 
+    def test_second_status_on_a_later_visit_is_refused(self):
+        participant, _ = self._participant('r1')
+        self.assertTrue(self._pay(participant)['success'])
+        invite = BlocItem.objects.create(event=self.event, bloc='status', name='Invité', price=Decimal('0'))
+        result = self._pay_items(participant, [PayableItem.objects.get(bloc_item=invite).id])
+        self.assertFalse(result['success'])
+        self.assertIn('déjà payé', result['message'])
+        self.assertEqual(CaisseTransaction.objects.filter(participant=participant).count(), 1)
+
+    def test_other_items_while_the_reservation_stays_pending_is_refused(self):
+        participant, order = self._participant('r2')
+        extra = PayableItem.objects.create(event=self.event, name='Dîner', price=Decimal('2000'), item_type='other')
+        result = self._pay_items(participant, [extra.id])
+        self.assertFalse(result['success'])
+        self.assertIn('réservation en attente', result['message'])
+        self.assertFalse(CaisseTransaction.objects.filter(participant=participant).exists())
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'pending')
+
+    def test_dashboard_confirmation_never_counts_a_paid_item_twice(self):
+        from caisse.services import confirm_registration_order
+        participant, _ = self._participant('r3')
+        self.assertTrue(self._pay(participant)['success'])  # paid at the caisse
+        second = RegistrationOrder.objects.create(
+            event=self.event, email='r3@example.com', full_name='r3', participant=participant, status='pending',
+            items_snapshot=[{'bloc': 'status', 'type': 'item', 'id': self.status_item.id, 'name': 'Adherent', 'price': '1000.00'}],
+            total_before_reduction=Decimal('1000'), total_after_reduction=Decimal('1000'),
+        )
+        with self.assertRaises(ValueError):
+            confirm_registration_order(second, payment_mode='bank_transfer', send_email=False)
+        second.refresh_from_db()
+        self.assertEqual(second.status, 'pending')
+        self.assertEqual(CaisseTransaction.objects.filter(participant=participant, status='completed').count(), 1)
+
     def test_caisse_page_has_the_split_box(self):
         self._pay_items(self._participant('s6')[0], [])  # logs the caisse in
         page = self.client.get(reverse('caisse:dashboard'))

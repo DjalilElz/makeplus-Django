@@ -1039,11 +1039,31 @@ def process_transaction(request):
             if item.bloc_item_id:
                 picked_by_bloc.setdefault(item.bloc_item.bloc, []).append(item.name)
 
+        # ...and across visits: a single-choice bloc (Status, ...) already
+        # paid on an earlier transaction can't get a second, different
+        # item now -- that left people with two statuses ("Invité" then
+        # "Speaker", SARM 2026). Changing it means cancelling the old
+        # transaction first.
+        already_paid_by_bloc = {}
+        for paid_item in PayableItem.objects.filter(
+            event=caisse.event, bloc_item__isnull=False,
+            transactions__participant=participant, transactions__status='completed',
+        ).exclude(id__in=[item.id for item in items]).select_related('bloc_item').distinct():
+            already_paid_by_bloc.setdefault(paid_item.bloc_item.bloc, []).append(paid_item.name)
+
         select_mode_errors = []
         for bloc_key, names in picked_by_bloc.items():
-            if bloc_config_for_validation.select_mode_for(bloc_key) == 'single' and len(names) > 1:
+            if bloc_config_for_validation.select_mode_for(bloc_key) != 'single':
+                continue
+            label = bloc_labels.get(bloc_key, bloc_key)
+            if len(names) > 1:
                 select_mode_errors.append(
-                    f"Please select only one option in {bloc_labels.get(bloc_key, bloc_key)}: {', '.join(names)}"
+                    f"Please select only one option in {label}: {', '.join(names)}"
+                )
+            elif already_paid_by_bloc.get(bloc_key):
+                select_mode_errors.append(
+                    f"{label} : déjà payé ({', '.join(already_paid_by_bloc[bloc_key])}). Un seul choix est possible ; "
+                    f"annulez d'abord l'ancienne transaction pour le changer."
                 )
         if select_mode_errors:
             return JsonResponse({
@@ -1082,7 +1102,21 @@ def process_transaction(request):
     incomplete_order_errors = []
     for order, pending_ids in pending_orders:
         if not (pending_ids & selected_ids):
-            continue  # this reservation isn't part of this transaction
+            if order.status == 'approved':
+                continue  # already approved -- adding something else is fine
+            # Charging something else while the reservation stays pending
+            # left it "en attente" forever, with content the person never
+            # paid (SARM 2026: reserved "Membres SARM", charged "Invité").
+            # It has to be confirmed, changed or rejected first.
+            reserved_names = list(
+                PayableItem.objects.filter(id__in=pending_ids).values_list('name', flat=True)
+            )
+            incomplete_order_errors.append(
+                "Cette personne a une réservation en attente : " + ', '.join(reserved_names)
+                + ". Cochez-la pour la confirmer, ou utilisez « Modifier l'inscription » "
+                "(ou « Rejeter la réservation ») avant d'encaisser autre chose."
+            )
+            continue
         missing_ids = pending_ids - selected_ids
         if missing_ids:
             missing_names = list(
