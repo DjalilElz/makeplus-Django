@@ -933,6 +933,8 @@ def process_transaction(request):
         action = data.get('action', 'process_and_print')  # Default to process_and_print
         chosen_method = data.get('payment_method') or 'cash'
         chosen_sponsor_id = data.get('sponsor_id')
+        chosen_reserved_method = data.get('reserved_payment_method') or 'bank_transfer'
+        chosen_reserved_sponsor_id = data.get('reserved_sponsor_id')
     except json.JSONDecodeError:
         # Fallback to POST data
         participant_id = request.POST.get('participant_id')
@@ -941,7 +943,9 @@ def process_transaction(request):
         action = request.POST.get('action', 'process_and_print')
         chosen_method = request.POST.get('payment_method') or 'cash'
         chosen_sponsor_id = request.POST.get('sponsor_id')
-    
+        chosen_reserved_method = request.POST.get('reserved_payment_method') or 'bank_transfer'
+        chosen_reserved_sponsor_id = request.POST.get('reserved_sponsor_id')
+
     if not participant_id:
         return JsonResponse({'success': False, 'message': 'Participant ID required'})
     
@@ -1269,12 +1273,35 @@ def process_transaction(request):
     if payment_error:
         return JsonResponse({'success': False, 'message': payment_error})
 
-    method_note_parts = []
+    # A reservation already paid before the visit (bank receipt on file)
+    # and what is collected at the counter right now are two different
+    # payments. Recorded under one mode, a 15 000 transfer + 2 000 cash
+    # visit put 17 000 in "Espèces" (or hid the 2 000 cash in "Virement"),
+    # so the cash total no longer matched the drawer. When both are in
+    # this transaction, the reservation part gets its own mode (Virement
+    # bancaire unless the cashier says otherwise) and its own transaction.
+    reserved_method, reserved_sponsor = payment_method, payment_sponsor
+    counter_items = [item for item in items if item.id not in bank_transfer_item_ids]
+    split_payment = False
+    if bank_transfer_items and counter_items:
+        reserved_method, reserved_sponsor, reserved_error = resolve_payment_choice(
+            caisse.event, chosen_reserved_method, chosen_reserved_sponsor_id,
+        )
+        if reserved_error:
+            return JsonResponse({'success': False, 'message': 'Réservation déjà payée : ' + reserved_error})
+        if cash_amount <= 0:
+            # Nothing is collected now -- all of it is the reservation's money.
+            payment_method, payment_sponsor = reserved_method, reserved_sponsor
+        elif (reserved_method, reserved_sponsor) != (payment_method, payment_sponsor):
+            split_payment = True
+
+    bank_note = ''
     if bank_transfer_items:
-        method_note_parts.append(
+        bank_note = (
             f"Paid via bank transfer (registration receipt): {'; '.join(bank_transfer_breakdown_parts)}. Items: "
             + ", ".join(i.name for i in bank_transfer_items)
         )
+    method_note_parts = []
     if unpaid_order_items:
         method_note_parts.append(
             f"Reservation confirmed and paid in cash at the counter (no prior receipt), "
@@ -1291,8 +1318,21 @@ def process_transaction(request):
             f"Paid in cash at the counter, {plain_cash_amount} DZD: "
             + ", ".join(i.name for i in plain_cash_items)
         )
-    auto_note = "\n".join(method_note_parts)
-    final_notes = f"{notes}\n{auto_note}" if notes else auto_note
+    def with_user_notes(auto_note):
+        return f"{notes}\n{auto_note}" if notes else auto_note
+
+    # (items, amount, method, sponsor, notes) -- one transaction each.
+    if split_payment:
+        payment_parts = [
+            (bank_transfer_items, bank_transfer_amount, reserved_method, reserved_sponsor, with_user_notes(bank_note)),
+            (counter_items, cash_amount, payment_method, payment_sponsor,
+             with_user_notes("\n".join(method_note_parts))),
+        ]
+    else:
+        payment_parts = [(
+            list(items), recorded_amount, payment_method, payment_sponsor,
+            with_user_notes("\n".join(([bank_note] if bank_note else []) + method_note_parts)),
+        )]
 
     # Create transaction with explicit database transaction
     import logging
@@ -1325,35 +1365,34 @@ def process_transaction(request):
                                + ". Rien n'a été encaissé -- rechargez la page.",
                 })
 
-            # Create the transaction record
-            transaction = CaisseTransaction.objects.create(
-                caisse=caisse,
-                participant=participant,
-                total_amount=recorded_amount,
-                payment_method=payment_method,
-                sponsor=payment_sponsor,
-                status='completed',
-                notes=final_notes,
-                marked_present=True
-            )
-            
-            # Link items to transaction using add() instead of set()
-            # This ensures the many-to-many relationship is properly saved
-            for item in items:
-                transaction.items.add(item)
-            
-            # Explicitly save the transaction
-            transaction.save()
+            created_transactions = []
+            for part_items, part_amount, part_method, part_sponsor, part_notes in payment_parts:
+                transaction = CaisseTransaction.objects.create(
+                    caisse=caisse,
+                    participant=participant,
+                    total_amount=part_amount,
+                    payment_method=part_method,
+                    sponsor=part_sponsor,
+                    status='completed',
+                    notes=part_notes,
+                    marked_present=True
+                )
+                transaction.items.add(*part_items)
+                created_transactions.append(transaction)
 
             # Mark each fully-confirmed reservation as confirmed -- the
             # caisse operator's confirmation is the final validation, no
-            # admin review involved.
+            # admin review involved. A reservation paid before the visit
+            # (receipt) takes the reservation's mode, one paid now the
+            # counter's mode (the same mode when the payment isn't split).
             for order in fully_confirmed_orders:
                 order.status = 'approved'
                 order.reviewed_by_caisse = caisse
                 order.reviewed_at = timezone.now()
-                order.payment_mode = payment_method
-                order.sponsor = payment_sponsor
+                if order.receipt_file:
+                    order.payment_mode, order.sponsor = reserved_method, reserved_sponsor
+                else:
+                    order.payment_mode, order.sponsor = payment_method, payment_sponsor
                 order.paid_at = order.reviewed_at
                 order.save(update_fields=[
                     'status', 'reviewed_by_caisse', 'reviewed_at', 'payment_mode', 'sponsor', 'paid_at',
@@ -1364,32 +1403,33 @@ def process_transaction(request):
             # now, same as clicking "Marquer comme présent" directly.
             _mark_participant_present(participant, caisse.event)
 
-            logger.info(f"[CAISSE] ✅ Transaction {transaction.id} created successfully")
+            logger.info(
+                f"[CAISSE] ✅ Transaction(s) {', '.join(str(t.id) for t in created_transactions)} created successfully"
+            )
             logger.info(f"[CAISSE] Participant: {participant.user.email}")
             logger.info(f"[CAISSE] Items to link: {len(items)}")
-            
+
     except Exception as e:
         logger.error(f"[CAISSE] ❌ Failed to create transaction: {str(e)}")
         return JsonResponse({
             'success': False,
             'message': f'Failed to create transaction: {str(e)}'
         })
-    
+
     # Verify items were saved (outside the atomic block)
-    transaction.refresh_from_db()
-    items_count = transaction.items.count()
-    
+    items_count = sum(t.items.count() for t in created_transactions)
+
     logger.info(f"[CAISSE] Items actually linked: {items_count}")
-    
+
     if items_count != len(items):
         logger.error(f"[CAISSE] ⚠️ MISMATCH! Expected {len(items)} items but only {items_count} were saved!")
         return JsonResponse({
             'success': False,
             'message': f'Transaction created but items not saved properly. Expected {len(items)}, got {items_count}'
         })
-    
+
     # Log each item
-    for item in transaction.items.all():
+    for item in items:
         logger.info(f"[CAISSE]   ✓ {item.name} ({item.item_type}) - {item.price} DA")
     
     # Grant access to the selected sessions/ateliers
@@ -1429,17 +1469,23 @@ def process_transaction(request):
     # Mirrors recorded_amount above -- the confirmation the cashier sees
     # shows the same number that just got saved.
     total_before_reduction = recomputed_bloc_before + plain_cash_amount + unpaid_order_before + bank_transfer_before
+    payments = [
+        {'label': t.payment_display, 'method': t.payment_method, 'amount': float(t.total_amount)}
+        for t in created_transactions
+    ]
     return JsonResponse({
         'success': True,
         'message': 'Transaction processed successfully',
-        'transaction_id': transaction.id,
+        'transaction_id': created_transactions[-1].id,
+        'transaction_ids': [t.id for t in created_transactions],
         'total_amount': float(recorded_amount),
         'total_before_reduction': float(total_before_reduction),
         'total_discount_percent': float(
             (1 - (recorded_amount / total_before_reduction)) * 100
         ) if total_before_reduction > 0 else 0.0,
         'payment_method': payment_method,
-        'payment_label': payment_label(payment_method, payment_sponsor.name if payment_sponsor else None),
+        'payment_label': ' + '.join(p['label'] for p in payments),
+        'payments': payments,
         'action': action
     })
 

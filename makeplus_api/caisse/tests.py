@@ -399,14 +399,18 @@ class CaisseDiscountedReservationTests(TestCase):
         )
         payload = response.json()
         self.assertTrue(payload['success'], payload)
-        # One payment under the chosen mode (Espèces by default), for the
-        # whole amount: the 1200 discounted reservation plus the 200 walk-up
-        # item.
-        self.assertEqual(payload['payment_method'], 'cash')
+        # The whole 1400 is recorded, as two payments: the 1200 discounted
+        # reservation already paid by transfer (receipt), and the 200
+        # walk-up item paid now in Espèces (the counter's default).
         self.assertEqual(Decimal(str(payload['total_amount'])), Decimal('1400.00'))
+        self.assertEqual(
+            [(p['method'], p['amount']) for p in payload['payments']],
+            [('bank_transfer', 1200.0), ('cash', 200.0)],
+        )
 
-        txn = CaisseTransaction.objects.get(id=payload['transaction_id'])
-        self.assertIn('1200.00 DZD', txn.notes)
+        transfer, cash = CaisseTransaction.objects.filter(id__in=payload['transaction_ids']).order_by('id')
+        self.assertIn('1200.00 DZD', transfer.notes)
+        self.assertIn('Extra Snack', cash.notes)
 
 
 class CaisseBlocGroupingTests(TestCase):
@@ -793,6 +797,97 @@ class PaymentModeTests(TestCase):
             (per_caisse['cash_amount'], per_caisse['bank_transfer_amount'], per_caisse['sponsoring_amount']),
             (Decimal('1000'), Decimal('1000'), Decimal('1000')),
         )
+
+    def _pay_with_extra(self, participant, extra_price='2000', **payment):
+        extra = PayableItem.objects.create(event=self.event, name='Dîner', price=Decimal(extra_price), item_type='other')
+        return self._pay_items(participant, [self.payable.id, extra.id], **payment)
+
+    def _pay_items(self, participant, item_ids, **payment):
+        session = self.client.session
+        session['caisse_id'] = str(self.caisse.id)
+        session['caisse_name'] = self.caisse.name
+        session.save()
+        body = {'participant_id': participant.id, 'items': [str(i) for i in item_ids], 'action': 'process'}
+        body.update(payment)
+        return self.client.post(
+            reverse('caisse:process_transaction'), json.dumps(body), content_type='application/json',
+        ).json()
+
+    def test_transfer_reservation_plus_cash_at_counter_is_split(self):
+        # 1000 already paid by transfer (receipt) + 2000 paid in cash now:
+        # two payments, so the cash total matches the drawer.
+        participant, order = self._participant('s1', receipt=True)
+        result = self._pay_with_extra(participant)
+        self.assertTrue(result['success'])
+        self.assertEqual(result['total_amount'], 3000.0)
+        self.assertEqual(
+            [(p['method'], p['amount']) for p in result['payments']],
+            [('bank_transfer', 1000.0), ('cash', 2000.0)],
+        )
+        self.assertEqual(result['payment_label'], 'Virement bancaire + Espèces')
+        txns = {t.payment_method: t for t in CaisseTransaction.objects.filter(participant=participant)}
+        self.assertEqual(set(txns), {'bank_transfer', 'cash'})
+        self.assertEqual(txns['bank_transfer'].total_amount, Decimal('1000'))
+        self.assertEqual(list(txns['bank_transfer'].items.values_list('id', flat=True)), [self.payable.id])
+        self.assertEqual(txns['cash'].total_amount, Decimal('2000'))
+        self.assertEqual(list(txns['cash'].items.values_list('name', flat=True)), ['Dîner'])
+        order.refresh_from_db()
+        self.assertEqual((order.status, order.payment_mode), ('approved', 'bank_transfer'))
+
+        from caisse.services import payment_breakdown
+        totals = payment_breakdown(CaisseTransaction.objects.filter(caisse__event=self.event))
+        self.assertEqual(
+            (totals['cash']['amount'], totals['bank_transfer']['amount'], totals['total']['amount']),
+            (Decimal('2000'), Decimal('1000'), Decimal('3000')),
+        )
+        self.assertEqual(totals['total']['participants'], 1)
+
+    def test_split_reservation_mode_can_be_prise_en_charge(self):
+        participant, order = self._participant('s2', receipt=True)
+        refused = self._pay_with_extra(participant, reserved_payment_method='sponsoring')
+        self.assertFalse(refused['success'])
+        self.assertFalse(CaisseTransaction.objects.filter(participant=participant).exists())
+        result = self._pay_with_extra(
+            participant, reserved_payment_method='sponsoring', reserved_sponsor_id=self.hikma.id,
+        )
+        self.assertTrue(result['success'])
+        self.assertEqual(
+            [(p['label'], p['amount']) for p in result['payments']],
+            [('Prise en charge · Laboratoire Hikma', 1000.0), ('Espèces', 2000.0)],
+        )
+        order.refresh_from_db()
+        self.assertEqual((order.payment_mode, order.sponsor_id), ('sponsoring', self.hikma.id))
+
+    def test_same_mode_for_both_parts_stays_one_payment(self):
+        participant, _ = self._participant('s3', receipt=True)
+        result = self._pay_with_extra(participant, payment_method='bank_transfer')
+        self.assertTrue(result['success'])
+        txn = CaisseTransaction.objects.get(participant=participant)
+        self.assertEqual((txn.payment_method, txn.total_amount, txn.items.count()), ('bank_transfer', Decimal('3000'), 2))
+
+    def test_free_extra_with_transfer_reservation_is_one_transfer_payment(self):
+        # Nothing collected now: all of it is the reservation's money, under
+        # the reservation's mode (not the counter's default Espèces).
+        participant, _ = self._participant('s4', receipt=True)
+        result = self._pay_with_extra(participant, extra_price='0')
+        self.assertTrue(result['success'])
+        txn = CaisseTransaction.objects.get(participant=participant)
+        self.assertEqual((txn.payment_method, txn.total_amount, txn.items.count()), ('bank_transfer', Decimal('1000'), 2))
+
+    def test_no_receipt_reservation_plus_extra_stays_one_payment(self):
+        participant, order = self._participant('s5')
+        result = self._pay_with_extra(participant)
+        self.assertTrue(result['success'])
+        txn = CaisseTransaction.objects.get(participant=participant)
+        self.assertEqual((txn.payment_method, txn.total_amount), ('cash', Decimal('3000')))
+        order.refresh_from_db()
+        self.assertEqual(order.payment_mode, 'cash')
+
+    def test_caisse_page_has_the_split_box(self):
+        self._pay_items(self._participant('s6')[0], [])  # logs the caisse in
+        page = self.client.get(reverse('caisse:dashboard'))
+        self.assertContains(page, 'id="paymentSplitBox"')
+        self.assertContains(page, 'name="reservedPaymentMode"')
 
     def test_dashboard_mark_paid_with_a_mode(self):
         participant, order = self._participant('h')

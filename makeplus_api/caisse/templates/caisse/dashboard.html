@@ -509,15 +509,18 @@
                         </div>
 
                         <div class="bg-light p-3 rounded mb-3 mt-3">
-                            <div class="d-flex justify-content-between align-items-center mb-2" id="alreadyPaidRow" style="display: none;">
+                            <!-- No d-flex on these three: its display:flex !important
+                                 beat the display:none, so they always showed "0.00 DZD".
+                                 calculateTotal sets display:flex when one applies. -->
+                            <div class="justify-content-between align-items-center mb-2" id="alreadyPaidRow" style="display: none;">
                                 <span class="text-muted">Déjà payé (non facturé à nouveau) :</span>
                                 <span id="alreadyPaidAmount" class="text-muted">0.00 DZD</span>
                             </div>
-                            <div class="d-flex justify-content-between align-items-center mb-1" id="beforeReductionRow" style="display: none;">
+                            <div class="justify-content-between align-items-center mb-1" id="beforeReductionRow" style="display: none;">
                                 <span class="text-muted">Montant avant réduction :</span>
                                 <span id="beforeReductionAmount" class="text-muted">0.00 DZD</span>
                             </div>
-                            <div class="d-flex justify-content-between align-items-center mb-2" id="reductionRow" style="display: none;">
+                            <div class="justify-content-between align-items-center mb-2" id="reductionRow" style="display: none;">
                                 <span class="text-muted">Réduction :</span>
                                 <span id="reductionPercent" class="text-muted fw-bold">0%</span>
                             </div>
@@ -530,8 +533,41 @@
                         <!-- How this payment is made: Espèces by default, the cashier
                              can switch it. Recorded on the transaction and split out
                              in the totals below and on the stats page. -->
+                        <!-- Shown only when this transaction mixes a reservation
+                             already paid before the visit (bank receipt) with
+                             something paid now: recorded as two payments, each
+                             with its own mode, so the cash total matches the drawer. -->
+                        <div class="border rounded p-2 mb-3" id="paymentSplitBox" style="display:none; border-color:#93c5fd !important; background:#eff6ff;">
+                            <div class="fw-semibold small mb-2">Deux paiements seront enregistrés</div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>1. Réservation déjà payée (reçu joint)</span>
+                                <strong id="splitReservedAmount">0.00 DZD</strong>
+                            </div>
+                            <div class="btn-group btn-group-sm flex-wrap mt-1" role="group" aria-label="Mode de la réservation déjà payée">
+                                <input type="radio" class="btn-check" name="reservedPaymentMode" id="reservedModeTransfer" value="bank_transfer" checked>
+                                <label class="btn btn-outline-primary" for="reservedModeTransfer">Virement bancaire</label>
+                                <input type="radio" class="btn-check" name="reservedPaymentMode" id="reservedModeCash" value="cash">
+                                <label class="btn btn-outline-primary" for="reservedModeCash">Espèces</label>
+                                {% if sponsors %}
+                                <input type="radio" class="btn-check" name="reservedPaymentMode" id="reservedModeSponsoring" value="sponsoring">
+                                <label class="btn btn-outline-primary" for="reservedModeSponsoring">Prise en charge</label>
+                                {% endif %}
+                            </div>
+                            {% if sponsors %}
+                            <select class="form-select form-select-sm mt-2" id="reservedSponsorSelect" style="display:none;" aria-label="Organisme payeur de la réservation">
+                                <option value="">Choisir l'organisme payeur…</option>
+                                {% for sponsor in sponsors %}<option value="{{ sponsor.id }}">{{ sponsor.name }}</option>{% endfor %}
+                            </select>
+                            {% endif %}
+                            <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                                <span>2. Payé maintenant au comptoir</span>
+                                <strong id="splitCounterAmount">0.00 DZD</strong>
+                            </div>
+                            <small class="text-muted">Mode choisi ci-dessous.</small>
+                        </div>
+
                         <div class="mb-3" id="paymentModeBox">
-                            <label class="form-label d-block">Mode de règlement</label>
+                            <label class="form-label d-block" id="paymentModeLabel">Mode de règlement</label>
                             <div class="btn-group flex-wrap" role="group" aria-label="Mode de règlement">
                                 <input type="radio" class="btn-check" name="paymentMode" id="paymentModeCash" value="cash" checked>
                                 <label class="btn btn-outline-primary" for="paymentModeCash">Espèces</label>
@@ -1324,22 +1360,51 @@
             const checked = document.querySelector('input[name="paymentMode"]:checked');
             const method = checked ? checked.value : 'cash';
             const select = document.getElementById('sponsorSelect');
-            return { method: method, sponsorId: method === 'sponsoring' && select ? select.value : '' };
+            const reservedChecked = document.querySelector('input[name="reservedPaymentMode"]:checked');
+            const reservedMethod = reservedChecked ? reservedChecked.value : 'bank_transfer';
+            const reservedSelect = document.getElementById('reservedSponsorSelect');
+            return {
+                method: method,
+                sponsorId: method === 'sponsoring' && select ? select.value : '',
+                reservedMethod: reservedMethod,
+                reservedSponsorId: reservedMethod === 'sponsoring' && reservedSelect ? reservedSelect.value : '',
+                split: document.getElementById('paymentSplitBox').style.display !== 'none',
+            };
         }
 
         function syncPaymentMode() {
+            const payment = chosenPayment();
             const select = document.getElementById('sponsorSelect');
-            if (select) select.style.display = chosenPayment().method === 'sponsoring' ? 'block' : 'none';
+            if (select) select.style.display = payment.method === 'sponsoring' ? 'block' : 'none';
+            const reservedSelect = document.getElementById('reservedSponsorSelect');
+            if (reservedSelect) reservedSelect.style.display = payment.reservedMethod === 'sponsoring' ? 'block' : 'none';
         }
 
         function resetPaymentMode(participantId) {
             document.getElementById('paymentModeCash').checked = true;
-            const select = document.getElementById('sponsorSelect');
-            if (select) select.value = '';
+            document.getElementById('reservedModeTransfer').checked = true;
+            ['sponsorSelect', 'reservedSponsorSelect'].forEach(function (id) {
+                const select = document.getElementById(id);
+                if (select) select.value = '';
+            });
             syncPaymentMode();
             const hasReceipt = participantId && (participantReservedSummaryData[participantId] || [])
                 .some(function (order) { return order.has_receipt; });
             document.getElementById('receiptHint').style.display = hasReceipt ? 'block' : 'none';
+        }
+
+        // Called by calculateTotal: a fully-selected reservation that has a
+        // bank receipt, plus anything else selected, is two payments -- show
+        // both amounts and the reservation's own mode.
+        function updatePaymentSplit(receiptCharge, counterCharge, mixed, hasReceipt) {
+            const box = document.getElementById('paymentSplitBox');
+            box.style.display = mixed ? 'block' : 'none';
+            document.getElementById('splitReservedAmount').textContent = receiptCharge.toFixed(2) + ' DZD';
+            document.getElementById('splitCounterAmount').textContent = counterCharge.toFixed(2) + ' DZD';
+            document.getElementById('paymentModeLabel').textContent = mixed
+                ? 'Mode de règlement du paiement au comptoir (2.)'
+                : 'Mode de règlement';
+            document.getElementById('receiptHint').style.display = hasReceipt && !mixed ? 'block' : 'none';
         }
 
         function showPaymentStatus(participantId) {
@@ -1349,7 +1414,7 @@
             badge.className = 'badge ' + (status && status.paid ? 'bg-success' : 'bg-warning text-dark');
         }
 
-        document.querySelectorAll('input[name="paymentMode"]').forEach(function (radio) {
+        document.querySelectorAll('input[name="paymentMode"], input[name="reservedPaymentMode"]').forEach(function (radio) {
             radio.addEventListener('change', syncPaymentMode);
         });
 
@@ -1411,8 +1476,10 @@
             // processed -- the operator needs this to tell the participant
             // how much they're saving before confirming anything.
             const covered = new Set();
+            const receiptCovered = new Set();
             let newCharge = 0;
             let newChargeBefore = 0;
+            let receiptCharge = 0;
             const orders = participantReservedSummaryData[selectedParticipantId] || [];
             orders.forEach(function(order) {
                 const payableIds = order.payable_ids || [];
@@ -1420,8 +1487,16 @@
                     newCharge += parseFloat(order.total_after);
                     newChargeBefore += parseFloat(order.total_before);
                     payableIds.forEach(id => covered.add(id));
+                    if (order.has_receipt) {
+                        receiptCharge += parseFloat(order.total_after);
+                        payableIds.forEach(id => receiptCovered.add(id));
+                    }
                 }
             });
+            // Anything selected that isn't the receipt reservation itself is
+            // paid now, at the counter (same split as process_transaction).
+            const hasCounterItem = Array.from(document.querySelectorAll('#payableItems input:checked:not(:disabled)'))
+                .some(cb => !receiptCovered.has(parseInt(cb.value, 10)));
 
             // Blocs already covered by anything else this transaction isn't
             // re-pricing -- a fully-matched pending order being confirmed
@@ -1484,6 +1559,10 @@
             }
 
             document.getElementById('totalAmount').textContent = fmtPrice(newCharge);
+            updatePaymentSplit(
+                receiptCharge, Math.max(newCharge - receiptCharge, 0),
+                receiptCovered.size > 0 && hasCounterItem, receiptCovered.size > 0,
+            );
 
             const alreadyPaidRow = document.getElementById('alreadyPaidRow');
             if (alreadyPaid > 0) {
@@ -1553,7 +1632,12 @@
                 customAlert("Choisissez l'organisme payeur pour une prise en charge.", 'Erreur');
                 return;
             }
-            
+            if (selectedItems.length && action !== 'print_badge' && payment.split
+                    && payment.reservedMethod === 'sponsoring' && !payment.reservedSponsorId) {
+                customAlert("Choisissez l'organisme payeur de la réservation déjà payée.", 'Erreur');
+                return;
+            }
+
             // Find which button was clicked and disable it
             let buttonElement;
             if (action === 'process') {
@@ -1598,7 +1682,9 @@
                     notes: notes,
                     action: action,
                     payment_method: payment.method,
-                    sponsor_id: payment.sponsorId
+                    sponsor_id: payment.sponsorId,
+                    reserved_payment_method: payment.reservedMethod,
+                    reserved_sponsor_id: payment.reservedSponsorId
                 })
             })
             .then(response => response.json())
@@ -1646,6 +1732,12 @@
                             message += `<br>Réduction : <strong>${data.total_discount_percent.toFixed(2)}%</strong>`;
                         }
                         message += `<br>Montant facturé : <strong>${fmtPrice(data.total_amount)}</strong>`;
+                    }
+                    if ((data.payments || []).length > 1) {
+                        message += '<br><br>Enregistré en deux paiements :';
+                        data.payments.forEach(function (p) {
+                            message += `<br>${p.label} : <strong>${p.amount.toFixed(2)} DZD</strong>`;
+                        });
                     }
 
                     if (action === 'print_badge') {
