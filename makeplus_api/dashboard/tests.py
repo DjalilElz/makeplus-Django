@@ -810,7 +810,7 @@ class CsrfFailureRedirectTests(TestCase):
         self.assertEqual(self._fail('/dashboard/events/')['Location'], reverse('dashboard:login'))
 
     def test_caisse_still_goes_to_its_login(self):
-        self.assertEqual(self._fail('/caisse/x/')['Location'], reverse('caisse:login'))
+        self.assertEqual(self._fail('/caisse/x/')['Location'], reverse('dashboard:login'))
 
 
 class BlocsAdminTests(TestCase):

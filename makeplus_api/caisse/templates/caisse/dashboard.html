@@ -1657,19 +1657,6 @@
                 buttonElement.originalHTML = originalHTML;
             }
 
-            // Open the print window synchronously, right here in the click
-            // handler -- a browser's popup blocker only allows window.open()
-            // when it's a direct result of a user gesture. Calling it later,
-            // inside the fetch's .then() below, happens asynchronously after
-            // the click already ended, so most browsers silently blocked it
-            // -- "Traiter et imprimer le badge" looked like it did nothing.
-            // Opening a blank window now and pointing it at the real URL
-            // once the transaction succeeds keeps it inside that gesture.
-            let printWindow = null;
-            if (action === 'print_badge' || action === 'process_and_print') {
-                printWindow = window.open('', '_blank', 'width=480,height=380');
-            }
-
             fetch('{% url "caisse:process_transaction" %}', {
                 method: 'POST',
                 headers: {
@@ -1697,33 +1684,22 @@
                     markPaidLocally(String(selectedParticipantId), selectedItems.map(Number), data.payment_label);
                 }
                 if (data.success) {
-                    // Point the already-open window at the real print page
-                    // now that the transaction actually succeeded.
                     if (action === 'print_badge' || action === 'process_and_print') {
-                        const printUrl = `{% url 'caisse:print_badge' 0 %}`.replace('0', selectedParticipantId);
-                        if (printWindow) {
-                            printWindow.location.href = printUrl;
-                        } else {
-                            // The synchronous open above still got blocked
-                            // (rare, but some browser settings do this) --
-                            // fall back to a plain new-tab open so there's
-                            // still a way to print, even if not automatic.
-                            window.open(printUrl, '_blank');
-                        }
+                        printBadgeInPage(selectedParticipantId);
                     }
 
                     // Show success message
                     let message = 'Action effectuée avec succès !';
                     if (data.marked_present_only) {
                         message = action === 'process_and_print'
-                            ? 'Participant marqué présent ! Fenêtre d\'impression ouverte !'
+                            ? 'Participant marqué présent ! Impression du badge lancée.'
                             : 'Participant marqué présent !';
                     } else if (action === 'process') {
                         message = 'Transaction traitée avec succès ! Accès accordé.';
                     } else if (action === 'print_badge') {
-                        message = 'Fenêtre d\'impression ouverte !';
+                        message = 'Impression du badge lancée.';
                     } else if (action === 'process_and_print') {
-                        message = 'Transaction traitée et fenêtre d\'impression ouverte !';
+                        message = 'Transaction traitée ! Impression du badge lancée.';
                     }
 
                     if ((action === 'process' || action === 'process_and_print') && data.total_before_reduction) {
@@ -1761,7 +1737,6 @@
                         customAlert(message, 'Succès');
                     }
                 } else {
-                    if (printWindow) printWindow.close();
                     customAlert('Erreur : ' + data.message, 'Erreur');
                     // Re-enable button on error
                     if (buttonElement) {
@@ -1771,7 +1746,6 @@
                 }
             })
             .catch(error => {
-                if (printWindow) printWindow.close();
                 console.error('Error:', error);
                 customAlert('Échec du traitement de la demande', 'Erreur');
                 // Re-enable button on error
@@ -1782,6 +1756,25 @@
             });
         }
         
+        // Badge printing happens in a hidden frame of THIS page, not in a
+        // popup window: a popup's print dialog froze the caisse page (same
+        // process) while often sitting hidden behind it, so "OK" seemed
+        // dead until the invisible dialog was closed -- and every print
+        // left an extra window open. Here the print dialog always shows
+        // over the caisse itself, and no popup blocker is involved.
+        function printBadgeInPage(participantId) {
+            const url = `{% url 'caisse:print_badge' 0 %}`.replace('/0/', '/' + participantId + '/');
+            const old = document.getElementById('badgePrintFrame');
+            if (old) old.remove();
+            const frame = document.createElement('iframe');
+            frame.id = 'badgePrintFrame';
+            frame.title = 'Impression du badge';
+            frame.setAttribute('aria-hidden', 'true');
+            frame.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;';
+            frame.src = url;
+            document.body.appendChild(frame);
+        }
+
         // Clear form
         function clearForm() {
             selectedParticipantId = null;

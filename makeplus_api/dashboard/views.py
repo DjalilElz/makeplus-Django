@@ -155,10 +155,8 @@ def login_view(request):
         email = request.POST.get('email')
         password = request.POST.get('password')
 
-        # DEBUG: Print what we received
-        print(f"DEBUG Login attempt:")
-        print(f"  Email received: '{email}' (length: {len(email) if email else 0})")
-        print(f"  Password received: '{password}' (length: {len(password) if password else 0})")
+        # (Never log the password: a debug print here used to write every
+        # typed password in clear text to the server logs.)
 
         # Caisse operators are a separate account system (caisse.models.Caisse,
         # not Django's User) for on-site payment stations -- tried first since
@@ -252,7 +250,7 @@ def csrf_failure(request, reason=""):
     messages.error(request, "Votre session a expiré. Veuillez réessayer.")
     path = request.path
     if path.startswith('/caisse/'):
-        return redirect('caisse:login')
+        return redirect('dashboard:login')  # where caisses sign in now
     if path.startswith('/admin/'):
         return redirect('admin:login')
     if path.startswith('/dashboard/'):

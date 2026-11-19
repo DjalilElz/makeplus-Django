@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import never_cache
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.db.models import Q
 from django.utils import timezone
 import json
@@ -346,7 +347,7 @@ def caisse_required(view_func):
         caisse_id = request.session.get('caisse_id')
         if not caisse_id:
             messages.warning(request, 'Veuillez vous connecter pour continuer.')
-            return redirect('caisse:login')
+            return redirect('dashboard:login')
         
         try:
             caisse = Caisse.objects.select_related('event').get(id=caisse_id, is_active=True)
@@ -354,7 +355,7 @@ def caisse_required(view_func):
         except Caisse.DoesNotExist:
             del request.session['caisse_id']
             messages.error(request, 'Votre session de caisse est invalide. Veuillez vous reconnecter.')
-            return redirect('caisse:login')
+            return redirect('dashboard:login')
         
         return view_func(request, *args, **kwargs)
     
@@ -383,8 +384,12 @@ def caisse_login(request):
                 messages.error(request, 'E-mail ou mot de passe invalide.')
         except Caisse.DoesNotExist:
             messages.error(request, 'E-mail ou mot de passe invalide.')
-    
-    return render(request, 'caisse/login.html')
+
+    # Caisses sign in on the shared login page now (dashboard:login also
+    # recognises caisse accounts) -- this old standalone page only
+    # forwards there, so a bookmark, an old tab or a redirect never lands
+    # on a login screen that isn't the one in use.
+    return redirect('dashboard:login')
 
 
 @caisse_required
@@ -395,7 +400,7 @@ def caisse_logout(request):
     if 'caisse_name' in request.session:
         del request.session['caisse_name']
     messages.success(request, f'Déconnecté de {caisse_name}.')
-    return redirect('caisse:login')
+    return redirect('dashboard:login')
 
 
 # ==================== Dashboard ====================
@@ -814,7 +819,7 @@ def search_participant(request):
     event = caisse.event
     
     if not query:
-        return JsonResponse({'success': False, 'message': 'Please enter a search term'})
+        return JsonResponse({'success': False, 'message': 'Saisissez un terme de recherche.'})
     
     # Get only users with 'participant' role
     from events.models import UserEventAssignment, ParticipantEventRegistration
@@ -840,7 +845,7 @@ def search_participant(request):
     # this is one query either way, not two).
     event_registrations = list(event_registrations)
     if not event_registrations:
-        return JsonResponse({'success': False, 'message': 'No participants found'})
+        return JsonResponse({'success': False, 'message': 'Aucun participant trouvé.'})
 
     results = []
     for registration in event_registrations:
@@ -882,9 +887,9 @@ def get_participant_paid_items(request, participant_id):
         participant = Participant.objects.get(id=participant_id)
         # Verify participant is registered for this event
         if not participant.is_registered_for_event(caisse.event):
-            return JsonResponse({'success': False, 'message': 'Participant not registered for this event'})
+            return JsonResponse({'success': False, 'message': "Ce participant n'est pas inscrit à cet événement."})
     except Participant.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Participant not found'})
+        return JsonResponse({'success': False, 'message': 'Participant introuvable.'})
     
     # Get all completed transactions for this participant
     completed_transactions = CaisseTransaction.objects.filter(
@@ -947,21 +952,21 @@ def process_transaction(request):
         chosen_reserved_sponsor_id = request.POST.get('reserved_sponsor_id')
 
     if not participant_id:
-        return JsonResponse({'success': False, 'message': 'Participant ID required'})
+        return JsonResponse({'success': False, 'message': 'Aucun participant sélectionné.'})
     
     try:
         participant = Participant.objects.get(id=participant_id)
         # Verify participant is registered for this event
         if not participant.is_registered_for_event(caisse.event):
-            return JsonResponse({'success': False, 'message': 'Participant not registered for this event'})
+            return JsonResponse({'success': False, 'message': "Ce participant n'est pas inscrit à cet événement."})
     except Participant.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Participant not found'})
+        return JsonResponse({'success': False, 'message': 'Participant introuvable.'})
     
     # For print_badge action, we don't need items
     if action == 'print_badge':
         return JsonResponse({
             'success': True,
-            'message': 'Badge print initiated',
+            'message': "Impression du badge lancée.",
             'action': 'print_badge'
         })
     
@@ -985,13 +990,13 @@ def process_transaction(request):
             )
             return JsonResponse({
                 'success': False,
-                'message': 'This participant still has a pending reservation to confirm: '
+                'message': 'Ce participant a encore une réservation à confirmer : '
                 + ', '.join(pending_names)
             })
         _mark_participant_present(participant, caisse.event)
         return JsonResponse({
             'success': True,
-            'message': 'Participant marked present',
+            'message': 'Participant marqué présent.',
             'action': action,
             'marked_present_only': True,
         })
@@ -999,7 +1004,7 @@ def process_transaction(request):
     # Get items and calculate total
     items = PayableItem.objects.filter(id__in=item_ids, event=caisse.event, is_active=True)
     if not items.exists():
-        return JsonResponse({'success': False, 'message': 'Invalid items selected'})
+        return JsonResponse({'success': False, 'message': 'Articles sélectionnés invalides.'})
     
     # Check capacity for each item linked to a session
     capacity_errors = []
@@ -1014,13 +1019,13 @@ def process_transaction(request):
             available_spots = item.session.max_participants - registered_count
             
             if available_spots <= 0:
-                capacity_errors.append(f"{item.name} is full (0/{item.session.max_participants} spots available)")
+                capacity_errors.append(f"{item.name} est complet (0/{item.session.max_participants} places disponibles)")
     
     # If any capacity errors, return them
     if capacity_errors:
         return JsonResponse({
             'success': False,
-            'message': 'Cannot process transaction:\n' + '\n'.join(capacity_errors)
+            'message': 'Transaction impossible :\n' + '\n'.join(capacity_errors)
         })
 
     # Enforce single-choice blocs the same way the registration form does --
@@ -1058,7 +1063,7 @@ def process_transaction(request):
             label = bloc_labels.get(bloc_key, bloc_key)
             if len(names) > 1:
                 select_mode_errors.append(
-                    f"Please select only one option in {label}: {', '.join(names)}"
+                    f"Une seule option possible dans {label} : {', '.join(names)}"
                 )
             elif already_paid_by_bloc.get(bloc_key):
                 select_mode_errors.append(
@@ -1068,7 +1073,7 @@ def process_transaction(request):
         if select_mode_errors:
             return JsonResponse({
                 'success': False,
-                'message': 'Cannot process transaction:\n' + '\n'.join(select_mode_errors)
+                'message': 'Transaction impossible :\n' + '\n'.join(select_mode_errors)
             })
 
     selected_ids = set(items.values_list('id', flat=True))
@@ -1123,8 +1128,8 @@ def process_transaction(request):
                 PayableItem.objects.filter(id__in=missing_ids).values_list('name', flat=True)
             )
             incomplete_order_errors.append(
-                f"Please also confirm: {', '.join(missing_names)} "
-                "(reserved together in the same registration and discounted as one)."
+                f"Confirmez aussi : {', '.join(missing_names)} "
+                "(réservés ensemble dans la même inscription, avec une réduction commune)."
             )
             continue
         fully_confirmed_orders.append(order)
@@ -1156,7 +1161,7 @@ def process_transaction(request):
     if incomplete_order_errors:
         return JsonResponse({
             'success': False,
-            'message': 'Cannot process transaction:\n' + '\n'.join(incomplete_order_errors)
+            'message': 'Transaction impossible :\n' + '\n'.join(incomplete_order_errors)
         })
 
     cash_items = [
@@ -1437,6 +1442,22 @@ def process_transaction(request):
             # now, same as clicking "Marquer comme présent" directly.
             _mark_participant_present(participant, caisse.event)
 
+            # Workshop access and the refreshed QR code are part of the
+            # same unit: they used to run after the commit, so a failure
+            # there showed "Échec" to the cashier for a payment that was
+            # already saved (an invitation to charge again). Now it's all
+            # or nothing, and the attestation e-mail (on_commit) only
+            # starts once everything is written.
+            from events.models import SessionAccess, UserProfile
+            for item in items:
+                if item.session:
+                    SessionAccess.objects.update_or_create(
+                        participant=participant, session=item.session,
+                        defaults={'has_access': True, 'payment_status': 'paid', 'amount_paid': item.price},
+                    )
+            participant.qr_code_data = UserProfile.get_qr_for_user(participant.user)
+            participant.save(update_fields=['qr_code_data'])
+
             logger.info(
                 f"[CAISSE] ✅ Transaction(s) {', '.join(str(t.id) for t in created_transactions)} created successfully"
             )
@@ -1447,7 +1468,7 @@ def process_transaction(request):
         logger.error(f"[CAISSE] ❌ Failed to create transaction: {str(e)}")
         return JsonResponse({
             'success': False,
-            'message': f'Failed to create transaction: {str(e)}'
+            'message': f"Échec de l'enregistrement de la transaction : {str(e)}"
         })
 
     # Verify items were saved (outside the atomic block)
@@ -1459,47 +1480,13 @@ def process_transaction(request):
         logger.error(f"[CAISSE] ⚠️ MISMATCH! Expected {len(items)} items but only {items_count} were saved!")
         return JsonResponse({
             'success': False,
-            'message': f'Transaction created but items not saved properly. Expected {len(items)}, got {items_count}'
+            'message': f'Transaction créée mais articles mal enregistrés ({items_count} sur {len(items)}).'
         })
 
     # Log each item
     for item in items:
         logger.info(f"[CAISSE]   ✓ {item.name} ({item.item_type}) - {item.price} DA")
-    
-    # Grant access to the selected sessions/ateliers
-    # Create SessionAccess records for paid sessions
-    from events.models import Session, SessionAccess, UserProfile
-    
-    for item in items:
-        if item.session:
-            # Get the session
-            session = item.session
-            
-            # Create or update SessionAccess record
-            session_access, created = SessionAccess.objects.get_or_create(
-                participant=participant,
-                session=session,
-                defaults={
-                    'has_access': True,
-                    'payment_status': 'paid',
-                    'amount_paid': item.price
-                }
-            )
-            
-            # If already exists, update it
-            if not created:
-                session_access.has_access = True
-                session_access.payment_status = 'paid'
-                session_access.amount_paid = item.price
-                session_access.save()
-    
-    # Regenerate QR code to include new paid sessions
-    updated_qr_data = UserProfile.get_qr_for_user(participant.user)
-    
-    # Update participant's qr_code_data field (now a JSONField)
-    participant.qr_code_data = updated_qr_data
-    participant.save(update_fields=['qr_code_data'])
-    
+
     # Mirrors recorded_amount above -- the confirmation the cashier sees
     # shows the same number that just got saved.
     total_before_reduction = recomputed_bloc_before + plain_cash_amount + unpaid_order_before + bank_transfer_before
@@ -1509,7 +1496,7 @@ def process_transaction(request):
     ]
     return JsonResponse({
         'success': True,
-        'message': 'Transaction processed successfully',
+        'message': 'Transaction enregistrée.',
         'transaction_id': created_transactions[-1].id,
         'transaction_ids': [t.id for t in created_transactions],
         'total_amount': float(recorded_amount),
@@ -1546,18 +1533,18 @@ def reject_reservation(request):
         reason = (request.POST.get('reason') or '').strip()
 
     if not participant_id:
-        return JsonResponse({'success': False, 'message': 'Participant ID required'})
+        return JsonResponse({'success': False, 'message': 'Aucun participant sélectionné.'})
 
     try:
         participant = Participant.objects.get(id=participant_id)
         if not participant.is_registered_for_event(caisse.event):
-            return JsonResponse({'success': False, 'message': 'Participant not registered for this event'})
+            return JsonResponse({'success': False, 'message': "Ce participant n'est pas inscrit à cet événement."})
     except Participant.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Participant not found'})
+        return JsonResponse({'success': False, 'message': 'Participant introuvable.'})
 
     pending_orders = _pending_orders_with_payable_ids(participant, caisse.event)
     if not pending_orders:
-        return JsonResponse({'success': False, 'message': 'No pending reservation to reject'})
+        return JsonResponse({'success': False, 'message': 'Aucune réservation en attente à rejeter.'})
 
     for order, _pending_ids in pending_orders:
         order.status = 'rejected'
@@ -1569,7 +1556,7 @@ def reject_reservation(request):
 
     return JsonResponse({
         'success': True,
-        'message': f'Rejected {len(pending_orders)} reservation(s).'
+        'message': f'{len(pending_orders)} réservation(s) rejetée(s).'
     })
 
 
@@ -1612,14 +1599,14 @@ def modify_pending_order(request):
         item_ids = request.POST.getlist('items[]')
 
     if not participant_id:
-        return JsonResponse({'success': False, 'message': 'Participant ID required'})
+        return JsonResponse({'success': False, 'message': 'Aucun participant sélectionné.'})
 
     try:
         participant = Participant.objects.get(id=participant_id)
         if not participant.is_registered_for_event(caisse.event):
-            return JsonResponse({'success': False, 'message': 'Participant not registered for this event'})
+            return JsonResponse({'success': False, 'message': "Ce participant n'est pas inscrit à cet événement."})
     except Participant.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Participant not found'})
+        return JsonResponse({'success': False, 'message': 'Participant introuvable.'})
 
     # The participant's actual latest submission, whatever its status --
     # checked AFTER picking it, not before. Excluding 'approved'/
@@ -1643,15 +1630,15 @@ def modify_pending_order(request):
     if not still_editable:
         return JsonResponse({
             'success': False,
-            'message': 'This participant has no editable registration '
-            '(either nothing registered, or it is already confirmed).'
+            'message': "Ce participant n'a pas d'inscription modifiable "
+            "(rien d'enregistré, ou inscription déjà confirmée)."
         })
 
     bloc_context = get_public_bloc_context(caisse.event, include_inactive=True)
     if not bloc_context:
         return JsonResponse({
             'success': False,
-            'message': "This event's registration options are no longer available."
+            'message': "Les options d'inscription de cet événement ne sont plus disponibles."
         })
 
     items = PayableItem.objects.filter(
@@ -1689,7 +1676,7 @@ def modify_pending_order(request):
 
     return JsonResponse({
         'success': True,
-        'message': 'Reservation updated.',
+        'message': 'Inscription mise à jour.',
         'total_before_reduction': float(result['total_before_reduction']),
         'total_after_reduction': float(result['total_after_reduction']),
     })
@@ -1726,7 +1713,7 @@ def cancel_transaction(request, transaction_id):
     try:
         transaction = CaisseTransaction.objects.get(id=transaction_id, caisse=caisse, status='completed')
     except CaisseTransaction.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Transaction not found or already cancelled'})
+        return JsonResponse({'success': False, 'message': 'Transaction introuvable ou déjà annulée.'})
     
     # Parse JSON body
     try:
@@ -1817,12 +1804,15 @@ def cancel_transaction(request, transaction_id):
     
     return JsonResponse({
         'success': True,
-        'message': 'Transaction cancelled successfully and access revoked'
+        'message': 'Transaction annulée et accès retirés.'
     })
 
 
 # ==================== Badge Printing ====================
 
+# Loaded in a hidden frame of the caisse page itself to print (see
+# printBadgeInPage in dashboard.html) -- same site only.
+@xframe_options_sameorigin
 @caisse_required
 def print_badge(request, participant_id):
     """Generate printable badge with QR code"""

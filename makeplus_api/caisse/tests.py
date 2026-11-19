@@ -483,7 +483,7 @@ class CaisseBlocGroupingTests(TestCase):
         )
         payload = response.json()
         self.assertFalse(payload['success'])
-        self.assertIn('only one option', payload['message'])
+        self.assertIn('Une seule option possible', payload['message'])
         self.assertFalse(CaisseTransaction.objects.filter(participant=self.participant).exists())
 
     def test_selecting_two_multiple_choice_items_is_allowed(self):
