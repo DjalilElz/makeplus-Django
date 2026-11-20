@@ -10,6 +10,7 @@ views_email.py::campaign_send).
 """
 import io
 import os
+from datetime import timedelta
 from django.conf import settings
 from django.template import Template, Context
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -297,6 +298,9 @@ def _send_presence_attestation_now(log_id):
         connection.close()
 
 
+PRESENCE_SEND_STALE_AFTER = timedelta(minutes=15)
+
+
 def queue_presence_attestation(participant, event):
     """
     Called when the caisse marks a participant present for the first time.
@@ -316,13 +320,25 @@ def queue_presence_attestation(participant, event):
     if not participant.user.email:
         return False
 
+    from django.utils import timezone
+
     existing = AttestationSendLog.objects.filter(event=event, participant=participant).order_by('-sent_at').first()
-    if existing and existing.status in ('sent', 'pending'):
-        return False
     if existing:
+        # Skip only what presence itself already did (sent_by NULL): a
+        # manual send from the dashboard made *before* the person arrived
+        # (a test, an early send) must not swallow the arrival e-mail.
+        if existing.status == 'sent' and existing.sent_by_id is None:
+            return False
+        # A send in progress -- unless it is stale (the background worker
+        # was killed mid-way, e.g. a server restart), which would otherwise
+        # leave this person 'pending' forever and never retried.
+        if existing.status == 'pending' and existing.sent_at >= timezone.now() - PRESENCE_SEND_STALE_AFTER:
+            return False
         existing.status = 'pending'
         existing.error_message = ''
-        existing.save(update_fields=['status', 'error_message'])
+        existing.sent_by = None
+        existing.sent_at = timezone.now()
+        existing.save(update_fields=['status', 'error_message', 'sent_by', 'sent_at'])
         log = existing
     else:
         log = AttestationSendLog.objects.create(event=event, participant=participant, status='pending')

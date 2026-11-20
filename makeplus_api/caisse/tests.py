@@ -1055,12 +1055,37 @@ class PresenceAttestationAndBadgePrintTests(TestCase):
         self.send_mock.assert_not_called()
         self.assertFalse(AttestationSendLog.objects.exists())
 
-    def test_not_sent_again_if_already_received_from_dashboard(self):
+    def test_not_sent_again_if_presence_already_sent_it(self):
         from dashboard.models_attestation import AttestationSendLog
         self._template(auto=True)
         AttestationSendLog.objects.create(event=self.event, participant=self.participant, status='sent')
         self._mark_present()
         self.send_mock.assert_not_called()
+
+    def test_manual_dashboard_send_before_arrival_does_not_block_presence_send(self):
+        # Real case (SANDT): the admin sent a test attestation by hand, then
+        # the caisse payment marked the person present -- nothing was sent.
+        from dashboard.models_attestation import AttestationSendLog
+        self._template(auto=True)
+        admin = User.objects.create_user(username='admin', password='x', is_staff=True)
+        AttestationSendLog.objects.create(event=self.event, participant=self.participant, status='sent', sent_by=admin)
+        self._mark_present()
+        self.assertEqual(self.send_mock.call_count, 1)
+        log = AttestationSendLog.objects.get(participant=self.participant)
+        self.assertEqual((log.status, log.sent_by_id), ('sent', None))
+
+    def test_stale_pending_send_is_retried_but_a_fresh_one_is_not(self):
+        from dashboard.models_attestation import AttestationSendLog
+        self._template(auto=True)
+        log = AttestationSendLog.objects.create(event=self.event, participant=self.participant, status='pending')
+        self._mark_present()
+        self.send_mock.assert_not_called()  # a send is already in progress
+        from events.models import ParticipantEventRegistration
+        ParticipantEventRegistration.objects.filter(participant=self.participant).update(is_checked_in=False)
+        AttestationSendLog.objects.filter(id=log.id).update(sent_at=timezone.now() - timedelta(hours=1))
+        self._mark_present()  # the worker died long ago: retry
+        self.assertEqual(self.send_mock.call_count, 1)
+        self.assertEqual(AttestationSendLog.objects.get(id=log.id).status, 'sent')
 
     def test_failed_send_is_recorded(self):
         from dashboard.models_attestation import AttestationSendLog
