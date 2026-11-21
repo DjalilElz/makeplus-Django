@@ -127,10 +127,27 @@
                     {% endif %}
                 </select>
             </div>
+            {% if answer_groups %}
+            <div class="col-12 col-md-auto">
+                <label class="form-label" for="answer">Réponse au formulaire</label>
+                <select class="form-select" id="answer" name="answer" style="max-width: 22rem;">
+                    <option value="">Tous les participants</option>
+                    {% for group in answer_groups %}
+                    <optgroup label="{{ group.label }}">
+                        {% for option in group.options %}
+                        {% with key=group.name|add:"::"|add:option %}
+                        <option value="{{ key }}" {% if answer == key %}selected{% endif %}>{{ option }}</option>
+                        {% endwith %}
+                        {% endfor %}
+                    </optgroup>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="col-auto">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrer</button>
             </div>
-            {% if date_from or date_to or caisse_id or account or scan_search or presence_search %}
+            {% if date_from or date_to or caisse_id or account or answer or scan_search or presence_search %}
             <div class="col-auto">
                 <a href="{% url 'dashboard:event_stats' event.id %}" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Réinitialiser</a>
             </div>
@@ -298,7 +315,7 @@
                     <tbody>
                         {% for a in insights.controllers %}
                         <tr>
-                            <td><a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ caisse_id|urlencode }}&account={{ a.key }}">{{ a.name }}</a></td>
+                            <td><a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ caisse_id|urlencode }}&answer={{ answer|urlencode }}&account={{ a.key }}">{{ a.name }}</a></td>
                             <td class="num fw-semibold">{{ a.scans }}</td>
                             <td class="num">{{ a.distinct }}</td>
                             <td class="num">{{ a.granted }}</td>
@@ -327,7 +344,7 @@
                         {% for s in insights.stands %}
                         <tr>
                             <td class="text-muted">{{ s.rank }}</td>
-                            <td><a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ caisse_id|urlencode }}&account={{ s.key }}">{{ s.name }}</a></td>
+                            <td><a href="?date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}&caisse_id={{ caisse_id|urlencode }}&answer={{ answer|urlencode }}&account={{ s.key }}">{{ s.name }}</a></td>
                             <td class="num fw-semibold">{{ s.distinct }}</td>
                             <td class="num">{{ s.scans }}</td>
                             <td class="text-nowrap">{% if s.peak %}{{ s.peak.label }} <small class="text-muted">({{ s.peak.count }})</small>{% else %}—{% endif %}</td>
@@ -379,6 +396,7 @@
                 <input type="hidden" name="date_to" value="{{ date_to }}">
                 <input type="hidden" name="caisse_id" value="{{ caisse_id }}">
                 <input type="hidden" name="account" value="{{ account }}">
+                <input type="hidden" name="answer" value="{{ answer }}">
                 <input type="hidden" name="scan_search" value="{{ scan_search }}">
                 <div class="col-sm-6 col-md-4"><input type="search" class="form-control form-control-sm" name="presence_search" value="{{ presence_search }}" placeholder="Nom, e-mail ou badge"></div>
                 <div class="col-auto"><button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-search"></i> Rechercher</button></div>
@@ -411,6 +429,7 @@
                 <input type="hidden" name="date_to" value="{{ date_to }}">
                 <input type="hidden" name="caisse_id" value="{{ caisse_id }}">
                 <input type="hidden" name="account" value="{{ account }}">
+                <input type="hidden" name="answer" value="{{ answer }}">
                 <input type="hidden" name="presence_search" value="{{ presence_search }}">
                 <div class="col-sm-6 col-md-4"><input type="search" class="form-control form-control-sm" name="scan_search" value="{{ scan_search }}" placeholder="Participant scanné : nom, e-mail ou badge"></div>
                 <div class="col-auto"><button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-search"></i> Rechercher</button></div>

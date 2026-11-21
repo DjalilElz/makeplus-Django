@@ -451,6 +451,25 @@ def _gather_event_stats(request, event):
         if not selected_caisse:
             caisse_id = ''  # unknown/stale id -- fall back to "all caisses"
 
+    # ---- Registration-form answer filter (?answer=<field>::<value>, e.g.
+    # Spécialité = Néphrologie): narrows every participant-based figure,
+    # list and chart below -- payments, presence, registered total and
+    # both kinds of scans -- to the people who gave that answer. ----
+    answer_groups = _answer_filter_options(event)
+    answer = request.GET.get('answer', '').strip()
+    selected_answer = None
+    answer_participant_ids = None
+    if answer:
+        field_name, _, value = answer.partition('::')
+        group = next((g for g in answer_groups if g['name'] == field_name), None)
+        if group and value in group['options']:
+            selected_answer = {'label': group['label'], 'value': value}
+            fields, answers = _registration_form_answers(event)
+            index = next(i for i, f in enumerate(fields) if f['name'] == field_name)
+            answer_participant_ids = {pid for pid, values in answers.items() if value in values[index]}
+        else:
+            answer = ''  # unknown/stale value -- fall back to "everyone"
+
     # ---- Money & transactions (every caisse station combined, unless one
     # is selected in the filter bar) ----
     # NOTE: the per-caisse .values().annotate() grouping below must run
@@ -463,6 +482,8 @@ def _gather_event_stats(request, event):
     if selected_caisse:
         transactions_base_qs = transactions_base_qs.filter(caisse=selected_caisse)
     transactions_base_qs = _in_date_range(transactions_base_qs, 'created_at', date_from, date_to)
+    if answer_participant_ids is not None:
+        transactions_base_qs = transactions_base_qs.filter(participant_id__in=answer_participant_ids)
 
     # Totals by payment mode -- the same payment_breakdown() the caisse
     # screen uses, so both always show the same figures. money_stats is
@@ -496,6 +517,10 @@ def _gather_event_stats(request, event):
         ParticipantEventRegistration.objects.filter(event=event, is_checked_in=True),
         'checked_in_at', date_from, date_to,
     )
+    registrations_qs = ParticipantEventRegistration.objects.filter(event=event)
+    if answer_participant_ids is not None:
+        presence_base_qs = presence_base_qs.filter(participant_id__in=answer_participant_ids)
+        registrations_qs = registrations_qs.filter(participant_id__in=answer_participant_ids)
     presence_qs = presence_base_qs.select_related('participant__user')
     if presence_search:
         presence_qs = presence_qs.filter(
@@ -507,7 +532,7 @@ def _gather_event_stats(request, event):
     presence_qs = presence_qs.order_by('-checked_in_at')
     presence_total = presence_base_qs.count()
     presence_count = presence_qs.count() if presence_search else presence_total
-    total_registered = ParticipantEventRegistration.objects.filter(event=event).count()
+    total_registered = registrations_qs.count()
 
     # ---- Scans (badge controllers + exhibitor booth visits) ----
     # One "Compte" filter for both kinds of account: ?account=c<user id>
@@ -551,6 +576,11 @@ def _gather_event_stats(request, event):
     elif exposant_id:
         exposant_scans_base_qs = exposant_scans_base_qs.filter(exposant_id=exposant_id)
         controller_scans_base_qs = controller_scans_base_qs.none()
+    if answer_participant_ids is not None:
+        from events.models import Participant
+        answer_user_ids = list(Participant.objects.filter(id__in=answer_participant_ids).values_list('user_id', flat=True))
+        controller_scans_base_qs = controller_scans_base_qs.filter(participant_user_id__in=answer_user_ids)
+        exposant_scans_base_qs = exposant_scans_base_qs.filter(scanned_participant_id__in=answer_participant_ids)
 
     controller_scans_qs = controller_scans_base_qs.select_related('controller')
     exposant_scans_qs = exposant_scans_base_qs.select_related('exposant__user', 'scanned_participant__user')
@@ -581,14 +611,27 @@ def _gather_event_stats(request, event):
         'controller_scans_qs': controller_scans_qs, 'exposant_scans_qs': exposant_scans_qs,
         'account': account, 'selected_account': selected_account,
         'controller_options': controller_options, 'exposant_options': exposant_options,
+        'answer': answer, 'selected_answer': selected_answer, 'answer_groups': answer_groups,
     }
+
+
+def _answer_filter_options(event):
+    """The event form's multiple-choice questions and their answers, for
+    the « Réponse au formulaire » filter (no participant data loaded)."""
+    from .participant_import_service import build_import_columns
+    return [
+        {'name': f['name'], 'label': f['label'], 'options': [str(o) for o in f['options']]}
+        for f in build_import_columns(event)['form_fields']
+        if f['type'] in _CHOICE_FIELD_TYPES and f['options'] and f['name'] not in _IDENTITY_FIELDS
+    ]
 
 
 def _event_day_shortcuts(event, data):
     """Quick period buttons: 'Tout l'événement' + one per event day (max 14)."""
     from urllib.parse import urlencode
 
-    keep = {k: v for k, v in (('caisse_id', data['caisse_id']), ('account', data['account'])) if v}
+    keep = {k: v for k, v in (('caisse_id', data['caisse_id']), ('account', data['account']),
+                              ('answer', data['answer'])) if v}
     shortcuts = [{
         'label': "Tout l'événement", 'query': urlencode(keep),
         'active': not data['date_from_str'] and not data['date_to_str'],
@@ -651,6 +694,9 @@ def event_stats(request, event_id):
         'caisses': data['caisses'],
         'caisse_id': data['caisse_id'],
         'selected_caisse': data['selected_caisse'],
+        'answer': data['answer'],
+        'selected_answer': data['selected_answer'],
+        'answer_groups': data['answer_groups'],
         'day_shortcuts': _event_day_shortcuts(event, data),
         'money_stats': data['money_stats'],
         'payment_totals': data['payment_totals'],
@@ -818,6 +864,8 @@ def event_stats_export_excel(request, event_id):
     ws.append(["Période", _stats_period_label(data)])
     ws.append(["Caisse", data['selected_caisse'].name if data['selected_caisse'] else 'Toutes les caisses'])
     ws.append(["Compte", data['selected_account']['name'] if data['selected_account'] else 'Tous les comptes'])
+    if data['selected_answer']:
+        ws.append([data['selected_answer']['label'], data['selected_answer']['value']])
     ws.append(["Exporté le", timezone.localtime().strftime('%d/%m/%Y %H:%M')])
 
     section(ws, "Chiffres clés")
@@ -1047,6 +1095,8 @@ def event_stats_export_pdf(request, event_id):
         scope_lines.append('Période : ' + _stats_period_label(data))
     if data['selected_caisse']:
         scope_lines.append('Caisse : ' + data['selected_caisse'].name)
+    if data['selected_answer']:
+        scope_lines.append(f"{data['selected_answer']['label']} : {data['selected_answer']['value']}")
     edited_by = request.user.get_full_name().strip() or request.user.username
     pdf = build_caisse_report(event, data['transactions_qs'], edited_by, scope_lines)
 

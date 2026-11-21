@@ -237,6 +237,37 @@ class StatsExportFormFieldsTests(TestCase):
         self.assertEqual(spec['Urologie'], (1, 0, 0, 0))
 
 
+    def test_page_filter_by_form_answer(self):
+        from openpyxl import load_workbook
+        url = reverse('dashboard:event_stats', args=[self.event.id])
+        page = self.client.get(url)
+        self.assertContains(page, 'Réponse au formulaire')
+        self.assertContains(page, 'value="field_1::Néphrologie"')
+        self.assertEqual(page.context['total_registered'], 4)
+
+        page = self.client.get(url, {'answer': 'field_1::Néphrologie'})
+        ctx = page.context
+        self.assertEqual((ctx['total_registered'], ctx['presence_total']), (2, 1))  # amina + chahra; amina present
+        self.assertEqual(ctx['money_stats']['total_amount'], 3000)
+        self.assertContains(page, 'name="answer" value="field_1::Néphrologie"')  # kept by the search forms
+
+        page = self.client.get(url, {'answer': 'field_1::Urologie'})
+        self.assertEqual((page.context['total_registered'], page.context['presence_total']), (1, 0))
+        self.assertEqual(page.context['money_stats']['total_amount'], 0)
+
+        page = self.client.get(url, {'answer': 'field_3::Privé'})  # checkbox answer
+        self.assertEqual(page.context['total_registered'], 1)
+
+        page = self.client.get(url, {'answer': 'field_1::Inconnu'})  # stale value -> everyone
+        self.assertEqual((page.context['total_registered'], page.context['answer']), (4, ''))
+
+        response = self.client.get(reverse('dashboard:event_stats_export_excel', args=[self.event.id]),
+                                   {'answer': 'field_1::Néphrologie'})
+        wb = load_workbook(BytesIO(response.content))
+        self.assertIn(('Spécialité', 'Néphrologie'), [tuple(r[:2]) for r in wb['Résumé'].iter_rows(values_only=True)])
+        self.assertEqual(wb['Présence'].max_row, 2)
+
+
 class WebappStatsApiTests(TestCase):
     """The webapp's own stats screens get the same insights for one account."""
 
