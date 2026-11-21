@@ -297,7 +297,7 @@ class SessionForm(forms.ModelForm):
             }),
             'youtube_live_url': forms.URLInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'https://youtube.com/watch?v=...'
+                'placeholder': 'https://youtube.com/live/...'
             }),
             'cover_image_url': forms.URLInput(attrs={
                 'class': 'form-control',
@@ -313,7 +313,14 @@ class SessionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if event:
             self.fields['room'].queryset = Room.objects.filter(event=event)
-    
+        # A page that doesn't show one of these optional text fields must
+        # not erase it on save (the edit page used to blank the live link,
+        # speaker bio/photo and cover on every "Enregistrer").
+        if self.is_bound and self.instance.pk:
+            for name in ('youtube_live_url', 'speaker_bio', 'speaker_photo_url', 'cover_image_url'):
+                if name not in self.data:
+                    self.fields.pop(name, None)
+
     def clean(self):
         cleaned_data = super().clean()
 

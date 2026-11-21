@@ -2606,3 +2606,31 @@ class AttestationSendPresenceFilterTests(TestCase):
         self.assertContains(r, 'present@example.com')
         self.assertNotContains(r, 'absent@example.com')
         self.assertContains(r, 'name="presence" value="present"')
+
+
+class LiveLinkEditTests(TestCase):
+    def test_edit_page_shows_and_saves_live_link_and_keeps_hidden_fields(self):
+        admin = User.objects.create_superuser('a', 'a@x.local', 'pw-x-123')
+        self.client.force_login(admin)
+        ev = Event.objects.create(name='E', start_date=timezone.now(), end_date=timezone.now() + timedelta(days=1), location='A')
+        room = Room.objects.create(event=ev, name='Auditorium', capacity=100)
+        s = Session.objects.create(event=ev, room=room, title='T', start_time=ev.start_date, end_time=ev.start_date + timedelta(hours=1),
+                                   speaker_bio='bio', cover_image_url='https://x.local/c.jpg')
+        url = reverse('dashboard:session_edit', args=[s.id])
+        page = self.client.get(url)
+        self.assertContains(page, 'Lien du live')
+        self.assertContains(page, 'name="youtube_live_url"')
+        fmt = '%Y-%m-%dT%H:%M'
+        data = {'title': 'T2', 'description': '', 'session_type': s.session_type, 'room': room.id,
+                'start_time': timezone.localtime(s.start_time).strftime(fmt), 'end_time': timezone.localtime(s.end_time).strftime(fmt),
+                'speaker_name': '', 'speaker_title': '', 'theme': '', 'max_participants': '', 'status': s.status, 'is_active': 'on', 'price': '0',
+                'youtube_live_url': 'https://youtube.com/live/lO0JwQ0u41Y'}
+        r = self.client.post(url, data)
+        self.assertEqual(r.status_code, 302, [m.message for m in r.wsgi_request._messages] if hasattr(r, 'wsgi_request') else '')
+        s.refresh_from_db()
+        self.assertEqual((s.title, s.youtube_live_url, s.speaker_bio, s.cover_image_url),
+                         ('T2', 'https://youtube.com/live/lO0JwQ0u41Y', 'bio', 'https://x.local/c.jpg'))
+        data['youtube_live_url'] = ''
+        self.client.post(url, data)
+        s.refresh_from_db()
+        self.assertEqual(s.youtube_live_url, '')  # clearing it on purpose still works
