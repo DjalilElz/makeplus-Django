@@ -9,6 +9,7 @@ from django.db.models.functions import Trunc
 from django.http import HttpResponse
 from django.utils import timezone
 from datetime import timedelta, datetime, time
+from decimal import Decimal
 from .models_email import EmailCampaign, EmailRecipient, EmailLink, EmailClick, EmailOpen
 from .models_form import FormConfiguration, FormAnalytics, FormView, FormFieldInteraction
 from .views import is_staff_user
@@ -690,6 +691,63 @@ def _stats_period_label(data):
             f"{_readable_stats_date(data['date_to_str'], 'aujourd’hui')}")
 
 
+_CHOICE_FIELD_TYPES = ('select', 'radio', 'checkbox')
+_IDENTITY_FIELDS = ('first_name', 'last_name', 'email')
+
+
+def _registration_form_answers(event):
+    """
+    The event's registration-form questions (Spécialité, Grade, Wilaya...)
+    and each participant's answers, so the stats export can show them as
+    filterable columns. Returns (fields, {participant_id: [value lists]}),
+    each answer a list of strings (a checkbox can hold several, a text
+    field one, an unanswered field none). Name/e-mail are left out: the
+    sheets already show them.
+
+    Answers come from the participant's registration order (its form
+    submission -- the latest one if they registered twice), falling back
+    to a submission of the event's form with the same e-mail for anyone
+    without an order.
+    """
+    from events.models import ParticipantEventRegistration
+    from .models_blocs import RegistrationOrder
+    from .models_form import FormSubmission
+    from .participant_import_service import build_import_columns
+
+    fields = [f for f in build_import_columns(event)['form_fields'] if f['name'] not in _IDENTITY_FIELDS]
+    if not fields:
+        return [], {}
+
+    data_by_participant = {}
+    orders = (RegistrationOrder.objects.filter(event=event, participant__isnull=False, form_submission__isnull=False)
+              .order_by('created_at').values_list('participant_id', 'form_submission__data'))
+    for participant_id, data in orders:
+        data_by_participant[participant_id] = data or {}
+
+    missing = dict(
+        ParticipantEventRegistration.objects.filter(event=event)
+        .exclude(participant_id__in=list(data_by_participant))
+        .values_list('participant__user__email', 'participant_id')
+    )
+    if missing:
+        by_email = {email.lower(): pid for email, pid in missing.items() if email}
+        for email, data in (FormSubmission.objects.filter(form__event=event)
+                            .order_by('submitted_at').values_list('email', 'data')):
+            data = data or {}
+            pid = by_email.get((email or data.get('email') or '').strip().lower())
+            if pid:
+                data_by_participant[pid] = data
+
+    def as_list(value):
+        if isinstance(value, list):
+            return [str(v).strip() for v in value if str(v).strip()]
+        value = str(value or '').strip()
+        return [value] if value else []
+
+    answers = {pid: [as_list(data.get(f['name'])) for f in fields] for pid, data in data_by_participant.items()}
+    return fields, answers
+
+
 @login_required
 @user_passes_test(is_staff_user)
 def event_stats_export_excel(request, event_id):
@@ -861,20 +919,84 @@ def event_stats_export_excel(request, event_id):
     table_sheet("Doubles scans", ["Participant", "Badge", "Contrôleur", "Scans", "Premier", "Dernier"],
                 rows, [28, 16, 24, 8, 20, 20])
 
+    # ---- Registration-form answers (Spécialité, Grade...) as extra,
+    # filterable columns on every participant sheet ----
+    form_fields, form_answers = _registration_form_answers(event)
+    form_labels = [f['label'] for f in form_fields]
+    no_answers = [[] for _ in form_fields]
+
+    def answer_cells(participant_id):
+        return [', '.join(values) for values in form_answers.get(participant_id, no_answers)]
+
     # ---- Detail lists ----
     rows = [[
         txn.participant.user.get_full_name() or txn.participant.user.username, txn.participant.user.email,
         txn.caisse.name, ', '.join(i.name for i in txn.items.all()), float(txn.total_amount), txn.payment_display,
         local(txn.created_at),
-    ] for txn in data['transactions_qs']]
-    table_sheet("Transactions", ["Participant", "E-mail", "Caisse", "Articles", "Montant (DZD)", "Mode de règlement", "Date"],
-                rows, [28, 30, 18, 40, 14, 26, 17])
+    ] + answer_cells(txn.participant_id) for txn in data['transactions_qs']]
+    table_sheet("Transactions", ["Participant", "E-mail", "Caisse", "Articles", "Montant (DZD)", "Mode de règlement", "Date"]
+                + form_labels, rows, [28, 30, 18, 40, 14, 26, 17] + [24] * len(form_labels))
 
     rows = [[
         reg.participant.user.get_full_name() or reg.participant.user.username, reg.participant.user.email,
         reg.participant.badge_id, local(reg.checked_in_at),
-    ] for reg in data['presence_qs']]
-    table_sheet("Présence", ["Participant", "E-mail", "Badge", "Présent depuis"], rows, [28, 30, 18, 17])
+    ] + answer_cells(reg.participant_id) for reg in data['presence_qs']]
+    table_sheet("Présence", ["Participant", "E-mail", "Badge", "Présent depuis"] + form_labels,
+                rows, [28, 30, 18, 17] + [24] * len(form_labels))
+
+    if form_fields:
+        from events.models import ParticipantEventRegistration
+        paid_by_participant = dict(
+            data['transactions_base_qs'].order_by().values('participant_id')
+            .annotate(amount=Sum('total_amount')).values_list('participant_id', 'amount')
+        )
+        present_ids = set(data['presence_base_qs'].values_list('participant_id', flat=True))
+        registrations = (ParticipantEventRegistration.objects.filter(event=event)
+                         .select_related('participant__user')
+                         .order_by('participant__user__last_name', 'participant__user__first_name'))
+
+        # Every registered participant with their answers: Excel's filter
+        # arrows on the header row filter by Spécialité, Grade, etc.
+        rows = []
+        for reg in registrations:
+            user = reg.participant.user
+            present = reg.participant_id in present_ids
+            rows.append([
+                user.last_name, user.first_name, user.email, reg.participant.badge_id,
+            ] + answer_cells(reg.participant_id) + [
+                'Oui' if present else 'Non', local(reg.checked_in_at) if present else '',
+                float(paid_by_participant.get(reg.participant_id) or 0),
+            ])
+        table_sheet("Inscrits", ["Nom", "Prénom", "E-mail", "Badge"] + form_labels
+                    + ["Présent", "Présent depuis", "Montant payé (DZD)"],
+                    rows, [20, 20, 30, 16] + [24] * len(form_labels) + [10, 17, 16])
+
+        # Breakdown per answer of each multiple-choice question.
+        ws = wb.create_sheet("Par champ du formulaire")
+        all_ids = [reg.participant_id for reg in registrations]
+        for index, field in enumerate(form_fields):
+            if field['type'] not in _CHOICE_FIELD_TYPES:
+                continue
+            counts = {}
+            for pid in all_ids:
+                values = form_answers.get(pid, no_answers)[index] or ['(Non renseigné)']
+                for value in values:
+                    row = counts.setdefault(value, [0, 0, Decimal('0')])
+                    row[0] += 1
+                    if pid in present_ids:
+                        row[1] += 1
+                    row[2] += paid_by_participant.get(pid) or 0
+            order = [o for o in field['options'] if o in counts]
+            order += sorted(v for v in counts if v not in field['options'])
+            section(ws, field['label'])
+            header(ws, ["Réponse", "Inscrits", "Présents", "Taux de présence (%)", "Montant payé (DZD)"])
+            for value in order:
+                registered, present, amount = counts[value]
+                ws.append([value, registered, present,
+                           round(100 * present / registered, 1) if registered else 0, float(amount)])
+        widths(ws, [44, 12, 12, 20, 20])
+        if ws.max_row == 1 and not ws['A1'].value:
+            wb.remove(ws)  # the form has no multiple-choice question
 
     decision_labels = {'granted': 'Laissé entrer', 'denied': 'Accès refusé'}
     result_labels = {'success': 'Inscrit', 'not_registered': 'Non inscrit', 'error': 'Erreur'}

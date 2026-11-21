@@ -172,6 +172,71 @@ class StatsDashboardTests(TestCase):
         self.assertEqual(wb['Scans contrôleurs'].max_row, 2)
 
 
+
+class StatsExportFormFieldsTests(TestCase):
+    """The stats Excel carries the registration-form answers (Spécialité...)."""
+
+    def setUp(self):
+        from decimal import Decimal
+        from caisse.models import Caisse, CaisseTransaction
+        from dashboard.models_blocs import RegistrationOrder
+        from dashboard.models_form import FormConfiguration, FormSubmission
+        from events.models import ParticipantEventRegistration
+        self.event = Event.objects.create(
+            name='Congress', start_date=timezone.now(), end_date=timezone.now() + timedelta(days=1), location='Alger',
+        )
+        self.admin = User.objects.create_user(username='admin', password='x', is_staff=True, is_superuser=True)
+        self.client.force_login(self.admin)
+        form = FormConfiguration.objects.create(name='Inscription', slug='insc', event=self.event, created_by=self.admin, fields_config=[
+            {'name': 'last_name', 'label': 'Nom', 'type': 'text'},
+            {'name': 'email', 'label': 'E-mail', 'type': 'email'},
+            {'name': 'field_1', 'label': 'Spécialité', 'type': 'select', 'options': ['Néphrologie', 'Urologie']},
+            {'name': 'field_3', 'label': 'Secteur', 'type': 'checkbox', 'options': ['Public', 'Privé']},
+        ])
+        caisse = Caisse.objects.create(name='Caisse 1', email='c@example.com', event=self.event)
+        people = [('amina', 'Néphrologie', ['Public'], True, 3000), ('bilal', 'Urologie', ['Privé'], False, 0),
+                  ('chahra', 'Néphrologie', [], False, 0), ('djamel', None, None, False, 0)]
+        for name, spec, secteur, present, paid in people:
+            user = User.objects.create_user(username=name, email=f'{name}@example.com', password='x', first_name=name.title())
+            participant = create_participant_for_event(user, self.event)
+            if spec is not None:
+                data = {'email': user.email, 'field_1': spec, 'field_3': secteur}
+                sub = FormSubmission.objects.create(form=form, data=data, email=user.email)
+                if name != 'chahra':  # chahra is matched by e-mail only (no order)
+                    RegistrationOrder.objects.create(event=self.event, form_submission=sub, participant=participant,
+                                                     email=user.email, full_name=name)
+            if present:
+                ParticipantEventRegistration.objects.filter(participant=participant).update(
+                    is_checked_in=True, checked_in_at=timezone.now())
+            if paid:
+                CaisseTransaction.objects.create(caisse=caisse, participant=participant, total_amount=Decimal(paid),
+                                                 status='completed', payment_method='cash')
+
+    def test_form_answers_columns_and_breakdown(self):
+        from openpyxl import load_workbook
+        response = self.client.get(reverse('dashboard:event_stats_export_excel', args=[self.event.id]))
+        wb = load_workbook(BytesIO(response.content))
+        self.assertIn('Inscrits', wb.sheetnames)
+        ws = wb['Inscrits']
+        head = [c.value for c in ws[1]]
+        self.assertEqual(head, ['Nom', 'Prénom', 'E-mail', 'Badge', 'Spécialité', 'Secteur', 'Présent',
+                                'Présent depuis', 'Montant payé (DZD)'])
+        self.assertIsNotNone(ws.auto_filter.ref)  # Excel filter arrows on the header
+        rows = {r[2]: r for r in ws.iter_rows(min_row=2, values_only=True)}
+        self.assertEqual(rows['amina@example.com'][4:7], ('Néphrologie', 'Public', 'Oui'))
+        self.assertEqual(rows['amina@example.com'][8], 3000)
+        self.assertEqual(rows['chahra@example.com'][4], 'Néphrologie')
+        self.assertEqual(rows['djamel@example.com'][4] or '', '')
+        presence_head = [c.value for c in wb['Présence'][1]]
+        self.assertEqual(presence_head[-2:], ['Spécialité', 'Secteur'])
+        self.assertEqual([c.value for c in wb['Transactions'][2]][-2:], ['Néphrologie', 'Public'])
+
+        breakdown = list(wb['Par champ du formulaire'].iter_rows(values_only=True))
+        spec = {r[0]: r[1:] for r in breakdown if r and r[0] in ('Néphrologie', 'Urologie', '(Non renseigné)')}
+        self.assertEqual(spec['Néphrologie'], (2, 1, 50, 3000))
+        self.assertEqual(spec['Urologie'], (1, 0, 0, 0))
+
+
 class WebappStatsApiTests(TestCase):
     """The webapp's own stats screens get the same insights for one account."""
 
