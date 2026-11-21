@@ -107,6 +107,8 @@
                                         <span class="badge bg-purple">Comité</span>
                                     {% elif assignment.role == 'exposant' %}
                                         <span class="badge bg-success">Exposant</span>
+                                    {% elif assignment.role == 'event_owner' %}
+                                        <span class="badge bg-primary">Responsable de l'événement</span>
                                     {% elif assignment.role == 'participant' %}
                                         <span class="badge bg-secondary">Participant</span>
                                     {% endif %}
@@ -143,48 +145,6 @@
                                     </button>
                                 </td>
                             </tr>
-                            
-                            <!-- Change Role Modal for this assignment -->
-                            <div class="modal fade" id="changeRoleModal{{ assignment.id }}" tabindex="-1" aria-hidden="true">
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Changer le rôle - {{ assignment.event.name }}</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-                                        </div>
-                                        <form method="post" action="{% url 'dashboard:user_change_role' assignment.id %}">
-                                            {% csrf_token %}
-                                            <div class="modal-body">
-                                                <div class="mb-3">
-                                                    <label class="form-label">Utilisateur :</label>
-                                                    <p class="fw-bold">{{ user.get_full_name|default:user.username }}</p>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Événement :</label>
-                                                    <p class="fw-bold">{{ assignment.event.name }}</p>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label for="role{{ assignment.id }}" class="form-label">Nouveau rôle</label>
-                                                    <select class="form-select" id="role{{ assignment.id }}" name="role" required>
-                                                        <option value="organisateur" {% if assignment.role == 'organisateur' %}selected{% endif %}>Organisateur</option>
-                                                        <option value="gestionnaire_des_salles" {% if assignment.role == 'gestionnaire_des_salles' %}selected{% endif %}>Gestionnaire de salle</option>
-                                                        <option value="controlleur_des_badges" {% if assignment.role == 'controlleur_des_badges' %}selected{% endif %}>Contrôleur</option>
-                                                        <option value="committee" {% if assignment.role == 'committee' %}selected{% endif %}>Comité</option>
-                                                        <option value="exposant" {% if assignment.role == 'exposant' %}selected{% endif %}>Exposant</option>
-                                                        <option value="participant" {% if assignment.role == 'participant' %}selected{% endif %}>Participant</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                                <button type="submit" class="btn btn-primary">
-                                                    <i class="bi bi-check-circle"></i> Changer le rôle
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
                             {% endwith %}
                             {% endfor %}
                         </tbody>
@@ -395,6 +355,54 @@
         </div>
     </div>
 </div>
+
+<!-- "Changer le rôle" modals: outside the table (a <div> between rows is invalid
+     HTML) and outside .stat-card, whose hover transform made the modal jump
+     under its backdrop and become unclickable. -->
+                {% if assignments %}{% for item in assignments_with_rooms %}
+                {% with assignment=item.assignment %}
+                            <div class="modal fade" id="changeRoleModal{{ assignment.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Changer le rôle - {{ assignment.event.name }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                                        </div>
+                                        <form method="post" action="{% url 'dashboard:user_change_role' assignment.id %}">
+                                            {% csrf_token %}
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Utilisateur :</label>
+                                                    <p class="fw-bold">{{ user.get_full_name|default:user.username }}</p>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Événement :</label>
+                                                    <p class="fw-bold">{{ assignment.event.name }}</p>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="role{{ assignment.id }}" class="form-label">Nouveau rôle</label>
+                                                    <select class="form-select" id="role{{ assignment.id }}" name="role" required>
+                                                        {% if assignment.role not in role_keys %}
+                                                        <option value="" selected disabled>Choisir un rôle…</option>
+                                                        {% endif %}
+                                                        {% for value, label in role_choices %}
+                                                        <option value="{{ value }}" {% if assignment.role == value %}selected{% endif %}>{{ label }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="bi bi-check-circle"></i> Changer le rôle
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                {% endwith %}
+                {% endfor %}{% endif %}
 
 <!-- Delete User Modal -->
 <div class="modal fade" id="deleteUserModal" tabindex="-1" aria-labelledby="deleteUserModalLabel" aria-hidden="true">

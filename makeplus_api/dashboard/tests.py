@@ -2634,3 +2634,32 @@ class LiveLinkEditTests(TestCase):
         self.client.post(url, data)
         s.refresh_from_db()
         self.assertEqual(s.youtube_live_url, '')  # clearing it on purpose still works
+
+
+class UserChangeRoleTests(TestCase):
+    def setUp(self):
+        from events.models import UserEventAssignment
+        self.admin = User.objects.create_superuser('boss', 'boss@x.local', 'pw-x-123')
+        self.client.force_login(self.admin)
+        self.event = Event.objects.create(name='E', start_date=timezone.now(), end_date=timezone.now() + timedelta(days=1), location='A')
+        self.target = User.objects.create_user(username='kamel', password='pw-x-123', first_name='Kamel')
+        self.assignment = UserEventAssignment.objects.create(user=self.target, event=self.event, role='event_owner')
+
+    def test_modal_outside_table_and_card_with_current_role_selected(self):
+        html = self.client.get(reverse('dashboard:user_detail', args=[self.target.id])).content.decode()
+        modal_at = html.index(f'id="changeRoleModal{self.assignment.id}"')
+        self.assertGreater(modal_at, html.index('</table>'))
+        self.assertIn('<option value="event_owner" selected>', html.replace('  ', ' '))
+        self.assertIn('Comité', html)
+        self.assertNotIn('value="organisateur"', html)
+
+    def test_every_offered_role_can_be_saved(self):
+        from dashboard.views import ASSIGNMENT_ROLE_LABELS
+        url = reverse('dashboard:user_change_role', args=[self.assignment.id])
+        for role, _ in ASSIGNMENT_ROLE_LABELS:
+            self.client.post(url, {'role': role})
+            self.assignment.refresh_from_db()
+            self.assertEqual(self.assignment.role, role)
+        self.client.post(url, {'role': 'organisateur'})  # no longer a role
+        self.assignment.refresh_from_db()
+        self.assertEqual(self.assignment.role, 'participant')

@@ -1100,6 +1100,8 @@ def user_detail(request, user_id):
         'is_admin_viewer': request.user.is_staff or request.user.is_superuser,
         'can_set_password': can_set_password,
         'set_password_blocked_reason': set_password_blocked_reason,
+        'role_choices': ASSIGNMENT_ROLE_LABELS,
+        'role_keys': [key for key, _ in ASSIGNMENT_ROLE_LABELS],
     }
 
     return render(request, 'dashboard/user_detail.html', context)
@@ -1213,30 +1215,43 @@ def user_delete(request, user_id):
     return redirect('dashboard:user_detail', user_id=user.id)
 
 
+# Roles offered in "Changer le rôle", in French; keys = UserEventAssignment.ROLE_CHOICES.
+ASSIGNMENT_ROLE_LABELS = [
+    ('event_owner', "Responsable de l'événement"),
+    ('gestionnaire_des_salles', 'Gestionnaire de salle'),
+    ('controlleur_des_badges', 'Contrôleur'),
+    ('committee', 'Comité'),
+    ('exposant', 'Exposant'),
+    ('participant', 'Participant'),
+]
+
+
 @login_required
 @user_passes_test(is_staff_user)
 def user_change_role(request, assignment_id):
     """Change user's role for a specific event"""
-    
+
     assignment = get_object_or_404(UserEventAssignment, id=assignment_id)
     
     if request.method == 'POST':
         new_role = request.POST.get('role')
         
-        # Validate role
-        valid_roles = ['organisateur', 'gestionnaire_des_salles', 'controlleur_des_badges', 'exposant', 'participant']
-        if new_role not in valid_roles:
+        # Validate role -- the model's own roles (the old list still had
+        # 'organisateur', which no longer exists, and lacked 'committee'
+        # and 'event_owner', which the form offered or needed).
+        if new_role not in dict(ASSIGNMENT_ROLE_LABELS):
             messages.error(request, 'Rôle sélectionné invalide.')
             return redirect('dashboard:user_detail', user_id=assignment.user.id)
         
-        old_role = assignment.get_role_display()
+        labels = dict(ASSIGNMENT_ROLE_LABELS)
+        old_role = labels.get(assignment.role, assignment.get_role_display())
         assignment.role = new_role
         assignment.save()
         
         # Invalidate cache
         invalidate_event_cache(assignment.event.id)
         
-        new_role_display = assignment.get_role_display()
+        new_role_display = labels[new_role]
         messages.success(request, f'Rôle de l\'utilisateur changé de {old_role} à {new_role_display} pour l\'événement « {assignment.event.name} ».')
         return redirect('dashboard:user_detail', user_id=assignment.user.id)
     
