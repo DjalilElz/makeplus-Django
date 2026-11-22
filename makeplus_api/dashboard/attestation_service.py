@@ -230,7 +230,12 @@ def send_attestation_to_participant(template, participant, sent_by=None):
     if not participant.user.email:
         return False, "Ce participant n'a pas d'adresse e-mail."
 
-    submission = find_eposter_submission(participant, event)
+    # Poster details only when the event explicitly turned them on --
+    # otherwise everyone (presenters included) gets the plain
+    # participation attestation and the participant e-mail.
+    submission = None
+    if getattr(template, 'include_eposter_details', False):
+        submission = find_eposter_submission(participant, event)
     recipient_type = 'eposter' if submission else 'participant'
 
     try:

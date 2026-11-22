@@ -102,6 +102,16 @@ class AttestationTemplate(models.Model):
         verbose_name="Envoyer automatiquement l'attestation à la présence (caisse)",
     )
 
+    # Opt-in per event: draw an accepted ePoster presenter's poster title
+    # and co-authors on their attestation. Off by default: the uploaded
+    # image is usually a plain participation certificate, and stamping a
+    # poster title on it (at the never-configured default position) is
+    # what presenters reported receiving.
+    include_eposter_details = models.BooleanField(
+        default=False,
+        verbose_name="Ajouter le titre du poster et les co-auteurs (présentateurs ePoster)",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)

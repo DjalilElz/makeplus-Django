@@ -116,7 +116,7 @@
                         <div id="preview-text-title" class="attestation-preview-text align-{{ template.title_align }} d-none">Titre de l'étude scientifique présentée</div>
                         <div id="preview-text-co_authors" class="attestation-preview-text align-{{ template.co_authors_align }} d-none">Amine Kaci, Sarah Belkacem, Yacine Meziane</div>
                     </div>
-                    <div class="form-text">Le titre et les co-auteurs ne sont dessinés que pour les présentateurs ePoster (détectés automatiquement par e-mail) -- ils sont pris tels quels depuis leur soumission.</div>
+                    <div class="form-text">Le titre et les co-auteurs ne sont dessinés que si l'option « Ajouter le titre du poster » ci-dessous est activée, et seulement pour les présentateurs ePoster acceptés (détectés par e-mail).</div>
                 </div>
 
                 <input type="hidden" name="text_x" id="text_x_input" value="{{ template.text_x }}">
@@ -168,6 +168,12 @@
                     </div>
                 </div>
                 {% endif %}
+
+                <div class="form-check form-switch mt-4">
+                    <input class="form-check-input" type="checkbox" name="include_eposter_details" id="include_eposter_details_input" {% if template.include_eposter_details %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="include_eposter_details_input">Ajouter le titre du poster et les co-auteurs pour les présentateurs ePoster</label>
+                    <div class="form-text">Laissez désactivé si l'image est une attestation de participation&nbsp;: tout le monde reçoit alors une attestation avec seulement son nom. Activez-le uniquement si ce modèle prévoit une place pour le titre et les co-auteurs (positionnez-les avec l'aperçu ePoster).</div>
+                </div>
 
                 <div class="form-check form-switch mt-4">
                     <input class="form-check-input" type="checkbox" name="auto_send_on_presence" id="auto_send_on_presence_input" {% if template.auto_send_on_presence %}checked{% endif %}>

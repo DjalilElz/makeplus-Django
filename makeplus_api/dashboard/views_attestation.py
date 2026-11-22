@@ -158,6 +158,7 @@ def attestation_settings(request, event_id):
         for field, value in _parse_template_fields_from_post(request.POST).items():
             setattr(template, field, value)
         template.auto_send_on_presence = request.POST.get('auto_send_on_presence') == 'on'
+        template.include_eposter_details = request.POST.get('include_eposter_details') == 'on'
 
         from django.db import transaction
         try:
