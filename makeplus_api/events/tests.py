@@ -597,3 +597,23 @@ class AnnonceIsolationTests(TestCase):
 
     def test_invalid_event_id_returns_nothing_instead_of_crashing(self):
         self.assertEqual(self._titles('/api/annonces/?event_id=not-a-uuid'), [])
+
+
+class YoutubeWatchUrlTests(TestCase):
+    """The mobile player can't read /live/ links; the API sends watch?v= links."""
+
+    def test_normalizes_every_youtube_form(self):
+        from events.serializers import youtube_watch_url
+        expected = 'https://www.youtube.com/watch?v=26_6Hy2TRKs'
+        for url in (
+            'https://www.youtube.com/live/26_6Hy2TRKs',
+            'https://www.youtube.com/live/26_6Hy2TRKs?si=rlH-MKmPZnHT-yP_',
+            'https://youtube.com/live/26_6Hy2TRKs',
+            'https://youtu.be/26_6Hy2TRKs',
+            'https://www.youtube.com/watch?v=26_6Hy2TRKs&t=10',
+            'https://m.youtube.com/embed/26_6Hy2TRKs',
+        ):
+            self.assertEqual(youtube_watch_url(url), expected, url)
+        self.assertEqual(youtube_watch_url(''), '')
+        self.assertIsNone(youtube_watch_url(None))
+        self.assertEqual(youtube_watch_url('https://vimeo.com/123'), 'https://vimeo.com/123')

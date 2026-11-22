@@ -1,5 +1,7 @@
 # events/serializers.py - DRF Serializers
 
+import re
+
 from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -94,6 +96,28 @@ class RoomListSerializer(serializers.ModelSerializer):
         return None
 
 
+_YOUTUBE_ID_RE = re.compile(
+    r'(?:youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|live/|embed/|shorts/|v/)|youtu\.be/)([A-Za-z0-9_-]{11})'
+)
+
+
+def youtube_watch_url(url):
+    """
+    The mobile app's YouTube player (youtube_player_flutter) only reads
+    watch?v=, youtu.be, embed and shorts links. A youtube.com/live/<id>
+    link (what YouTube gives for a live stream) isn't recognized, and the
+    app then played its own built-in fallback video for every session.
+    Every recognizable YouTube link is sent as a plain watch?v= link;
+    anything else is passed through unchanged.
+    """
+    if not url:
+        return url
+    match = _YOUTUBE_ID_RE.search(url)
+    if not match:
+        return url
+    return f'https://www.youtube.com/watch?v={match.group(1)}'
+
+
 class SessionSerializer(serializers.ModelSerializer):
     """Session serializer"""
     is_live = serializers.ReadOnlyField()
@@ -114,7 +138,12 @@ class SessionSerializer(serializers.ModelSerializer):
     
     def get_duration_minutes(self, obj):
         return obj.duration_minutes()
-    
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['youtube_live_url'] = youtube_watch_url(data.get('youtube_live_url'))
+        return data
+
     def validate(self, data):
         """Validate session times"""
         if data.get('end_time') and data.get('start_time'):
