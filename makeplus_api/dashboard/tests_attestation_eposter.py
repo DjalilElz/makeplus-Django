@@ -81,3 +81,43 @@ class AttestationEposterDetailsTests(TestCase):
         self.client.post(url, {})
         self.template.refresh_from_db()
         self.assertFalse(self.template.include_eposter_details)
+
+
+@override_settings(MEDIA_ROOT=_TEST_MEDIA)
+class AttestationResendTests(AttestationEposterDetailsTests):
+    """The send page can resend to people who already received theirs."""
+
+    def setUp(self):
+        super().setUp()
+        from dashboard.models_attestation import AttestationSendLog
+        admin = User.objects.create_superuser('boss', 'boss@example.com', 'x')
+        self.client.force_login(admin)
+        self.log = AttestationSendLog.objects.create(event=self.event, participant=self.participant, status='sent')
+        plain = User.objects.create_user(username='omar', email='omar@example.com', password='x')
+        self.plain = create_participant_for_event(plain, self.event)
+
+    def _start(self, **extra):
+        from django.urls import reverse
+        data = {'action': 'start', 'participant_ids': [str(self.participant.id)]}
+        data.update(extra)
+        return self.client.post(reverse('dashboard:attestation_send', args=[self.event.id]), data, follow=True)
+
+    def test_already_sent_is_skipped_without_the_option(self):
+        self._start()
+        self.log.refresh_from_db()
+        self.assertEqual(self.log.status, 'sent')
+
+    def test_resend_option_queues_it_again(self):
+        page = self._start(resend='1')
+        self.log.refresh_from_db()
+        self.assertEqual(self.log.status, 'pending')
+        self.assertEqual(page.status_code, 200)
+
+    def test_eposter_filter_lists_only_presenters(self):
+        from django.urls import reverse
+        url = reverse('dashboard:attestation_send', args=[self.event.id])
+        page = self.client.get(url + '?profile=eposter')
+        self.assertContains(page, 'amina@example.com')
+        self.assertNotContains(page, 'omar@example.com')
+        self.assertContains(page, 'Présentateurs ePoster (1)')
+        self.assertContains(self.client.get(url), 'omar@example.com')

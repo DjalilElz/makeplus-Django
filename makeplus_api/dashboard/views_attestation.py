@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Q, Count
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
 from django.views.decorators.cache import never_cache
 
 from events.models import Event, Participant, ParticipantEventRegistration
@@ -294,6 +295,11 @@ def attestation_send(request, event_id):
             for log in AttestationSendLog.objects.filter(event=event, participant__in=participants)
         }
 
+        # "Renvoyer même si déjà envoyée": an explicit opt-in to send a
+        # fresh attestation to people who already received one (e.g. after
+        # a corrected template). Never applies to a send still in progress.
+        resend = request.POST.get('resend') == '1'
+
         new_logs = []
         retried = 0
         already_in_progress = 0
@@ -301,11 +307,12 @@ def attestation_send(request, event_id):
             existing = existing_by_participant.get(p.id)
             if existing is None:
                 new_logs.append(AttestationSendLog(event=event, participant=p, status='pending', sent_by=request.user))
-            elif existing.status == 'failed':
+            elif existing.status == 'failed' or (resend and existing.status == 'sent'):
                 existing.status = 'pending'
                 existing.error_message = ''
                 existing.sent_by = request.user
-                existing.save(update_fields=['status', 'error_message', 'sent_by'])
+                existing.sent_at = timezone.now()
+                existing.save(update_fields=['status', 'error_message', 'sent_by', 'sent_at'])
                 retried += 1
             else:
                 already_in_progress += 1
@@ -400,6 +407,43 @@ def attestation_send(request, event_id):
         registrations = registrations.filter(is_checked_in=False)
     else:
         presence = ''
+
+    # ePoster presenters: participants whose e-mail matches an accepted
+    # e_poster submission for this event (same rule as
+    # attestation_service.find_eposter_submission).
+    from django.db.models.functions import Lower
+    from .models_eposter import ScientificContributionSubmission
+    eposter_emails = {
+        e.lower() for e in ScientificContributionSubmission.objects.filter(
+            event=event, type_participation='e_poster', status='accepted',
+        ).values_list('email', flat=True) if e
+    }
+    profile = request.GET.get('profile', '')
+    if profile == 'eposter':
+        registrations = registrations.annotate(
+            _email_lower=Lower('participant__user__email')
+        ).filter(_email_lower__in=eposter_emails)
+    else:
+        profile = ''
+    eposter_count = ParticipantEventRegistration.objects.filter(event=event).annotate(
+        _email_lower=Lower('participant__user__email')
+    ).filter(_email_lower__in=eposter_emails).count()
+
+    from urllib.parse import urlencode
+
+    def _filter_url(**changes):
+        params = {'presence': presence, 'profile': profile, 'search': search}
+        params.update(changes)
+        return '?' + urlencode({k: v for k, v in params.items() if v})
+
+    filter_urls = {
+        'all': _filter_url(presence=''),
+        'present': _filter_url(presence='present'),
+        'absent': _filter_url(presence='absent'),
+        'profile_all': _filter_url(profile=''),
+        'profile_eposter': _filter_url(profile='eposter'),
+        'clear_search': _filter_url(search=''),
+    }
     registrations = registrations.order_by('participant__user__first_name', 'participant__user__last_name')
 
     sent_ids = set(
@@ -413,6 +457,9 @@ def attestation_send(request, event_id):
         'search': search,
         'presence': presence,
         'presence_counts': presence_counts,
+        'profile': profile,
+        'eposter_count': eposter_count,
+        'filter_urls': filter_urls,
         'sent_ids': sent_ids,
         'status': _attestation_status_counts(event),
     }

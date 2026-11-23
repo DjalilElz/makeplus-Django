@@ -46,20 +46,33 @@
     </div>
     {% endif %}
 
-    <div class="btn-group mb-3" role="group" aria-label="Filtre de présence">
-        <a href="?{% if search %}search={{ search|urlencode }}{% endif %}" class="btn btn-sm {% if not presence %}btn-primary{% else %}btn-outline-primary{% endif %}">
-            Tous ({{ presence_counts.all }})
-        </a>
-        <a href="?presence=present{% if search %}&search={{ search|urlencode }}{% endif %}" class="btn btn-sm {% if presence == 'present' %}btn-success{% else %}btn-outline-success{% endif %}">
-            <i class="bi bi-person-check"></i> Présents uniquement ({{ presence_counts.present }})
-        </a>
-        <a href="?presence=absent{% if search %}&search={{ search|urlencode }}{% endif %}" class="btn btn-sm {% if presence == 'absent' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
-            Absents ({{ presence_counts.absent }})
-        </a>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <div class="btn-group" role="group" aria-label="Filtre de présence">
+            <a href="{{ filter_urls.all }}" class="btn btn-sm {% if not presence %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                Tous ({{ presence_counts.all }})
+            </a>
+            <a href="{{ filter_urls.present }}" class="btn btn-sm {% if presence == 'present' %}btn-success{% else %}btn-outline-success{% endif %}">
+                <i class="bi bi-person-check"></i> Présents uniquement ({{ presence_counts.present }})
+            </a>
+            <a href="{{ filter_urls.absent }}" class="btn btn-sm {% if presence == 'absent' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+                Absents ({{ presence_counts.absent }})
+            </a>
+        </div>
+        {% if eposter_count %}
+        <div class="btn-group" role="group" aria-label="Filtre de profil">
+            <a href="{{ filter_urls.profile_all }}" class="btn btn-sm {% if not profile %}btn-dark{% else %}btn-outline-dark{% endif %}">
+                Tous les profils
+            </a>
+            <a href="{{ filter_urls.profile_eposter }}" class="btn btn-sm {% if profile == 'eposter' %}btn-dark{% else %}btn-outline-dark{% endif %}">
+                <i class="bi bi-easel"></i> Présentateurs ePoster ({{ eposter_count }})
+            </a>
+        </div>
+        {% endif %}
     </div>
 
     <form method="get" class="row g-2 mb-3">
         {% if presence %}<input type="hidden" name="presence" value="{{ presence }}">{% endif %}
+        {% if profile %}<input type="hidden" name="profile" value="{{ profile }}">{% endif %}
         <div class="col-md-8">
             <input type="text" class="form-control" name="search" placeholder="Rechercher par nom, e-mail ou badge..." value="{{ search }}">
         </div>
@@ -70,7 +83,7 @@
         </div>
         {% if search %}
         <div class="col-md-2">
-            <a href="?{% if presence %}presence={{ presence }}{% endif %}" class="btn btn-outline-secondary w-100">
+            <a href="{{ filter_urls.clear_search }}" class="btn btn-outline-secondary w-100">
                 <i class="bi bi-x-lg"></i> Effacer
             </a>
         </div>
@@ -134,6 +147,12 @@
             </div>
         </div>
 
+        <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" name="resend" value="1" id="resend-input">
+            <label class="form-check-label fw-bold" for="resend-input">Renvoyer même si déjà envoyée</label>
+            <div class="form-text">Sans cette option, les participants marqués « Déjà envoyée » sont ignorés. Cochez-la pour leur envoyer une nouvelle attestation (par ex. après une correction du modèle).</div>
+        </div>
+
         <button type="submit" class="btn btn-primary mt-3" id="submit-btn" disabled>
             <i class="bi bi-send"></i> Générer et envoyer
         </button>
@@ -168,7 +187,11 @@
             e.preventDefault();
             return;
         }
-        if (!confirm(`Générer et envoyer l'attestation à ${checked} participant(s) ? Un e-mail sera envoyé à chacun.`)) {
+        const resend = document.getElementById('resend-input').checked;
+        const message = resend
+            ? `Générer et envoyer l'attestation à ${checked} participant(s), y compris ceux qui l'ont déjà reçue ? Un nouvel e-mail sera envoyé à chacun.`
+            : `Générer et envoyer l'attestation à ${checked} participant(s) ? Un e-mail sera envoyé à chacun.`;
+        if (!confirm(message)) {
             e.preventDefault();
             return;
         }
