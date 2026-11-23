@@ -1226,6 +1226,39 @@ def registration_form_submissions(request, form_id):
     return render(request, 'dashboard/registration_form_submissions.html', context)
 
 
+def _apply_campaign_sheet(request, campaign):
+    """
+    Applies the campaign form's spreadsheet inputs to `campaign` (not
+    saved): a newly uploaded file replaces the stored columns/rows,
+    'remove_sheet' clears them, and 'sheet_email_column' picks which
+    column holds the e-mail. Returns an error message, or None.
+    """
+    from .campaign_sheet import parse_sheet, SheetError
+
+    upload = request.FILES.get('sheet_file')
+    if upload:
+        try:
+            columns, rows, email_column = parse_sheet(upload)
+        except SheetError as e:
+            return str(e)
+        campaign.sheet_filename = upload.name[:255]
+        campaign.sheet_columns = columns
+        campaign.sheet_rows = rows
+        campaign.sheet_email_column = email_column
+    elif request.POST.get('remove_sheet') == '1':
+        campaign.sheet_filename = ''
+        campaign.sheet_columns = []
+        campaign.sheet_rows = []
+        campaign.sheet_email_column = ''
+
+    chosen = request.POST.get('sheet_email_column', '')
+    if chosen and chosen in {c['key'] for c in campaign.sheet_columns}:
+        campaign.sheet_email_column = chosen
+    if campaign.sheet_columns and not campaign.sheet_email_column:
+        return "Choisissez la colonne qui contient les adresses e-mail."
+    return None
+
+
 @login_required
 def campaign_create(request):
     """Create a new email campaign"""
@@ -1252,10 +1285,17 @@ def campaign_create(request):
             campaign.builder_config = builder_config  # Save the Unlayer design JSON
             campaign.created_by = request.user
             campaign.status = 'draft'
+            sheet_error = _apply_campaign_sheet(request, campaign)
+            if sheet_error:
+                messages.error(request, sheet_error)
+                return redirect('dashboard:campaign_create')
             campaign.save()
             
             messages.success(request, f'Campagne « {campaign.name} » créée avec succès !')
-            messages.info(request, 'Étape suivante : ajoutez des destinataires à votre campagne.')
+            if campaign.sheet_rows:
+                messages.info(request, f'Étape suivante : choisissez les destinataires parmi les {len(campaign.sheet_rows)} ligne(s) du fichier « {campaign.sheet_filename} ».')
+            else:
+                messages.info(request, 'Étape suivante : ajoutez des destinataires à votre campagne.')
             return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
         else:
             messages.error(request, 'Veuillez corriger les erreurs ci-dessous.')
@@ -1354,6 +1394,10 @@ def campaign_edit(request, campaign_id):
             campaign.body_html = body_html
             campaign.body_text = body_text
             campaign.builder_config = builder_config  # Save the Unlayer design JSON
+            sheet_error = _apply_campaign_sheet(request, campaign)
+            if sheet_error:
+                messages.error(request, sheet_error)
+                return redirect('dashboard:campaign_edit', campaign_id=campaign.id)
             campaign.save()
             
             messages.success(request, f'Campagne « {campaign.name} » mise à jour avec succès !')
@@ -1441,8 +1485,24 @@ def campaign_detail(request, campaign_id):
     delivered_count = recipients.filter(status='delivered').count()
     failed_count = recipients.filter(status='failed').count()
     
+    # Spreadsheet rows to pick recipients from, each flagged with its
+    # e-mail (or '' if missing/invalid) and whether it's already added.
+    sheet_rows = []
+    if campaign.sheet_rows:
+        from .campaign_sheet import row_email
+        added = {e.lower() for e in recipients.values_list('email', flat=True)}
+        for index, row in enumerate(campaign.sheet_rows):
+            email = row_email(row, campaign.sheet_email_column)
+            sheet_rows.append({
+                'index': index,
+                'email': email,
+                'added': bool(email) and email in added,
+                'cells': [row.get(c['key'], '') for c in campaign.sheet_columns],
+            })
+
     context = {
         'campaign': campaign,
+        'sheet_rows': sheet_rows,
         'recipients': recipients,
         'recipient_count': recipients.count(),
         'pending_count': pending_count,
@@ -1758,11 +1818,100 @@ def campaign_import_form_submissions(request, campaign_id):
 
 
 @login_required
+def campaign_parse_sheet(request):
+    """
+    Reads an uploaded spreadsheet for the campaign form, before the
+    campaign is saved: returns its columns (the variables the e-mail can
+    use), the guessed e-mail column and the row count. Nothing is stored.
+    """
+    from django.http import JsonResponse
+    from .campaign_sheet import parse_sheet, row_email, SheetError
+
+    if request.method != 'POST' or 'sheet_file' not in request.FILES:
+        return JsonResponse({'success': False, 'error': 'Aucun fichier reçu.'}, status=400)
+    try:
+        columns, rows, email_column = parse_sheet(request.FILES['sheet_file'])
+    except SheetError as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    return JsonResponse({
+        'success': True,
+        'columns': columns,
+        'email_column': email_column,
+        'row_count': len(rows),
+        'valid_email_count': sum(1 for r in rows if row_email(r, email_column)),
+        'sample': rows[0] if rows else {},
+    })
+
+
+@login_required
+def campaign_add_sheet_recipients(request, campaign_id):
+    """
+    Adds the selected rows of the campaign's imported spreadsheet as
+    recipients (POST 'rows' = row indexes; 'all' = every row). Each
+    recipient keeps its row so the sheet's columns fill the e-mail's
+    variables. Rows without a valid e-mail, and e-mails already on the
+    campaign (or repeated in the sheet), are skipped.
+    """
+    from .models_email import EmailCampaign, EmailRecipient
+    from .campaign_sheet import row_email, row_name
+    import secrets
+
+    campaign = get_object_or_404(EmailCampaign, id=campaign_id)
+    if request.method != 'POST':
+        return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+    if campaign.status != 'draft':
+        messages.warning(request, 'Cette campagne a déjà été envoyée.')
+        return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+
+    rows = campaign.sheet_rows or []
+    if request.POST.get('all') == '1':
+        indexes = range(len(rows))
+    else:
+        indexes = []
+        for value in request.POST.getlist('rows'):
+            try:
+                i = int(value)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= i < len(rows):
+                indexes.append(i)
+
+    existing = {e.lower() for e in campaign.recipients.values_list('email', flat=True)}
+    new_recipients, skipped = [], 0
+    for i in indexes:
+        row = rows[i]
+        email = row_email(row, campaign.sheet_email_column)
+        if not email or email in existing:
+            skipped += 1
+            continue
+        existing.add(email)
+        new_recipients.append(EmailRecipient(
+            campaign=campaign,
+            email=email,
+            name=row_name(row)[:200],
+            data=row,
+            tracking_token=secrets.token_urlsafe(32),
+        ))
+    if new_recipients:
+        EmailRecipient.objects.bulk_create(new_recipients)
+    campaign.recipient_count = campaign.recipients.count()
+    campaign.save(update_fields=['recipient_count', 'updated_at'])
+
+    if new_recipients:
+        messages.success(request, f'{len(new_recipients)} destinataire(s) ajouté(s) depuis le fichier.')
+    elif not indexes:
+        messages.warning(request, 'Aucune ligne sélectionnée.')
+    if skipped:
+        messages.info(request, f'{skipped} ligne(s) ignorée(s) (déjà ajoutée(s) ou e-mail manquant/invalide).')
+    return redirect('dashboard:campaign_detail', campaign_id=campaign.id)
+
+
+@login_required
 def campaign_send_test(request, campaign_id):
     """Send a test email for a campaign using configured SMTP backend."""
     from .models_email import EmailCampaign, EmailRecipient
     from .email_sender import send_email
-    from .utils_campaign import build_recipient_context, replace_variables as utils_replace_vars
+    from .utils_campaign import build_campaign_context, replace_variables as utils_replace_vars
     from django.http import JsonResponse
     import json
     
@@ -1776,15 +1925,19 @@ def campaign_send_test(request, campaign_id):
             if not test_email:
                 return JsonResponse({'success': False, 'error': 'Email address is required'})
             
-            # Create a temporary recipient object to use build_recipient_context
-            temp_recipient = EmailRecipient(
-                campaign=campaign,
-                email=test_email,
-                name='Test User'
-            )
-            
-            # Build context with real form data if available
-            context = build_recipient_context(temp_recipient, campaign)
+            # The test e-mail is filled with a real recipient's variables
+            # (their spreadsheet row / registration answers) when there is
+            # one, else the first spreadsheet row, so it shows what
+            # recipients will actually receive.
+            sample = campaign.recipients.order_by('created_at').first()
+            if sample is None:
+                sample = EmailRecipient(
+                    campaign=campaign,
+                    email=test_email,
+                    name='Test User',
+                    data=campaign.sheet_rows[0] if campaign.sheet_rows else {},
+                )
+            context = build_campaign_context(sample, campaign)
             
             # Replace template variables using utils function
             subject = utils_replace_vars(campaign.subject, context)
@@ -1833,7 +1986,7 @@ def campaign_send(request, campaign_id):
     """
     from .models_email import EmailCampaign, EmailRecipient
     from .postmark_client import get_postmark_client
-    from .utils_campaign import build_recipient_context, replace_variables as utils_replace_vars
+    from .utils_campaign import build_campaign_context, replace_variables as utils_replace_vars
     from django.http import JsonResponse
 
     BATCH_SIZE = 10
@@ -1870,8 +2023,8 @@ def campaign_send(request, campaign_id):
 
         for recipient in batch:
             try:
-                context = build_recipient_context(recipient.email, campaign.event)
-                recipient_name = context.get('first_name', '') or recipient.name or recipient.email.split('@')[0]
+                context = build_campaign_context(recipient, campaign)
+                recipient_name = context.get('name') or recipient.name or recipient.email.split('@')[0]
 
                 subject = utils_replace_vars(campaign.subject, context)
                 body_html = utils_replace_vars(campaign.body_html or campaign.body_text, context)

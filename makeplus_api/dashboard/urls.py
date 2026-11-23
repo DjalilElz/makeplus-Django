@@ -110,6 +110,8 @@ urlpatterns = [
     path('campaigns/<uuid:campaign_id>/add-recipient/', views_email.campaign_add_recipient, name='campaign_add_recipient'),
     path('campaigns/<uuid:campaign_id>/bulk-add-recipients/', views_email.campaign_bulk_add_recipients, name='campaign_bulk_add_recipients'),
     path('campaigns/<uuid:campaign_id>/import-form-submissions/', views_email.campaign_import_form_submissions, name='campaign_import_form_submissions'),
+    path('campaigns/<uuid:campaign_id>/add-sheet-recipients/', views_email.campaign_add_sheet_recipients, name='campaign_add_sheet_recipients'),
+    path('campaigns/parse-sheet/', views_email.campaign_parse_sheet, name='campaign_parse_sheet'),
     path('campaigns/<uuid:campaign_id>/recipients/<uuid:recipient_id>/delete/', views_email.campaign_delete_recipient, name='campaign_delete_recipient'),
 
     

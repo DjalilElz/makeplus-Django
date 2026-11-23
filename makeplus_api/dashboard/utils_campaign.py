@@ -108,6 +108,25 @@ def build_recipient_context(recipient_email, event):
     return context
 
 
+def build_campaign_context(recipient, campaign):
+    """
+    Variables for one recipient of a campaign: the event's variables and
+    registration-form answers (when the campaign is linked to an event),
+    then -- taking precedence -- the recipient's own row from the
+    campaign's imported spreadsheet, if they came from one.
+    """
+    from .campaign_sheet import row_variables
+
+    context = build_recipient_context(recipient.email, campaign.event)
+    context.setdefault('name', '')
+    if not context['name']:
+        full = f"{context.get('first_name', '')} {context.get('last_name', '')}".strip()
+        context['name'] = full or recipient.name or ''
+    if recipient.data:
+        context.update(row_variables(recipient.data))
+    return context
+
+
 def replace_variables(content, context):
     """
     Replace variables in content with actual values

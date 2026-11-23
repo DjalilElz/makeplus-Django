@@ -149,6 +149,71 @@
         </div>
     </div>
     
+    {% if sheet_rows %}
+    <!-- Spreadsheet rows: pick who receives the campaign -->
+    <div class="card mb-3">
+        <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0">
+                    <i class="bi bi-file-earmark-spreadsheet text-success"></i>
+                    Fichier : {{ campaign.sheet_filename }} ({{ sheet_rows|length }} ligne{{ sheet_rows|length|pluralize }})
+                </h5>
+                <span class="small text-muted">Chaque colonne est disponible comme variable dans l'e-mail.</span>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if campaign.status == 'draft' %}
+            <form method="post" action="{% url 'dashboard:campaign_add_sheet_recipients' campaign.id %}" id="sheetRecipientsForm">
+                {% csrf_token %}
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                    <input type="search" class="form-control form-control-sm" style="max-width: 280px;" id="sheetSearch" placeholder="Filtrer les lignes…">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="sheetSelectVisible">Tout sélectionner (lignes affichées)</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="sheetSelectNone">Tout désélectionner</button>
+                    <span class="small text-muted ms-auto"><strong id="sheetSelectedCount">0</strong> sélectionnée(s)</span>
+                    <button type="submit" class="btn btn-sm btn-primary" id="sheetAddSelected" disabled>
+                        <i class="bi bi-person-plus"></i> Ajouter la sélection
+                    </button>
+                    <button type="submit" class="btn btn-sm btn-outline-primary" name="all" value="1"
+                            onclick="return confirm('Ajouter toutes les lignes du fichier ayant un e-mail valide ?')">
+                        Ajouter toutes les lignes
+                    </button>
+                </div>
+            {% endif %}
+                <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                            <tr>
+                                <th style="width: 36px;"></th>
+                                {% for col in campaign.sheet_columns %}<th>{{ col.label }}</th>{% endfor %}
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in sheet_rows %}
+                            <tr class="sheet-row">
+                                <td>
+                                    {% if campaign.status == 'draft' and row.email and not row.added %}
+                                    <input type="checkbox" class="form-check-input sheet-check" name="rows" value="{{ row.index }}">
+                                    {% endif %}
+                                </td>
+                                {% for cell in row.cells %}<td>{{ cell }}</td>{% endfor %}
+                                <td>
+                                    {% if row.added %}<span class="badge bg-success">Ajouté</span>
+                                    {% elif not row.email %}<span class="badge bg-warning text-dark">E-mail manquant ou invalide</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% if campaign.status == 'draft' %}
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Recipients Management -->
     <div class="card">
         <div class="card-header bg-white">
@@ -366,4 +431,34 @@ function openFullPreview() {
     </div>
 </div>
 
+<script>
+(function() {
+    const form = document.getElementById('sheetRecipientsForm');
+    if (!form) return;
+    const rows = Array.from(document.querySelectorAll('.sheet-row'));
+    const countEl = document.getElementById('sheetSelectedCount');
+    const addBtn = document.getElementById('sheetAddSelected');
+    function refresh() {
+        const n = form.querySelectorAll('.sheet-check:checked').length;
+        countEl.textContent = n;
+        addBtn.disabled = n === 0;
+    }
+    form.addEventListener('change', e => { if (e.target.classList.contains('sheet-check')) refresh(); });
+    document.getElementById('sheetSearch').addEventListener('input', function() {
+        const q = this.value.trim().toLowerCase();
+        rows.forEach(r => { r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+    });
+    document.getElementById('sheetSelectVisible').addEventListener('click', () => {
+        rows.forEach(r => {
+            const cb = r.querySelector('.sheet-check');
+            if (cb && r.style.display !== 'none') cb.checked = true;
+        });
+        refresh();
+    });
+    document.getElementById('sheetSelectNone').addEventListener('click', () => {
+        form.querySelectorAll('.sheet-check').forEach(cb => { cb.checked = false; });
+        refresh();
+    });
+})();
+</script>
 {% endblock %}

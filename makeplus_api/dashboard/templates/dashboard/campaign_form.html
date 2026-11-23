@@ -103,8 +103,9 @@
 {% endblock %}
 
 {% block content %}
+{% if campaign.sheet_columns %}{{ campaign.sheet_columns|json_script:"sheet-columns-data" }}{% endif %}
 <div class="container-fluid">
-    <form method="post" id="campaignForm">
+    <form method="post" id="campaignForm" enctype="multipart/form-data">
         {% csrf_token %}
         <input type="hidden" name="body_html" id="body_html">
         <input type="hidden" name="builder_config" id="builder_config">
@@ -223,6 +224,39 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Optional spreadsheet: its columns become variables, its rows the recipients to pick from -->
+                    <div class="border rounded p-3 bg-light">
+                        <label for="sheetFileInput" class="form-label fw-bold mb-1">
+                            <i class="bi bi-file-earmark-spreadsheet text-success"></i> Fichier Excel (optionnel)
+                        </label>
+                        <p class="small text-muted mb-2">
+                            Importez un fichier .xlsx ou .csv : la première ligne donne les noms des colonnes, chaque colonne devient une variable
+                            (ex. « Spécialité » → {% verbatim %}{{specialite}}{% endverbatim %}) et vous choisirez ensuite à quelles lignes envoyer la campagne.
+                            Vous pouvez le combiner avec un événement.
+                        </p>
+                        {% if campaign.sheet_filename %}
+                        <div class="small mb-2" id="currentSheetInfo">
+                            Fichier actuel : <strong>{{ campaign.sheet_filename }}</strong> ({{ campaign.sheet_rows|length }} ligne{{ campaign.sheet_rows|length|pluralize }})
+                            <div class="form-check d-inline-block ms-3">
+                                <input class="form-check-input" type="checkbox" name="remove_sheet" value="1" id="removeSheetInput">
+                                <label class="form-check-label" for="removeSheetInput">Retirer le fichier</label>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-7">
+                                <input type="file" class="form-control" name="sheet_file" id="sheetFileInput" accept=".xlsx,.xlsm,.csv">
+                            </div>
+                            <div class="col-md-5">
+                                <label for="sheetEmailColumn" class="form-label small mb-1">Colonne des e-mails</label>
+                                <select class="form-select" name="sheet_email_column" id="sheetEmailColumn">
+                                    <option value="">—</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="small mt-2" id="sheetStatus"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -259,6 +293,9 @@
                         
                         <!-- Dynamic Registration Fields -->
                         <div id="dynamicFieldsContainer"></div>
+
+                        <!-- Spreadsheet columns -->
+                        <div id="sheetFieldsContainer"></div>
                     </div>
                 </div>
             </div>
@@ -599,6 +636,84 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // ---- Spreadsheet import: columns as variables ----
+    const sheetFileInput = document.getElementById('sheetFileInput');
+    const sheetEmailColumn = document.getElementById('sheetEmailColumn');
+    const sheetStatus = document.getElementById('sheetStatus');
+    const sheetFieldsContainer = document.getElementById('sheetFieldsContainer');
+
+    function renderSheetColumns(columns, emailColumn, title) {
+        sheetEmailColumn.innerHTML = '<option value="">—</option>';
+        sheetFieldsContainer.innerHTML = '';
+        if (!columns || !columns.length) return;
+
+        columns.forEach(col => {
+            const opt = document.createElement('option');
+            opt.value = col.key;
+            opt.textContent = col.label;
+            if (col.key === emailColumn) opt.selected = true;
+            sheetEmailColumn.appendChild(opt);
+        });
+
+        const heading = document.createElement('h6');
+        heading.className = 'small fw-bold text-success mb-2';
+        heading.textContent = 'Colonnes du fichier' + (title ? ' (' + title + ')' : '');
+        const box = document.createElement('div');
+        box.className = 'mb-3';
+        columns.forEach(col => {
+            const varName = '{' + '{' + col.key + '}' + '}';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline-secondary w-100 mb-1 variable-btn';
+            btn.dataset.var = varName;
+            btn.title = col.label;
+            btn.textContent = varName;
+            box.appendChild(btn);
+        });
+        sheetFieldsContainer.appendChild(heading);
+        sheetFieldsContainer.appendChild(box);
+        setupVariableButtons();
+    }
+
+    {% if campaign.sheet_columns %}
+    renderSheetColumns(
+        JSON.parse(document.getElementById('sheet-columns-data').textContent),
+        '{{ campaign.sheet_email_column|escapejs }}',
+        '{{ campaign.sheet_filename|escapejs }}'
+    );
+    {% endif %}
+
+    if (sheetFileInput) {
+        sheetFileInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (!file) return;
+            sheetStatus.className = 'small mt-2 text-muted';
+            sheetStatus.textContent = 'Lecture du fichier…';
+            const data = new FormData();
+            data.append('sheet_file', file);
+            data.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            fetch('{% url "dashboard:campaign_parse_sheet" %}', { method: 'POST', body: data })
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        sheetStatus.className = 'small mt-2 text-danger';
+                        sheetStatus.textContent = res.error || 'Fichier illisible.';
+                        sheetFileInput.value = '';
+                        return;
+                    }
+                    renderSheetColumns(res.columns, res.email_column, file.name);
+                    sheetStatus.className = 'small mt-2 text-success';
+                    sheetStatus.textContent = res.row_count + ' ligne(s), ' + res.valid_email_count
+                        + ' avec un e-mail valide. Les colonnes sont ajoutées aux variables à gauche.'
+                        + (res.email_column ? '' : ' Choisissez la colonne des e-mails.');
+                })
+                .catch(() => {
+                    sheetStatus.className = 'small mt-2 text-danger';
+                    sheetStatus.textContent = 'Erreur lors de la lecture du fichier.';
+                });
+        });
+    }
+
     // Load dynamic registration fields for selected event
     function loadDynamicFields(eventId) {
         fetch(`/dashboard/events/${eventId}/registration-fields/`)

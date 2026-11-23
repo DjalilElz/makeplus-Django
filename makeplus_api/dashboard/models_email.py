@@ -229,6 +229,15 @@ class EmailCampaign(models.Model):
     # kept only so old rows written while this app used Brevo still read back fine)
     external_campaign_id = models.CharField(max_length=100, blank=True, help_text="Legacy Brevo campaign ID, unused")
     
+    # Optional imported spreadsheet (Excel/CSV): its columns become
+    # {{variables}} and its rows the pool recipients are picked from.
+    # columns: [{"key": "specialite", "label": "Spécialité"}, ...];
+    # rows: [{"specialite": "...", ...}, ...] keyed by column key.
+    sheet_filename = models.CharField(max_length=255, blank=True)
+    sheet_columns = models.JSONField(default=list, blank=True)
+    sheet_rows = models.JSONField(default=list, blank=True)
+    sheet_email_column = models.CharField(max_length=100, blank=True)
+
     # Tracking
     track_opens = models.BooleanField(default=True, help_text="Track email opens")
     track_clicks = models.BooleanField(default=True, help_text="Track link clicks")
@@ -301,7 +310,10 @@ class EmailRecipient(models.Model):
     email = models.EmailField(max_length=200)
     name = models.CharField(max_length=200, blank=True)
     participant = models.ForeignKey(Participant, on_delete=models.SET_NULL, null=True, blank=True)
-    
+    # This recipient's row from the campaign's imported spreadsheet, keyed
+    # by column key -- used as {{variables}} when sending.
+    data = models.JSONField(default=dict, blank=True)
+
     # Tracking tokens
     tracking_token = models.CharField(max_length=64, unique=True, db_index=True)
     
