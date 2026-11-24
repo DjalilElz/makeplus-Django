@@ -330,6 +330,16 @@ def _mark_participant_present(participant, event):
     # First arrival only: e-mail the attestation if the event opted in
     # (never blocks or fails the caisse action itself).
     if newly_present:
+        # Registration finalized at the reception: the "Confirmation"
+        # e-mail (event's order_confirmation template).
+        try:
+            from caisse.services import queue_presence_confirmation_email
+            queue_presence_confirmation_email(participant, event)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(
+                f"[CAISSE] Could not queue confirmation email for participant {participant.id}: {e}"
+            )
         try:
             from dashboard.attestation_service import queue_presence_attestation
             queue_presence_attestation(participant, event)

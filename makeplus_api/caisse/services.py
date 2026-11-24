@@ -274,17 +274,54 @@ def _send_confirmation_email(order):
     """
     if not order.email:
         return
+    send_registration_confirmed_email(order.event, order.email, order.full_name, log_ref=f'order {order.id}')
 
+
+def queue_presence_confirmation_email(participant, event):
+    """
+    The "Confirmation" (order_confirmation) e-mail, sent when the caisse
+    marks a participant present for the first time (a transaction or
+    "Marquer comme présent"): that's when the registration is finalized.
+    Runs in a background thread so the caisse never waits on the e-mail
+    provider; failures are only logged.
+    """
+    email = (participant.user.email or '').strip()
+    if not email:
+        return
+    from dashboard.models_blocs import RegistrationOrder
+    order = (
+        RegistrationOrder.objects.filter(event=event, participant=participant)
+        .exclude(status='rejected').order_by('-created_at').first()
+    )
+    full_name = (order.full_name if order and order.full_name else '') or participant.user.get_full_name()
+
+    import threading
+
+    def _run():
+        from django.db import connection
+        try:
+            send_registration_confirmed_email(event, email, full_name, log_ref=f'participant {participant.id}')
+        finally:
+            connection.close()
+
+    threading.Thread(target=_run, args=(), daemon=True).start()
+
+
+def send_registration_confirmed_email(event, email, full_name, log_ref=''):
+    """
+    Sends the event's "Confirmation" e-mail (its 'order_confirmation'
+    EventEmailTemplate if the admin customized it, else a default) to one
+    person. Never raises.
+    """
     from dashboard.models_email import get_event_email_template
 
-    event = order.event
     template = get_event_email_template(event, 'order_confirmation')
 
     if template:
         subject = template.subject
         html_content = template.body_html or template.body
         replacements = {
-            '{{participant_name}}': order.full_name or '',
+            '{{participant_name}}': full_name or '',
             '{{event_name}}': event.name,
         }
         for key, value in replacements.items():
@@ -295,7 +332,7 @@ def _send_confirmation_email(order):
         html_content = f"""
         <html>
         <body style="font-family: Arial, sans-serif; color: #1a1a1a; line-height: 1.5;">
-            <p>Bonjour {order.full_name or ''},</p>
+            <p>Bonjour {full_name or ''},</p>
             <p>Nous vous confirmons que votre inscription à <strong>{event.name}</strong> est validée.</p>
             <p>Nous avons hâte de vous accueillir.</p>
             <p>Cordialement,<br>L'équipe {event.name}</p>
@@ -305,20 +342,15 @@ def _send_confirmation_email(order):
 
     try:
         success, error, _ = send_email(
-            to_email=order.email,
+            to_email=email,
             subject=subject,
             html_content=html_content,
-            to_name=order.full_name or None,
+            to_name=full_name or None,
         )
         if not success:
-            logger.warning(
-                '[OWNER CONFIRM] Confirmation email to %s failed for order %s: %s',
-                order.email, order.id, error,
-            )
+            logger.warning('[CONFIRMATION] Confirmation email to %s failed (%s): %s', email, log_ref, error)
     except Exception:
-        logger.exception(
-            '[OWNER CONFIRM] Unexpected error sending confirmation email for order %s', order.id,
-        )
+        logger.exception('[CONFIRMATION] Unexpected error sending confirmation email to %s (%s)', email, log_ref)
 
 
 def _revoke_session_access_for_order(order):

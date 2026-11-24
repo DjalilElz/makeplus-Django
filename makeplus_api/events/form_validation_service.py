@@ -182,82 +182,11 @@ def _send_registration_confirmation_email_now(user, event):
         connection.close()
 
 
-# Order of the sections in the "Votre inscription" summary, and their labels.
-_SUMMARY_BLOCS = [
-    ('status', 'Statut'),
-    ('workshops', 'Ateliers'),
-    ('restauration', 'Restauration'),
-    ('social_event', 'Événement social'),
-]
-
-
-def _registration_summary_html(user, event):
-    """
-    The "Votre inscription" block of the confirmation email: EVERYTHING
-    the participant is registered for at this event (status, every
-    workshop, restauration, social event -- not just the status), read
-    from their latest non-cancelled RegistrationOrder, plus the amount and
-    whether it's still due. Empty string when the event has no blocs or
-    the person has no order (a plain registration without any choice).
-    """
-    from django.utils.html import escape
-    from dashboard.models_blocs import RegistrationOrder
-
-    if event is None:
-        return ''
-    order = (
-        RegistrationOrder.objects.filter(event=event, participant__user=user)
-        .exclude(status='rejected').select_related('sponsor').order_by('-created_at').first()
-    )
-    if order is None or not order.items_snapshot:
-        return ''
-
-    names_by_bloc = {}
-    for entry in order.items_snapshot:
-        name = entry.get('name')
-        if name:
-            names_by_bloc.setdefault(entry.get('bloc') or '', []).append(name)
-
-    known = {key for key, _label in _SUMMARY_BLOCS}
-    sections = [(label, names_by_bloc[key]) for key, label in _SUMMARY_BLOCS if names_by_bloc.get(key)]
-    sections += [('Autres', names) for key, names in names_by_bloc.items() if key not in known]
-    if not sections:
-        return ''
-
-    cell = 'padding:10px 0; border-top:1px solid #eeeeee; font-size:14px; line-height:1.5; vertical-align:top;'
-    rows = ''.join(
-        f'<tr><td style="{cell} color:#767676; width:38%; padding-right:12px;">{escape(label)}</td>'
-        f'<td style="{cell} color:#1a1a1a;">{"<br>".join(escape(n) for n in names)}</td></tr>'
-        for label, names in sections
-    )
-
-    total = order.total_after_reduction or 0
-    if total > 0:
-        amount = f"{total:,.2f}".replace(',', ' ') + ' DZD'
-        if order.status == 'approved':
-            how = {
-                'cash': ' en espèces',
-                'bank_transfer': ' par virement bancaire',
-                'sponsoring': f' &mdash; pris en charge par {escape(order.sponsor.name)}' if order.sponsor_id else ' &mdash; pris en charge',
-            }.get(order.payment_mode, '')
-            payment = f'{amount} &mdash; <span style="color:#0f5132;">réglé{how}</span>'
-        else:
-            payment = f'{amount} &mdash; <span style="color:#842029;">à régler à la caisse</span>'
-        if order.total_discount_percent:
-            payment += f' <span style="color:#767676;">(réduction de {order.total_discount_percent:g} % incluse)</span>'
-        rows += (f'<tr><td style="{cell} color:#767676; padding-right:12px;">Montant</td>'
-                 f'<td style="{cell} color:#1a1a1a; font-weight:600;">{payment}</td></tr>')
-
-    return (
-        '<h2 style="font-size:15px; font-weight:600; margin:0 0 4px 0; color:#1a1a1a;">Votre inscription</h2>'
-        f'<table role="presentation" style="width:100%; border-collapse:collapse; margin:0 0 32px 0;">{rows}</table>'
-    )
-
-
 def build_registration_confirmation_email(user, event):
     """Returns (subject, html_content, qr_png_bytes, recipient_name) for
-    the registration confirmation email -- the QR code to present at
-    check-in plus the full summary of what the person registered for."""
+    the automatic reply sent after registration ("préinscription"): the
+    QR code to present at the congress reception to finalize the
+    registration and collect the badge."""
     import io
     import qrcode
     from django.utils.html import escape
@@ -276,34 +205,32 @@ def build_registration_confirmation_email(user, event):
 
     full_name = user.get_full_name().strip() or user.email
     event_name = event.name if event else ''
-    intro = (f'votre inscription à <strong>{escape(event_name)}</strong> est confirmée.'
-             if event_name else 'votre inscription est confirmée.')
-    summary = _registration_summary_html(user, event)
+    event_html = f'<strong>{escape(event_name)}</strong>' if event_name else "l'événement"
 
-    subject = f"Inscription confirmée - {event_name}" if event_name else "Inscription confirmée"
+    subject = (f"Confirmation de votre préinscription – {event_name}"
+               if event_name else "Confirmation de votre préinscription")
     html_content = f"""
     <html>
     <body style="margin:0; padding:0; background-color:#ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#1a1a1a;">
-        <div style="max-width: 480px; margin: 0 auto; padding: 48px 24px;">
-            <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 24px 0; color:#1a1a1a;">Inscription confirmée</h1>
+        <div style="max-width: 480px; margin: 0 auto; padding: 48px 24px; font-size: 15px; line-height: 1.6;">
+            <p style="margin: 0 0 16px 0;">Bonjour {escape(full_name)},</p>
 
-            <p style="font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
-                Bonjour {escape(full_name)}, {intro}
+            <p style="margin: 0 0 16px 0;">
+                Votre demande de préinscription au {event_html} a bien été enregistrée.
             </p>
 
-            <div style="text-align: center; padding: 24px 0; margin: 0 0 16px 0; border: 1px solid #e5e5e5; border-radius: 8px;">
+            <p style="margin: 0 0 24px 0;">
+                Merci de présenter le QR code ci-dessous à la réception du congrès pour finaliser
+                votre inscription et retirer votre badge :
+            </p>
+
+            <div style="text-align: center; padding: 24px 0; margin: 0 0 24px 0; border: 1px solid #e5e5e5; border-radius: 8px;">
                 <img src="cid:qrcode" alt="QR code" width="200" height="200" style="display:block; margin:0 auto; width:200px; height:200px;">
             </div>
 
-            <p style="font-size: 14px; line-height: 1.6; color:#4a4a4a; margin: 0 0 32px 0; text-align:center;">
-                Présentez ce code QR à l'accueil pour le contrôle d'accès.
-            </p>
+            <p style="margin: 0 0 24px 0;">Au plaisir de vous accueillir !</p>
 
-            {summary}
-
-            <p style="font-size: 14px; color:#767676; margin: 0; border-top: 1px solid #e5e5e5; padding-top: 24px;">
-                Cordialement,<br>L'équipe MakePlus
-            </p>
+            <p style="margin: 0;">Le Comité d'Organisation</p>
         </div>
     </body>
     </html>

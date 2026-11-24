@@ -1019,6 +1019,10 @@ class PresenceAttestationAndBadgePrintTests(TestCase):
         self.send_mock = self.send_patch.start()
         self.addCleanup(self.thread_patch.stop)
         self.addCleanup(self.send_patch.stop)
+        # The "Confirmation" e-mail also goes out on first presence.
+        self.confirm_patch = mock.patch('caisse.services.send_email', return_value=(True, None, 'id'))
+        self.confirm_mock = self.confirm_patch.start()
+        self.addCleanup(self.confirm_patch.stop)
 
     @classmethod
     def tearDownClass(cls):
@@ -1108,3 +1112,48 @@ class PresenceAttestationAndBadgePrintTests(TestCase):
         self.assertContains(response, 'Réimpression n° 1')
         self.assertContains(self.client.get(reverse('caisse:badge_prints'), {'q': 'amina'}), 'Réimpression n° 1')
         self.assertNotContains(self.client.get(reverse('caisse:badge_prints'), {'q': 'nobody'}), 'Réimpression n°')
+
+
+class PresenceConfirmationEmailTests(PresenceAttestationAndBadgePrintTests):
+    """First presence at the caisse sends the "Confirmation" e-mail, once."""
+
+    def test_first_presence_sends_confirmation_once(self):
+        self._mark_present()
+        self.assertEqual(self.confirm_mock.call_count, 1)
+        kwargs = self.confirm_mock.call_args.kwargs
+        self.assertEqual(kwargs['to_email'], 'amina@example.com')
+        self.assertIn('Congress', kwargs['subject'])
+        self.assertIn('Amina B', kwargs['html_content'])
+        self._mark_present()
+        self.assertEqual(self.confirm_mock.call_count, 1)
+
+    def test_uses_the_event_confirmation_template(self):
+        from dashboard.models_email import EventEmailTemplate
+        EventEmailTemplate.objects.create(
+            event=self.event, name='Confirmation', template_type='order_confirmation',
+            subject='Bienvenue {{participant_name}}', body='x',
+            body_html='<p>{{participant_name}} est inscrit à {{event_name}}</p>',
+        )
+        self._mark_present()
+        kwargs = self.confirm_mock.call_args.kwargs
+        self.assertEqual(kwargs['subject'], 'Bienvenue Amina B')
+        self.assertEqual(kwargs['html_content'], '<p>Amina B est inscrit à Congress</p>')
+
+
+class PreRegistrationEmailTests(TestCase):
+    def test_text_matches_the_requested_wording(self):
+        from events.form_validation_service import build_registration_confirmation_email
+        event = Event.objects.create(name='31e Congrès SANDT', start_date=timezone.now(),
+                                     end_date=timezone.now() + timedelta(days=1), location='Oran')
+        user = User.objects.create_user(username='lina', email='lina@example.com', password='x',
+                                        first_name='Lina', last_name='Saidi')
+        create_participant_for_event(user, event)
+        subject, html, qr_png, name = build_registration_confirmation_email(user, event)
+        self.assertEqual(subject, 'Confirmation de votre préinscription – 31e Congrès SANDT')
+        self.assertIn('Bonjour Lina Saidi,', html)
+        self.assertIn('Votre demande de préinscription au <strong>31e Congrès SANDT</strong> a bien été enregistrée.', html)
+        self.assertIn('à la réception du congrès pour finaliser', html)
+        self.assertIn('cid:qrcode', html)
+        self.assertIn('Au plaisir de vous accueillir !', html)
+        self.assertIn("Le Comité d'Organisation", html)
+        self.assertEqual(qr_png[1:4], b"PNG")

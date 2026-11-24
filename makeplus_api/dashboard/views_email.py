@@ -68,8 +68,9 @@ EMAIL_TEMPLATE_KINDS = {
     'order_confirmation': {
         'button_label': 'Confirmation',
         'description': (
-            "Envoyé automatiquement quand une inscription passe au statut "
-            "« Confirmée » (paiement réel enregistré)."
+            "Envoyé automatiquement quand le participant est marqué présent à la "
+            "caisse (transaction ou « Marquer comme présent », une seule fois), et "
+            "quand une inscription est confirmée depuis la page des inscriptions."
         ),
         'variables': ['{{participant_name}}', '{{event_name}}'],
         'default_subject': 'Votre inscription à {{event_name}} est confirmée',
